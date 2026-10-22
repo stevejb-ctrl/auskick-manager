@@ -6,7 +6,7 @@
 // state chips, the same swap handover. Row 1 is the line or position
 // (G / F, or PG … C) and #number with any status chip, row 2 the name,
 // row 3 the time bar (time at guard and forward) and the time. What's
-// basketball's own: the foul count (●●●○○, amber at one short of
+// basketball's own: the foul chip (nF, amber two and one short of
 // fouling out), FOUL OUT, and a sit-out's countdown.
 
 import { memo, useEffect, useRef, useState } from "react";
@@ -144,7 +144,17 @@ function BasketballPlayerTileImpl({
   const showPairNumber = (swap?.totalPairs ?? 0) > 1;
   const hasPoints = (points ?? 0) > 0;
   const foulCount = fouls ?? 0;
-  const foulTrouble = fouls !== null && foulOutAt > 1 && foulCount >= foulOutAt - 1 && !fouledOut;
+  // The foul chip (Steve 2026-10-21: "show a chip … how many fouls a
+  // player has"): muted while it's early, amber two short of fouling out,
+  // solid one short, red at the limit (FOUL OUT once it's recorded).
+  const foulTone =
+    foulCount >= foulOutAt
+      ? "bg-surface text-danger ring-1 ring-inset ring-danger"
+      : foulOutAt > 1 && foulCount >= foulOutAt - 1
+        ? "bg-due text-white"
+        : foulOutAt > 2 && foulCount >= foulOutAt - 2
+          ? "bg-due-tint text-due"
+          : "bg-well text-ink-dim";
 
   const baseBg = selected
     ? "bg-brand-50 ring-2 ring-brand-500 shadow-pop"
@@ -271,6 +281,15 @@ function BasketballPlayerTileImpl({
                 {points}P
               </span>
             )}
+            {fouls !== null && !fouledOut && (
+              <span
+                data-testid={`fouls-${player.id}`}
+                className={`${CHIP} nums ${foulTone}`}
+                aria-label={`${foulCount} ${foulCount === 1 ? "foul" : "fouls"}`}
+              >
+                {foulCount}F
+              </span>
+            )}
             {fouledOut ? (
               <span className={`${CHIP} bg-danger tracking-micro text-white`} aria-label="Fouled out">
                 FOUL OUT
@@ -329,7 +348,7 @@ function BasketballPlayerTileImpl({
             </span>
           )}
 
-          {/* Row 3 · time at guard and forward, the fouls, then the time. */}
+          {/* Row 3 · time at guard and forward, then the time. */}
           {totalMs !== undefined && (
             <span className="flex h-4 items-center gap-2">
               <span
@@ -351,15 +370,6 @@ function BasketballPlayerTileImpl({
                     ));
                   })()}
               </span>
-              {fouls !== null && foulCount > 0 && (
-                <span
-                  data-testid={`fouls-${player.id}`}
-                  className={`nums font-mono text-[10px] font-bold leading-4 tabular-nums ${foulTrouble ? "text-due" : "text-ink-dim"}`}
-                  aria-label={`${foulCount} ${foulCount === 1 ? "foul" : "fouls"}`}
-                >
-                  {foulCount}F
-                </span>
-              )}
               <span className="nums font-mono text-xs font-semibold tabular-nums text-ink">{formatMinSec(totalMs)}</span>
             </span>
           )}

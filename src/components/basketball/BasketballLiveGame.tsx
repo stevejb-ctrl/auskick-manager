@@ -25,12 +25,13 @@
 // Every write goes through the shared write queue (registerLiveActions)
 // in the one game lane, so the event log keeps the coach's order.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SFButton } from "@/components/sf";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
+import { QuarterKickoffBar } from "@/components/quarter-break/QuarterKickoffBar";
 import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
 import { ClockMenu } from "@/components/live/ClockMenu";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
@@ -95,6 +96,7 @@ import {
 import { BasketballCourt } from "./BasketballCourt";
 import { BasketballBench } from "./BasketballBench";
 import { BasketballScoreBug } from "./BasketballScoreBug";
+import { BreakScoreRow } from "./BreakScoreRow";
 import { BasketballFullTimeReview, BasketballGameSummaryCard } from "./BasketballFullTime";
 import {
   BASKETBALL_LINE_LABEL,
@@ -208,6 +210,7 @@ export function BasketballLiveGame({
   const [endConfirmOpen, setEndConfirmOpen] = useState(false);
   const [startConfirmOpen, setStartConfirmOpen] = useState(false);
   const [scorerPoints, setScorerPoints] = useState<Points | null>(null);
+  const [showBreakScore, setShowBreakScore] = useState(false);
   const [actionPlayerId, setActionPlayerId] = useState<string | null>(null);
   const [fillLine, setFillLine] = useState<BasketballLine | null>(null);
   const [leaving, setLeaving] = useState<{
@@ -354,14 +357,21 @@ export function BasketballLiveGame({
     anchorMs,
     elapsedMs,
   });
-  const nextSubs = useMemo(
-    () =>
-      isPeriodActive
-        ? suggestBasketballSubs({ state, nowMs: absNowMs, strategy, prefs, season, foulOutAt: trackFouls ? ageGroup.foulOutAt : 0 })
-        : [],
+  const msUntilDue = subDue.msUntilDue;
+  const nextSubs = useMemo(() => {
+    if (!isPeriodActive) return [];
+    const opts = { strategy, prefs, season, foulOutAt: trackFouls ? ageGroup.foulOutAt : 0 };
+    const now = suggestBasketballSubs({ state, nowMs: absNowMs, ...opts });
+    if (now.length > 0 || msUntilDue === null || msUntilDue <= 0) return now;
+    // Nothing evens time yet, so show the subs due at the next sub time
+    // (Steve 2026-10-21: "I did one sub and now no more upcoming subs
+    // show"). Kids who just came on need time before anyone on the bench
+    // is owed theirs, and a kid who plays one line only waits for it.
+    const aheadMs = Math.min(periodMs, elapsedMs + msUntilDue);
+    const ahead = replayBasketballGame(events, { nowMs: aheadMs });
+    return suggestBasketballSubs({ state: ahead, nowMs: ahead.completedPeriodMs + aheadMs, ...opts });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isPeriodActive, state, strategy, prefs, season, trackFouls, ageGroup.foulOutAt],
-  );
+  }, [isPeriodActive, state, events, strategy, prefs, season, trackFouls, ageGroup.foulOutAt, periodMs, msUntilDue !== null && msUntilDue <= 0, Math.floor((msUntilDue ?? 0) / 5000)]);
   const subDueKey = subDue.key === null ? null : `${base.currentPeriod}:${subDue.key}`;
   const subDueShowing = isPeriodActive && subDue.due && nextSubs.length > 0 && subAckKey !== subDueKey;
   useSubDueAudioUnlock();
@@ -493,22 +503,52 @@ export function BasketballLiveGame({
   }
 
   // ── Score ───────────────────────────────────────────────────
+  // A basket shows the moment it's tapped and queues, as AFL's and
+  // netball's do (Steve 2026-10-21: "the score bug with the +1,2,3 isn't
+  // working"): waiting on run() held every chip disabled until the save,
+  // and any retry, came back. Each tap stays on top of the server's score
+  // until its save has flushed and a refresh has landed.
   const canScore = isPeriodActive || isAtBreak || isAtFinal;
+  const [unsavedBaskets, setUnsavedBaskets] = useState<
+    { key: number; side: "ours" | "theirs"; points: Points; playerId: string | null; flushed: boolean }[]
+  >([]);
+  useEffect(() => {
+    setUnsavedBaskets((list) => (list.some((b) => b.flushed) ? list.filter((b) => !b.flushed) : list));
+  }, [events]);
+  function recordBasket(side: "ours" | "theirs", points: Points, playerId: string | null) {
+    const key = Date.now() + Math.random();
+    setUnsavedBaskets((list) => [...list, { key, side, points, playerId, flushed: false }]);
+    setError(null);
+    enqueueLiveAction("recordBasketballScore", [
+      auth,
+      game.id,
+      { side, points, player_id: playerId, quarter: base.currentPeriod, elapsed_ms: elapsedMs },
+    ])
+      .flushed.then(() => {
+        setUnsavedBaskets((list) => list.map((b) => (b.key === key ? { ...b, flushed: true } : b)));
+        startTransition(() => router.refresh());
+      })
+      .catch((e: unknown) => {
+        setUnsavedBaskets((list) => list.filter((b) => b.key !== key));
+        setError(e instanceof Error ? e.message : "That basket didn't save. Try again.");
+      });
+  }
   function teamScore(points: Points, scorerId: string | null) {
     if (!trackScoring) return;
     setSelectedId(null);
-    void run("recordBasketballScore", [
-      auth,
-      game.id,
-      { side: "ours", points, player_id: scorerId, quarter: base.currentPeriod, elapsed_ms: elapsedMs },
-    ]);
+    recordBasket("ours", points, scorerId);
   }
-  const opponentScore = (points: Points) =>
-    void run("recordBasketballScore", [
-      auth,
-      game.id,
-      { side: "theirs", points, player_id: null, quarter: base.currentPeriod, elapsed_ms: elapsedMs },
-    ]);
+  const opponentScore = (points: Points) => recordBasket("theirs", points, null);
+  const unsavedPoints = (side: "ours" | "theirs") =>
+    unsavedBaskets.reduce((n, b) => (b.side === side ? n + b.points : n), 0);
+  const teamPoints = state.teamScore.points + unsavedPoints("ours");
+  const opponentPoints = state.opponentScore.points + unsavedPoints("theirs");
+  const playerPoints = useMemo(() => {
+    if (!unsavedBaskets.some((b) => b.side === "ours" && b.playerId)) return state.playerPoints;
+    const out = { ...state.playerPoints };
+    for (const b of unsavedBaskets) if (b.side === "ours" && b.playerId) out[b.playerId] = (out[b.playerId] ?? 0) + b.points;
+    return out;
+  }, [state.playerPoints, unsavedBaskets]);
   const undoScore = () => void run("undoBasketballScore", [auth, game.id]);
 
   // ── Sideline: injuries, loans, late arrivals, holds ─────────
@@ -642,12 +682,8 @@ export function BasketballLiveGame({
           : "Half time";
   const playerDockVisible = isPeriodActive && selectedPlayer !== null;
   const scoreDockVisible = playerDockVisible && selectedOnCourt && (trackScoring || trackFouls);
-  const hasStickyBottom = !isPreTipoff;
-  const stickyPb = playerDockVisible
-    ? "pb-[calc(13rem+env(safe-area-inset-bottom))]"
-    : hasStickyBottom
-      ? "pb-[calc(7rem+env(safe-area-inset-bottom))]"
-      : "";
+  // The break has the shared Start bar instead of the scorebug.
+  const hasStickyBottom = !isPreTipoff && !isAtBreak;
 
   const actionPlayer = actionPlayerId ? playerById.get(actionPlayerId) ?? null : null;
   const actionLine = actionPlayerId && state.lineup ? basketballLineOf(state.lineup, actionPlayerId) : null;
@@ -657,7 +693,15 @@ export function BasketballLiveGame({
   const otherLine: Record<BasketballLine, BasketballLine | null> = { guard: "forward", forward: "guard", court: null };
 
   return (
-    <div ref={liveRootRef} className={`space-y-3 ${stickyPb}`.trim()}>
+    // No bottom padding: LiveStickyScoreBar reserves its own height with
+    // a measured in-flow spacer, and the player dock floats over the
+    // page as AFL's does (Steve 2026-10-21: "Some blank space when
+    // scrolling").
+    <div
+      ref={liveRootRef}
+      // The break's Start bar is fixed on phones and reserves no space of its own.
+      className={`space-y-3${isAtBreak ? " pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-0" : ""}`}
+    >
       <LiveTopBar
         exitHref={exitHref}
         game={game}
@@ -728,27 +772,47 @@ export function BasketballLiveGame({
         </div>
       )}
 
+      {/* The break, as AFL's and netball's (Steve 2026-10-21: "The half
+          time breaks in basketball look different to the other sports"):
+          the orientation strip, the Score row (the per-period breakdown,
+          and late baskets), the swap hint, the court and bench with where
+          each kid is heading, and the shared Start bar. */}
       {isAtBreak && (
-        <section className="rounded-xl border border-brand-500/40 bg-brand-50 p-4 shadow-card">
-          <p className="mb-1 text-sm font-medium text-ink">
-            {periodLetter}
-            {base.currentPeriod} done.
-            {trackScoring && (
-              <>
-                {" "}
-                Score: <strong>{state.teamScore.points}</strong> – <strong>{state.opponentScore.points}</strong>.
-              </>
-            )}
+        <>
+          <div className="px-1">
+            <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">{breakName}</p>
+            <p className="mt-0.5 text-lg font-bold text-ink">
+              Lineup for {periodLetter}
+              {base.currentPeriod + 1}
+            </p>
+          </div>
+
+          {trackScoring && (
+            <BreakScoreRow
+              open={showBreakScore}
+              onToggle={() => setShowBreakScore((v) => !v)}
+              teamName={teamName}
+              opponentName={opponentName}
+              teamPoints={teamPoints}
+              opponentPoints={opponentPoints}
+              scoreByPeriod={state.scoreByPeriod}
+              periodCount={ageGroup.periodCount}
+              currentPeriod={base.currentPeriod}
+              periodLetter={periodLetter}
+              periodWord={periodWord}
+              chips={scoreChips}
+              onTeamScore={(n) => setScorerPoints(n)}
+              onOpponentScore={opponentScore}
+              onUndo={undoScore}
+              undoDisabled={pending}
+            />
+          )}
+
+          <p className="px-1 text-xs text-ink-dim">
+            Who starts the next {periodWord}
+            {usesBasketballLines(strategy) ? " and where" : ""}. Tap any two players to swap them.
           </p>
-          <p className="mb-3 text-xs text-ink-dim">
-            Here&apos;s the plan for the next {periodWord}: who starts{usesBasketballLines(strategy) ? " and where" : ""}. Tap two
-            players to swap them.
-          </p>
-          <SFButton onClick={() => setStartConfirmOpen(true)} disabled={pending || !breakDraft} variant="accent" size="lg" full>
-            Start {periodLetter}
-            {base.currentPeriod + 1}
-          </SFButton>
-        </section>
+        </>
       )}
 
       {!isFinished && lineup && (
@@ -771,7 +835,7 @@ export function BasketballLiveGame({
             foulsByPlayer={foulsByPlayer}
             foulOutAt={ageGroup.foulOutAt}
             lockModes={lockModes}
-            pointsByPlayer={trackScoring ? state.playerPoints : undefined}
+            pointsByPlayer={trackScoring ? playerPoints : undefined}
             captions={captions}
             positionLabels={positionLabels}
           />
@@ -793,7 +857,7 @@ export function BasketballLiveGame({
             foulsByPlayer={foulsByPlayer}
             foulOutAt={ageGroup.foulOutAt}
             lockModes={lockModes}
-            pointsByPlayer={trackScoring ? state.playerPoints : undefined}
+            pointsByPlayer={trackScoring ? playerPoints : undefined}
           />
         </>
       )}
@@ -876,7 +940,6 @@ export function BasketballLiveGame({
                         key={n}
                         type="button"
                         onClick={() => teamScore(n, selectedPlayer.id)}
-                        disabled={pending}
                         className="flex-1 rounded-sm bg-brand-600 py-3 font-mono text-base font-bold uppercase tracking-micro text-white shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
                       >
                         +{n}
@@ -919,8 +982,8 @@ export function BasketballLiveGame({
             <BasketballScoreBug
               teamName={teamName}
               opponentName={opponentName}
-              teamPoints={state.teamScore.points}
-              opponentPoints={state.opponentScore.points}
+              teamPoints={teamPoints}
+              opponentPoints={opponentPoints}
               periodLetter={periodLetter}
               currentPeriod={base.currentPeriod}
               periodCount={ageGroup.periodCount}
@@ -932,7 +995,6 @@ export function BasketballLiveGame({
               breakName={breakName}
               trackScoring={trackScoring}
               threePointers={threePointers}
-              pending={pending}
               onTeamScore={canScore ? (n) => setScorerPoints(n) : undefined}
               onOpponentScore={canScore ? opponentScore : undefined}
               onClockTap={isPeriodActive ? () => (atHooter ? setEndConfirmOpen(true) : setClockMenuOpen(true)) : undefined}
@@ -940,10 +1002,18 @@ export function BasketballLiveGame({
             />
           }
           undoStrip={
-            (state.teamScore.points > 0 || state.opponentScore.points > 0) && !base.finalised ? (
+            (teamPoints > 0 || opponentPoints > 0) && !base.finalised ? (
               <UndoStrip flashing={false} message="" onUndo={undoScore} disabled={pending} />
             ) : undefined
           }
+        />
+      )}
+
+      {isAtBreak && (
+        <QuarterKickoffBar
+          onConfirm={() => setStartConfirmOpen(true)}
+          confirmLabel={`Start ${periodLetter}${base.currentPeriod + 1}`}
+          disabled={pending || !breakDraft}
         />
       )}
 
@@ -1099,6 +1169,20 @@ export function BasketballLiveGame({
                           },
                         },
                       ]),
+                  ...(trackFouls && !fouledOutSet.has(actionPlayer.id)
+                    ? [
+                        {
+                          label: "Add a foul",
+                          hint: `${state.fouls[actionPlayer.id] ?? 0} of ${ageGroup.foulOutAt} so far`,
+                          testId: "basketball-add-foul",
+                          onClick: () => {
+                            const pid = actionPlayer.id;
+                            setActionPlayerId(null);
+                            void foul(pid);
+                          },
+                        },
+                      ]
+                    : []),
                   ...(trackFouls && (state.fouls[actionPlayer.id] ?? 0) > 0
                     ? [
                         {

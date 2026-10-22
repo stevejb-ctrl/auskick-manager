@@ -11,6 +11,7 @@ import { AvailabilityRow } from "@/components/games/AvailabilityRow";
 import { AddFillInForm } from "@/components/games/AddFillInForm";
 import { FillInRow } from "@/components/games/FillInRow";
 import { MarkAllInButton } from "@/components/games/MarkAllInButton";
+import { teamMixedRule } from "@/lib/sports/touch/mixed";
 
 interface AvailabilityListProps {
   auth: LiveAuth;
@@ -55,7 +56,7 @@ export async function AvailabilityList({
 }: AvailabilityListProps) {
   const supabase = auth.kind === "token" ? createAdminClient() : createClient();
 
-  const [{ data: players }, { data: availability }, { data: fillInRows }] = await Promise.all([
+  const [{ data: players }, { data: availability }, { data: fillInRows }, { data: teamRow }] = await Promise.all([
     supabase
       .from("players")
       .select("*")
@@ -68,7 +69,10 @@ export async function AvailabilityList({
       .select("*")
       .eq("game_id", gameId)
       .order("created_at"),
+    // A touch or Oztag mixed team asks who a fill-in counts as.
+    supabase.from("teams").select("mixed_max_boys, mixed_min_girls, mixed_min_boys").eq("id", teamId).maybeSingle(),
   ]);
+  const mixed = teamMixedRule(teamRow as { mixed_max_boys?: number | null; mixed_min_girls?: number | null; mixed_min_boys?: number | null } | null) !== null;
 
   const squad = (players ?? []) as Player[];
   const fillIns = (fillInRows ?? []) as FillIn[];
@@ -166,6 +170,7 @@ export async function AvailabilityList({
             auth={auth}
             gameId={gameId}
             showJerseyNumber={showJerseyNumber}
+            mixed={mixed}
           />
         )}
       </div>

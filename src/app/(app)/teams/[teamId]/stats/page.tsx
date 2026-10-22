@@ -25,13 +25,17 @@ import { LeagueDashboardShell } from "@/components/dashboard/LeagueDashboardShel
 import { aggregateLeagueSeasonFromGames } from "@/lib/dashboard/leagueAggregators";
 import { leagueStatsColumns } from "@/lib/dashboard/leagueStatsColumns";
 import { rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
-import { aflBranch, netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig, isBasketball, isRugby, isSoccer, teamSport, periodLabels } from "@/lib/sports";
+import { aflBranch, netballSport, getEffectiveQuarterSeconds, getAgeGroupConfig, isBasketball, isRugby, isSoccer, isTouch, teamSport, periodLabels } from "@/lib/sports";
 import { SoccerDashboardShell } from "@/components/dashboard/SoccerDashboardShell";
 import { BasketballDashboardShell } from "@/components/dashboard/BasketballDashboardShell";
 import { aggregateBasketballSeason } from "@/lib/dashboard/basketballAggregators";
 import { basketballAgeGroupForTeam } from "@/lib/sports/basketball";
+import { TouchDashboardShell } from "@/components/dashboard/TouchDashboardShell";
+import { aggregateTouchSeason } from "@/lib/dashboard/touchAggregators";
+import { touchAgeGroupForTeam } from "@/lib/sports/touch/family";
+import { teamMixedRule } from "@/lib/sports/touch/mixed";
 import { aggregateSoccerSeason } from "@/lib/dashboard/soccerAggregators";
-import { soccerAgeGroup } from "@/lib/sports/soccer";
+import { soccerFamilyAgeGroupForTeam } from "@/lib/sports/soccer/family";
 import type { GameEvent } from "@/lib/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
@@ -51,7 +55,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   // Verify team exists + user has access (layout already guards this, but be explicit)
   const { data: team } = await supabase
     .from("teams")
-    .select("id, name, sport, track_scoring, age_group, quarter_length_seconds, period_count, track_fouls")
+    .select("id, name, sport, track_scoring, age_group, quarter_length_seconds, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys")
     .eq("id", params.teamId)
     .single();
 
@@ -148,10 +152,17 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   // finalised before it existed), in the unit the team's strategy
   // balances; "Since reset" when the coach has reset season balance.
   const { resolved: playbook } = await loadTeamPlaybook(supabase, params.teamId, sport, team.age_group);
-  // Basketball plays the team's halves or quarters.
+  // Basketball plays the team's halves or quarters, as does hockey; a
+  // soccer-family team's age group is its own sport's; touch and Oztag
+  // play halves or one period.
+  const teamPeriodCount = (team as { period_count?: number | null }).period_count ?? null;
   const balanceAgeCfg = isBasketball(sport)
-    ? basketballAgeGroupForTeam(team.age_group, (team as { period_count?: number | null }).period_count ?? null)
-    : getAgeGroupConfig(sport, team.age_group);
+    ? basketballAgeGroupForTeam(team.age_group, teamPeriodCount)
+    : isSoccer(sport)
+      ? soccerFamilyAgeGroupForTeam(sport, team.age_group, teamPeriodCount)
+      : isTouch(sport)
+        ? touchAgeGroupForTeam(sport, team.age_group, teamPeriodCount)
+      : getAgeGroupConfig(sport, team.age_group);
   const seasonGameById = new Map(seasonGames.map((g) => [g.id, g]));
   const periodSecondsOf = (gameId: string) =>
     getEffectiveQuarterSeconds(
@@ -204,7 +215,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         aggregate={aggregateSoccerSeason(seasonGames, eventsByGame)}
         totalGames={seasonGames.length}
         trackScoring={team.track_scoring ?? false}
-        withKeeper={soccerAgeGroup(balanceAgeCfg.id).keeper !== "none"}
+        withKeeper={soccerFamilyAgeGroupForTeam(sport, team.age_group, teamPeriodCount).keeper !== "none"}
         seasonBalance={playbook.strategy.balanceUnit ? seasonBalance : undefined}
       />
     );
@@ -225,6 +236,26 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         trackScoring={team.track_scoring ?? false}
         trackFouls={(team as { track_fouls?: boolean | null }).track_fouls ?? ageB.tracksFoulsDefault}
         withLines={playbook.strategy.id !== "minutes"}
+        seasonBalance={playbook.strategy.balanceUnit ? seasonBalance : undefined}
+      />
+    );
+  }
+
+  // ─── Touch and Oztag branch ───────────────────────────────
+  // Tries, the result (when scoring is on), minutes and time in each
+  // lane, through the touch family's own replay. A mixed team says its
+  // boys and girls are evened separately.
+  if (isTouch(sport)) {
+    return (
+      <TouchDashboardShell
+        seasons={seasons}
+        selectedYear={selectedYear}
+        playerNames={Object.fromEntries(players.map((p) => [p.id, p.full_name]))}
+        aggregate={aggregateTouchSeason(seasonGames, eventsByGame)}
+        totalGames={seasonGames.length}
+        trackScoring={team.track_scoring ?? false}
+        withLanes={playbook.strategy.id !== "minutes"}
+        mixed={teamMixedRule(team as { mixed_max_boys?: number | null; mixed_min_girls?: number | null; mixed_min_boys?: number | null }) !== null}
         seasonBalance={playbook.strategy.balanceUnit ? seasonBalance : undefined}
       />
     );

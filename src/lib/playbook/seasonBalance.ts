@@ -43,6 +43,12 @@ export const SEASON_BALANCE_WEIGHT: Record<SportId, Record<BalanceStrength, numb
   // Basketball's suggesters score as soccer's: a period already played
   // in a line (or position) counts −1, season debt is in periods.
   basketball: { light: 0.2, balanced: 0.4, strong: 0.8 },
+  // Futsal and hockey run soccer's suggesters; touch and Oztag score
+  // the same way (periods of a lane, season debt in periods).
+  futsal: { light: 0.2, balanced: 0.4, strong: 0.8 },
+  hockey: { light: 0.2, balanced: 0.4, strong: 0.8 },
+  touch: { light: 0.2, balanced: 0.4, strong: 0.8 },
+  oztag: { light: 0.2, balanced: 0.4, strong: 0.8 },
 };
 
 export const OWED_CAP_PERIODS = 2;

@@ -93,7 +93,7 @@ interface LeaguePlayerTileProps {
   disabled?: boolean;
   /** Named positions (Mod League): the kid's position, e.g. "HK". */
   positionLabel?: string | null;
-  /** Season role "Keep on, every game" (lineup screens). */
+  /** Season role "Plays every minute" (lineup screens). */
   keepOn?: boolean;
 }
 

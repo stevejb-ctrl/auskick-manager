@@ -116,8 +116,8 @@ interface LineupPickerProps {
    */
   aflPlaybook?: AflPlaybookInput;
   /**
-   * Player roles (How we play): long-press a player to set their home,
-   * also plays, never plays and keep on — the same sheet as the Squad
+   * Player roles (How we play): long-press a player to set where they
+   * play, their main spot and plays every minute — the same sheet as the Squad
    * tab (UX plan 3.5). Coaches only; omitted for runners and managers.
    */
   roleSheet?: RoleSheetConfig;

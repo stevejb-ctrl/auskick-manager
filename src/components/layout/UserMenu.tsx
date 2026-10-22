@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { resetAnalytics } from "@/lib/analytics/client";
 import { createClient } from "@/lib/supabase/client";
 
 interface UserMenuProps {
@@ -44,6 +45,7 @@ export function UserMenu({ email }: UserMenuProps) {
   async function handleSignOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
+    resetAnalytics();
     setOpen(false);
     router.push("/login");
     router.refresh();

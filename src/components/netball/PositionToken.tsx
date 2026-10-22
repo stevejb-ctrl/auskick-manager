@@ -61,7 +61,7 @@ interface PositionTokenProps {
   pulseKey?: string | number | null;
   /** Break caption — "STAYS" / "GA → WA" (same shape as AFL PlayerTile). */
   caption?: { text: string; tone: "move" | "stay" } | null;
-  /** Season role "Keep on, every game" (lineup screens). */
+  /** Season role "Plays every minute" (lineup screens). */
   keepOn?: boolean;
 }
 

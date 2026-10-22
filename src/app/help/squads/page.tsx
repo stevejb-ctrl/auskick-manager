@@ -92,22 +92,22 @@ export default function SquadsPage() {
         </p>
         <ul className="mt-3 list-disc space-y-2 pl-5 text-ink-dim">
           <li>
-            <strong className="text-ink">Home</strong> — their position (AFL
-            or netball Set positions, netball Partners, league Named
-            positions) or their preferred line (AFL and league) or third
-            (netball).
+            <strong className="text-ink">Plays as</strong> — the lines or
+            positions they play. Siren suggests them only there. Pick none and
+            they play anywhere.
           </li>
           <li>
-            <strong className="text-ink">Also plays</strong> — backups Siren
-            uses when home is taken.
+            <strong className="text-ink">Main</strong> — their main position
+            or line, where Siren puts them first (Set positions, Partners,
+            Named positions, preferred lines).
           </li>
           <li>
-            <strong className="text-ink">Never plays</strong> — Siren won&apos;t
-            suggest it for them.
+            <strong className="text-ink">Takes a turn in goal</strong> —
+            soccer&apos;s version: on unless a kid would rather not go in goal.
           </li>
           <li>
-            <strong className="text-ink">Keep on</strong> — they play as much as
-            the rules allow.
+            <strong className="text-ink">Plays every minute</strong> — they
+            play as much as the rules allow, every game.
           </li>
         </ul>
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-ink-dim">

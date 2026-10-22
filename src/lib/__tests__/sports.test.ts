@@ -22,6 +22,7 @@ import {
   isPositionAllowedInZone,
   pickNetballPositionsToFill,
   teamSport,
+  isSportOpen,
 } from "@/lib/sports";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 
@@ -44,10 +45,26 @@ describe("sport registry", () => {
     expect(getSportConfig("soccer")).toBe(soccerSport);
   });
 
-  it("ALL_SPORT_IDS lists every sport, soccer and basketball included", () => {
-    expect(ALL_SPORT_IDS).toEqual(["afl", "netball", "rugby_league", "rugby_union", "soccer", "basketball"]);
-    expect(teamSport("soccer")).toBe("soccer");
-    expect(teamSport("basketball")).toBe("basketball");
+  it("ALL_SPORT_IDS lists every sport, the four-sports plan's included", () => {
+    expect(ALL_SPORT_IDS).toEqual([
+      "afl",
+      "netball",
+      "rugby_league",
+      "rugby_union",
+      "soccer",
+      "basketball",
+      "futsal",
+      "hockey",
+      "touch",
+      "oztag",
+    ]);
+    for (const id of ALL_SPORT_IDS) expect(teamSport(id)).toBe(id);
+    // Not the old spelling, which the unknown-sport tests used to use.
+    expect(() => teamSport("touch_football")).toThrow(/Unknown sport "touch_football"/);
+  });
+
+  it("opens every sport to new teams, now the four-sports plan's live games have landed", () => {
+    for (const id of ALL_SPORT_IDS) expect(isSportOpen(id), id).toBe(true);
   });
 
   it("resolves brand from host header", () => {

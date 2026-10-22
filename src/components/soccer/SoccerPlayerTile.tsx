@@ -1,39 +1,23 @@
 "use client";
 
 // ─── SoccerPlayerTile ────────────────────────────────────────
-// A Football (soccer) player tile. Mirrors AFL's PlayerTile (the
-// reference) row for row: the same 68px box on the 4px grid, the same
-// lift shadow, rings and state chips, the same swap handover. Row 1 is
-// the unit (GK / DEF / MID / ATT) and #number with any status chip, row
-// 2 the name, row 3 the time bar (time in each line and in goal) and
-// the time. It's soccer's own because AFL's tile is typed to AFL's
-// zones; only the words and the bar's units differ.
+// A soccer-family player tile (Football (soccer), futsal, hockey).
+// Mirrors AFL's PlayerTile (the reference) row for row: the same 68px
+// box on the 4px grid, the same lift shadow, rings and state chips, the
+// same swap handover. Row 1 is the unit in the sport's own words (GK /
+// DEF / MID / ATT; futsal's BACK / WING / FRONT; hockey's STR) and
+// #number with any status chip, row 2 the name, row 3 the time bar
+// (time in each line and in goal) and the time. It's the family's own
+// because AFL's tile is typed to AFL's zones; only the words and the
+// bar's units differ.
 
 import { memo, useEffect, useRef, useState } from "react";
 import type { Player } from "@/lib/types";
-import type { SoccerUnit } from "@/lib/sports/soccer/types";
+import type { SoccerUnit, SoccerUnitWords } from "@/lib/sports/soccer/types";
 import type { SoccerUnitMs } from "@/lib/sports/soccer/replay";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
 import { KeepOnMarker } from "@/components/playbook/KeepOnMarker";
-
-/** Each unit's short label, as the tile and the swap strip print it. */
-export const SOCCER_UNIT_SHORT: Record<SoccerUnit, string> = {
-  gk: "GK",
-  def: "DEF",
-  mid: "MID",
-  att: "ATT",
-  field: "",
-};
-
-/** Each unit's name, for screen readers and sheets. */
-export const SOCCER_UNIT_LABEL: Record<SoccerUnit, string> = {
-  gk: "Keeper",
-  def: "Defence",
-  mid: "Midfield",
-  att: "Attack",
-  field: "Field",
-};
 
 // Lines take AFL's three zone colours by place on the field (attack is
 // AFL's forward, midfield its centre, defence its back), so the palette
@@ -78,6 +62,8 @@ export interface SoccerTileCaption {
 
 interface SoccerPlayerTileProps {
   player: Player;
+  /** The sport's words for each unit (SoccerFamilyRules.lineLabels). */
+  words: Record<SoccerUnit, SoccerUnitWords>;
   /** Where the kid is now; null on the bench. */
   unit?: SoccerUnit | null;
   onClick?: () => void;
@@ -112,6 +98,7 @@ const CHIP = "inline-flex h-4 shrink-0 items-center rounded-xs px-[5px] font-mon
 
 function SoccerPlayerTileImpl({
   player,
+  words,
   unit,
   onClick,
   onLongPress,
@@ -165,7 +152,7 @@ function SoccerPlayerTileImpl({
   const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] : "";
   const displayName = lastInitial ? `${firstName} ${lastInitial}` : firstName;
 
-  const unitLabel = positionLabel ?? (unit ? SOCCER_UNIT_SHORT[unit] || null : null);
+  const unitLabel = positionLabel ?? (unit ? words[unit].short || null : null);
 
   // The swap handover, as AFL's tile: a tile marked OFF that receives
   // the kid coming on pops a green ✓ and rolls the names.
@@ -209,10 +196,10 @@ function SoccerPlayerTileImpl({
         {isOn && swap?.unit && (
           <div
             className={`flex items-center justify-center gap-1 rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-micro ${UNIT_STRIP[swap.unit]}`}
-            aria-label={`Going on to ${SOCCER_UNIT_LABEL[swap.unit]}, pair ${swap.pair}`}
+            aria-label={`Going on to ${words[swap.unit].label}, pair ${swap.pair}`}
           >
             {showPairNumber && <span className="rounded-xs bg-black/15 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}
-            <span>→ {SOCCER_UNIT_SHORT[swap.unit] || "ON"}</span>
+            <span>→ {words[swap.unit].short || "ON"}</span>
           </div>
         )}
         {isOn && !swap?.unit && (
@@ -331,7 +318,7 @@ function SoccerPlayerTileImpl({
                 aria-label={
                   unitMs
                     ? BAR_ORDER.filter((u) => (unitMs[u] ?? 0) > 0)
-                        .map((u) => `${SOCCER_UNIT_LABEL[u]} ${formatMinSec(unitMs[u] ?? 0)}`)
+                        .map((u) => `${words[u].label} ${formatMinSec(unitMs[u] ?? 0)}`)
                         .join(", ") || undefined
                     : undefined
                 }
@@ -362,6 +349,7 @@ const quantize = (ms: number | undefined) => (ms === undefined ? -1 : Math.floor
 function areEqual(a: SoccerPlayerTileProps, b: SoccerPlayerTileProps): boolean {
   if (
     a.player !== b.player ||
+    a.words !== b.words ||
     a.unit !== b.unit ||
     a.onClick !== b.onClick ||
     a.onLongPress !== b.onLongPress ||

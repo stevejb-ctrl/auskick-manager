@@ -297,7 +297,7 @@ test("a union home position is union's own: 2R4, never league's second row", asy
   await page.goto(`/teams/${team.id}/squad`);
   await waitForHydration(page);
   await page.getByRole("button", { name: `Role for ${kid.full_name}` }).click();
-  const home = page.getByRole("radiogroup", { name: "Home position" });
+  const home = page.getByRole("radiogroup", { name: "Main position" });
   // Union's full side: its 2nd row is 4 and 5, its halves 9 and 10.
   await expect(home.getByRole("radio", { name: "2nd row (2R4)" })).toBeVisible();
   await expect(home.getByRole("radio", { name: "2nd row (2R5)" })).toBeVisible();

@@ -1,15 +1,17 @@
 "use client";
 
 // ─── SoccerLineupPicker ──────────────────────────────────────
-// The Football (soccer) starting lineup, before kick-off. Mirrors the
-// AFL and league pickers: the shared breadcrumb and availability panel,
-// a collapsible "Game settings" card, the pitch and bench drawn as the
-// live game draws them, tap a kid then a second to swap, long-press for
-// the shared player actions, and the shared footer with Save plan and
-// "Start H1", which opens the shared StartQuarterModal (two-step
-// kick-off: only its Start writes anything).
+// The soccer family's starting lineup, before kick-off (Football
+// (soccer), futsal, hockey, each in its own words and on its own
+// surface). Mirrors the AFL and league pickers: the shared breadcrumb
+// and availability panel, a collapsible "Game settings" card, the pitch
+// and bench drawn as the live game draws them, tap a kid then a second
+// to swap, long-press for the shared player actions, and the shared
+// footer with Save plan and "Start H1" (hockey's quarters: "Start Q1"),
+// which opens the shared StartQuarterModal (two-step kick-off: only its
+// Start writes anything).
 //
-// The suggestion comes from the soccer engine (suggestSoccerLineup):
+// The suggestion comes from the family's engine (suggestSoccerLineup):
 // the keeper by the age group's keeper strategy and season keeper
 // minutes, the kids with the most season minutes on the bench, lines by
 // season debt. Changing the size or the shape suggests again.
@@ -32,7 +34,9 @@ import {
   startSoccerGame,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/soccer-actions";
 import type { LiveAuth, Player } from "@/lib/types";
+import { periodLabels, type SoccerSport } from "@/lib/sports";
 import { soccerFormations } from "@/lib/sports/soccer";
+import { soccerFamilyRules } from "@/lib/sports/soccer/family";
 import {
   normalizeSoccerLineup,
   soccerOnField,
@@ -46,19 +50,39 @@ import {
   placeInSoccerLineup,
   swapInSoccerLineup,
 } from "@/lib/sports/soccer/live";
-import type { SoccerAgeGroupConfig, SoccerKeeperStrategy, SoccerUnit } from "@/lib/sports/soccer/types";
+import {
+  SOCCER_OUTFIELD_LINES,
+  type SoccerAgeGroupConfig,
+  type SoccerFormation,
+  type SoccerKeeperStrategy,
+  type SoccerUnit,
+} from "@/lib/sports/soccer/types";
 import type { SoccerKeeperPrefs } from "@/lib/sports/soccer/keeper";
 import { SoccerField } from "./SoccerField";
 import { SoccerBench } from "./SoccerBench";
 import { KeeperHandoverCard } from "./KeeperHandoverCard";
-import { SOCCER_UNIT_LABEL } from "./SoccerPlayerTile";
 import { soccerKeeperNote, soccerSubModeNote } from "./soccerWords";
+
+/**
+ * Where a kid brought off the bench goes: the middle line when it has a
+ * place left in the shape, else the first line (back to front) that
+ * does. Futsal's 2-2 has no wings, so "the middle" alone would overfill
+ * it.
+ */
+function lineWithRoom(lu: SoccerLineup, formation: SoccerFormation): SoccerUnit {
+  const room = (line: (typeof SOCCER_OUTFIELD_LINES)[number]) => lu.lines[line].length < formation.lines[line];
+  if (room("mid")) return "mid";
+  return SOCCER_OUTFIELD_LINES.find(room) ?? "mid";
+}
 
 interface SoccerLineupPickerProps {
   auth: LiveAuth;
+  /** The team's sport: its words, surface and lineup rules. */
+  sport: SoccerSport;
   gameId: string;
   /** Kids here today, in squad order. */
   players: Player[];
+  /** The team's age group, in its halves or quarters. */
   ageGroup: SoccerAgeGroupConfig;
   /** The game's players on the field (games.on_field_size). */
   onFieldSize: number;
@@ -76,6 +100,7 @@ interface SoccerLineupPickerProps {
 
 export function SoccerLineupPicker({
   auth,
+  sport,
   gameId,
   players,
   ageGroup,
@@ -95,6 +120,10 @@ export function SoccerLineupPicker({
   const [error, setError] = useState<string | null>(null);
   const [loanedIds, setLoanedIds] = useState<Set<string>>(() => new Set(initialLoanedIds));
   const playerById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
+  const rules = soccerFamilyRules(sport);
+  const words = rules.lineLabels;
+  const periodWord = periodLabels(sport, ageGroup).label;
+  const firstPeriod = `${periodWord.charAt(0).toUpperCase()}1`;
 
   const clampSize = (n: number) => Math.max(ageGroup.minOnFieldSize, Math.min(ageGroup.maxOnFieldSize, n));
   const [onFieldSize, setOnFieldSize] = useState(() => clampSize(initialSize));
@@ -216,7 +245,7 @@ export function SoccerLineupPicker({
   }
 
   function handleStartGame() {
-    const check = validateSoccerLineup(lineup, ageGroup, Math.min(onFieldSize, playing.length));
+    const check = validateSoccerLineup(lineup, ageGroup, Math.min(onFieldSize, playing.length), rules);
     const firstError = check.issues.find((i) => i.kind === "error");
     if (firstError) {
       setError(firstError.message);
@@ -261,7 +290,7 @@ export function SoccerLineupPicker({
   const settingsSummary = [
     `${onFieldSize} a side`,
     formation.keeper ? `${formation.id}` : "No lines",
-    soccerSubModeNote(ageGroup.subMode, subIntervalSeconds),
+    soccerSubModeNote(ageGroup.subMode, subIntervalSeconds, periodWord),
     ...(lentPlayers.length > 0 ? [`${lentPlayers.length} lent`] : []),
   ].join(" · ");
 
@@ -374,7 +403,7 @@ export function SoccerLineupPicker({
                 <p className="text-[11px] text-ink-mute">Rolling subs: any time, as often as you like.</p>
               </div>
             ) : (
-              <p className="text-xs text-ink-dim">{soccerSubModeNote(ageGroup.subMode, subIntervalSeconds)}</p>
+              <p className="text-xs text-ink-dim">{soccerSubModeNote(ageGroup.subMode, subIntervalSeconds, periodWord)}</p>
             )}
             <SFButton variant="ghost" size="sm" onClick={() => resuggest(onFieldSize, formation.id)}>
               Suggest again
@@ -385,8 +414,9 @@ export function SoccerLineupPicker({
 
       {formation.keeper && (
         <KeeperHandoverCard
-          periodWord="half"
+          periodWord={periodWord}
           period={1}
+          gear={rules.keeperGear}
           from={null}
           to={lineup.keeper ? playerById.get(lineup.keeper) ?? null : null}
           candidates={players.filter((p) => !loanedIds.has(p.id))}
@@ -398,6 +428,8 @@ export function SoccerLineupPicker({
       )}
 
       <SoccerField
+        words={words}
+        surface={rules.surface}
         lineup={lineup}
         lineCaps={lineCaps}
         hasKeeper={formation.keeper}
@@ -408,6 +440,7 @@ export function SoccerLineupPicker({
         dimUnselected={false}
       />
       <SoccerBench
+        words={words}
         bench={lineup.bench}
         playersById={playerById}
         onTap={(pid) => handleTap(pid, null)}
@@ -445,7 +478,7 @@ export function SoccerLineupPicker({
         savedAt={savedAt}
         savePlanDisabled={fieldIds.length === 0 || isPending}
         onConfirm={handleStartGame}
-        confirmLabel="Start H1"
+        confirmLabel={`Start ${firstPeriod}`}
         confirmDisabled={fieldIds.length === 0 || isPending}
         confirmLoading={isPending}
       />
@@ -470,7 +503,7 @@ export function SoccerLineupPicker({
             setLineup((lu) =>
               soccerUnitOf(lu, pid)
                 ? benchInSoccerLineup(lu, pid)
-                : placeInSoccerLineup(lu, pid, formation.keeper ? (lu.keeper ? "mid" : "gk") : "field"),
+                : placeInSoccerLineup(lu, pid, formation.keeper ? (lu.keeper ? lineWithRoom(lu, formation) : "gk") : "field"),
             );
           }}
           onToggleLoan={() => {
@@ -485,7 +518,7 @@ export function SoccerLineupPicker({
 
       {fillUnit && (
         <SlotFillSheet
-          slotLabel={`${SOCCER_UNIT_LABEL[fillUnit].toLowerCase()} spot`}
+          slotLabel={`${words[fillUnit].label.toLowerCase()} spot`}
           candidates={lineup.bench
             .filter((id) => !loanedIds.has(id))
             .map((id) => playerById.get(id))
@@ -504,7 +537,7 @@ export function SoccerLineupPicker({
       {startModalOpen && (
         <StartQuarterModal
           quarter={1}
-          periodLabel="half"
+          periodLabel={periodWord}
           cue="whistle goes"
           loading={isPending}
           onStart={handleConfirmStart}

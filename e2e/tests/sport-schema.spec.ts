@@ -8,11 +8,17 @@
 //   0068 soccer              Football (soccer)'s teams, events and lines
 //   0069 basketball          basketball's teams, events and lines, and
 //                            teams.period_count / track_fouls
+//   0071 four sports         futsal's, hockey's, touch's and Oztag's
+//                            teams, events and lines, a mixed team's
+//                            rule, who a kid counts as under it, and a
+//                            one-period game for touch and Oztag
 // The live-game specs cover the other side of 0061: every event the
-// live screens write still lands. Soccer has no screen until phase 2
-// of the soccer plan, so 0068 is pinned here through the database.
+// live screens write still lands. Soccer had no screen until phase 2
+// of the soccer plan, so 0068 was pinned here through the database;
+// the four-sports plan's sports have none until their tracks land, so
+// 0071 is too.
 //
-// Covers: supabase/migrations/0061-0069, e2e/fixtures/factories.ts
+// Covers: supabase/migrations/0061-0071, e2e/fixtures/factories.ts
 
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -21,7 +27,17 @@ import { makeGame, makePlayers, makeTeam } from "../fixtures/factories";
 
 test.describe.configure({ mode: "parallel" });
 
-type Sport = "afl" | "netball" | "rugby_league" | "rugby_union" | "soccer" | "basketball";
+type Sport =
+  | "afl"
+  | "netball"
+  | "rugby_league"
+  | "rugby_union"
+  | "soccer"
+  | "basketball"
+  | "futsal"
+  | "hockey"
+  | "touch"
+  | "oztag";
 
 async function superAdminId(admin: SupabaseClient): Promise<string> {
   const { data } = await admin.auth.admin.listUsers();
@@ -67,6 +83,17 @@ const EVENT_TYPES: Record<Sport, string[]> = {
     "opponent_free_throw", "opponent_two_pointer", "opponent_three_pointer",
     "foul", "sit_out",
   ],
+  // Futsal and hockey (0071): soccer's, written out for each.
+  futsal: [...SHARED, "swap", "field_zone_swap", "player_lock", "goal", "opponent_goal"],
+  hockey: [...SHARED, "swap", "field_zone_swap", "player_lock", "goal", "opponent_goal"],
+  // Touch (0071): subs, moves between lanes, holds, a mid-game shrink,
+  // tries. Oztag adds a girl's try (2 points in a mixed game).
+  touch: [...SHARED, "swap", "field_zone_swap", "player_lock", "roster_shrink", "try", "opponent_try"],
+  oztag: [
+    ...SHARED,
+    "swap", "field_zone_swap", "player_lock", "roster_shrink",
+    "try", "opponent_try", "girls_try", "opponent_girls_try",
+  ],
 };
 
 test("0061: each sport's games take only that sport's events", async () => {
@@ -87,6 +114,10 @@ test("0061: each sport's games take only that sport's events", async () => {
     { sport: "rugby_union", ageGroup: "U12", own: "field_goal", foreign: ["vest_assigned", "kickoff_taken", "goal", "period_break_swap"] },
     { sport: "soccer", ageGroup: "U9", own: "field_zone_swap", foreign: ["behind", "try", "roster_shrink", "period_break_swap", "league_position_change"] },
     { sport: "basketball", ageGroup: "U12", own: "three_pointer", foreign: ["goal", "behind", "try", "field_goal", "period_break_swap"] },
+    { sport: "futsal", ageGroup: "U10", own: "field_zone_swap", foreign: ["behind", "try", "foul", "roster_shrink"] },
+    { sport: "hockey", ageGroup: "U13", own: "goal", foreign: ["behind", "try", "sit_out", "period_break_swap"] },
+    { sport: "touch", ageGroup: "U11", own: "try", foreign: ["goal", "girls_try", "conversion_attempt", "league_position_change"] },
+    { sport: "oztag", ageGroup: "U10", own: "girls_try", foreign: ["goal", "behind", "conversion_attempt", "foul"] },
   ];
   for (const c of cases) {
     const team = await makeTeam(admin, { ownerId, sport: c.sport, ageGroup: c.ageGroup });
@@ -162,6 +193,33 @@ test("0062: positions and prefs sit on their own sport's lines", async ({ page }
   expect((await basketballPref("mid")).error?.message).toMatch(/basketball teams have no "mid" line/);
   expect((await basketballPref("forwards")).error?.message).toMatch(/basketball teams have no "forwards" line/);
 
+  // Futsal and hockey prefs (0071): soccer's lines and goal, each
+  // checked as its own sport's.
+  for (const [sport, ageGroup] of [["futsal", "U12"], ["hockey", "U13"]] as const) {
+    const team = await makeTeam(admin, { ownerId, sport, ageGroup });
+    const [kid] = await makePlayers(admin, { teamId: team.id, ownerId, count: 3 });
+    const pref = (line: string) =>
+      admin.from("player_position_prefs").insert({ team_id: team.id, player_id: kid.id, line, kind: "never" });
+    for (const line of ["gk", "def", "mid", "att", "field"]) {
+      expect((await pref(line)).error, `${sport} ${line}`).toBeNull();
+    }
+    expect((await pref("guard")).error?.message).toMatch(new RegExp(`${sport} teams have no "guard" line`));
+  }
+
+  // Touch and Oztag prefs (0071): middles, links, wings and the field,
+  // no soccer or rugby line.
+  for (const sport of ["touch", "oztag"] as const) {
+    const team = await makeTeam(admin, { ownerId, sport, ageGroup: "U12" });
+    const [kid] = await makePlayers(admin, { teamId: team.id, ownerId, count: 3 });
+    const pref = (line: string) =>
+      admin.from("player_position_prefs").insert({ team_id: team.id, player_id: kid.id, line, kind: "home" });
+    for (const line of ["middle", "link", "wing", "field"]) {
+      expect((await pref(line)).error, `${sport} ${line}`).toBeNull();
+    }
+    expect((await pref("def")).error?.message).toMatch(new RegExp(`${sport} teams have no "def" line`));
+    expect((await pref("forwards")).error?.message).toMatch(new RegExp(`${sport} teams have no "forwards" line`));
+  }
+
   // Netball: the role sheet saves a third, and an AFL line is refused.
   const netball = await makeTeam(admin, { ownerId, sport: "netball", ageGroup: "11u" });
   const [kid] = await makePlayers(admin, { teamId: netball.id, ownerId, count: 3 });
@@ -174,7 +232,9 @@ test("0062: positions and prefs sit on their own sport's lines", async ({ page }
   await page.goto(`/teams/${netball.id}/squad`);
   await page.getByRole("button", { name: `Role for ${kid.full_name}` }).click({ timeout: 15_000 });
   const sheet = page.getByRole("dialog", { name: `Role for ${kid.full_name}` });
-  await sheet.getByRole("group", { name: "Never plays" }).getByRole("checkbox", { name: "Attack" }).click();
+  // Plays as Centre and Defence: Attack, the third left out, is stored as never.
+  await sheet.getByRole("group", { name: "Plays as" }).getByRole("checkbox", { name: "Centre" }).click();
+  await sheet.getByRole("group", { name: "Plays as" }).getByRole("checkbox", { name: "Defence" }).click();
   await sheet.getByRole("button", { name: "Save role" }).click();
   await expect(sheet).toHaveCount(0);
   await expect
@@ -211,6 +271,14 @@ test("0063: a team and a game say their own sport and size", async () => {
     ["soccer", "U9", 7, 240],
     ["soccer", "U14", 11, 300],
     ["basketball", "U12", 5, 240],
+    ["futsal", "U9", 5, 300],
+    ["futsal", "U10", 5, 240],
+    ["hockey", "U8", 6, 300],
+    ["hockey", "U13", 11, 300],
+    ["touch", "U10", 5, 300],
+    ["touch", "U11", 6, 240],
+    ["oztag", "U8", 6, 300],
+    ["oztag", "U10", 8, 300],
     ["afl", "U9", 9, 240],
   ] as const) {
     const t = await makeTeam(admin, { ownerId, sport, ageGroup });
@@ -291,4 +359,88 @@ test("0069: a basketball team plays halves or quarters, and keeps its own foul t
   // Halves or quarters only.
   const { error: three } = await admin.from("teams").update({ period_count: 3 }).eq("id", team.id);
   expect(three?.message).toMatch(/period_count/);
+});
+
+test("0071: a touch or Oztag team can be mixed, and nothing else can", async () => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const teamRow = async (id: string) =>
+    (
+      await admin
+        .from("teams")
+        .select("mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, period_count")
+        .eq("id", id)
+        .single()
+    ).data;
+
+  // Not mixed by default.
+  const touch = await makeTeam(admin, { ownerId, sport: "touch", ageGroup: "U11" });
+  expect(await teamRow(touch.id)).toEqual({
+    mixed_max_boys: null,
+    mixed_min_girls: null,
+    mixed_min_boys: null,
+    girls_try_double: null,
+    period_count: null,
+  });
+
+  // TFA's rule: at most 3 boys, at least 1 girl and 1 boy.
+  const tfa = { mixed_max_boys: 3, mixed_min_girls: 1, mixed_min_boys: 1 };
+  expect((await admin.from("teams").update(tfa).eq("id", touch.id)).error).toBeNull();
+  expect(await teamRow(touch.id)).toMatchObject(tfa);
+
+  // All three or none, and never more boys required than allowed.
+  const { error: half } = await admin.from("teams").update({ mixed_min_girls: null }).eq("id", touch.id);
+  expect(half?.message).toMatch(/teams_mixed_rule_check/);
+  const { error: backwards } = await admin.from("teams").update({ mixed_min_boys: 4 }).eq("id", touch.id);
+  expect(backwards?.message).toMatch(/teams_mixed_rule_check/);
+
+  // A girl's try is Oztag's.
+  const { error: touchTry } = await admin.from("teams").update({ girls_try_double: true }).eq("id", touch.id);
+  expect(touchTry?.message).toMatch(/teams_girls_try_double_check/);
+  const oztag = await makeTeam(admin, { ownerId, sport: "oztag", ageGroup: "U12" });
+  const itf = { mixed_max_boys: 4, mixed_min_girls: 1, mixed_min_boys: 0, girls_try_double: false };
+  expect((await admin.from("teams").update(itf).eq("id", oztag.id)).error).toBeNull();
+  expect(await teamRow(oztag.id)).toMatchObject(itf);
+
+  // One continuous period is touch's and Oztag's.
+  expect((await admin.from("teams").update({ period_count: 1 }).eq("id", touch.id)).error).toBeNull();
+  expect((await teamRow(touch.id))?.period_count).toBe(1);
+  const basketball = await makeTeam(admin, { ownerId, sport: "basketball", ageGroup: "U12" });
+  const { error: onePeriod } = await admin.from("teams").update({ period_count: 1 }).eq("id", basketball.id);
+  expect(onePeriod?.message).toMatch(/period_count/);
+
+  // The boys' cap is a touch and Oztag rule.
+  for (const [sport, ageGroup] of [["soccer", "U10"], ["futsal", "U10"], ["afl", "U10"]] as const) {
+    const other = await makeTeam(admin, { ownerId, sport, ageGroup });
+    const { error } = await admin.from("teams").update(tfa).eq("id", other.id);
+    expect(error?.message, sport).toMatch(/teams_mixed_rule_check/);
+  }
+});
+
+test("0071: a kid and a fill-in count as a girl or a boy under the mixed rule", async () => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, sport: "touch", ageGroup: "U11" });
+  const [ava, ben] = await makePlayers(admin, { teamId: team.id, ownerId, count: 2 });
+
+  // Unasked by default.
+  const group = async (id: string) =>
+    (await admin.from("players").select("mixed_group").eq("id", id).single()).data?.mixed_group;
+  expect(await group(ava.id)).toBeNull();
+
+  expect((await admin.from("players").update({ mixed_group: "girl" }).eq("id", ava.id)).error).toBeNull();
+  expect((await admin.from("players").update({ mixed_group: "boy" }).eq("id", ben.id)).error).toBeNull();
+  expect(await group(ava.id)).toBe("girl");
+  expect(await group(ben.id)).toBe("boy");
+  const { error: other } = await admin.from("players").update({ mixed_group: "x" }).eq("id", ava.id);
+  expect(other?.message).toMatch(/mixed_group/);
+
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  const { data: fillIn, error } = await admin
+    .from("game_fill_ins")
+    .insert({ game_id: game.id, full_name: "Fill In", mixed_group: "girl", created_by: ownerId })
+    .select("mixed_group")
+    .single();
+  expect(error).toBeNull();
+  expect(fillIn?.mixed_group).toBe("girl");
 });

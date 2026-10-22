@@ -3,6 +3,11 @@ import { type NextRequest, NextResponse } from "next/server";
 import { resolveBrandFromHost, BRAND_HEADER_NAME, BRAND_COOKIE_NAME } from "@/lib/brand";
 import { NATIVE_COOKIE_NAME } from "@/lib/platform";
 import { SIREN_USER_ID_HEADER } from "@/lib/auth/userIdHeader";
+import { INDEXABLE_ROUTES } from "@/lib/public-routes";
+
+// Every page in the sitemap is public by definition — a page we ask
+// search engines to index must open without a session.
+const SITEMAP_PATHS: ReadonlySet<string> = new Set(INDEXABLE_ROUTES.map((r) => r.path));
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
@@ -101,10 +106,18 @@ export async function updateSession(request: NextRequest) {
   // landing page (/join/<token> — it renders a Sign in / Create account
   // CTA itself for anonymous viewers, and bouncing them to /login here
   // would drop the token and break the invite flow entirely).
+  //
+  // The sitemap's pages (src/lib/public-routes.ts) are always public.
+  // /support, the Support URL App Store and Play reviewers open, sat
+  // behind sign-in until it came from that list.
   const isPublicRoute =
+    SITEMAP_PATHS.has(pathname) ||
     pathname === "/" ||
     pathname === "/sitemap.xml" ||
     pathname === "/robots.txt" ||
+    // Link-preview image (src/app/opengraph-image.tsx). WhatsApp,
+    // Facebook and Slack fetch it with no session.
+    pathname === "/opengraph-image" ||
     isAuthRoute ||
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/reset") ||

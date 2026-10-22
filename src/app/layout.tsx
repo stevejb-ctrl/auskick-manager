@@ -1,25 +1,20 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Instrument_Serif } from "next/font/google";
 import { GeistSans } from "geist/font/sans";
-import { GoogleAnalytics } from "@next/third-parties/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import Script from "next/script";
+import { Suspense } from "react";
 import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
-import { siteUrl } from "@/lib/seo";
+import { baseOpenGraph, siteUrl } from "@/lib/seo";
+import { gaMeasurementId } from "@/lib/analytics/ga";
+import { posthogSettings } from "@/lib/analytics/posthog-server";
+import { GoogleAnalyticsGate } from "@/components/analytics/GoogleAnalyticsGate";
+import { PostHogAnalytics } from "@/components/analytics/PostHogAnalytics";
 import { NativeAuthBridge } from "@/components/auth/NativeAuthBridge";
 import { NativeCookieBridge } from "@/components/native/NativeCookieBridge";
 import { NativeSplashHide } from "@/components/native/NativeSplashHide";
 import "./globals.css";
-
-// GA4 Measurement ID. Not a secret — the same ID is in the HTML of
-// every page anyway — so hardcoding it is fine and avoids the
-// NEXT_PUBLIC_* inline-at-build-time foot-gun. Gated on VERCEL_ENV
-// so analytics only fires on the production deploy, never from
-// local dev (`next dev` leaves VERCEL_ENV undefined) or preview
-// deploys.
-const GA_ID = "G-ZBTGMZPTD0";
-const IS_PROD_DEPLOY = process.env.VERCEL_ENV === "production";
 
 const sans = Inter({
   subsets: ["latin"],
@@ -84,6 +79,12 @@ export function generateMetadata(): Metadata {
       title: copy.productName,
       statusBarStyle: "default",
     },
+    // Link previews (WhatsApp, Facebook, Slack, X). The image itself is
+    // src/app/opengraph-image.tsx, which Next adds as og:image for every
+    // page. Scrapers fall back to <title> and the meta description, so
+    // pages needn't repeat them here.
+    openGraph: baseOpenGraph(),
+    twitter: { card: "summary_large_image" },
   };
 }
 
@@ -117,15 +118,17 @@ export default function RootLayout({
   // header by the time we render here, so getBrand() is the source
   // of truth.
   const brand = getBrand();
+  const gaId = gaMeasurementId();
+  const posthog = posthogSettings();
   return (
     <html
-      lang="en"
+      lang="en-AU"
       data-brand={brand.brand.id}
       className={`${sans.variable} ${mono.variable} ${GeistSans.variable} ${instrumentSerif.variable}`}
     >
 
       {/* Analytics components must live INSIDE <body>. Rendering
-          <SpeedInsights /> (or <GoogleAnalytics />) as a sibling of
+          <SpeedInsights /> (or <GoogleAnalyticsGate />) as a sibling of
           <body> produces invalid HTML — the browser parser moves
           their nodes into <body> while React's client-side renderer
           still expects them as children of <html>. The mismatch
@@ -167,7 +170,24 @@ export default function RootLayout({
             No-op on web. */}
         <NativeSplashHide />
         {children}
-        {IS_PROD_DEPLOY && <GoogleAnalytics gaId={GA_ID} />}
+        {/* Google Analytics, public pages only: never the app or a
+            token link (/run/<token>, /join/<token>). The gate reads
+            the URL with useSearchParams, hence the Suspense. */}
+        {gaId && (
+          <Suspense fallback={null}>
+            <GoogleAnalyticsGate gaId={gaId} />
+          </Suspense>
+        )}
+        {/* PostHog product analytics, everywhere, with on-screen text
+            masked and tokens scrubbed (src/lib/analytics). Off unless
+            this is production with a project key, or e2e debug mode. */}
+        {posthog && (
+          <PostHogAnalytics
+            apiKey={posthog.apiKey}
+            debug={posthog.debug}
+            appVersion={process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null}
+          />
+        )}
         <SpeedInsights />
       </body>
     </html>

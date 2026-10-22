@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult, Sport } from "@/lib/types";
-import { defaultTrackScoring, getSportConfig, isRugby, isSportId } from "@/lib/sports";
+import { defaultTrackScoring, getSportConfig, isRugby, isSportId, isSportOpen, isTouch } from "@/lib/sports";
+import { mixedRuleColumns } from "@/lib/sports/touch/mixed";
+import type { TouchAgeGroupConfig } from "@/lib/sports/touch/types";
 import { effectivePolicy, getSportPlaybook } from "@/lib/playbook";
 import {
   formatTeamMessage,
@@ -19,6 +21,11 @@ import { storedOnFieldSize, storedPeriodSeconds } from "@/lib/games/newGameDefau
 export interface TeamGameShape {
   onFieldSize?: number | null;
   periodSeconds?: number | null;
+  /**
+   * Touch and Oztag: a mixed team, on the sport's own rule (touch 3 / 1 /
+   * 1, Oztag 4 / 1 / 0; migration 0071). Ignored for other sports.
+   */
+  mixed?: boolean;
 }
 
 export async function createTeam(
@@ -44,6 +51,11 @@ export async function createTeam(
   if (!isSportId(sport)) {
     console.error("[createTeam] unknown sport", { sport });
     return { success: false, error: "Pick a sport for the team." };
+  }
+  // Nor one whose live game isn't built yet (four-sports plan, phase 0).
+  if (!isSportOpen(sport)) {
+    console.error("[createTeam] sport not open yet", { sport });
+    return { success: false, error: `${getSportConfig(sport).name} isn't open yet.` };
   }
   // Validate age_group belongs to the chosen sport. The DB has no
   // per-sport CHECK (intentional — sport configs own the set), so
@@ -103,6 +115,9 @@ export async function createTeam(
     chip_b_mode?: import("@/lib/chips").ChipMode;
     on_field_size: number | null;
     quarter_length_seconds: number | null;
+    mixed_max_boys?: number | null;
+    mixed_min_girls?: number | null;
+    mixed_min_boys?: number | null;
   } = {
     id: teamId,
     name,
@@ -118,6 +133,10 @@ export async function createTeam(
     return { success: false, error: (err as Error).message };
   }
   if (initialTrackScoring) insertRow.track_scoring = true;
+  // A mixed touch or Oztag team starts on its sport's rule.
+  if (isTouch(sport) && shape.mixed) {
+    Object.assign(insertRow, mixedRuleColumns((ageCfg as TouchAgeGroupConfig).mixedPreset));
+  }
   if (isRugby(sport)) {
     insertRow.chip_a_label = "Forward";
     insertRow.chip_b_label = "Back";

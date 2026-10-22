@@ -122,6 +122,16 @@ export interface StrategyDef {
    * (netball partners). Each sport tags its own strategies.
    */
   roleHome?: "line" | "position";
+  /**
+   * Without set positions or a home, the role sheet offers the sport's
+   * positions rather than its lines (basketball's All five positions).
+   */
+  rolePositions?: boolean;
+  /**
+   * False where a kid's "Plays as" would do nothing: the strategy has no
+   * lines or positions on court (basketball's Equal minutes).
+   */
+  rolePlaysAs?: boolean;
   /** What season balance evens out, or null when it doesn't apply. */
   balanceUnit: BalanceUnit | null;
   /** Season balance on by default for this strategy (off for set positions). */
@@ -208,7 +218,8 @@ export interface TeamPositionRow {
   created_at: string;
 }
 
-export type PositionPrefKind = "home" | "also" | "never" | "keep_on";
+/** `plays`: every spot ticked as "Plays as" (engines don't read it). */
+export type PositionPrefKind = "home" | "also" | "never" | "keep_on" | "plays";
 
 export interface PlayerPositionPrefRow {
   id: string;

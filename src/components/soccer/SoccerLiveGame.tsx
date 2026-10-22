@@ -1,23 +1,30 @@
 "use client";
 
 // ─── SoccerLiveGame ──────────────────────────────────────────
-// The Football (soccer) live game. Mirrors AFL's LiveGame and league's
-// LeagueLiveGame end to end, so a coach who runs both sports finds the
-// same shell: the shared LiveTopBar (sub due as a banner under it),
-// the next-sub card, the pitch and bench, the shared player dock and
-// LockModal long-press actions, the sticky scorebug with undo, the
-// clock menu, the half-time break, and the full-time review and share
-// card. What's soccer's own:
+// The soccer family's live game: Football (soccer), futsal and hockey,
+// each in its own words and on its own surface (SoccerFamilyRules).
+// Mirrors AFL's LiveGame and league's LeagueLiveGame end to end, so a
+// coach who runs both sports finds the same shell: the shared
+// LiveTopBar (sub due as a banner under it), the next-sub card, the
+// pitch and bench, the shared player dock and LockModal long-press
+// actions, the sticky scorebug with undo, the clock menu, the break, and
+// the full-time review and share card. What's the family's own:
 //
-//   - The keeper is a slot, held for the half. Rolling subs fill
+//   - The keeper is a slot, held for the period. Rolling subs fill
 //     outfield lines only (the engine never suggests taking the keeper
-//     off); "Swap keeper" on the keeper's actions changes it on purpose.
-//   - Half-time plans the next half (suggestSoccerHalfTime): who takes
-//     the keeper top, who plays and where. The break edits that plan;
-//     Start commits it as one lineup_set before the half starts.
-//   - Subs are rolling (any time) or in windows a half, per the age
+//     off); "Swap keeper" on the keeper's actions changes it on purpose
+//     where the sport allows a mid-period swap. Where it doesn't
+//     (hockey: keeper kit takes minutes), goal changes hands only at a
+//     break, the next keeper hears before it, and an injury is the one
+//     way to replace the keeper mid-period.
+//   - The break plans the next period (suggestSoccerHalfTime): who
+//     takes the keeper's gear, who plays and where. The break edits that
+//     plan; Start commits it as one lineup_set before the period starts.
+//   - Subs are rolling (any time) or in windows a period, per the age
 //     group's sub mode; either way the card rotates the bench, each
 //     sub evening time.
+//   - Periods are the age group's own: halves, or hockey's quarters
+//     (periodLabels), "H1" or "Q1".
 //
 // Every write goes through the shared write queue (registerLiveActions)
 // in the one game lane, so the event log keeps the coach's order.
@@ -58,8 +65,11 @@ import {
 } from "@/lib/live/periodClock";
 import { resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
+import { periodBreakName } from "@/lib/live/periodBreakName";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
+import { periodLabels, type SoccerSport } from "@/lib/sports";
 import { soccerFormations } from "@/lib/sports/soccer";
+import { soccerFamilyRules } from "@/lib/sports/soccer/family";
 import {
   normalizeSoccerLineup,
   soccerOnField,
@@ -93,17 +103,20 @@ import { SoccerBench } from "./SoccerBench";
 import { SoccerScoreBug } from "./SoccerScoreBug";
 import { KeeperHandoverCard } from "./KeeperHandoverCard";
 import { SoccerFullTimeReview, SoccerGameSummaryCard } from "./SoccerFullTime";
-import { SOCCER_UNIT_LABEL, SOCCER_UNIT_SHORT, type SoccerTileCaption } from "./SoccerPlayerTile";
+import type { SoccerTileCaption } from "./SoccerPlayerTile";
 import { soccerKeeperNote } from "./soccerWords";
 
 interface SoccerLiveGameProps {
   auth: LiveAuth;
+  /** The team's sport: its words, surface and keeper rules. */
+  sport: SoccerSport;
   game: Game;
   teamName: string;
   /** Every kid who could play: the squad and today's fill-ins. */
   squad: Player[];
+  /** The team's age group, in its halves or quarters. */
   ageGroup: SoccerAgeGroupConfig;
-  /** A half's length in seconds (game, team or age group). */
+  /** A period's length in seconds (game, team or age group). */
   periodSeconds: number;
   /** Rolling subs: seconds between subs. */
   subIntervalSeconds: number | null;
@@ -111,7 +124,7 @@ interface SoccerLiveGameProps {
   clockMultiplier?: number;
   trackScoring: boolean;
   events: GameEvent[];
-  /** Season time per line and in goal, for the half-time plan. */
+  /** Season time per line and in goal, for the break's plan. */
   season?: SoccerSeasonBalance;
   /** How we play: who goes in goal, and who'd rather not. */
   keeperStrategy?: SoccerKeeperStrategy;
@@ -139,7 +152,7 @@ function shapeOf(ag: SoccerAgeGroupConfig, lineup: SoccerLineup | null, fallback
   );
 }
 
-/** The latest whole lineup set (kick-off, half-time, a reshuffle). */
+/** The latest whole lineup set (kick-off, a break, a reshuffle). */
 function lastSetLineup(events: GameEvent[]): SoccerLineup | null {
   for (let i = events.length - 1; i >= 0; i--) {
     const ev = events[i];
@@ -151,8 +164,12 @@ function lastSetLineup(events: GameEvent[]): SoccerLineup | null {
   return null;
 }
 
-/** "Q" style abbreviation for the period: soccer plays halves. */
-const PERIOD_LETTER = "H";
+/**
+ * Why a tap-swap with the keeper is refused mid-period, where the sport
+ * changes keepers only at a break (keeperSwapMidPeriod false).
+ */
+const KEEPER_AT_BREAKS =
+  "The keeper changes at the break: kit takes a few minutes to put on. If the keeper's hurt, long-press them to mark the injury.";
 
 function readBreakDraft(key: string): SoccerLineup | null {
   try {
@@ -171,8 +188,40 @@ function writeBreakDraft(key: string, lineup: SoccerLineup | null) {
   }
 }
 
+function firstName(p: Player): string {
+  return p.full_name.trim().split(/\s+/)[0] ?? p.full_name;
+}
+
+/** The keeper named in the kit-up heads-up for a period, if one was. */
+function readKitUp(key: string): string | null {
+  try {
+    return window.sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function writeKitUp(key: string, playerId: string) {
+  try {
+    window.sessionStorage.setItem(key, playerId);
+  } catch {
+    // Storage blocked: the break suggests afresh, which is all that's lost.
+  }
+}
+
+/**
+ * The break's plan with the keeper the kit-up heads-up named in goal
+ * (they've been getting ready since), when they can still play. The
+ * planned keeper takes their place.
+ */
+function withAnnouncedKeeper(plan: SoccerLineup | null, playerId: string | null, away: ReadonlySet<string>): SoccerLineup | null {
+  if (!plan || !playerId || plan.keeper === playerId || away.has(playerId)) return plan;
+  if (soccerUnitOf(plan, playerId) === null && !plan.bench.includes(playerId)) return plan;
+  return plan.keeper ? swapInSoccerLineup(plan, plan.keeper, playerId) : placeInSoccerLineup(plan, playerId, "gk");
+}
+
 export function SoccerLiveGame({
   auth,
+  sport,
   game,
   teamName,
   squad,
@@ -205,6 +254,13 @@ export function SoccerLiveGame({
   const [subAckKey, setSubAckKey] = useState<string | null>(null);
   const liveRootRef = useRef<HTMLDivElement>(null);
   const periodMs = periodSeconds * 1000;
+  // The sport's own words and keeper rules, and the age group's periods
+  // ("half" and "H", or hockey's "quarter" and "Q").
+  const rules = soccerFamilyRules(sport);
+  const words = rules.lineLabels;
+  const periodWord = periodLabels(sport, ageGroup).label;
+  const PeriodWord = periodWord.charAt(0).toUpperCase() + periodWord.slice(1);
+  const periodLetter = periodWord.charAt(0).toUpperCase();
 
   // ── The game so far (without the open stints), for the clock ──
   const base = useMemo(() => replaySoccerGame(events), [events]);
@@ -216,7 +272,7 @@ export function SoccerLiveGame({
   const isPreKickoff = base.currentPeriod === 0 && !base.finalised;
 
   // ── Clock: league's and netball's period clock ──────────────
-  // Game ms since the half started, less real time paused, scaled by
+  // Game ms since the period started, less real time paused, scaled by
   // the clock multiplier. Pause is client-only, as in league.
   const [nowMs, setNowMs] = useState<number | null>(null);
   const [pause, setPause] = useState<PeriodPause>(RUNNING_CLOCK);
@@ -263,10 +319,12 @@ export function SoccerLiveGame({
     [squad, state],
   );
 
-  // ── Half-time: the plan for the next half ──────────────────
+  // ── The break: the plan for the next period ────────────────
   // Suggested once per break and kept in session storage, so an edit
   // survives a trip to the team page; Start commits it.
   const draftKey = `soccer-break:${game.id}:${base.currentPeriod}`;
+  // The keeper named in the period's kit-up heads-up (below), if any.
+  const kitUpKey = `soccer-kitup:${game.id}:${base.currentPeriod}`;
   const halfTimePlan = useMemo(
     () =>
       isAtBreak
@@ -283,13 +341,18 @@ export function SoccerLiveGame({
     [isAtBreak, base, ageGroup, game.on_field_size, events, season, keeperStrategy, keeperPrefs],
   );
   const [storedDraft, setBreakDraftState] = useState<SoccerLineup | null>(null);
+  const [announcedKeeper, setAnnouncedKeeper] = useState<string | null>(null);
   useEffect(() => {
     if (!isAtBreak) {
       setBreakDraftState(null);
       return;
     }
-    setBreakDraftState(readBreakDraft(draftKey) ?? halfTimePlan?.lineup ?? null);
-  }, [isAtBreak, draftKey, halfTimePlan]);
+    // The kid told to kit up before the break starts in goal.
+    const announced = readKitUp(kitUpKey);
+    const away = new Set([...base.injuredIds, ...base.loanedIds]);
+    setAnnouncedKeeper(announced && !away.has(announced) ? announced : null);
+    setBreakDraftState(readBreakDraft(draftKey) ?? withAnnouncedKeeper(halfTimePlan?.lineup ?? null, announced, away));
+  }, [isAtBreak, draftKey, kitUpKey, halfTimePlan, base.injuredIds, base.loanedIds]);
   const setBreakDraft = useCallback(
     (next: SoccerLineup) => {
       setBreakDraftState(next);
@@ -325,7 +388,7 @@ export function SoccerLiveGame({
     mode: ageGroup.subMode,
     subIntervalMs: subIntervalSeconds != null ? subIntervalSeconds * 1000 : null,
     periodMs,
-    // The windows and the half are both in game ms here (the period
+    // The windows and the period are both in game ms here (the period
     // clock is already scaled), so no further scaling.
     clockMultiplier: 1,
     anchorMs,
@@ -347,6 +410,40 @@ export function SoccerLiveGame({
     }
     subDueShowingRef.current = subDueShowing;
   }, [subDueShowing]);
+
+  // ── The next keeper's heads-up ──────────────────────────────
+  // Where goal changes hands only at a break (hockey: keeper kit takes
+  // minutes to put on), the keeper the break will plan for is named
+  // rules.keeperKitUpSeconds before it: "Mia's in goal next half: start
+  // kitting up". The name is kept for the break, whose plan puts them in
+  // goal. Not before the last break: there's no next period.
+  const kitUpDue =
+    rules.keeperKitUpSeconds !== null &&
+    isPeriodActive &&
+    base.currentPeriod < ageGroup.periodCount &&
+    shape.keeper &&
+    !!state.lineup?.keeper &&
+    periodMs - elapsedMs <= rules.keeperKitUpSeconds * 1000;
+  const [kitUpKeeperId, setKitUpKeeperId] = useState<string | null>(null);
+  useEffect(() => {
+    setKitUpKeeperId(isPeriodActive ? readKitUp(kitUpKey) : null);
+  }, [isPeriodActive, kitUpKey]);
+  useEffect(() => {
+    if (!kitUpDue || kitUpKeeperId) return;
+    const next = suggestSoccerHalfTime({
+      state,
+      ageGroup,
+      onFieldSize: game.on_field_size,
+      formationId: shape.id,
+      season,
+      keeperStrategy,
+      prefs: keeperPrefs,
+    })?.keeper.to;
+    if (!next) return;
+    setKitUpKeeperId(next);
+    writeKitUp(kitUpKey, next);
+  }, [kitUpDue, kitUpKeeperId, kitUpKey, state, ageGroup, game.on_field_size, shape.id, season, keeperStrategy, keeperPrefs]);
+  const kitUpKeeper = kitUpDue && kitUpKeeperId ? playerById.get(kitUpKeeperId) ?? null : null;
 
   // ── Writes ──────────────────────────────────────────────────
   const at = () => ({ quarter: base.currentPeriod, elapsed_ms: elapsedMs });
@@ -374,7 +471,7 @@ export function SoccerLiveGame({
     [auth, game.id, base.currentPeriod, router],
   );
 
-  // The hooter: the half ends itself at full time on the clock (not
+  // The hooter: the period ends itself at full time on the clock (not
   // while paused; the coach is stopping on purpose).
   const hooterFiredRef = useRef(false);
   useEffect(() => {
@@ -433,7 +530,7 @@ export function SoccerLiveGame({
   function handleTap(pid: string, unit: SoccerUnit | null) {
     setError(null);
     if (!lineup) return;
-    // At half-time a tap edits the plan; the half's Start commits it.
+    // At the break a tap edits the plan; the period's Start commits it.
     if (isAtBreak) {
       if (pid === "") {
         if (selectedId && unit) setBreakDraft(placeInSoccerLineup(lineup, selectedId, unit));
@@ -455,6 +552,13 @@ export function SoccerLiveGame({
       if (!unit) return;
       if (selectedId) {
         const from = unitOf(selectedId);
+        // An empty goal can be filled any time; the keeper leaving goal
+        // waits for the break where the sport says so.
+        if (from === "gk" && !rules.keeperSwapMidPeriod) {
+          setSelectedId(null);
+          setError(KEEPER_AT_BREAKS);
+          return;
+        }
         if (from) void move(selectedId, null, unit);
         else void sub(null, selectedId, unit);
         setSelectedId(null);
@@ -474,6 +578,10 @@ export function SoccerLiveGame({
     const aUnit = unitOf(selectedId);
     const bUnit = unitOf(pid);
     setSelectedId(null);
+    if ((aUnit === "gk" || bUnit === "gk") && !rules.keeperSwapMidPeriod) {
+      setError(KEEPER_AT_BREAKS);
+      return;
+    }
     if (aUnit && bUnit) void move(selectedId, pid, bUnit);
     else if (aUnit && !bUnit) void sub(selectedId, pid);
     else if (!aUnit && bUnit) void sub(pid, selectedId);
@@ -520,7 +628,7 @@ export function SoccerLiveGame({
   const addLateArrival = (pid: string) =>
     void run("addLateArrival", [auth, game.id, { player_id: pid, ...at() }]);
 
-  // ── The half's Start ────────────────────────────────────────
+  // ── The period's Start ──────────────────────────────────────
   async function handleStartNextHalf() {
     setStartConfirmOpen(false);
     setPending(true);
@@ -540,6 +648,8 @@ export function SoccerLiveGame({
     }
     await enqueueLiveAction("startSoccerHalf", [auth, game.id, base.currentPeriod + 1]).flushed;
     writeBreakDraft(draftKey, null);
+    // The heads-up's job is done once the period starts.
+    writeKitUp(kitUpKey, "");
     setPending(false);
     router.refresh();
   }
@@ -568,14 +678,14 @@ export function SoccerLiveGame({
     for (const pid of soccerOnField(breakDraft)) {
       const was = soccerUnitOf(state.lineup, pid);
       const to = soccerUnitOf(breakDraft, pid)!;
-      const toWord = SOCCER_UNIT_SHORT[to] || "ON";
+      const toWord = words[to].short || "ON";
       out[pid] =
         was === to
           ? { text: "Stays", tone: "stay" }
-          : { text: `${was ? SOCCER_UNIT_SHORT[was] || "On" : "Bench"} → ${toWord}`, tone: "move" };
+          : { text: `${was ? words[was].short || "On" : "Bench"} → ${toWord}`, tone: "move" };
     }
     return out;
-  }, [isAtBreak, breakDraft, state.lineup]);
+  }, [isAtBreak, breakDraft, state.lineup, words]);
 
   const selectedPlayer = selectedId ? playerById.get(selectedId) ?? null : null;
   const selectedOnField = selectedId !== null && unitOf(selectedId) !== null;
@@ -584,7 +694,7 @@ export function SoccerLiveGame({
     .toString()
     .padStart(2, "0")}`;
   const atHooter = isPeriodActive && elapsedMs >= periodMs;
-  const breakName = base.currentPeriod >= ageGroup.periodCount ? "Full time" : "Half time";
+  const breakName = periodBreakName(base.currentPeriod, ageGroup.periodCount);
   const playerDockVisible = isPeriodActive && selectedPlayer !== null;
   const scoreDockVisible = playerDockVisible && trackScoring && selectedOnField;
   const hasStickyBottom = !isPreKickoff;
@@ -601,6 +711,33 @@ export function SoccerLiveGame({
   const keeper = lineup?.keeper ? playerById.get(lineup.keeper) ?? null : null;
   const lentPlayers = squad.filter((p) => loanedSet.has(p.id) && !injuredSet.has(p.id));
 
+  // Who goes in goal next period, at the break.
+  const breakKeeperCard =
+    isAtBreak && breakDraft && shape.keeper ? (
+      <KeeperHandoverCard
+        periodWord={periodWord}
+        period={base.currentPeriod + 1}
+        gear={rules.keeperGear}
+        from={state.lineup?.keeper ? playerById.get(state.keeperAtEnd[base.currentPeriod] ?? state.lineup.keeper) ?? null : null}
+        to={keeper}
+        candidates={squad.filter(
+          (p) =>
+            !injuredSet.has(p.id) &&
+            !loanedSet.has(p.id) &&
+            (soccerUnitOf(breakDraft, p.id) !== null || breakDraft.bench.includes(p.id)),
+        )}
+        suggestedId={announcedKeeper ?? halfTimePlan?.keeper.to ?? null}
+        strategyNote={soccerKeeperNote(keeperStrategy ?? ageGroup.keeper)}
+        onPick={(pid) => {
+          if (breakDraft.keeper === pid) return;
+          setBreakDraft(
+            breakDraft.keeper ? swapInSoccerLineup(breakDraft, breakDraft.keeper, pid) : placeInSoccerLineup(breakDraft, pid, "gk"),
+          );
+        }}
+        pending={pending}
+      />
+    ) : null;
+
   return (
     <div ref={liveRootRef} className={`space-y-3 ${stickyPb}`.trim()}>
       <LiveTopBar
@@ -612,11 +749,23 @@ export function SoccerLiveGame({
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
 
+      {kitUpKeeper && (
+        <InlineAlert kind="warn" className="font-medium">
+          <span data-testid="keeper-kit-up">
+            {kitUpKeeperId === state.lineup?.keeper
+              ? `${firstName(kitUpKeeper)} stays in goal next ${periodWord}.`
+              : `${firstName(kitUpKeeper)}'s in goal next ${periodWord}: start kitting up.`}
+          </span>
+        </InlineAlert>
+      )}
+
       {isPreKickoff && state.lineup && (
         <section className="rounded-xl border border-brand-500/40 bg-brand-50 p-4 shadow-card">
-          <p className="mb-3 text-sm font-medium text-ink">The lineup is set. Start the first half when the whistle goes.</p>
+          <p className="mb-3 text-sm font-medium text-ink">
+            The lineup is set. Start the first {periodWord} when the whistle goes.
+          </p>
           <SFButton onClick={() => setStartConfirmOpen(true)} disabled={pending} variant="accent" size="lg" full>
-            Start H1
+            Start {periodLetter}1
           </SFButton>
         </section>
       )}
@@ -626,7 +775,7 @@ export function SoccerLiveGame({
           pairs={nextSubs.map((s) => ({
             offId: s.off_player_id,
             onId: s.on_player_id,
-            label: SOCCER_UNIT_SHORT[s.line] || "ON",
+            label: words[s.line].short || "ON",
             labelClass: CARD_LABEL_CLASS[s.line],
           }))}
           msUntilDue={subDue.msUntilDue}
@@ -665,10 +814,14 @@ export function SoccerLiveGame({
         </div>
       )}
 
+      {/* Where keepers change only at a break, who's in goal next comes
+          first: they need the break to kit up. */}
+      {!rules.keeperSwapMidPeriod && breakKeeperCard}
+
       {isAtBreak && (
         <section className="rounded-xl border border-brand-500/40 bg-brand-50 p-4 shadow-card">
           <p className="mb-1 text-sm font-medium text-ink">
-            Half {base.currentPeriod} done.
+            {PeriodWord} {base.currentPeriod} done.
             {trackScoring && (
               <>
                 {" "}
@@ -677,41 +830,23 @@ export function SoccerLiveGame({
             )}
           </p>
           <p className="mb-3 text-xs text-ink-dim">
-            Here&apos;s the plan for the next half: who goes in goal, who plays and where. Tap two players to swap them.
+            Here&apos;s the plan for the next {periodWord}: who goes in goal, who plays and where. Tap two players to
+            swap them.
           </p>
           <SFButton onClick={() => setStartConfirmOpen(true)} disabled={pending || !breakDraft} variant="accent" size="lg" full>
-            Start H{base.currentPeriod + 1}
+            Start {periodLetter}
+            {base.currentPeriod + 1}
           </SFButton>
         </section>
       )}
 
-      {isAtBreak && breakDraft && shape.keeper && (
-        <KeeperHandoverCard
-          periodWord="half"
-          period={base.currentPeriod + 1}
-          from={state.lineup?.keeper ? playerById.get(state.keeperAtEnd[base.currentPeriod] ?? state.lineup.keeper) ?? null : null}
-          to={keeper}
-          candidates={squad.filter(
-            (p) =>
-              !injuredSet.has(p.id) &&
-              !loanedSet.has(p.id) &&
-              (soccerUnitOf(breakDraft, p.id) !== null || breakDraft.bench.includes(p.id)),
-          )}
-          suggestedId={halfTimePlan?.keeper.to ?? null}
-          strategyNote={soccerKeeperNote(keeperStrategy ?? ageGroup.keeper)}
-          onPick={(pid) => {
-            if (breakDraft.keeper === pid) return;
-            setBreakDraft(
-              breakDraft.keeper ? swapInSoccerLineup(breakDraft, breakDraft.keeper, pid) : placeInSoccerLineup(breakDraft, pid, "gk"),
-            );
-          }}
-          pending={pending}
-        />
-      )}
+      {rules.keeperSwapMidPeriod && breakKeeperCard}
 
       {!isFinished && lineup && (
         <>
           <SoccerField
+            words={words}
+            surface={rules.surface}
             lineup={lineup}
             lineCaps={lineCaps}
             hasKeeper={shape.keeper}
@@ -732,6 +867,7 @@ export function SoccerLiveGame({
             captions={captions}
           />
           <SoccerBench
+            words={words}
             bench={lineup.bench}
             playersById={playerById}
             onTap={(pid) => handleTap(pid, null)}
@@ -765,6 +901,7 @@ export function SoccerLiveGame({
           gameId={game.id}
           state={state}
           periodCount={ageGroup.periodCount}
+          periodWord={periodWord}
           trackScoring={trackScoring}
           finalisedElapsedMs={base.periodElapsedMs}
           teamName={teamName}
@@ -778,6 +915,7 @@ export function SoccerLiveGame({
 
       {base.finalised && (
         <SoccerGameSummaryCard
+          emoji={rules.emoji}
           state={state}
           squad={squad}
           presentIds={presentPlayerIds(events)}
@@ -852,7 +990,7 @@ export function SoccerLiveGame({
               opponentName={opponentName}
               teamGoals={state.teamScore.goals}
               opponentGoals={state.opponentScore.goals}
-              periodLetter={PERIOD_LETTER}
+              periodLetter={periodLetter}
               currentPeriod={base.currentPeriod}
               periodCount={ageGroup.periodCount}
               clockReadout={clockReadout}
@@ -880,7 +1018,7 @@ export function SoccerLiveGame({
       {startConfirmOpen && (
         <StartQuarterModal
           quarter={base.currentPeriod + 1}
-          periodLabel="half"
+          periodLabel={periodWord}
           cue="whistle goes"
           loading={pending}
           onStart={() => {
@@ -897,7 +1035,7 @@ export function SoccerLiveGame({
 
       {clockMenuOpen && (
         <ClockMenu
-          periodAbbr={`${PERIOD_LETTER}${base.currentPeriod}`}
+          periodAbbr={`${periodLetter}${base.currentPeriod}`}
           running={running}
           onPause={() => setPause((p) => togglePeriodPause(p, Date.now()))}
           onResume={() => setPause((p) => togglePeriodPause(p, Date.now()))}
@@ -911,13 +1049,13 @@ export function SoccerLiveGame({
           quarter={base.currentPeriod}
           onConfirm={() => {
             setEndConfirmOpen(false);
-            // Ending early credits the whole half (AFL and league do the
+            // Ending early credits the whole period (AFL and league do the
             // same): the real game ran on while the app's clock stopped.
             void endHalfAtClient(periodMs);
           }}
           onCancel={() => setEndConfirmOpen(false)}
           playersLabel="on-field"
-          periodLabel="half"
+          periodLabel={periodWord}
         />
       )}
 
@@ -929,7 +1067,7 @@ export function SoccerLiveGame({
             .map((id) => playerById.get(id))
             .filter((p): p is Player => Boolean(p))
             .map((p) => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number }))}
-          emptyMessage="Nobody is on the field."
+          emptyMessage={`Nobody is on ${words.field.phrase}.`}
           extraOption={{
             label: "Not sure who",
             subLabel: "Counts the goal without a scorer",
@@ -979,10 +1117,12 @@ export function SoccerLiveGame({
             setActionPlayerId(null);
             setSelectedId(actionPlayer.id);
           }}
-          vestReplaceLabel={actionIsKeeper && isPeriodActive ? "keeper" : undefined}
+          // "Swap keeper" mid-period, where the sport allows it (hockey
+          // changes keepers at the break; an injury still replaces one).
+          vestReplaceLabel={actionIsKeeper && isPeriodActive && rules.keeperSwapMidPeriod ? "keeper" : undefined}
           vestReplaceHint="Pick who goes in goal now"
           onReplaceVest={
-            actionIsKeeper && isPeriodActive
+            actionIsKeeper && isPeriodActive && rules.keeperSwapMidPeriod
               ? () => {
                   setActionPlayerId(null);
                   setKeeperPickerOpen(true);
@@ -1005,7 +1145,9 @@ export function SoccerLiveGame({
               id: p.id,
               name: p.full_name,
               jerseyNumber: p.jersey_number,
-              subLabel: soccerUnitOf(state.lineup!, p.id) ? `On the field · ${SOCCER_UNIT_LABEL[soccerUnitOf(state.lineup!, p.id)!]}` : "Bench",
+              subLabel: soccerUnitOf(state.lineup!, p.id)
+                ? `On ${words.field.phrase} · ${words[soccerUnitOf(state.lineup!, p.id)!].label}`
+                : "Bench",
             }))}
           emptyMessage="Nobody can go in goal."
           onPick={(pid) => {
@@ -1021,7 +1163,7 @@ export function SoccerLiveGame({
 
       {fillUnit && lineup && (
         <SlotFillSheet
-          slotLabel={`${SOCCER_UNIT_LABEL[fillUnit].toLowerCase()} spot`}
+          slotLabel={`${words[fillUnit].label.toLowerCase()} spot`}
           candidates={lineup.bench
             .filter((id) => !injuredSet.has(id) && !loanedSet.has(id))
             .map((id) => playerById.get(id))
@@ -1050,7 +1192,7 @@ export function SoccerLiveGame({
           return (
             <InjuryReplacementModal
               injuredPlayer={injured}
-              spotLabel={SOCCER_UNIT_LABEL[injury.unit]}
+              spotLabel={words[injury.unit].label}
               candidates={candidates}
               onPickReplacement={(rid) => void injuryReplace(injury.injuredId, rid, injury.unit)}
               onSkipReplacement={() => {

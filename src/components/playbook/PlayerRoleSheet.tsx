@@ -1,11 +1,20 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { Modal } from "@/components/ui/Modal";
 import { Toggle } from "@/components/ui/Toggle";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { SFButton } from "@/components/sf";
-import { normaliseRole, type PlayerRole, type RoleModel, type RoleOption } from "@/lib/playbook/roles";
+import {
+  normaliseRole,
+  roleFromView,
+  viewFromRole,
+  type PlayerRole,
+  type RoleModel,
+  type RoleOption,
+  type RoleView,
+} from "@/lib/playbook/roles";
 import type { ActionResult } from "@/lib/types";
 
 interface PlayerRoleSheetProps {
@@ -14,22 +23,21 @@ interface PlayerRoleSheetProps {
   initial: PlayerRole;
   onSave: (role: PlayerRole) => Promise<ActionResult>;
   onClose: () => void;
+  /** The team, for the "Add a position" link where the team names its own. */
+  teamId?: string;
 }
 
 function OptionChip({
   option,
   active,
   role,
-  tone,
   onClick,
 }: {
   option: RoleOption;
   active: boolean;
   role: "radio" | "checkbox";
-  tone: "brand" | "danger";
   onClick: () => void;
 }) {
-  const on = tone === "danger" ? "border-danger bg-danger/10 text-danger" : "border-brand-600 bg-brand-50 text-brand-700";
   return (
     <button
       type="button"
@@ -38,7 +46,7 @@ function OptionChip({
       aria-label={option.name !== option.label ? `${option.name} (${option.label})` : option.label}
       onClick={onClick}
       className={`min-h-[44px] min-w-[44px] rounded-md border px-3 font-mono text-xs font-bold transition-colors duration-fast ease-out-quart active:scale-95 ${
-        active ? on : "border-hairline bg-surface text-ink-dim hover:border-ink-mute"
+        active ? "border-brand-600 bg-brand-50 text-brand-700" : "border-hairline bg-surface text-ink-dim hover:border-ink-mute"
       }`}
     >
       {option.label}
@@ -59,26 +67,52 @@ function Picked({ keys, model, testId }: { keys: string[]; model: RoleModel; tes
   );
 }
 
+function SwitchRow({
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  checked: boolean;
+  onChange: (on: boolean) => void;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-ink">{label}</p>
+        <p className="text-xs text-ink-dim">{hint}</p>
+      </div>
+      <Toggle label={label} checked={checked} onChange={onChange} />
+    </div>
+  );
+}
+
 /**
- * A player's role for the season (UX plan §7.9 W3): home spot, also
- * plays, never plays, keep on. Options come from the team's role model,
- * so the same sheet serves AFL positions or lines, netball bibs or
- * thirds, and league lines or positions.
+ * A player's role for the season (UX plan §7.9 W3), in positive terms
+ * only (Steve, 21 Oct 2026): the spots they play, their main spot, and
+ * whether they play every minute. Options come from the team's role
+ * model, so the same sheet serves AFL lines or positions, netball thirds
+ * or bibs, rugby lines or positions, basketball lines or 1–5, and
+ * soccer's keeper.
  */
-export function PlayerRoleSheet({ playerName, model, initial, onSave, onClose }: PlayerRoleSheetProps) {
-  const [role, setRole] = useState<PlayerRole>(initial);
+export function PlayerRoleSheet({ playerName, model, initial, onSave, onClose, teamId }: PlayerRoleSheetProps) {
+  const [view, setView] = useState<RoleView>(() => viewFromRole(initial, model));
+  // Soccer's keeper question works on the stored role directly: one
+  // option, so "Plays as" would read as all or nothing.
+  const [keeperRole, setKeeperRole] = useState<PlayerRole>(initial);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const unitWord = model.unit === "line" ? "line" : "position";
-
-  const toggle = (list: string[], key: string) =>
-    list.includes(key) ? list.filter((k) => k !== key) : [...list, key];
+  const keys = model.options.map((o) => o.key);
+  const gk = keys[0];
 
   function save() {
     setError(null);
-    const clean = normaliseRole(role, model.options.map((o) => o.key));
+    const role = model.keeper ? normaliseRole(keeperRole, keys) : roleFromView(view, model);
     startTransition(async () => {
-      const res = await onSave(clean);
+      const res = await onSave(role);
       if (!res.success) {
         setError(res.error);
         return;
@@ -86,6 +120,17 @@ export function PlayerRoleSheet({ playerName, model, initial, onSave, onClose }:
       onClose();
     });
   }
+
+  const togglePlay = (key: string) =>
+    setView((v) => {
+      const plays = v.plays.includes(key) ? v.plays.filter((k) => k !== key) : [...v.plays, key];
+      const main = v.main && plays.length > 0 && !plays.includes(v.main) ? null : v.main;
+      return { ...v, plays: keys.filter((k) => plays.includes(k)), main };
+    });
+  const mainChoices = model.options.filter((o) => view.plays.length === 0 || view.plays.includes(o.key));
+  const keepOn = model.keeper ? keeperRole.keepOn : view.keepOn;
+  const setKeepOn = (on: boolean) =>
+    model.keeper ? setKeeperRole((r) => ({ ...r, keepOn: on })) : setView((v) => ({ ...v, keepOn: on }));
 
   return (
     <Modal label={`Role for ${playerName}`} onClose={onClose}>
@@ -95,102 +140,103 @@ export function PlayerRoleSheet({ playerName, model, initial, onSave, onClose }:
           type="button"
           aria-label="Close"
           onClick={onClose}
-          className="-mr-2 -mt-2 min-h-[44px] min-w-[44px] text-ink-mute hover:text-ink"
+          className="-mr-2 -mt-2 min-h-[44px] min-w-[44px] text-ink-dim hover:text-ink"
         >
           ✕
         </button>
       </div>
 
       <div className="mt-3 space-y-4 overflow-y-auto">
-        {model.home && (
+        {model.keeper && gk && (
+          <section className="space-y-3">
+            <SwitchRow
+              label="Takes a turn in goal"
+              hint="Siren gives them a turn as keeper, like everyone else."
+              checked={!keeperRole.never.includes(gk)}
+              onChange={(on) =>
+                setKeeperRole((r) => ({
+                  ...r,
+                  never: on ? r.never.filter((k) => k !== gk) : [gk],
+                  home: on ? r.home : null,
+                }))
+              }
+            />
+            {model.home && (
+              <SwitchRow
+                label="Keen keeper"
+                hint="Siren puts them in goal first."
+                checked={keeperRole.home === gk}
+                onChange={(on) =>
+                  setKeeperRole((r) => ({
+                    ...r,
+                    home: on ? gk : null,
+                    never: on ? r.never.filter((k) => k !== gk) : r.never,
+                  }))
+                }
+              />
+            )}
+          </section>
+        )}
+
+        {!model.keeper && model.playsAs && model.options.length > 0 && (
           <section>
-            <p className="text-sm font-semibold text-ink">
-              {model.unit === "line" ? "Preferred line" : "Home position"}
+            <p className="text-sm font-semibold text-ink">Plays as</p>
+            <p className="text-xs text-ink-dim">
+              Siren suggests them only here. Pick none and they play anywhere.
             </p>
-            <div role="radiogroup" aria-label={model.unit === "line" ? "Preferred line" : "Home position"} className="mt-1.5 flex flex-wrap gap-1.5">
+            <div role="group" aria-label="Plays as" className="mt-1.5 flex flex-wrap gap-1.5">
               {model.options.map((o) => (
                 <OptionChip
                   key={o.key}
                   option={o}
-                  role="radio"
-                  tone="brand"
-                  active={role.home === o.key}
-                  onClick={() =>
-                    setRole((r) => ({
-                      ...r,
-                      home: r.home === o.key ? null : o.key,
-                      also: r.also.filter((k) => k !== o.key),
-                      never: r.never.filter((k) => k !== o.key),
-                    }))
-                  }
+                  role="checkbox"
+                  active={view.plays.includes(o.key)}
+                  onClick={() => togglePlay(o.key)}
                 />
               ))}
             </div>
-            <Picked keys={role.home ? [role.home] : []} model={model} testId="role-picked-home" />
+            <Picked keys={view.plays} model={model} testId="role-picked-plays" />
+            {view.restrictNote && view.plays.length > 0 && (
+              <p className="mt-1 text-xs text-ink-dim" data-testid="role-restrict-note">
+                Re-saving will keep them to these {unitWord}s.
+              </p>
+            )}
+            {model.addPositions && teamId && (
+              <Link
+                href={`/teams/${teamId}/settings#positions`}
+                className="mt-1 inline-flex min-h-[44px] items-center text-sm font-semibold text-brand-700 hover:underline"
+              >
+                + Add a position
+              </Link>
+            )}
           </section>
         )}
 
-        {model.home && (
+        {!model.keeper && model.home && model.options.length > 0 && (
           <section>
-            <p className="text-sm font-semibold text-ink">Also plays</p>
-            <div role="group" aria-label="Also plays" className="mt-1.5 flex flex-wrap gap-1.5">
-              {model.options
-                .filter((o) => o.key !== role.home)
-                .map((o) => (
-                  <OptionChip
-                    key={o.key}
-                    option={o}
-                    role="checkbox"
-                    tone="brand"
-                    active={role.also.includes(o.key)}
-                    onClick={() =>
-                      setRole((r) => ({
-                        ...r,
-                        also: toggle(r.also, o.key),
-                        never: r.never.filter((k) => k !== o.key),
-                      }))
-                    }
-                  />
-                ))}
-            </div>
-            <Picked keys={role.also} model={model} testId="role-picked-also" />
-          </section>
-        )}
-
-        <section>
-          <p className="text-sm font-semibold text-ink">Never plays</p>
-          <p className="text-xs text-ink-mute">Siren won&apos;t suggest this {unitWord} for them.</p>
-          <div role="group" aria-label="Never plays" className="mt-1.5 flex flex-wrap gap-1.5">
-            {model.options
-              .filter((o) => o.key !== role.home)
-              .map((o) => (
+            <p className="text-sm font-semibold text-ink">Main {unitWord}</p>
+            <div role="radiogroup" aria-label={`Main ${unitWord}`} className="mt-1.5 flex flex-wrap gap-1.5">
+              {mainChoices.map((o) => (
                 <OptionChip
                   key={o.key}
                   option={o}
-                  role="checkbox"
-                  tone="danger"
-                  active={role.never.includes(o.key)}
-                  onClick={() =>
-                    setRole((r) => ({
-                      ...r,
-                      never: toggle(r.never, o.key),
-                      also: r.also.filter((k) => k !== o.key),
-                    }))
-                  }
+                  role="radio"
+                  active={view.main === o.key}
+                  onClick={() => setView((v) => ({ ...v, main: v.main === o.key ? null : o.key }))}
                 />
               ))}
-          </div>
-          <Picked keys={role.never} model={model} testId="role-picked-never" />
-        </section>
+            </div>
+            <Picked keys={view.main ? [view.main] : []} model={model} testId="role-picked-main" />
+          </section>
+        )}
 
-        <section className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-ink">Keep on, every game</p>
-            <p className="text-xs text-ink-mute">
-              Plays as much as the rules allow, all season. For one game, long-press them on the lineup.
-            </p>
-          </div>
-          <Toggle label="Keep on, every game" checked={role.keepOn} onChange={(keepOn) => setRole((r) => ({ ...r, keepOn }))} />
+        <section className="border-t border-hairline pt-4">
+          <SwitchRow
+            label="Plays every minute"
+            hint="Siren keeps them on as long as the rules allow, every game. For one game only, long-press them on the lineup."
+            checked={keepOn}
+            onChange={setKeepOn}
+          />
         </section>
       </div>
 

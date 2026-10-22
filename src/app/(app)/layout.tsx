@@ -12,6 +12,7 @@ import { getAgeGroupConfig, getSportConfig, teamSport } from "@/lib/sports";
 import type { Sport } from "@/lib/types";
 import { DeletionScheduledBanner } from "@/components/account/DeletionScheduledBanner";
 import { FeedbackFab } from "@/components/feedback/FeedbackFab";
+import { AnalyticsIdentify } from "@/components/analytics/PostHogAnalytics";
 
 export default async function AppLayout({
   children,
@@ -74,6 +75,9 @@ export default async function AppLayout({
           root so it applies to every authenticated surface. P2-10
           in .planning/MICRO-INTERACTIONS-PLAN.md. */}
       <MotionPreferenceBridge />
+      {/* Links analytics to this coach by Supabase id (never name or
+          email). A no-op wherever PostHog is off. */}
+      <AnalyticsIdentify userId={user.id} />
       {/* Always-visible feedback FAB. Visible on every authenticated
           route EXCEPT /live — Steve 2026-05-25 reported the floating
           position overlapping the opposition +G/+B scoring chip

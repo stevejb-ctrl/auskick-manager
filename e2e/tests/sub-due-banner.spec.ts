@@ -34,22 +34,34 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-const SUB_INTERVAL_S = 30;
-
-/** A game 40 s into its first period with 30 s subs; open it with `openWithSubDue`. */
+/**
+ * A game in its first period with 30 s subs (the database's least) on
+ * a 6× clock, so a sub falls due within 5 s of arriving.
+ *
+ * Union counts from the period start, so its sub is already due. AFL's
+ * countdown sits on a grid from the period start, and a fresh mount
+ * floors onto it (subIntervalStartFloor), so its next sub is up to one
+ * interval away and never already due. At 1× that was up to 30 s, and
+ * from 40 s in it fell due at 60 s, 20 s after setup: the AFL tests'
+ * 20 s waits only caught it when the page took a while to load.
+ */
 async function subDueGame(sport: "afl" | "rugby_union") {
   const admin = createAdminClient();
   const { data: su } = await admin.auth.admin.listUsers();
   const ownerId = su.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
   const union = sport === "rugby_union";
   const ageGroup = union ? "U12" : "U10";
-  const team = await makeTeam(admin, { ownerId, sport, ageGroup, name: `SUB-DUE ${sport} ${Date.now() % 100000}` });
+  // Two workers start the two AFL tests in the same millisecond, so the
+  // time alone gave both teams one name and makeTeam's fetch by name
+  // found two rows. The random part keeps them apart.
+  const suffix = `${Date.now() % 100000}-${Math.random().toString(36).slice(2, 6)}`;
+  const team = await makeTeam(admin, { ownerId, sport, ageGroup, name: `SUB-DUE ${sport} ${suffix}` });
   await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: union ? 17 : 15, ageGroup });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   const { error } = await admin
     .from("games")
-    .update({ clock_multiplier: 1, sub_interval_seconds: SUB_INTERVAL_S, status: "in_progress" })
+    .update({ clock_multiplier: 6, sub_interval_seconds: 30, status: "in_progress" })
     .eq("id", game.id);
   if (error) throw new Error(error.message);
   await admin.from("game_availability").insert(
@@ -59,32 +71,18 @@ async function subDueGame(sport: "afl" | "rugby_union") {
   const lineup = union
     ? { forwards: ids.slice(0, 8), backs: ids.slice(8, 15), bench: ids.slice(15) }
     : { back: ids.slice(0, 4), hback: [], mid: ids.slice(4, 8), hfwd: [], fwd: ids.slice(8, 12), bench: ids.slice(12) };
+  // 10 s ago is a minute of game time: two of union's intervals, and
+  // AFL's 12-minute quarter has 110 s left for the test to finish in
+  // (union's 25-minute half has longer).
   const t = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString();
   const { error: evErr } = await admin.from("game_events").insert(
     [
-      { type: "lineup_set", metadata: { lineup, sport }, created_at: t(41) },
-      { type: "quarter_start", metadata: { quarter: 1, sport }, created_at: t(40) },
+      { type: "lineup_set", metadata: { lineup, sport }, created_at: t(11) },
+      { type: "quarter_start", metadata: { quarter: 1, sport }, created_at: t(10) },
     ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
   );
   if (evErr) throw new Error(evErr.message);
   return { coach: `/teams/${team.id}/games/${game.id}/live`, runner: `/run/${game.share_token}` };
-}
-
-/**
- * Open the live screen with its sub due. League and union count the
- * interval from the period start, so theirs is due on arrival. AFL lines
- * its countdown up to the interval grid when the screen mounts (LiveGame's
- * subBaseMs seed), so 40 s in with 30 s subs its sub falls due at 60 s:
- * 15–20 s after arrival, against a 20 s wait that starts later still. CI
- * run 39068715755 missed it by under a second, three times. So the page
- * runs on Playwright's clock, and once it has hydrated the clock jumps one
- * interval: wherever the screen mounted, the next grid point is behind it.
- */
-async function openWithSubDue(page: Page, url: string) {
-  await page.clock.install();
-  await page.goto(url);
-  await waitForHydration(page);
-  await page.clock.fastForward(SUB_INTERVAL_S * 1000);
 }
 
 async function expectBannerNotModal(page: Page, chip: string) {
@@ -125,7 +123,8 @@ async function expectCardIsTheAlert(page: Page) {
 
 test("AFL: sub due is the swap card, and +G still takes the tap", async ({ page }) => {
   test.setTimeout(90_000);
-  await openWithSubDue(page, (await subDueGame("afl")).coach);
+  await page.goto((await subDueGame("afl")).coach);
+  await waitForHydration(page);
   await expectCardIsTheAlert(page);
 });
 
@@ -133,14 +132,16 @@ test("AFL: sub due is the swap card, and +G still takes the tap", async ({ page 
 // the coach.
 test("AFL runner: sub due is the same card", async ({ page }) => {
   test.setTimeout(90_000);
-  await openWithSubDue(page, (await subDueGame("afl")).runner);
+  await page.goto((await subDueGame("afl")).runner);
+  await waitForHydration(page);
   await expect(page.getByRole("button", { name: "Exit live game" })).toBeVisible({ timeout: 15_000 });
   await expectCardIsTheAlert(page);
 });
 
 test("union: sub due is a banner, and +T still takes the tap", async ({ page }) => {
   test.setTimeout(90_000);
-  await openWithSubDue(page, (await subDueGame("rugby_union")).coach);
+  await page.goto((await subDueGame("rugby_union")).coach);
+  await waitForHydration(page);
   await expectBannerNotModal(page, "Record a try for our team");
 });
 
@@ -153,7 +154,8 @@ for (const { sport, rows } of [
 ]) {
   test(`${sport}: at 375 px the sub card's swap rows show whole names`, async ({ page }) => {
     test.setTimeout(90_000);
-    await openWithSubDue(page, (await subDueGame(sport)).coach);
+    await page.goto((await subDueGame(sport)).coach);
+    await waitForHydration(page);
     await expect(page.locator(rows).first()).toBeVisible({ timeout: 20_000 });
     const clipped = await page.evaluate((selector) => {
       // League rows truncate a name span; AFL's name buttons ARE the names.

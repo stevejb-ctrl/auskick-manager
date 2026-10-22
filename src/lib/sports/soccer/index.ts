@@ -31,6 +31,7 @@ import { aflSport } from "@/lib/sports/afl";
 import { validateSoccerLineup } from "@/lib/sports/soccer/lineup";
 import type {
   SoccerAgeGroupConfig,
+  SoccerFamilyRules,
   SoccerFormation,
   SoccerKeeperStrategy,
   SoccerSubMode,
@@ -77,7 +78,7 @@ const KEEPER_SHAPES: Record<number, SoccerFormation[]> = {
  * minutes): what windows mode starts from when a coach turns it on.
  * Every age defaults to rolling subs.
  */
-export const SOCCER_WINDOWS_PRESET: SoccerSubMode = { kind: "windows", perHalf: 3, cutoffSeconds: 120 };
+export const SOCCER_WINDOWS_PRESET: SoccerSubMode = { kind: "windows", perPeriod: 3, cutoffSeconds: 120 };
 
 const ROLLING: SoccerSubMode = { kind: "rolling" };
 
@@ -145,16 +146,6 @@ export const SOCCER_AGE_GROUPS: SoccerAgeGroupConfig[] = AGES.map((a) => {
 });
 
 /**
- * A soccer age group, with soccer's own rules. The id must be one of
- * soccer's (an unknown one is an error, not another age's rules).
- */
-export function soccerAgeGroup(id: string | null | undefined): SoccerAgeGroupConfig {
-  const hit = SOCCER_AGE_GROUPS.find((a) => a.id === id);
-  if (!hit) throw new Error(`Unknown Football (soccer) age group "${String(id)}"`);
-  return hit;
-}
-
-/**
  * The shapes for an age group at an on-field size, the default first. A
  * size outside the age group's range takes the nearest it plays.
  */
@@ -162,6 +153,62 @@ export function soccerFormations(ageGroup: SoccerAgeGroupConfig, onFieldSize: nu
   const size = Math.min(ageGroup.maxOnFieldSize, Math.max(ageGroup.minOnFieldSize, Math.round(onFieldSize)));
   return ageGroup.formations[size];
 }
+
+/** The MiniRoos ages (U6–U11), whose laws and formats come from Football Australia. */
+const MINIROOS_AGES = ["U6", "U7", "U8", "U9", "U10", "U11"] as const;
+const MINIROOS = "Football Australia MiniRoos";
+
+/**
+ * Soccer's settings on the family's engine (soccer/types.ts): its line
+ * words, its pitch, keeper swaps any time, and MiniRoos' laws.
+ */
+export const SOCCER_RULES: SoccerFamilyRules = {
+  lineLabels: {
+    gk: { label: "Keeper", short: "GK", phrase: "goal" },
+    def: { label: "Defence", short: "DEF", phrase: "defence" },
+    mid: { label: "Midfield", short: "MID", phrase: "midfield" },
+    att: { label: "Attack", short: "ATT", phrase: "attack" },
+    field: { label: "Field", short: "", phrase: "the field" },
+  },
+  surface: "pitch",
+  keeperSwapMidPeriod: true,
+  keeperKitUpSeconds: null,
+  keeperGear: "Keeper top",
+  halvesOrQuarters: false,
+  minLines: {
+    ages: ["U12", "U13"],
+    count: 3,
+    message: "Football Victoria's U12–U13 rules ask for at least three lines.",
+  },
+  ruleSource: {
+    laws: [
+      { id: "miniroos-scores", text: "No scores or ladders are kept", source: MINIROOS, ages: MINIROOS_AGES },
+      { id: "miniroos-subs", text: "Subs roll on and off at any time, as often as you like", source: MINIROOS, ages: MINIROOS_AGES },
+      { id: "miniroos-offside", text: "No offside", source: MINIROOS, ages: MINIROOS_AGES },
+    ],
+    format: { source: MINIROOS, ages: MINIROOS_AGES },
+    equalTime: "Football Australia: equal playing time is a priority",
+  },
+  scoringCopy: {
+    on: "Junior competitions keep score from about Under 12",
+    off: "MiniRoos keeps no scores or ladders",
+  },
+  strategyCopy: {
+    turns: {
+      blurb: "One keeper a half, the fewest keeper minutes first. Mark keen keepers, and kids who'd rather not.",
+      fit: "MiniRoos (Under 8 to Under 11)",
+    },
+    keepers: {
+      blurb: "You name your keepers (home: Keeper) and they share goal. Everyone else rotates through the lines.",
+      fit: "Under 12 and up",
+    },
+    minutes: {
+      blurb: "4 a side, no keeper and no lines: kids just play, and Siren evens out their minutes.",
+      fit: "Under 6 and Under 7",
+    },
+  },
+  emoji: "⚽",
+};
 
 // Soccer lives under the main Siren brand, as union: the main site's
 // host (so no host resolves to soccer; see getBrandForHost) and the
@@ -189,5 +236,5 @@ export const soccerSport: SportConfig = {
   jerseyNumbers: true,
   // Like rugby's, soccer's live screen plays no team song (the plan's call).
   teamSong: false,
-  validateLineup: validateSoccerLineup,
+  validateLineup: (lineup, ageGroup, onFieldSize) => validateSoccerLineup(lineup, ageGroup, onFieldSize, SOCCER_RULES),
 };

@@ -1,11 +1,11 @@
 "use client";
 
-// ─── Football (soccer) full time ─────────────────────────────
-// SoccerFullTimeReview sits between the last half's end and
+// ─── The soccer family's full time ───────────────────────────
+// SoccerFullTimeReview sits between the last period's end and
 // game_finalised, as AFL's FullTimeReview and league's do: the two
-// score boxes, the score by half, inline score adjustments (+ Goal for
-// either side, undo the last), then "Finish game". With scoring off
-// (MiniRoos) it's just the finish. SoccerGameSummaryCard is the share
+// score boxes, the score by half (or quarter), inline score adjustments
+// (+ Goal for either side, undo the last), then "Finish game". With
+// scoring off (MiniRoos) it's just the finish. SoccerGameSummaryCard is the share
 // text afterwards, on the shared CopyableTextBlock.
 
 import { useState, useTransition } from "react";
@@ -25,8 +25,10 @@ interface SoccerFullTimeReviewProps {
   gameId: string;
   state: SoccerGameState;
   periodCount: number;
+  /** The age group's period word ("half", "quarter"): the score table's rows. */
+  periodWord: string;
   trackScoring: boolean;
-  /** ms of the last half, written on game_finalised. */
+  /** ms of the last period, written on game_finalised. */
   finalisedElapsedMs: number;
   teamName: string;
   opponentName: string;
@@ -42,6 +44,7 @@ export function SoccerFullTimeReview({
   gameId,
   state,
   periodCount,
+  periodWord,
   trackScoring,
   finalisedElapsedMs,
   teamName,
@@ -95,7 +98,7 @@ export function SoccerFullTimeReview({
             <table className="w-full text-left text-xs">
               <thead className="bg-surface-alt">
                 <tr>
-                  <th className={`px-3 py-1.5 ${head}`}>Half</th>
+                  <th className={`px-3 py-1.5 ${head}`}>{periodWord.charAt(0).toUpperCase() + periodWord.slice(1)}</th>
                   <th className={`px-2 py-1.5 text-right ${head}`}>{teamName}</th>
                   <th className={`px-2 py-1.5 text-right ${head}`}>{opponentName}</th>
                 </tr>
@@ -105,7 +108,10 @@ export function SoccerFullTimeReview({
                   const row = state.scoreByPeriod[i + 1] ?? { ours: 0, theirs: 0 };
                   return (
                     <tr key={i}>
-                      <td className="px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">H{i + 1}</td>
+                      <td className="px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
+                        {periodWord.charAt(0).toUpperCase()}
+                        {i + 1}
+                      </td>
                       <td className="px-2 py-1.5 text-right font-bold tabular-nums text-ink">{row.ours}</td>
                       <td className="px-2 py-1.5 text-right font-bold tabular-nums text-ink">{row.theirs}</td>
                     </tr>
@@ -173,6 +179,8 @@ export function SoccerFullTimeReview({
 }
 
 interface SoccerGameSummaryCardProps {
+  /** The sport's emoji for the share text (SoccerFamilyRules.emoji). */
+  emoji: string;
   state: SoccerGameState;
   squad: Player[];
   presentIds: string[];
@@ -184,6 +192,7 @@ interface SoccerGameSummaryCardProps {
 }
 
 export function SoccerGameSummaryCard({
+  emoji,
   state,
   squad,
   presentIds,
@@ -192,7 +201,7 @@ export function SoccerGameSummaryCard({
   opponentName,
   showArrivalPulse = false,
 }: SoccerGameSummaryCardProps) {
-  const summary = buildSoccerSummary({ teamName, opponentName, trackScoring, state, squad, presentIds });
+  const summary = buildSoccerSummary({ emoji, teamName, opponentName, trackScoring, state, squad, presentIds });
   const card = (
     <div className={`rounded-md border border-hairline bg-surface p-4 shadow-card ${showArrivalPulse ? "animate-slide-up" : ""}`}>
       <CopyableTextBlock title="Game summary" text={summary} textId="soccer-game-summary-text" />
