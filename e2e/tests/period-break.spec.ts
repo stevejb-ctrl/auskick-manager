@@ -96,6 +96,75 @@ async function openBreak(page: Page, teamId: string, gameId: string, title: RegE
   await expect(page.getByRole("heading", { name: title })).toBeVisible({ timeout: 20_000 });
 }
 
+test.describe("soccer", () => {
+  test("half-time says 2nd half, the keeper has one slot, and Fix gives someone else a turn in goal", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await quiet(page);
+    const admin = createAdminClient();
+    const ownerId = await ownerOf(admin);
+    const team = await makeTeam(admin, { ownerId, sport: "soccer", ageGroup: "U10", name: `PB-SOC-${Date.now() % 1e6}` });
+    await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+    const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 12 });
+    const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Rovers" });
+    const k = players.map((p) => p.id);
+    await available(admin, game.id, ownerId, k);
+    // 9 a side: keeper, 3-3-2, three on the bench.
+    const lineup = { keeper: k[0], lines: { def: k.slice(1, 4), mid: k.slice(4, 7), att: k.slice(7, 9), field: [] }, bench: k.slice(9) };
+    await seedBreak(admin, ownerId, game.id, "soccer", lineup, 25 * 60_000, [
+      { type: "goal", player_id: k[7], metadata: { quarter: 1, elapsed_ms: 60_000 } },
+      { type: "opponent_goal", metadata: { quarter: 1, elapsed_ms: 90_000 } },
+      { type: "goal", player_id: k[8], metadata: { quarter: 1, elapsed_ms: 120_000 } },
+    ]);
+
+    await openBreak(page, team.id, game.id, /^2nd half lineup$/);
+    await expect(page.getByText("Half-time · vs Rovers")).toBeVisible();
+    await expect(page.getByRole("button", { name: /review and update scores/i })).toContainText("2 – 1");
+    const names = await page.getByRole("group").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+    expect(names.filter((n) => ["Attack", "Midfield", "Defence", "Keeper", "Bench"].includes(n ?? ""))).toEqual([
+      "Attack",
+      "Midfield",
+      "Defence",
+      "Keeper",
+      "Bench",
+    ]);
+    await expect(group(page, "Keeper")).toContainText("1 on");
+    await expect(group(page, "Keeper").getByRole("button")).toHaveCount(1);
+    await expect(page.getByRole("button", { name: /^start 2nd half/i })).toBeVisible();
+    await expect(page.getByText(/\bH2\b/)).toHaveCount(0);
+
+    // Repeat: last half's keeper in goal again breaks "everyone has a
+    // turn" (and the bench kids sitting out again breaks the 50% floor).
+    await strategy(page, "Repeat").click();
+    await expect(page.getByTestId("break-broken-rule").filter({ hasText: "can't reach 50% now" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^start 2nd half/i })).toContainText("2 rules");
+    const broken = page.getByTestId("break-broken-rule").filter({ hasText: "kept goal last half" });
+    await expect(broken).toBeVisible();
+    await expect(broken).toContainText("Rule: Everyone has a turn: one half in goal each");
+    await page.screenshot({ path: test.info().outputPath("soccer-break.png") });
+    await broken.getByRole("button", { name: "Fix" }).click();
+    await expect(broken).toHaveCount(0);
+    await expect(group(page, "Keeper").getByTestId(`player-tile-${k[0]}`)).toHaveCount(0);
+    // Three bench kids short of the floor: Fix brings them on, a swap each.
+    const floor = page.getByTestId("break-broken-rule").filter({ hasText: "can't reach 50% now" });
+    await floor.getByRole("button", { name: "Fix" }).click();
+    await expect(page.getByTestId("break-broken-rule")).toHaveCount(0);
+
+    await page.getByRole("button", { name: /^start 2nd half$/i }).click();
+    await page.getByRole("button", { name: /^start 2nd half now$/i }).click();
+    await expect
+      .poll(
+        async () => {
+          const { data } = await admin.from("game_events").select("type, metadata").eq("game_id", game.id).order("created_at");
+          const types = (data ?? []).map((e) => e.type);
+          const set = [...(data ?? [])].reverse().find((e) => e.type === "lineup_set")?.metadata as { lineup?: { keeper?: string } };
+          return { started: types.includes("quarter_start") && types.lastIndexOf("quarter_start") > types.lastIndexOf("lineup_set"), keeper: set?.lineup?.keeper };
+        },
+        { timeout: 20_000 },
+      )
+      .toMatchObject({ started: true });
+  });
+});
+
 test.describe("netball", () => {
   const BIBS = ["gs", "ga", "wa", "c", "wd", "gd", "gk"];
 
