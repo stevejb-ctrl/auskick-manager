@@ -64,8 +64,8 @@ describe("sport registry", () => {
   });
 
   it("keeps the four-sports plan's sports closed to new teams until their live game lands", () => {
-    for (const id of ["futsal", "hockey", "touch", "oztag"] as const) expect(isSportOpen(id), id).toBe(false);
-    for (const id of ["afl", "netball", "rugby_league", "rugby_union", "soccer", "basketball"] as const) {
+    for (const id of ["futsal", "hockey"] as const) expect(isSportOpen(id), id).toBe(false);
+    for (const id of ["afl", "netball", "rugby_league", "rugby_union", "soccer", "basketball", "touch", "oztag"] as const) {
       expect(isSportOpen(id), id).toBe(true);
     }
   });
