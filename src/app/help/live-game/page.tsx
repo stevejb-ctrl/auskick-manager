@@ -38,7 +38,14 @@ export default function LiveGamePage() {
         (long-press the keeper) changes it mid-half. Basketball subs at a dead
         ball through the table, tracks each kid&apos;s fouls (five and
         they&apos;re out), and its clock waits at 0:00 for the real hooter,
-        since the stadium clock stops in the last minutes. Every sport has a lineup
+        since the stadium clock stops in the last minutes. Touch football and
+        Oztag roll subs on and off whenever you like (make the change when you
+        have the ball), and a mixed team keeps its cap on boys, shrinking the
+        field when it&apos;s short of girls; see{" "}
+        <Link href="/help/rotations#touch-and-oztag" className="text-brand-700 underline">
+          Rotations
+        </Link>
+        . Every sport has a lineup
         picker, scoring buttons and a long-press player-actions sheet.
       </p>
 
