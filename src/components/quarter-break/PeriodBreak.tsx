@@ -117,7 +117,18 @@ function statusSummary(sidelined: Readonly<Record<string, string>>): string {
 
 export function PeriodBreak(props: PeriodBreakProps) {
   const { config, nextPeriod, slots, players, previous, gameMs, sidelined, issues, start } = props;
-  const [selected, setSelected] = useState<number | null>(null);
+  // The selected slot, by who's in it (or which empty spot it is), not by
+  // index: the slots re-sort when a kid is lent or hurt, and an index
+  // would then point at someone else.
+  const [picked, setPicked] = useState<BoardSlot | null>(null);
+  const selectedIndex = useMemo(() => {
+    if (!picked) return -1;
+    return slots.findIndex((s) =>
+      picked.playerId ? s.playerId === picked.playerId : !s.playerId && s.group === picked.group && s.index === picked.index,
+    );
+  }, [picked, slots]);
+  const selected = selectedIndex >= 0 ? selectedIndex : null;
+  const setSelected = (i: number | null) => setPicked(i === null ? null : slots[i] ?? null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [scoreOpen, setScoreOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -126,15 +137,13 @@ export function PeriodBreak(props: PeriodBreakProps) {
   const places = useMemo(() => placeIndex(config.zones), [config.zones]);
   const periodName = config.periodName(nextPeriod);
 
-  // A selection that no longer points at a swappable kid (the slots
-  // changed, or the kid was lent or hurt) is dropped: the next tap would
-  // swap the wrong slot.
+  // A selection that no longer points at a swappable kid (they left the
+  // board, or were lent or hurt) is dropped: the next tap would swap them on.
   const selectedSlot = selected !== null ? slots[selected] : undefined;
   useEffect(() => {
-    if (selected === null) return;
-    const s = slots[selected];
-    if (!s || (s.playerId && sidelinedSet.has(s.playerId))) setSelected(null);
-  }, [selected, slots, sidelinedSet]);
+    if (!picked) return;
+    if (selectedIndex < 0 || (picked.playerId && sidelinedSet.has(picked.playerId))) setPicked(null);
+  }, [picked, selectedIndex, sidelinedSet]);
 
   // A start that failed comes back to the lineup with its error showing.
   useEffect(() => {
