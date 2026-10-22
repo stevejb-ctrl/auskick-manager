@@ -36,7 +36,11 @@ test("touch: the wizard makes a mixed U11 team, every page opens, one period and
   await expect(page.getByText(/at most 3 boys on the field, at least 1 girl and 1 boy/i)).toBeVisible();
   await page.getByRole("switch", { name: "Mixed team" }).click();
   await page.getByRole("button", { name: /continue/i }).click();
-  await page.waitForURL(/\/teams\/[0-9a-f-]+/, { timeout: 15_000 });
+  // The wizard replaces itself with the setup; let it settle (and its
+  // prefetches finish) before leaving, or WebKit reports the cut-off
+  // fetch as a page error.
+  await page.waitForURL(/\/teams\/[0-9a-f-]+\/setup/, { timeout: 15_000 });
+  await waitForHydration(page);
   const teamId = page.url().match(/\/teams\/([0-9a-f-]+)/)![1];
 
   // U11 keeps score; a mixed team starts on TFA's rule (3 / 1 / 1).
@@ -132,7 +136,11 @@ test("oztag: the wizard makes a mixed U12 team, every page opens, and the girl's
   await page.getByLabel(/age group/i).selectOption("U12");
   await page.getByRole("switch", { name: "Mixed team" }).click();
   await page.getByRole("button", { name: /continue/i }).click();
-  await page.waitForURL(/\/teams\/[0-9a-f-]+/, { timeout: 15_000 });
+  // The wizard replaces itself with the setup; let it settle (and its
+  // prefetches finish) before leaving, or WebKit reports the cut-off
+  // fetch as a page error.
+  await page.waitForURL(/\/teams\/[0-9a-f-]+\/setup/, { timeout: 15_000 });
+  await waitForHydration(page);
   const teamId = page.url().match(/\/teams\/([0-9a-f-]+)/)![1];
   await expect
     .poll(async () => (await admin.from("teams").select("sport, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double").eq("id", teamId).single()).data)
