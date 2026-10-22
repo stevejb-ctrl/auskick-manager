@@ -176,6 +176,7 @@ export function SoccerField({
       )}
       <div className="relative overflow-hidden rounded-[18px]">
         {surface === "pitch" && <PitchMarkings />}
+        {surface === "court" && <FutsalCourtMarkings />}
         <div className="relative space-y-2 px-5 pb-6 pt-8">
           {hasKeeper ? (
             <>
@@ -197,6 +198,32 @@ export function SoccerField({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Futsal's court, on the shared court token basketball draws on: the
+ * lines, halfway and the centre circle, and at each end the 6 m penalty
+ * area (quarter circles from the posts, joined by a short straight), the
+ * 10 m second penalty mark and the 3 m goal. Attack at the top.
+ * Decoration only.
+ */
+function FutsalCourtMarkings() {
+  const line = "border-court-line";
+  return (
+    <div aria-hidden data-testid="futsal-court-markings" className="pointer-events-none absolute inset-0">
+      <div className={`absolute inset-2 rounded-[10px] border-2 ${line}`} />
+      <div className={`absolute inset-x-2 top-1/2 h-0 border-t-2 ${line}`} />
+      <div className={`absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 ${line}`} />
+      {/* The penalty areas: rounded corners as deep as the area. */}
+      <div className={`absolute left-1/2 top-2 h-[15%] w-[76%] -translate-x-1/2 rounded-b-full border-2 border-t-0 ${line} bg-white/[0.06]`} />
+      <div className={`absolute bottom-2 left-1/2 h-[15%] w-[76%] -translate-x-1/2 rounded-t-full border-2 border-b-0 ${line} bg-white/[0.06]`} />
+      {/* The second penalty marks (10 m) and the goals. */}
+      <div className="absolute left-1/2 top-[26%] h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-court-line" />
+      <div className="absolute bottom-[26%] left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-court-line" />
+      <div className={`absolute left-1/2 top-0.5 h-1.5 w-[16%] -translate-x-1/2 border-x-2 border-t-2 ${line}`} />
+      <div className={`absolute bottom-0.5 left-1/2 h-1.5 w-[16%] -translate-x-1/2 border-x-2 border-b-2 ${line}`} />
     </div>
   );
 }
