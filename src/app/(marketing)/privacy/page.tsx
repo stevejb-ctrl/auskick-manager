@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 // Last updated shown at the top of the policy. Bump this whenever the
 // substance of the policy changes (not for typo fixes).
-const LAST_UPDATED = "19 October 2026";
+const LAST_UPDATED = "22 October 2026";
 
 export default function PrivacyPage() {
   return (
@@ -56,9 +56,10 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Team and game data you create</strong>: team names, season
-              settings, player names and jersey numbers you add to the squad,
-              game fixtures, availability marks, rotations, scores, and game
-              events.
+              settings, player names and jersey numbers you add to the squad
+              (and, on a mixed touch football or Oztag team only, whether each
+              player counts as a girl or a boy: see section 3), game fixtures,
+              availability marks, rotations, scores, and game events.
             </li>
             <li>
               <strong>Device and usage data</strong>: basic request logs
@@ -108,6 +109,17 @@ export default function PrivacyPage() {
             <li>
               Player names never leave the app in usage analytics: on-screen
               text is masked on your device before any usage data is sent.
+            </li>
+            <li>
+              <strong>Girl or boy, on mixed touch and Oztag teams only</strong>:
+              mixed touch football and Oztag competitions cap the number of boys
+              on the field, so the coach of a mixed team can mark each player as
+              a girl or a boy. We ask for it only on a team set up as mixed, use
+              it only to keep that rule in the team&rsquo;s lineups and subs, and
+              show it nowhere else: not on the live game screen, to parents, in
+              shared summaries or exports, or in usage analytics. It&rsquo;s
+              visible only to the team&rsquo;s coaches, and a team admin can
+              change it or remove the player at any time.
             </li>
             <li>
               Siren accounts are for adults. Children do not sign up themselves;
