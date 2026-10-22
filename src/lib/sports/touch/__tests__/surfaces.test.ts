@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { scoreFromEvents, scorersFromEvents } from "@/lib/results";
 import { gameTimeByUnit } from "@/lib/playbook/seasonTime";
 import { gameReport } from "@/lib/playbook/gameReport";
+import { aggregateTouchSeason } from "@/lib/dashboard/touchAggregators";
 import { touchHowWePlay, touchPrefs } from "@/lib/sports/touch/familyPlaybook";
 import { FIELD, LANES, MIN, game } from "./touchGame";
 
@@ -103,5 +104,25 @@ describe("gameReport on a mixed team", () => {
   it("would flag every boy against the team's floor", () => {
     const report = gameReport({ ...base, byPeriod });
     expect(report.items[0].text).toMatch(/^B1, B2, .* and B8 played under 50%$/);
+  });
+});
+
+describe("aggregateTouchSeason", () => {
+  it("adds up each kid's minutes, lanes and tries, and the results", () => {
+    const g1 = game();
+    g1.lineup(LANES);
+    g1.start(1);
+    g1.score("girls_try", 2, "a");
+    g1.score("opponent_try", 3);
+    g1.end(1, 20);
+    const g2 = game();
+    g2.lineup(LANES);
+    g2.start(1);
+    g2.score("opponent_try", 2);
+    g2.end(1, 20);
+    const agg = aggregateTouchSeason([{ id: "x" }, { id: "y" }], { x: g1.events, y: g2.events });
+    expect(agg.totals).toEqual({ games: 2, pointsFor: 2, pointsAgainst: 2, wins: 1, draws: 0, losses: 1 });
+    expect(agg.perPlayer.a).toMatchObject({ gamesPlayed: 2, ms: 40 * MIN, middleMs: 40 * MIN, tries: 1, points: 2 });
+    expect(agg.perPlayer.g).toBeUndefined();
   });
 });
