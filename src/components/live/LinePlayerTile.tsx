@@ -19,6 +19,7 @@ import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Player } from "@/lib/types";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
+import { KeepOnMarker } from "@/components/playbook/KeepOnMarker";
 
 /** How a sport draws one of its lines on a tile. */
 export interface TileLineStyle {
@@ -68,6 +69,12 @@ export interface LinePlayerTileProps {
   swapDue?: boolean;
   /** A sport's own status chip after the score (basketball's fouls). */
   extraChip?: ReactNode;
+  /** Named positions: the kid's position ("HK") in place of the line's label. */
+  positionLabel?: string | null;
+  /** Season role "Plays every minute": the corner marker. */
+  keepOn?: boolean;
+  /** The tile's test id (default `player-tile-<id>`). */
+  testId?: string;
 }
 
 function formatMinSec(ms: number): string {
@@ -98,6 +105,9 @@ function LinePlayerTileImpl({
   score,
   swapDue = false,
   extraChip,
+  positionLabel = null,
+  keepOn = false,
+  testId,
 }: LinePlayerTileProps) {
   const { handlers: longPressHandlers, arming: longPressArming, consumedLongPress } = useLongPress({ onLongPress });
 
@@ -136,7 +146,7 @@ function LinePlayerTileImpl({
   const displayName = lastInitial ? `${firstName} ${lastInitial}` : firstName;
 
   const style = line ? styles[line] : undefined;
-  const lineLabel = style?.short || null;
+  const lineLabel = positionLabel || style?.short || null;
 
   // The swap handover, as AFL's tile: a tile marked OFF that receives
   // the kid coming on pops a green ✓ and rolls the names.
@@ -166,7 +176,8 @@ function LinePlayerTileImpl({
     <SirenPulseHalo triggerKey={swap?.pair ?? null} size="md" display="block" className="rounded-md">
       <button
         type="button"
-        data-testid={`player-tile-${player.id}`}
+        data-testid={testId ?? `player-tile-${player.id}`}
+        aria-pressed={selected ?? false}
         onClick={handleClick}
         {...longPressHandlers}
         disabled={!onClick && !onLongPress}
@@ -180,6 +191,7 @@ function LinePlayerTileImpl({
           longPressArming && !selected ? "ring-2 ring-brand-300 ring-offset-1" : "",
         ].join(" ")}
       >
+        {keepOn && !away && !score && <KeepOnMarker />}
         {isOn && (
           <div
             className={`flex items-center justify-center gap-1 rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-micro ${
@@ -196,7 +208,10 @@ function LinePlayerTileImpl({
           {/* Row 1 · labels left, status chip right. */}
           <span className="flex h-4 items-center gap-1.5">
             {lineLabel && (
-              <span className={`font-mono text-[10px] font-bold uppercase leading-4 tracking-micro ${style?.textClass ?? "text-ink-dim"}`}>
+              <span
+                className={`font-mono text-[10px] font-bold uppercase leading-4 tracking-micro ${style?.textClass ?? "text-ink-dim"}`}
+                aria-label={positionLabel ? `Position ${positionLabel}` : undefined}
+              >
                 {lineLabel}
               </span>
             )}
@@ -327,6 +342,8 @@ function areEqual(a: LinePlayerTileProps, b: LinePlayerTileProps): boolean {
     a.injured !== b.injured ||
     a.loaned !== b.loaned ||
     a.lockMode !== b.lockMode ||
+    a.positionLabel !== b.positionLabel ||
+    a.keepOn !== b.keepOn ||
     a.score?.text !== b.score?.text ||
     a.swapDue !== b.swapDue ||
     a.extraChip !== b.extraChip

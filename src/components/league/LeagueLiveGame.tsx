@@ -1827,6 +1827,7 @@ export function LeagueLiveGame({
             loanedIds={loanedSet}
             selectedPlayerId={selectedPlayerId}
             swapOffs={swapOffs}
+            swapDue={subIsDue}
             totalSwapPairs={totalSwapPairs}
             chipModes={chipModes}
             onPlayerClick={handlePlayerTapMaybeSwap}
