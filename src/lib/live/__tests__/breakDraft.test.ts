@@ -69,6 +69,26 @@ describe("restoreBreakDraft", () => {
     expect(restored?.bench).toEqual(["g", "h", "late", "hurt"]);
   });
 
+  it("keeps the named position of each kid back on the field, and only theirs", () => {
+    const restored = restoreBreakDraft(
+      { ...draft, slots: { a: "pg", b: "sg", c: "c", g: "pf" } },
+      {
+        gameId: "g1",
+        period: 2,
+        groupIds,
+        availableIds: everyone.filter((id) => id !== "b"),
+        benchOnlyIds: ["b"],
+      },
+    );
+    // b was hurt since (benched, so no position); g is on the bench.
+    expect(restored?.slots).toEqual({ a: "pg", c: "c" });
+  });
+
+  it("gives back no positions when none were staged", () => {
+    const restored = restoreBreakDraft(draft, { gameId: "g1", period: 2, groupIds, availableIds: everyone });
+    expect(restored).not.toHaveProperty("slots");
+  });
+
   it("never lists a kid twice", () => {
     const restored = restoreBreakDraft(
       { ...draft, groups: { fwd: ["a", "a"], mid: ["c"] }, bench: ["c", "g", "a"] },

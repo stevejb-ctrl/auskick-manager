@@ -28,8 +28,11 @@ export interface UseStagedBreakDraftOptions {
   availableIds: readonly string[];
   /** Kids in the game who can't play (hurt, lent), kept on the bench. */
   benchOnlyIds?: readonly string[];
-  /** The draft as it stands. Memoise it: a new object saves again. */
-  staged: { groups: Record<string, string[]>; bench: string[] };
+  /**
+   * The draft as it stands, with each kid's named position (`slots`) for
+   * sports that have them. Memoise it: a new object saves again.
+   */
+  staged: { groups: Record<string, string[]>; bench: string[]; slots?: Record<string, string> };
   mode: string;
   /** Apply a restored draft (and its mode) to the break's state. */
   onRestore: (restored: RestoredBreakDraft) => void;
@@ -72,7 +75,14 @@ export function useStagedBreakDraft(options: UseStagedBreakDraftOptions): { clea
     // Not before the restore: saving first would overwrite the draft
     // the coach left with the fresh suggestion.
     if (!restoreDone || clearedRef.current) return;
-    setBreakDraft({ gameId, period, groups: staged.groups, bench: staged.bench, mode });
+    setBreakDraft({
+      gameId,
+      period,
+      groups: staged.groups,
+      bench: staged.bench,
+      ...(staged.slots ? { slots: staged.slots } : {}),
+      mode,
+    });
   }, [restoreDone, gameId, period, staged, mode, setBreakDraft]);
 
   return {
