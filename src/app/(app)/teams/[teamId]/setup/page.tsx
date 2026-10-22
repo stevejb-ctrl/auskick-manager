@@ -8,7 +8,8 @@ import { DoneStep } from "@/components/setup/DoneStep";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { TeamBasicsForm } from "@/components/setup/TeamBasicsForm";
 import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
-import { getAgeGroupConfig, teamSport } from "@/lib/sports";
+import { getAgeGroupConfig, isTouch, teamSport } from "@/lib/sports";
+import { teamMixedRule } from "@/lib/sports/touch/mixed";
 import { PLAYHQ_TENANT } from "@/lib/playhq";
 import { loadSquadRoles } from "@/lib/playbook/load";
 import type { HowWePlayPosition, HowWePlayRow } from "@/components/playbook/HowWePlayCard";
@@ -75,7 +76,7 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
     adminClient
       .from("teams")
       .select(
-        "name, age_group, sport, track_scoring, quarter_length_seconds, on_field_size, playhq_url",
+        "name, age_group, sport, track_scoring, quarter_length_seconds, on_field_size, playhq_url, mixed_max_boys, mixed_min_girls, mixed_min_boys",
       )
       .eq("id", params.teamId)
       .maybeSingle(),
@@ -108,6 +109,9 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
   // Resolve the age-group config against the team's sport so netball
   // teams get their NetSetGO/Modified config here (not U8-U17).
   const ageGroupCfg = getAgeGroupConfig(sport, team.age_group as string | null);
+  // A touch or Oztag mixed team: the squad step asks each kid's group
+  // (Team basics promised it), and All set says how many are marked.
+  const mixed = isTouch(sport) && teamMixedRule(team) !== null;
 
 
   if (step === "basics") {
@@ -184,6 +188,7 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
         sportId={sport}
         roleModel={roleModel}
         roles={roles}
+        mixed={mixed}
       />
     );
   }
@@ -218,7 +223,7 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
   // step === "done" — fetch counts for the summary card.  Admin client
   // keeps this consistent with the team fetch above (RLS-agnostic);
   // head+count is cheap and avoids hauling back full rows.
-  const [{ count: playerCount }, { count: gameCount }] = await Promise.all([
+  const [{ count: playerCount }, { count: gameCount }, { count: markedCount }] = await Promise.all([
     adminClient
       .from("players")
       .select("id", { count: "exact", head: true })
@@ -228,6 +233,14 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
       .from("games")
       .select("id", { count: "exact", head: true })
       .eq("team_id", params.teamId),
+    mixed
+      ? adminClient
+          .from("players")
+          .select("id", { count: "exact", head: true })
+          .eq("team_id", params.teamId)
+          .eq("is_active", true)
+          .not("mixed_group", "is", null)
+      : Promise.resolve({ count: null }),
   ]);
 
   return (
@@ -237,6 +250,7 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
       playerCount={playerCount ?? 0}
       gameCount={gameCount ?? 0}
       scoringEnabled={team.track_scoring ?? false}
+      mixedMarked={mixed ? (markedCount ?? 0) : null}
     />
   );
 }

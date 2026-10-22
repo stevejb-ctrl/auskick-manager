@@ -17,6 +17,12 @@ interface SquadStepProps {
   /** How we play role sheet (from the step before); null where roles don't apply. */
   roleModel?: RoleModel | null;
   roles?: Record<string, PlayerRole>;
+  /**
+   * A touch or Oztag mixed team: each kid is asked Girl or Boy as
+   * they're added and on their row, as Team basics promised (the Squad
+   * tab's PlayerList does the same).
+   */
+  mixed?: boolean;
 }
 
 export function SquadStep({
@@ -26,6 +32,7 @@ export function SquadStep({
   sportId,
   roleModel = null,
   roles = {},
+  mixed = false,
 }: SquadStepProps) {
   // The sport decides (AFL and league number their kids; netball's
   // bib is the position).
@@ -56,6 +63,7 @@ export function SquadStep({
           maxPlayers={maxPlayers}
           takenJerseys={takenJerseys}
           showJersey={showJersey}
+          mixed={mixed}
         />
         <div className="mt-3 border-t border-hairline pt-3">
           <BulkAddPlayers
@@ -95,6 +103,7 @@ export function SquadStep({
                 showJersey={showJersey}
                 roleModel={roleModel}
                 role={roles[player.id]}
+                mixed={mixed}
               />
             ))}
           </ul>
