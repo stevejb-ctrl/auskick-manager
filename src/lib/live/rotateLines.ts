@@ -22,6 +22,7 @@
 
 import type { Lineup, Zone } from "@/lib/types";
 import { ALL_ZONES, emptyZoneMs, type ZoneCaps, type ZoneMinutes } from "@/lib/fairness";
+import { rotateGroups } from "@/lib/live/break/rotateGroups";
 
 export interface RotateLinesInput {
   /** Available, healthy player ids to place. */
@@ -43,59 +44,25 @@ export function rotateLines({
   lastZone,
   sidelinedIds = [],
 }: RotateLinesInput): Lineup {
-  const lineup: Lineup = { back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [] };
-  // Cycle order = the active zones (caps > 0) in field order, so the
-  // "next zone" wraps Back → … → Forward → Back.
-  const cycle = ALL_ZONES.filter((z) => (caps[z] ?? 0) > 0);
-  if (cycle.length === 0) {
-    lineup.bench = [...players, ...sidelinedIds];
-    return lineup;
-  }
-  const onFieldSize = cycle.reduce((n, z) => n + (caps[z] ?? 0), 0);
-  const nextZone = (z: Zone): Zone => cycle[(cycle.indexOf(z) + 1) % cycle.length];
-
+  // Cycle order = the zones in field order, so the "next zone" wraps
+  // Back → … → Forward → Back. The shared rotation does the placing
+  // (every sport's break Rotate runs on it).
   const zm = (pid: string): ZoneMinutes => zoneMins[pid] ?? emptyZoneMs();
-  const total = (pid: string) => ALL_ZONES.reduce((s, z) => s + (zm(pid)[z] ?? 0), 0);
-  const leastInZone = (z: Zone) => (a: string, b: string) =>
-    (zm(a)[z] ?? 0) - (zm(b)[z] ?? 0) || (a < b ? -1 : a > b ? 1 : 0);
-
-  // Field vs bench: least total on-field time comes on (the most-played
-  // rest), so bench time evens out. Deterministic id tiebreak.
-  const byLeastPlayed = [...players].sort(
-    (a, b) => total(a) - total(b) || (a < b ? -1 : a > b ? 1 : 0),
-  );
-  const field = byLeastPlayed.slice(0, onFieldSize);
-  const benched = byLeastPlayed.slice(onFieldSize);
-
-  // Pass 1 — send each player to their cycle destination. A destination
-  // that's oversubscribed keeps the players with the LEAST time there;
-  // the rest (and anyone with no active last-zone, e.g. off the bench)
-  // spill into the pool for pass 2.
-  const wanting: Record<string, string[]> = {};
-  for (const z of cycle) wanting[z] = [];
-  const pool: string[] = [];
-  for (const pid of field) {
-    const last = lastZone[pid];
-    const dest = last && cycle.includes(last) ? nextZone(last) : null;
-    if (dest) wanting[dest].push(pid);
-    else pool.push(pid);
-  }
-  for (const z of cycle) {
-    const cap = caps[z] ?? 0;
-    const sorted = wanting[z].sort(leastInZone(z));
-    lineup[z] = sorted.slice(0, cap);
-    pool.push(...sorted.slice(cap)); // overflow waits for pass 2
-  }
-
-  // Pass 2 — fill whatever slots are still open from the pool, each by
-  // who's spent least time in that zone.
-  for (const z of cycle) {
-    const open = (caps[z] ?? 0) - lineup[z].length;
-    if (open <= 0) continue;
-    pool.sort(leastInZone(z));
-    lineup[z].push(...pool.splice(0, open));
-  }
-
-  lineup.bench = [...pool, ...benched, ...sidelinedIds];
-  return lineup;
+  const { groups, bench } = rotateGroups({
+    players,
+    cycle: ALL_ZONES,
+    caps,
+    timeIn: (pid, z) => zm(pid)[z as Zone] ?? 0,
+    total: (pid) => ALL_ZONES.reduce((s, z) => s + (zm(pid)[z] ?? 0), 0),
+    lastGroup: lastZone,
+    sidelinedIds,
+  });
+  return {
+    back: groups.back ?? [],
+    hback: groups.hback ?? [],
+    mid: groups.mid ?? [],
+    hfwd: groups.hfwd ?? [],
+    fwd: groups.fwd ?? [],
+    bench,
+  };
 }
