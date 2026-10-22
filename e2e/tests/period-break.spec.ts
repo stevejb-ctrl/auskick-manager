@@ -96,6 +96,96 @@ async function openBreak(page: Page, teamId: string, gameId: string, title: RegE
   await expect(page.getByRole("heading", { name: title })).toBeVisible({ timeout: 20_000 });
 }
 
+test.describe("netball", () => {
+  const BIBS = ["gs", "ga", "wa", "c", "wd", "gd", "gk"];
+
+  async function seedNetball() {
+    const admin = createAdminClient();
+    const ownerId = await ownerOf(admin);
+    const team = await makeTeam(admin, { ownerId, sport: "netball", ageGroup: "11u", name: `PB-NB-${Date.now() % 1e6}` });
+    await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+    const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 10, ageGroup: "U10" });
+    const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Comets" });
+    const ids = players.map((p) => p.id);
+    await available(admin, game.id, ownerId, ids);
+    const lineup = { positions: Object.fromEntries(BIBS.map((b, i) => [b, [ids[i]]])), bench: ids.slice(7) };
+    await seedBreak(admin, ownerId, game.id, "netball", lineup, 10 * 60_000, [
+      { type: "goal", player_id: ids[0], metadata: { quarter: 1, elapsed_ms: 60_000 } },
+    ]);
+    return { admin, team, game, players, ids };
+  }
+
+  test("bibs on the slots, none on the bench; a swap moves the kids and the bibs stay", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await quiet(page);
+    const { admin, team, game, ids } = await seedNetball();
+    await openBreak(page, team.id, game.id, /^Q2 lineup$/);
+    await expect(page.getByText("Q1 break · vs Comets")).toBeVisible();
+    await expect(page.getByRole("button", { name: /review and update scores/i })).toContainText("Goals");
+
+    await strategy(page, "Repeat").click();
+    const attack = group(page, "Attack");
+    await expect(attack.getByTestId(`player-tile-${ids[0]}`)).toContainText("GS");
+    await expect(attack.getByTestId(`player-tile-${ids[1]}`)).toContainText("GA");
+    await expect(group(page, "Centre")).toContainText("WA");
+    await expect(group(page, "Defence")).toContainText("GK");
+    // No jumper numbers, and no bib on the bench.
+    await expect(page.getByText(/^#\d+$/)).toHaveCount(0);
+    const benchTile = group(page, "Bench").getByTestId(`player-tile-${ids[7]}`);
+    await expect(benchTile).not.toContainText(/\b(GS|GA|WA|C|WD|GD|GK)\b/);
+
+    // GS ↔ GA: the kids move, the bibs stay with the slots.
+    await tile(page, ids[0]).click();
+    await tile(page, ids[1]).click();
+    const first = attack.getByRole("button").first();
+    await expect(first).toContainText("GS");
+    await expect(first).toHaveAttribute("data-testid", `player-tile-${ids[1]}`);
+    await expect(first).toContainText("From GA");
+
+    // Bench → WA.
+    await tile(page, ids[7]).click();
+    await tile(page, ids[2]).click();
+    await expect(group(page, "Centre").getByTestId(`player-tile-${ids[7]}`)).toContainText("From bench");
+
+    await page.screenshot({ path: test.info().outputPath("netball-break.png") });
+
+    await page.getByRole("button", { name: /^start q2/i }).click();
+    await page.getByRole("button", { name: /^start q2 now$/i }).click();
+    await expect
+      .poll(
+        async () => {
+          const { data } = await admin
+            .from("game_events")
+            .select("metadata")
+            .eq("game_id", game.id)
+            .eq("type", "period_break_swap");
+          return (data?.[0]?.metadata as { lineup?: { positions: Record<string, string[]> } })?.lineup?.positions ?? null;
+        },
+        { timeout: 20_000 },
+      )
+      .toMatchObject({ gs: [ids[1]], ga: [ids[0]], wa: [ids[7]] });
+  });
+
+  test("an empty bib is a broken rule with a Fix, never a block", async ({ page }) => {
+    await quiet(page);
+    const { team, game, ids, players } = await seedNetball();
+    await openBreak(page, team.id, game.id, /^Q2 lineup$/);
+    await strategy(page, "Repeat").click();
+    // GS goes off injured: her bib is empty.
+    await page.getByRole("button", { name: /^game settings:/i }).click();
+    await page.getByRole("button", { name: /^\+?\s*mark injured$/i }).click();
+    await page.getByRole("dialog", { name: /mark injured/i }).getByRole("button", { name: new RegExp(players[0].full_name) }).click();
+    await page.getByRole("button", { name: "Done" }).click();
+    await expect(group(page, "Attack").getByRole("button", { name: /^empty gs spot$/i })).toBeVisible();
+    const broken = page.getByTestId("break-broken-rule");
+    await expect(broken).toContainText("empty");
+    await broken.getByRole("button", { name: "Fix" }).click();
+    await expect(broken).toHaveCount(0);
+    await expect(group(page, "Attack").getByRole("button", { name: /^empty gs spot$/i })).toHaveCount(0);
+    await expect(group(page, "Bench").getByTestId(`player-tile-${ids[0]}`)).toContainText("Injured");
+  });
+});
+
 test.describe("AFL", () => {
   async function seedAfl(rules: unknown[] = []) {
     const admin = createAdminClient();

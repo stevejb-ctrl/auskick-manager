@@ -1907,22 +1907,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // writes; we just clear the local overlay/lock state on success.
   if (quarterEnded && currentQuarter < ageGroup.periodCount) {
     return (
-      <div className="flex flex-col gap-4 pb-4">
-        {topUtilityRow}
+      <div className="pb-4">
         {walkthroughOverlay}
-        <NetballScoreBug
-          teamName={teamName}
-          opponentName={game.opponent}
-          team={teamScore}
-          opponent={opponentScore}
-          quarterLabel={`Q${currentQuarter} BRK`}
-          clockText="—"
-          showScores={trackScoring}
-          clockPulseKey={clockPulseKey}
-        />
         <NetballQuarterBreak
           auth={auth}
           gameId={game.id}
+          game={game}
+          exitHref={exitHref}
+          onHelp={handleOpenWalkthrough}
           squad={squad}
           availableIds={availableIds}
           ageGroup={ageGroup}
