@@ -14,9 +14,9 @@ import {
 // ─── /llms.txt ───────────────────────────────────────────────
 // A plain-text summary of Siren for AI tools, in the llmstxt.org
 // shape: a title, a one-line summary, then sections of links. No major
-// engine says it reads the file (.planning/GEO-SEO-PLAN.md, Phase 1),
-// so it's cheap and built from what's already here: the facts in
-// src/lib/siren-facts.ts and the sitemap's pages in
+// engine says it reads the file (Google's AI optimisation guide says
+// Search ignores it), so it's cheap and built from what's already
+// here: the facts in src/lib/siren-facts.ts and the sitemap's pages in
 // src/lib/public-routes.ts, so it can't fall behind either.
 
 /** Titles and blurbs for the sitemap's pages outside the help hub. */
