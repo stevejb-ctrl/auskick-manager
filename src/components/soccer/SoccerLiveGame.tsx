@@ -387,11 +387,12 @@ export function SoccerLiveGame({
     }
   }, [elapsedMs, isPeriodActive, running, base.periodStartedAt, periodMs, endHalfAtClient]);
 
-  function sub(offId: string | null, onId: string, line?: SoccerUnit) {
+  /** `batchLeft`: a due batch's swaps still to make after this one (the sub clock waits for them). */
+  function sub(offId: string | null, onId: string, line?: SoccerUnit, batchLeft?: number) {
     return run("recordSoccerSwap", [
       auth,
       game.id,
-      { off_player_id: offId, on_player_id: onId, ...(line ? { line } : {}), ...at() },
+      { off_player_id: offId, on_player_id: onId, ...(line ? { line } : {}), ...(batchLeft ? { batch_left: batchLeft } : {}), ...at() },
     ]);
   }
   function move(a: string, b: string | null, zoneB: SoccerUnit) {
@@ -566,6 +567,7 @@ export function SoccerLiveGame({
           ageGroup={ageGroup}
           state={base}
           periodMs={periodMs}
+          teamName={teamName}
           trackScoring={trackScoring}
           season={season}
           keeperStrategy={keeperStrategy}
@@ -628,7 +630,8 @@ export function SoccerLiveGame({
           onApplyAll={() => void applyAllSubs()}
           onApplyOne={(i) => {
             const s = nextSubs[i];
-            if (s) void sub(s.off_player_id, s.on_player_id, s.line);
+            // One of a due batch: the rest stay due until they're made.
+            if (s) void sub(s.off_player_id, s.on_player_id, s.line, subDue.due ? nextSubs.length - 1 : undefined);
           }}
           pending={pending}
           playerById={playerById}
