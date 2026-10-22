@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 // Last updated shown at the top of the policy. Bump this whenever the
 // substance of the policy changes (not for typo fixes).
-const LAST_UPDATED = "19 October 2026";
+const LAST_UPDATED = "21 October 2026";
 
 export default function PrivacyPage() {
   return (
@@ -53,7 +53,10 @@ export default function PrivacyPage() {
               <strong>Account information</strong>: your email address and
               display name. If you sign in with Google, we also receive the
               Google profile fields you approve (name, email, profile photo URL)
-              but no access to Gmail, Drive, Contacts, or Calendar.
+              but no access to Gmail, Drive, Contacts, or Calendar. If you sign
+              in with Apple, we receive your name and either your email address
+              or the private relay address Apple gives you if you choose to hide
+              it.
             </li>
             <li>
               <strong>Team and game data you create</strong>: team names, season
@@ -82,11 +85,20 @@ export default function PrivacyPage() {
               internal ID, never your name or email. You can switch this off at any
               time: My account &rarr; Preferences &rarr; Share usage data.
             </li>
+            <li>
+              <strong>Notifications</strong>: if you allow notifications in the
+              Android app, your device&rsquo;s push token, so we can tell you
+              when someone joins your team or adds you to one.
+            </li>
+            <li>
+              <strong>Feedback you send</strong>: your message, your email
+              address, the page you sent it from, and your browser or app
+              version.
+            </li>
           </ul>
           <p>
             We do <strong>not</strong> collect payment information, location
-            data, contacts, photos, or anything else you don&rsquo;t type into
-            the app yourself.
+            data, contacts or photos.
           </p>
         </Section>
 
@@ -98,13 +110,20 @@ export default function PrivacyPage() {
           </p>
           <ul>
             <li>
-              Only authorised team members (admins, game managers) can view
-              their team&rsquo;s squad. Row-level security enforces this at the
-              database layer.
+              Everyone who belongs to a team can see its players&rsquo; names
+              and jersey numbers, for example on the Stats tab. That includes
+              admins, game managers, and parents who join with the team&rsquo;s
+              code. Only admins can add, change or remove players. Row-level
+              security enforces this at the database layer.
             </li>
             <li>
-              We never show player names publicly, sell player data, or use it
-              for any purpose other than running the app for that team.
+              Anyone you give a game&rsquo;s runner link can see the players on
+              that game&rsquo;s screen without signing in, because the link is
+              how they run it. Share it only with people you trust with that.
+            </li>
+            <li>
+              We never show player names on public pages, sell player data, or
+              use it for any purpose other than running the app for that team.
             </li>
             <li>
               Player names never leave the app in usage analytics: on-screen
@@ -180,6 +199,35 @@ export default function PrivacyPage() {
               described in section 2, never player names, scores or notes, and
               processes them on our behalf under its own privacy policy.
             </li>
+            <li>
+              <strong>Apple (sign-in)</strong>: only when you choose Sign in
+              with Apple. Apple authenticates you and returns your name and
+              email address (or private relay address) to Siren.
+            </li>
+            <li>
+              <strong>Resend</strong>: sends Siren&rsquo;s emails. For a team
+              invite it receives the recipient&rsquo;s email address, the team
+              name, the inviter&rsquo;s name and email (so a reply goes to them)
+              and the invite link. For the contact form it receives your name,
+              email address and message.
+            </li>
+            <li>
+              <strong>Firebase Cloud Messaging (Google)</strong>: delivers push
+              notifications to the Android app. It receives your device&rsquo;s
+              push token and the notification text, which names the adult who
+              joined or added you and the team.
+            </li>
+            <li>
+              <strong>Telegram</strong>: sends instant alerts to Siren&rsquo;s
+              owner, so we can welcome new coaches and see problems quickly.
+              Alerts go out when someone signs up (their email address and how
+              they signed in), creates a team (team name, sport, age group and
+              the creator&rsquo;s email), starts a game (team name, opponent and
+              the starter&rsquo;s name or email), or sends feedback (the message,
+              email address, team, game and page). Siren never adds player
+              names to them, though a feedback message carries whatever you
+              type.
+            </li>
           </ul>
           <p>
             We do not share your data with advertisers, data brokers, or any
@@ -192,10 +240,13 @@ export default function PrivacyPage() {
         <Section title="6. Where your data is stored">
           <p>
             Your data is stored in Supabase&rsquo;s Sydney region (Australia).
-            When you sign in with Google, your authentication request is handled
-            by Google&rsquo;s global infrastructure, which may process data
-            outside Australia. Usage analytics (section 2) are stored by PostHog
-            in the United States.
+            When you sign in with Google or Apple, your authentication request is
+            handled by that company&rsquo;s global infrastructure, which may
+            process data outside Australia. Usage analytics (section 2) are
+            stored by PostHog in the United States. Resend (email), Firebase
+            Cloud Messaging (push notifications) and Telegram (owner alerts)
+            process the data described in section 5 on their own servers, which
+            may also be outside Australia.
           </p>
         </Section>
 
