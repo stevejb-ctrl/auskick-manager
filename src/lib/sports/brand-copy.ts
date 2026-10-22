@@ -109,6 +109,11 @@ const COPY: Record<SportId, BrandCopy> = {
   soccer: AFL_COPY,
   // Basketball too: the main brand's copy.
   basketball: AFL_COPY,
+  // Futsal, hockey, touch and Oztag too (.planning/FOUR-SPORTS-PLAN.md).
+  futsal: AFL_COPY,
+  hockey: AFL_COPY,
+  touch: AFL_COPY,
+  oztag: AFL_COPY,
 };
 
 /**

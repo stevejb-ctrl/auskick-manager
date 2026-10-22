@@ -2,11 +2,12 @@
 
 // ─── Football (soccer) live-game server actions ──────────────
 // Parallel to live/actions.ts (AFL), netball-actions.ts and
-// league-actions.ts. Soccer records no event type of its own
-// (migration 0068): the shapes it writes are the ones
-// src/lib/sports/soccer/replay.ts reads —
+// league-actions.ts, for every sport on the soccer family's engine
+// (Football (soccer), futsal, hockey). The family records no event
+// type of its own (migrations 0068, 0071): the shapes it writes are the
+// ones src/lib/sports/soccer/replay.ts reads —
 //   lineup_set       { lineup: SoccerLineup, quarter?, elapsed_ms? }
-//   quarter_start    { quarter }       (the half: 1 or 2)
+//   quarter_start    { quarter }       (the half, or hockey's quarter)
 //   quarter_end      { quarter, elapsed_ms }
 //   swap             { off_player_id, on_player_id, line?, quarter, elapsed_ms }
 //   field_zone_swap  { player_a_id, zone_a, player_b_id?, zone_b, quarter, elapsed_ms }
@@ -19,8 +20,9 @@
 // mutation resolves the writer (team membership or share token), passes
 // an optional idempotency key through to game_events, invalidates the
 // season-events cache and revalidates the live page. Every event is
-// stamped with the team's sport, and every rule is read from the team's
-// own soccer age group (soccerTeam), never another sport's.
+// stamped with the team's own sport, and every rule is read from the
+// team's own age group in its own sport (soccerTeam), never another
+// sport's.
 
 import { cache } from "react";
 import { revalidatePath } from "next/cache";
@@ -28,7 +30,8 @@ import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAgeGroupConfig, isSoccer, teamSport } from "@/lib/sports/registry";
+import { isSoccer, teamSport, type SoccerSport } from "@/lib/sports/registry";
+import { soccerFamilyAgeGroupForTeam, soccerFamilyRules } from "@/lib/sports/soccer/family";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
 import {
@@ -81,18 +84,23 @@ async function resolveWriter(auth: LiveAuth, gameId: string): Promise<Writer> {
 }
 
 /**
- * The team's soccer age group. Every rule checked here is the team's
- * own; a team of another sport is an error, never a fallback. Read past
- * RLS (a team's sport and age aren't secret, and resolveWriter has
- * already checked the writer): an RLS read of a team created moments
- * ago can come back empty. Cached for the request.
+ * The team's sport and age group, in its halves or quarters
+ * (teams.period_count, hockey). Every rule checked here is the team's
+ * own; a team of a sport off the family's engine is an error, never a
+ * fallback. Read past RLS (a team's sport and age aren't secret, and
+ * resolveWriter has already checked the writer): an RLS read of a team
+ * created moments ago can come back empty. Cached for the request.
  */
-const soccerTeam = cache(async (teamId: string): Promise<{ ageCfg: SoccerAgeGroupConfig }> => {
-  const { data } = await createAdminClient().from("teams").select("sport, age_group").eq("id", teamId).maybeSingle();
-  const row = data as { sport?: string | null; age_group?: string | null } | null;
+const soccerTeam = cache(async (teamId: string): Promise<{ sport: SoccerSport; ageCfg: SoccerAgeGroupConfig }> => {
+  const { data } = await createAdminClient()
+    .from("teams")
+    .select("sport, age_group, period_count")
+    .eq("id", teamId)
+    .maybeSingle();
+  const row = data as { sport?: string | null; age_group?: string | null; period_count?: number | null } | null;
   const sport = teamSport(row?.sport);
-  if (!isSoccer(sport)) throw new Error(`Team ${teamId} plays ${sport}, not Football (soccer).`);
-  return { ageCfg: getAgeGroupConfig(sport, row?.age_group ?? null) as SoccerAgeGroupConfig };
+  if (!isSoccer(sport)) throw new Error(`Team ${teamId} plays ${sport}, not a sport on the soccer family's engine.`);
+  return { sport, ageCfg: soccerFamilyAgeGroupForTeam(sport, row?.age_group ?? null, row?.period_count ?? null) };
 });
 
 async function insertEvent(
@@ -104,13 +112,13 @@ async function insertEvent(
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
-  await soccerTeam(w.teamId);
+  const { sport } = await soccerTeam(w.teamId);
 
   const { error } = await w.supabase.from("game_events").insert({
     game_id: gameId,
     type,
     player_id: payload.player_id ?? null,
-    metadata: { ...(payload.metadata ?? {}), sport: "soccer" },
+    metadata: { ...(payload.metadata ?? {}), sport },
     created_by: w.userId,
     idempotency_key: idempotencyKey ?? null,
   });
@@ -166,18 +174,18 @@ export async function startSoccerGame(
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
-  const { ageCfg } = await soccerTeam(w.teamId);
+  const { sport, ageCfg } = await soccerTeam(w.teamId);
 
   const size = Math.max(ageCfg.minOnFieldSize, Math.min(ageCfg.maxOnFieldSize, Math.floor(onFieldSize)));
   const lineup = await reconcileSoccerLineup(w.supabase, gameId, rawLineup);
-  const check = validateSoccerLineup(lineup, ageCfg, size);
+  const check = validateSoccerLineup(lineup, ageCfg, size, soccerFamilyRules(sport));
   const firstError = check.issues.find((i) => i.kind === "error");
   if (firstError) return { success: false, error: firstError.message };
 
   const { error: insertError } = await w.supabase.from("game_events").insert({
     game_id: gameId,
     type: "lineup_set",
-    metadata: { lineup, sport: "soccer" },
+    metadata: { lineup, sport },
     created_by: w.userId,
   });
   if (insertError) return { success: false, error: insertError.message };
@@ -186,7 +194,7 @@ export async function startSoccerGame(
     const { error: startError } = await w.supabase.from("game_events").insert({
       game_id: gameId,
       type: "quarter_start",
-      metadata: { quarter: 1, sport: "soccer" },
+      metadata: { quarter: 1, sport },
       created_by: w.userId,
     });
     if (startError) return { success: false, error: startError.message };
@@ -260,8 +268,8 @@ export async function saveSoccerLineupDraft(
 }
 
 // ─── startSoccerHalf / endSoccerHalf ─────────────────────────
-// `quarter` is the half (1 or 2): soccer reuses the period events every
-// sport writes.
+// `quarter` is the period (a half, or hockey's quarter): the family
+// reuses the period events every sport writes.
 export async function startSoccerHalf(
   auth: LiveAuth,
   gameId: string,

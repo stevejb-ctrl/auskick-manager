@@ -10,7 +10,7 @@ import { seasonTimeByUnit } from "@/lib/playbook/seasonTime";
 import { aflPlaybookInput, withBalanceSeason, type AflPlaybookInput } from "@/lib/sports/afl/engine";
 import { netballPlaybookInput, type NetballPlaybookInput } from "@/lib/sports/netball/engine";
 import { leaguePlaybookInput, type LeaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
-import { isBasketball, isRugby, isSoccer, noSportBranch, sportNotBuilt } from "@/lib/sports/registry";
+import { isBasketball, isRugby, isSoccer, isTouch, noSportBranch, sportNotBuilt } from "@/lib/sports/registry";
 
 export interface GamePlanPlaybooks {
   aflPlaybook?: AflPlaybookInput;
@@ -47,6 +47,8 @@ export async function gamePlanPlaybooks(
   if (isSoccer(sport)) return sportNotBuilt(sport, "gamePlanPlaybooks");
   // Basketball skips the game-plan preview, as soccer does.
   if (isBasketball(sport)) return sportNotBuilt(sport, "gamePlanPlaybooks");
+  // Touch and Oztag skip it too.
+  if (isTouch(sport)) return sportNotBuilt(sport, "gamePlanPlaybooks");
   if (!isRugby(sport)) return noSportBranch(sport, "gamePlanPlaybooks");
   return {
     leaguePlaybook: leaguePlaybookInput(

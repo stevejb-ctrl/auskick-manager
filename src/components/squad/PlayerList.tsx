@@ -3,7 +3,8 @@ import { SquadHeader } from "@/components/squad/SquadHeader";
 import { AddPlayerForm } from "@/components/squad/AddPlayerForm";
 import { BulkAddPlayers } from "@/components/squad/BulkAddPlayers";
 import { PlayerRow } from "@/components/squad/PlayerRow";
-import { getAgeGroupConfig, getSportConfig, teamSport } from "@/lib/sports";
+import { getAgeGroupConfig, getSportConfig, isTouch, teamSport } from "@/lib/sports";
+import { teamMixedRule } from "@/lib/sports/touch/mixed";
 import type { Sport } from "@/lib/types";
 import { Eyebrow, SFCard } from "@/components/sf";
 import { loadSquadRoles } from "@/lib/playbook/load";
@@ -26,7 +27,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
       .order("jersey_number"),
     supabase
       .from("teams")
-      .select("age_group, sport")
+      .select("age_group, sport, mixed_max_boys, mixed_min_girls, mixed_min_boys")
       .eq("id", teamId)
       .single(),
   ]);
@@ -44,6 +45,8 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
   // how the team plays — null at AFL zoned ages.
   const { roleModel, roles } = await loadSquadRoles(supabase, teamId, sport, ageGroupCfg.id);
   const showJersey = getSportConfig(sport).jerseyNumbers;
+  // Touch and Oztag mixed teams ask who each kid counts as (the coach only).
+  const mixed = isTouch(sport) && teamMixedRule(team as { mixed_max_boys?: number | null; mixed_min_girls?: number | null; mixed_min_boys?: number | null }) !== null;
 
   const allPlayers = players ?? [];
   const activePlayers = allPlayers.filter((p) => p.is_active);
@@ -66,7 +69,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
               maxPlayers={maxPlayers}
               takenJerseys={takenJerseys}
               showJersey={showJersey}
-              
+              mixed={mixed}
             />
             <div className="mt-3 border-t border-hairline pt-3">
               <BulkAddPlayers
@@ -102,6 +105,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
                 showJersey={showJersey}
                 roleModel={roleModel}
                 role={roles[player.id]}
+                mixed={mixed}
               />
             ))}
           </ul>

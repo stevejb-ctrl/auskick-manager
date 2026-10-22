@@ -71,6 +71,17 @@ import {
   recordBasketballSitOut,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/basketball-actions";
 
+import {
+  startTouchPeriod,
+  endTouchPeriod,
+  recordTouchLineupSet,
+  recordTouchSwap,
+  recordTouchMove,
+  recordTouchScore,
+  undoTouchScore,
+  recordTouchFieldSize,
+} from "@/app/(app)/teams/[teamId]/games/[gameId]/live/touch-actions";
+
 // setAvailability is invoked from AvailabilityRow's optimistic-flip
 // flow (perf phase 4a). Lives in the parent game-detail route, not
 // the live segment, but the queue + idempotency story is identical
@@ -169,6 +180,19 @@ const actions = {
   undoBasketballScore,
   recordBasketballFoul,
   recordBasketballSitOut,
+
+  // ── Touch and Oztag ─────────────────────────────────────────
+  // Same contract again. The touch family shares the sideline actions
+  // above (late arrivals, injuries, loans) and the saved holds; the
+  // field's size on a mixed team short of girls is recordTouchFieldSize.
+  startTouchPeriod,
+  endTouchPeriod,
+  recordTouchLineupSet,
+  recordTouchSwap,
+  recordTouchMove,
+  recordTouchScore,
+  undoTouchScore,
+  recordTouchFieldSize,
 
   // ── Availability (pre-game RSVP) ────────────────────────────
   setAvailability,

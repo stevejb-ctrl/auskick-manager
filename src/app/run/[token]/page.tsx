@@ -12,7 +12,7 @@ import { SoccerLiveGame } from "@/components/soccer/SoccerLiveGame";
 import { SoccerLineupPicker } from "@/components/soccer/SoccerLineupPicker";
 import type { SoccerLineup } from "@/lib/sports/soccer/lineup";
 import type { SoccerSeasonBalance } from "@/lib/sports/soccer/suggest";
-import type { SoccerAgeGroupConfig } from "@/lib/sports/soccer/types";
+import { soccerFamilyAgeGroupForTeam } from "@/lib/sports/soccer/family";
 import { soccerHowWePlay } from "@/lib/sports/soccer/playbook";
 import { BasketballLiveGame } from "@/components/basketball/BasketballLiveGame";
 import { BasketballLineupPicker } from "@/components/basketball/BasketballLineupPicker";
@@ -20,6 +20,13 @@ import type { BasketballLineup } from "@/lib/sports/basketball/lineup";
 import type { BasketballSeasonBalance } from "@/lib/sports/basketball/suggest";
 import { basketballAgeGroupForTeam } from "@/lib/sports/basketball";
 import { basketballHowWePlay } from "@/lib/sports/basketball/playbook";
+import { TouchLiveGame } from "@/components/touch/TouchLiveGame";
+import { TouchLineupPicker } from "@/components/touch/TouchLineupPicker";
+import type { TouchLineup } from "@/lib/sports/touch/lineup";
+import type { TouchSeasonBalance } from "@/lib/sports/touch/suggest";
+import { touchAgeGroupForTeam } from "@/lib/sports/touch/family";
+import { touchHowWePlay } from "@/lib/sports/touch/familyPlaybook";
+import { girlsTryCountsDouble, teamMixedRule } from "@/lib/sports/touch/mixed";
 import { LiveGame } from "@/components/live/LiveGame";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
 import { LeagueLiveGame } from "@/components/league/LeagueLiveGame";
@@ -30,9 +37,9 @@ import { RunnerWelcomeBanner } from "@/components/games/RunnerWelcomeBanner";
 import { replayGame, seasonZoneMinutes, seasonLoanMinutes, seasonAvailability, zoneCapsFor } from "@/lib/fairness";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
-import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isBasketball, isRugby, isSoccer, netballSport, teamSport } from "@/lib/sports";
+import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isBasketball, isRugby, isSoccer, isTouch, netballSport, teamSport } from "@/lib/sports";
 import type { LeagueLineup } from "@/lib/types";
-import type { FillIn, Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
+import type { FillIn, Game, GameEvent, LiveAuth, MixedGroup, Player, Sport } from "@/lib/types";
 import { withThirdsToday } from "@/lib/playbook/dayLines";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +60,8 @@ function fillInToPlayer(f: FillIn, teamId: string): Player {
     team_id: teamId,
     full_name: f.full_name,
     jersey_number: f.jersey_number,
+    // Touch and Oztag mixed teams: who a fill-in counts as (0071).
+    mixed_group: f.mixed_group ?? null,
     is_active: true,
     created_by: f.created_by ?? "",
     created_at: f.created_at,
@@ -74,7 +83,7 @@ export default async function RunPage({ params }: RunPageProps) {
 
   const { data: teamRow } = await admin
     .from("teams")
-    .select("name, sport, track_scoring, age_group, quarter_length_seconds, period_count, track_fouls, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_mode, chip_b_mode, chip_c_mode, chip_a_label, chip_b_label, chip_c_label, track_zone_time, enforce_unbroken_periods")
+    .select("name, sport, track_scoring, age_group, quarter_length_seconds, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_mode, chip_b_mode, chip_c_mode, chip_a_label, chip_b_label, chip_c_label, track_zone_time, enforce_unbroken_periods")
     .eq("id", g.team_id)
     .single();
   // Read with the service client: no row means no such team.
@@ -138,11 +147,17 @@ export default async function RunPage({ params }: RunPageProps) {
   const songStartSecondsTop = teamRow?.song_start_seconds ?? 0;
   const songDurationSecondsTop = teamRow?.song_duration_seconds ?? 15;
 
-  // ─── Football (soccer) branch ────────────────────────────────
+  // ─── Soccer family branch ────────────────────────────────────
   // The runner-token flow mirrors the coach's: before kick-off the
-  // soccer lineup picker, after it the soccer live game.
+  // family's lineup picker, after it its live game (Football (soccer),
+  // futsal, hockey).
   if (isSoccer(sport)) {
-    const ageCfgS = getAgeGroupConfig(sport, teamRow?.age_group ?? null) as SoccerAgeGroupConfig;
+    // The team's own age group, in its halves or quarters (hockey).
+    const ageCfgS = soccerFamilyAgeGroupForTeam(
+      sport,
+      teamRow?.age_group ?? null,
+      (teamRow as { period_count?: number | null } | null)?.period_count ?? null,
+    );
     const periodSecondsS = getEffectiveQuarterSeconds(
       {
         quarter_length_seconds:
@@ -175,6 +190,7 @@ export default async function RunPage({ params }: RunPageProps) {
     // kicked off with).
     const howWePlay = soccerHowWePlay(
       await loadTeamPlaybook(admin, g.team_id, sport, teamRow?.age_group ?? null),
+      sport,
       ageCfgS.id,
       g.playbook_snapshot,
     );
@@ -218,6 +234,7 @@ export default async function RunPage({ params }: RunPageProps) {
           ) : (
             <SoccerLineupPicker
               auth={auth}
+              sport={sport}
               gameId={g.id}
               players={availablePlayers}
               ageGroup={ageCfgS}
@@ -248,6 +265,7 @@ export default async function RunPage({ params }: RunPageProps) {
       <div className="space-y-3 px-4 py-3">
         <SoccerLiveGame
           auth={auth}
+          sport={sport}
           game={g}
           teamName={teamName}
           squad={squad}
@@ -388,6 +406,153 @@ export default async function RunPage({ params }: RunPageProps) {
           trackScoring={trackScoring}
           trackFouls={trackFouls}
           threePointers={ageCfgB.threePointers}
+          events={events}
+          strategy={howWePlay.strategy}
+          prefs={howWePlay.prefs}
+          season={season}
+          // A runner token can run the whole game, as in the other sports.
+          isAdmin
+          exitHref={`/run/${params.token}`}
+        />
+      </div>
+    );
+  }
+
+  // ─── Touch and Oztag branch ──────────────────────────────────
+  // The runner-token flow mirrors the coach's: before the start the touch
+  // lineup picker (a mixed team asks who counts as a girl or a boy), after
+  // it the touch live game.
+  if (isTouch(sport)) {
+    const teamExtras = teamRow as {
+      quarter_length_seconds?: number | null;
+      period_count?: number | null;
+      mixed_max_boys?: number | null;
+      mixed_min_girls?: number | null;
+      mixed_min_boys?: number | null;
+      girls_try_double?: boolean | null;
+    } | null;
+    const ageCfgT = touchAgeGroupForTeam(sport, teamRow?.age_group ?? null, teamExtras?.period_count ?? null);
+    const periodSecondsT = getEffectiveQuarterSeconds(
+      { quarter_length_seconds: teamExtras?.quarter_length_seconds ?? null },
+      ageCfgT,
+      { quarter_length_seconds: g.quarter_length_seconds },
+    );
+    const mixedRule = teamMixedRule(teamExtras);
+    const girlsTryDouble = girlsTryCountsDouble(ageCfgT, mixedRule, teamExtras?.girls_try_double);
+    const [{ data: avail }, { data: players }, { data: teamGames }, { data: fillInRows }] = await Promise.all([
+      admin.from("game_availability").select("player_id, status").eq("game_id", g.id).eq("status", "available"),
+      admin.from("players").select("*").eq("team_id", g.team_id).eq("is_active", true).order("jersey_number"),
+      admin.from("games").select("id").eq("team_id", g.team_id),
+      admin.from("game_fill_ins").select("*").eq("game_id", g.id).order("created_at"),
+    ]);
+    const fillIns = ((fillInRows ?? []) as FillIn[]).map((f) => fillInToPlayer(f, g.team_id));
+    const squad = [...((players ?? []) as Player[]), ...fillIns];
+    const events = (thisGameEvents ?? []) as GameEvent[];
+    const groups: Record<string, MixedGroup | null> = mixedRule
+      ? Object.fromEntries(squad.map((p) => [p.id, p.mixed_group ?? null]))
+      : {};
+    const availableIds = new Set<string>([
+      ...(avail ?? []).map((a) => a.player_id),
+      ...fillIns.map((f) => f.id),
+      ...events.filter((e) => e.type === "player_arrived" && e.player_id).map((e) => e.player_id as string),
+    ]);
+    const availablePlayers = squad.filter((p) => availableIds.has(p.id));
+    // Season events, read with the service client (no writer context here).
+    const otherGameIds = (teamGames ?? []).map((t) => t.id).filter((id) => id !== g.id);
+    const { data: seasonRaw } = otherGameIds.length
+      ? await admin.from("game_events").select("*").in("game_id", otherGameIds)
+      : { data: [] as GameEvent[] };
+    // How we play, as on the coach's page (a game under way plays what it
+    // started with).
+    const howWePlay = touchHowWePlay(
+      sport,
+      await loadTeamPlaybook(admin, g.team_id, sport, teamRow?.age_group ?? null),
+      ageCfgT.id,
+      g.playbook_snapshot,
+    );
+    const season: TouchSeasonBalance = {
+      time: seasonTimeByUnit(sport, (seasonRaw ?? []) as GameEvent[], "line", { since: howWePlay.since }),
+      weight: howWePlay.balance === "off" ? 0 : seasonBalanceWeight(sport, howWePlay.balance),
+      periodMs: periodSecondsT * 1000,
+    };
+
+    if (!hasStarted) {
+      const { data: draftRow } = await admin
+        .from("game_lineup_drafts")
+        .select("lineup, updated_at")
+        .eq("game_id", g.id)
+        .maybeSingle();
+      const lent = new Map<string, { ts: string; loaned: boolean }>();
+      for (const ev of events) {
+        if (ev.type !== "player_loan" || !ev.player_id) continue;
+        const loaned = (ev.metadata as { loaned?: boolean } | null)?.loaned ?? true;
+        const cur = lent.get(ev.player_id);
+        if (!cur || cur.ts < ev.created_at) lent.set(ev.player_id, { ts: ev.created_at, loaned });
+      }
+      return (
+        <div className="space-y-3 px-4 py-3">
+          <RunnerWelcomeBanner teamName={teamName} trackScoring={trackScoring} />
+          {availablePlayers.length === 0 ? (
+            <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
+              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+                Who&apos;s here today?
+              </h3>
+              <AvailabilityList
+                auth={auth}
+                teamId={g.team_id}
+                gameId={g.id}
+                canMarkAvailability
+                canManageMatch
+                showJerseyNumber={getSportConfig(sport).jerseyNumbers}
+                requiredAvailable={ageCfgT.defaultOnFieldSize}
+              />
+            </section>
+          ) : (
+            <TouchLineupPicker
+              auth={auth}
+              gameId={g.id}
+              players={availablePlayers}
+              ageGroup={ageCfgT}
+              onFieldSize={g.on_field_size}
+              defaultSubMinutes={g.sub_interval_seconds / 60}
+              strategy={howWePlay.strategy}
+              prefs={howWePlay.prefs}
+              season={season}
+              mixedRule={mixedRule}
+              initialGroups={groups}
+              initialDraft={
+                draftRow
+                  ? {
+                      lineup: (draftRow as { lineup: unknown }).lineup as TouchLineup,
+                      updated_at: (draftRow as { updated_at: string }).updated_at,
+                    }
+                  : null
+              }
+              initialLoanedIds={Array.from(lent.entries())
+                .filter(([, v]) => v.loaned)
+                .map(([id]) => id)}
+              availabilityHref={`/run/${params.token}`}
+            />
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3 px-4 py-3">
+        <TouchLiveGame
+          auth={auth}
+          game={g}
+          teamName={teamName}
+          squad={squad}
+          ageGroup={ageCfgT}
+          periodSeconds={periodSecondsT}
+          subIntervalSeconds={g.sub_interval_seconds}
+          clockMultiplier={g.clock_multiplier ?? 1}
+          trackScoring={trackScoring}
+          girlsTryDouble={girlsTryDouble}
+          mixedRule={mixedRule}
+          mixedGroups={groups}
           events={events}
           strategy={howWePlay.strategy}
           prefs={howWePlay.prefs}

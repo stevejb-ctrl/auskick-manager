@@ -33,7 +33,7 @@ describe("soccerSubDue — windows", () => {
   // Football Tasmania: three windows a half, none in the last 2 minutes.
   // A 20-minute half spreads them at 5, 10 and 15 minutes.
   const base = {
-    mode: { kind: "windows", perHalf: 3, cutoffSeconds: 120 } as const,
+    mode: { kind: "windows", perPeriod: 3, cutoffSeconds: 120 } as const,
     subIntervalMs: null,
     periodMs: 20 * MIN,
   };

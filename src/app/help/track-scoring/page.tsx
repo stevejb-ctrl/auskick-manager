@@ -7,7 +7,7 @@ import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
   title: "Track Scoring · Help · Siren",
-  description: "The scoring switch for AFL, netball, league, union, football (soccer) and basketball, and what it unlocks.",
+  description: "The scoring switch for AFL, netball, league, union, football (soccer), basketball, touch football and Oztag, and what it unlocks.",
   alternates: { canonical: "/help/track-scoring" },
 };
 
@@ -28,14 +28,25 @@ export default function TrackScoringPage() {
         record tries (5 points) and conversions (2), plus penalty goals (3) and
         drop goals (3) from Under 10; football (soccer) games record goals for
         each side; basketball games record free throws (1), baskets (2) and
-        threes (3, from Under 12) for each side. The switch behaves the same way in every sport — turn it on
+        threes (3, from Under 12) for each side; touch football and Oztag games
+        record tries (1 point) for each side, and on a mixed Oztag team a
+        girl&apos;s try counts 2. The switch behaves the same way in every sport — turn it on
         for your team, and the live screen shows the right scoring controls for
         your sport. It starts off for the youngest age groups (AFL Under 8 to
         Under 10, netball Set, league Under 6 and Under 7, which are tag games
         with no scoreboard, union Under 6 to Under 11, where the national
         pathway keeps no score, and football&apos;s MiniRoos ages, Under 6 to
-        Under 11, which keep no scores or ladders, and basketball&apos;s Under 8
-        skills games) and on for the rest.
+        Under 11, which keep no scores or ladders, basketball&apos;s Under 8
+        skills games, and touch and Oztag to Under 9) and on for the rest.
+      </p>
+      <p className="mt-2 text-sm text-ink-dim">
+        Futsal games record goals for each side, as football does. Scoring
+        starts off to Under 9, as Capital Football&apos;s Minis keep no
+        scores, and on from Under 10.
+      </p>
+      <p className="mt-2 text-sm text-ink-dim">
+        Hockey games record goals for each side too. Scoring starts off to
+        Under 10, where junior hockey keeps no results, and on from Under 11.
       </p>
 
       <section className="mt-8">
@@ -50,8 +61,9 @@ export default function TrackScoringPage() {
             the scoring switch on. It reads{" "}
             <strong className="text-ink">Track goals &amp; behinds</strong>{" "}
             (AFL), <strong className="text-ink">Track goals</strong> (netball
-            and football) or <strong className="text-ink">Track points</strong>{" "}
-            (league, union and basketball).
+            and football), <strong className="text-ink">Track points</strong>{" "}
+            (league, union and basketball) or{" "}
+            <strong className="text-ink">Track tries</strong> (touch and Oztag).
           </li>
           <li>
             The setting is saved immediately and applies to all of the

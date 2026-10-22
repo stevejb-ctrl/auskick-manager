@@ -55,12 +55,13 @@ export type SoccerKeeperStrategy = "none" | "turns" | "keepers";
 /**
  * When subs happen (decided 17 Oct 2026):
  *   rolling — any time, unlimited re-entry (MiniRoos, Queensland)
- *   windows — N windows a half, none in the final M minutes; sub-due
- *             batches the bench into each window
+ *   windows — N windows a period (a half, or a hockey quarter), none in
+ *             the final M minutes; sub-due batches the bench into each
+ *             window
  */
 export type SoccerSubMode =
   | { kind: "rolling" }
-  | { kind: "windows"; perHalf: number; cutoffSeconds: number };
+  | { kind: "windows"; perPeriod: number; cutoffSeconds: number };
 
 /**
  * A soccer age group states every soccer rule itself (sports are
@@ -72,4 +73,79 @@ export interface SoccerAgeGroupConfig extends AgeGroupConfig {
   /** Shapes for each on-field size from min to max, the default first. */
   formations: Record<number, SoccerFormation[]>;
   subMode: SoccerSubMode;
+}
+
+// ─── The family's settings, per sport ────────────────────────
+// Football (soccer), futsal and hockey share this engine
+// (.planning/FOUR-SPORTS-PLAN.md), as league and union share rugby's.
+// What differs between them is stated by each sport as the settings
+// below, named for what they do rather than for a sport: no screen asks
+// "is this hockey?".
+
+/** A sport's words for one unit: a line, or goal. */
+export interface SoccerUnitWords {
+  /** Its name: "Defence", "Back", "Strikers". */
+  label: string;
+  /** Its label on a tile and the sub card: "DEF", "BACK", "STR". Empty for `field` (no lines). */
+  short: string;
+  /** How a sentence names it: "defence", "the back", "the strikers". */
+  phrase: string;
+}
+
+/** What the live screens draw the game on. */
+export type SoccerSurface = "pitch" | "court" | "hockey";
+
+/** One of a sport's laws How we play shows locked, for the ages it covers. */
+export interface SoccerLaw {
+  id: string;
+  text: string;
+  source: string;
+  /** The age ids it covers; every age when omitted. */
+  ages?: readonly string[];
+}
+
+/** How we play's three keeper strategies, in a sport's own words. */
+export type SoccerStrategyCopy = Record<"turns" | "keepers" | "minutes", { blurb: string; fit: string }>;
+
+export interface SoccerFamilyRules {
+  /** The words for each line (`def` / `mid` / `att`, and `field` with no lines) and for goal. */
+  lineLabels: Record<SoccerUnit, SoccerUnitWords>;
+  /** A pitch (soccer), a futsal court, or a hockey pitch with shooting circles. */
+  surface: SoccerSurface;
+  /**
+   * Whether goal can change hands mid-period: "Swap keeper" in the
+   * keeper's actions, or a tap-swap with the keeper. False means goal
+   * changes hands only at a break (hockey: keeper kit takes minutes to
+   * put on). An injury can still replace the keeper either way.
+   */
+  keeperSwapMidPeriod: boolean;
+  /**
+   * Game seconds before a break when the next keeper is told to get
+   * ready ("Mia's in goal next half: start kitting up"), or null for no
+   * heads-up.
+   */
+  keeperKitUpSeconds: number | null;
+  /** What the keeper wears, as the handover card names it ("Keeper top: Sam → Mia"). */
+  keeperGear: string;
+  /** The team may play halves or quarters (teams.period_count). */
+  halvesOrQuarters: boolean;
+  /**
+   * A lines warning: at these ages, with at least `count` outfield kids,
+   * kids should play in at least `count` lines.
+   */
+  minLines: { ages: readonly string[]; count: number; message: string } | null;
+  /** The rules How we play and the policy card quote, and where they come from. */
+  ruleSource: {
+    /** The laws How we play shows locked. */
+    laws: readonly SoccerLaw[];
+    /** The body that sets an age's format, quoted on the policy card, and the ages it covers. */
+    format: { source: string; ages: readonly string[] } | null;
+    /** Where the equal-time target comes from. */
+    equalTime: string;
+  };
+  /** The setup wizard's scoring note: why an age keeps score, or keeps none. */
+  scoringCopy: { on: string; off: string };
+  strategyCopy: SoccerStrategyCopy;
+  /** The share text's emoji ("⚽ Full time — …"). */
+  emoji: string;
 }

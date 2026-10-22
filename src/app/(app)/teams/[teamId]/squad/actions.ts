@@ -105,6 +105,8 @@ export async function addPlayer(
   fullName: string,
   jerseyNumber: number | null,
   chip: "a" | "b" | "c" | null = null,
+  /** Touch and Oztag mixed teams: who the kid counts as under the rule. */
+  mixedGroup: "girl" | "boy" | null = null,
 ): Promise<ActionResult> {
   const { supabase, user, error } = await getAuthedAdmin(teamId);
   if (error || !user) return { success: false, error: error ?? "Unauthenticated." };
@@ -129,6 +131,7 @@ export async function addPlayer(
     full_name: fullName,
     jersey_number: jerseyNumber,
     chip,
+    ...(mixedGroup === "girl" || mixedGroup === "boy" ? { mixed_group: mixedGroup } : {}),
     created_by: user.id,
   });
 
@@ -151,6 +154,8 @@ export async function updatePlayer(
     jersey_number?: number | null;
     is_active?: boolean;
     chip?: "a" | "b" | "c" | null;
+    /** Touch and Oztag mixed teams: who the kid counts as under the rule. */
+    mixed_group?: "girl" | "boy" | null;
   },
 ): Promise<ActionResult> {
   const { supabase, error } = await getAuthedAdmin(teamId);

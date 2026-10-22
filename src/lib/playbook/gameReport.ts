@@ -8,6 +8,7 @@ import type { RuleInstance } from "@/lib/playbook/rules";
 import type { RuleCheckItem } from "@/lib/playbook/ruleCheck";
 import { periodsOwed } from "@/lib/playbook/seasonBalance";
 import type { UnitTime } from "@/lib/playbook/seasonTime";
+import { MIXED_FAIRNESS_NOTE as MIXED_NOTE } from "@/lib/sports/touch/mixed";
 
 export interface GameReportInput {
   /** ms per player → period (1-based) → line. */
@@ -23,6 +24,13 @@ export interface GameReportInput {
   /** How long each period actually ran (its quarter_end), when known. */
   periodPlayedMs?: Record<number, number>;
   minGameTimePct: number;
+  /**
+   * A mixed team (touch, Oztag): who each kid counts as. Fair time is
+   * evened within each group, so the floor is each group's, scaled as
+   * the team's is: a group whose kids can share less of the field (the
+   * boys under a cap) has a lower floor. The text names no kid's group.
+   */
+  mixedGroupOf?: (playerId: string) => string | null | undefined;
   rules: RuleInstance[];
   name: (playerId: string) => string;
   homeLine?: Record<string, string | null>;
@@ -38,6 +46,31 @@ export interface GameReport {
 
 const joinNames = (names: string[]) =>
   names.length <= 2 ? names.join(" and ") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+
+/**
+ * Each kid's time floor, as a share of the game. Without groups it's
+ * the team's floor. With them, each group's floor is the team's scaled
+ * by how the group's even share compares with the team's, never above
+ * the team's: under touch's cap with 8 boys and 4 girls the team's even
+ * share is 50 %, the boys' 37.5 %, so a 50 % floor is 37.5 % for a boy.
+ */
+function groupFloors(
+  players: readonly string[],
+  total: (pid: string) => number,
+  gameMs: number,
+  floor: number,
+  groupOf: ((pid: string) => string | null | undefined) | undefined,
+): (pid: string) => number {
+  if (!groupOf || gameMs <= 0 || players.length === 0) return () => floor;
+  const even = (ids: readonly string[]) => ids.reduce((s, p) => s + total(p), 0) / (ids.length * gameMs);
+  const teamEven = even(players);
+  const byGroup = new Map<string, number>();
+  for (const g of Array.from(new Set(players.map((p) => groupOf(p) ?? "")))) {
+    const ids = players.filter((p) => (groupOf(p) ?? "") === g);
+    byGroup.set(g, teamEven > 0 ? Math.min(floor, (floor * even(ids)) / teamEven) : floor);
+  }
+  return (pid) => byGroup.get(groupOf(pid) ?? "") ?? floor;
+}
 
 export function gameReport(input: GameReportInput): GameReport {
   const items: RuleCheckItem[] = [];
@@ -73,9 +106,14 @@ export function gameReport(input: GameReportInput): GameReport {
     const ran = input.periodPlayedMs?.[p];
     gameMs += ran && ran > 0 ? ran : input.periodMs;
   }
-  const short = players.filter((pid) => gameMs > 0 && total(pid) / gameMs < input.minGameTimePct / 100);
+  const floorFor = groupFloors(players, total, gameMs, input.minGameTimePct / 100, input.mixedGroupOf);
+  const short = players.filter((pid) => gameMs > 0 && total(pid) / gameMs < floorFor(pid));
   items.push(
-    short.length === 0
+    input.mixedGroupOf
+      ? short.length === 0
+        ? { id: "min-game-time", status: "ok", text: `Everyone played a fair share. ${MIXED_NOTE}` }
+        : { id: "min-game-time", status: "fail", text: `${joinNames(short.map(input.name))} played under a fair share. ${MIXED_NOTE}` }
+      : short.length === 0
       ? { id: "min-game-time", status: "ok", text: `Everyone played at least ${input.minGameTimePct}%` }
       : {
           id: "min-game-time",
