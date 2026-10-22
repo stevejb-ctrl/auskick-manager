@@ -80,7 +80,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
       : Promise.resolve({ data: null }),
     supabase
       .from("teams")
-      .select("age_group, sport, name, track_scoring, quarter_length_seconds, on_field_size")
+      .select("age_group, sport, name, track_scoring, quarter_length_seconds, on_field_size, period_count")
       .eq("id", params.teamId)
       .single(),
     // Every event: each sport's replay tallies the scorers, honouring
@@ -210,6 +210,8 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
             age_group: (team as { age_group?: string | null } | null)?.age_group ?? null,
             quarter_length_seconds:
               (team as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null,
+            // Basketball's and hockey's halves or quarters.
+            period_count: (team as { period_count?: number | null } | null)?.period_count ?? null,
           },
           g,
           summaryEvents,

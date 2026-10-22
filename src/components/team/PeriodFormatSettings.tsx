@@ -1,10 +1,12 @@
 "use client";
 
 // ─── PeriodFormatSettings ─────────────────────────────────────
-// Basketball's "Halves or quarters" card on the team Settings page
-// (Season). Associations differ: VIC and WA play 2 × 20 halves, QLD and
-// the ACT 4 × 10 quarters. New games follow it; the period-length card
-// beside it resets to the format's length.
+// The "Halves or quarters" card on the team Settings page (Season), for
+// the sports that let a team choose. Associations differ: basketball's
+// VIC and WA play 2 × 20 halves, QLD and the ACT 4 × 10 quarters;
+// hockey plays 4 × 15 quarters from U13, and VIC 2 × 30 halves. New
+// games follow it; the period-length card beside it resets to the
+// format's length.
 //
 // The same card, radio row and save pattern as the other Season cards.
 
@@ -19,10 +21,12 @@ interface PeriodFormatSettingsProps {
   initialCount: number | null;
   /** The age group's half, in minutes (2 × 20 → quarters of 10). */
   halfMinutes: number;
+  /** The sport's line on who plays which. */
+  note: string;
   isAdmin?: boolean;
 }
 
-export function PeriodFormatSettings({ teamId, initialCount, halfMinutes, isAdmin = false }: PeriodFormatSettingsProps) {
+export function PeriodFormatSettings({ teamId, initialCount, halfMinutes, note, isAdmin = false }: PeriodFormatSettingsProps) {
   const router = useRouter();
   const [count, setCount] = useState<2 | 4>(initialCount === 4 ? 4 : 2);
   const [error, setError] = useState<string | null>(null);
@@ -55,9 +59,7 @@ export function PeriodFormatSettings({ teamId, initialCount, halfMinutes, isAdmi
   return (
     <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
       <p className="text-sm font-medium text-ink">Halves or quarters</p>
-      <p className="text-xs text-ink-mute">
-        Your competition&apos;s format. VIC and WA domestic play halves; QLD and the ACT play quarters.
-      </p>
+      <p className="text-xs text-ink-mute">{note}</p>
       <div role="radiogroup" aria-label="Halves or quarters" className="mt-3 flex gap-2">
         {options.map((o) => (
           <button

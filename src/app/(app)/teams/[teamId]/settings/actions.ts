@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAgeGroupConfig, getSportConfig, teamSport } from "@/lib/sports";
+import { getAgeGroupConfig, getSportConfig, isBasketball, isSoccer, teamSport } from "@/lib/sports";
+import { soccerFamilyAgeGroup, soccerFamilyRules } from "@/lib/sports/soccer/family";
 import type { ActionResult, Sport } from "@/lib/types";
 import { storedOnFieldSize } from "@/lib/games/newGameDefaults";
 
@@ -373,25 +374,34 @@ export async function deleteTeam(teamId: string, confirmName: string): Promise<A
 }
 
 /**
- * Team › Season › Halves or quarters (basketball): the competition plays
- * 2 × 20 or 4 × 10 (migration 0069's teams.period_count). Null = the age
- * group's halves. Only a basketball team takes it. The period-length
- * override is cleared with it: a half's length isn't a quarter's.
+ * Team › Season › Halves or quarters: the competition plays 2 × 20 or
+ * 4 × 10 (basketball), or 4 × 15 or 2 × 30 (hockey: VIC plays halves)
+ * (migration 0069's teams.period_count). Null = the age group's own
+ * (basketball's halves; hockey's halves to U12, quarters from U13), so
+ * a later change of age follows the new age. Only a sport that lets a
+ * team choose takes it. The period-length override is cleared with it:
+ * a half's length isn't a quarter's.
  */
 export async function setTeamPeriodCount(teamId: string, count: 2 | 4 | null): Promise<ActionResult> {
   const { supabase, error } = await getAuthedAdmin(teamId);
   if (error) return { success: false, error };
   if (count !== null && count !== 2 && count !== 4) return { success: false, error: "Halves or quarters only." };
 
-  const { data: team } = await supabase.from("teams").select("sport").eq("id", teamId).single();
+  const { data: team } = await supabase.from("teams").select("sport, age_group").eq("id", teamId).single();
   if (!team) return { success: false, error: "Team not found." };
-  if (teamSport((team as { sport?: Sport | null }).sport) !== "basketball") {
-    return { success: false, error: "Only basketball teams choose halves or quarters." };
+  const sport = teamSport((team as { sport?: Sport | null }).sport);
+  // The age group's own count, which stores as null.
+  let own: number;
+  if (isBasketball(sport)) own = 2;
+  else if (isSoccer(sport) && soccerFamilyRules(sport).halvesOrQuarters) {
+    own = soccerFamilyAgeGroup(sport, (team as { age_group?: string | null }).age_group ?? null).periodCount;
+  } else {
+    return { success: false, error: "Only basketball and hockey teams choose halves or quarters." };
   }
 
   const { error: updateError } = await supabase
     .from("teams")
-    .update({ period_count: count === 2 ? null : count, quarter_length_seconds: null })
+    .update({ period_count: count === own ? null : count, quarter_length_seconds: null })
     .eq("id", teamId);
   if (updateError) return { success: false, error: updateError.message };
 

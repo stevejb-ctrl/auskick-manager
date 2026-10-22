@@ -22,8 +22,9 @@ import {
   type MemberRow,
   type PendingInvite,
 } from "@/components/team/TeamMembersSettings";
-import { getAgeGroupConfig, getSportConfig, isBasketball, isRugby, teamSport, periodLabels } from "@/lib/sports";
+import { getAgeGroupConfig, getSportConfig, isBasketball, isRugby, isSoccer, teamSport, periodLabels } from "@/lib/sports";
 import { basketballAgeGroup, basketballAgeGroupForTeam } from "@/lib/sports/basketball";
+import { soccerFamilyAgeGroup, soccerFamilyAgeGroupForTeam, soccerFamilyRules } from "@/lib/sports/soccer/family";
 import { PeriodFormatSettings } from "@/components/team/PeriodFormatSettings";
 import { TrackFoulsToggle } from "@/components/team/TrackFoulsToggle";
 import { centreVest } from "@/lib/sports/rugby/zoneTime";
@@ -126,11 +127,19 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
     invites = (rawInvites ?? []) as PendingInvite[];
   }
 
-  // Basketball plays the team's halves or quarters (migration 0069).
+  // Basketball plays the team's halves or quarters (migration 0069), as
+  // does hockey; a soccer-family team's age group is its own sport's.
   const teamPeriodCount = (team as { period_count?: number | null }).period_count ?? null;
+  const teamAgeGroup = (team as { age_group?: string | null }).age_group ?? null;
   const ageGroupCfg = isBasketball(sport)
-    ? basketballAgeGroupForTeam((team as { age_group?: string | null }).age_group ?? null, teamPeriodCount)
-    : getAgeGroupConfig(sport, (team as { age_group?: string | null }).age_group ?? null);
+    ? basketballAgeGroupForTeam(teamAgeGroup, teamPeriodCount)
+    : isSoccer(sport)
+      ? soccerFamilyAgeGroupForTeam(sport, teamAgeGroup, teamPeriodCount)
+      : getAgeGroupConfig(sport, teamAgeGroup);
+  // Hockey's halves or quarters: the game's length is the age group's
+  // (4 × 15 is 2 × 30).
+  const hockeyFormat =
+    isSoccer(sport) && soccerFamilyRules(sport).halvesOrQuarters ? soccerFamilyAgeGroup(sport, teamAgeGroup) : null;
   const [{ data: playbookRow }, { data: positionRows }, { data: squadRows }] = await Promise.all([
     supabase
       .from("team_playbooks")
@@ -254,6 +263,16 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
             teamId={params.teamId}
             initialCount={teamPeriodCount}
             halfMinutes={basketballAgeGroup(ageGroupCfg.id).periodSeconds / 60}
+            note="Your competition's format. VIC and WA domestic play halves; QLD and the ACT play quarters."
+            isAdmin={isAdmin}
+          />
+        )}
+        {hockeyFormat && (
+          <PeriodFormatSettings
+            teamId={params.teamId}
+            initialCount={ageGroupCfg.periodCount}
+            halfMinutes={(hockeyFormat.periodSeconds * hockeyFormat.periodCount) / 2 / 60}
+            note="Your competition's format. Siren plays quarters from Under 13 (4 × 15); Victoria plays halves."
             isAdmin={isAdmin}
           />
         )}

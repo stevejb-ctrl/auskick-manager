@@ -19,6 +19,7 @@ import { gridUnits } from "@/lib/playbook/seasonGrid";
 import { buildSoccerSummary } from "@/lib/sports/soccer/summary";
 import { replaySoccerGame } from "@/lib/sports/soccer/replay";
 import { periodBreakName } from "@/lib/live/periodBreakName";
+import { newGameDefaults } from "@/lib/games/newGameDefaults";
 import type { EffectivePolicy } from "@/lib/playbook/types";
 
 const policy = (ageGroup: string) => ({ ageGroup }) as EffectivePolicy;
@@ -67,6 +68,17 @@ describe("soccerFamilyAgeGroupForTeam", () => {
     expect(soccerFamilyAgeGroupForTeam("hockey", "U13", null)).toBe(u13);
     expect(soccerFamilyAgeGroupForTeam("hockey", "U13", 4)).toBe(u13);
     expect(periodLabels("hockey", u13)).toEqual({ label: "quarter", plural: "quarters" });
+  });
+
+  it("sizes a new game's subs to the team's halves or quarters", () => {
+    // 4 × 15: a change every 5 minutes; 2 × 30 (VIC): every 5 too.
+    expect(newGameDefaults("hockey", "U13")).toEqual({ on_field_size: 11, sub_interval_seconds: 300 });
+    expect(newGameDefaults("hockey", "U13", null, 2)).toEqual({ on_field_size: 11, sub_interval_seconds: 300 });
+    // 2 × 20 halves: every 4 minutes; as 4 × 10 quarters, every 5.
+    expect(newGameDefaults("hockey", "U9")).toEqual({ on_field_size: 7, sub_interval_seconds: 240 });
+    expect(newGameDefaults("hockey", "U9", null, 4)).toEqual({ on_field_size: 7, sub_interval_seconds: 300 });
+    // Soccer's don't move.
+    expect(newGameDefaults("soccer", "U10", null, 4)).toEqual(newGameDefaults("soccer", "U10"));
   });
 
   it("never splits soccer's or futsal's halves: they don't choose", () => {
