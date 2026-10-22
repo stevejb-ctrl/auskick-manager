@@ -41,7 +41,11 @@ async function subDueGame(sport: "afl" | "rugby_union") {
   const ownerId = su.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
   const union = sport === "rugby_union";
   const ageGroup = union ? "U12" : "U10";
-  const team = await makeTeam(admin, { ownerId, sport, ageGroup, name: `SUB-DUE ${sport} ${Date.now() % 100000}` });
+  // Two workers start the two AFL tests in the same millisecond, so the
+  // time alone gave both teams one name and makeTeam's fetch by name
+  // found two rows. The random part keeps them apart.
+  const suffix = `${Date.now() % 100000}-${Math.random().toString(36).slice(2, 6)}`;
+  const team = await makeTeam(admin, { ownerId, sport, ageGroup, name: `SUB-DUE ${sport} ${suffix}` });
   await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: union ? 17 : 15, ageGroup });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
