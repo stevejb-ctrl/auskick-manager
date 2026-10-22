@@ -114,13 +114,35 @@ test("soccer: the sheet asks whether a kid takes a turn in goal, on by default",
   const sheet = await openRole(page, team.id, kid.full_name);
   const turn = sheet.getByRole("switch", { name: "Takes a turn in goal" });
   await expect(turn).toBeChecked();
-  await expect(sheet.getByRole("group", { name: "Plays as" })).toHaveCount(0);
   await turn.click();
   await sheet.getByRole("button", { name: "Save role" }).click();
   await expect(sheet).toHaveCount(0);
 
   await expect(page.getByTestId(`player-role-${kid.id}`)).toHaveText("No turns in goal");
   await expect.poll(() => prefsOf(admin, kid.id)).toEqual([{ kind: "never", line: "gk", position_key: null }]);
+});
+
+test("soccer U10: a kid plays the lines the coach picks, Defence / Midfield / Attack", async ({ page }) => {
+  // Steve 2026-10-22: "For soccer I am adding an under 10s team but there
+  // is no way to add positions … you can go forward and backs."
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, sport: "soccer", ageGroup: "U10" });
+  const [kid] = await makePlayers(admin, { teamId: team.id, ownerId, count: 10 });
+
+  const sheet = await openRole(page, team.id, kid.full_name);
+  await expect(sheet.getByRole("switch", { name: "Takes a turn in goal" })).toBeChecked();
+  const playsAs = sheet.getByRole("group", { name: "Plays as" });
+  await expect(playsAs.getByRole("checkbox")).toHaveText(["Defence", "Midfield", "Attack"]);
+  await playsAs.getByRole("checkbox", { name: "Attack" }).click();
+  await sheet.getByRole("button", { name: "Save role" }).click();
+  await expect(sheet).toHaveCount(0);
+
+  await expect(page.getByTestId(`player-role-${kid.id}`)).toHaveText("Plays Attack");
+  await expect.poll(() => prefsOf(admin, kid.id)).toEqual([
+    { kind: "never", line: "def", position_key: null },
+    { kind: "never", line: "mid", position_key: null },
+  ]);
 });
 
 test("an old 'also plays' shows ticked, with a note that saving keeps them there", async ({ page }) => {

@@ -295,9 +295,9 @@ export function SoccerLiveGame({
     elapsedMs,
   });
   const nextSubs = useMemo(
-    () => (isPeriodActive ? suggestSoccerWindowBatch({ state, nowMs: absNowMs }) : []),
+    () => (isPeriodActive ? suggestSoccerWindowBatch({ state, nowMs: absNowMs, prefs: keeperPrefs }) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isPeriodActive, state],
+    [isPeriodActive, state, keeperPrefs],
   );
   const subDueKey = subDue.key === null ? null : `${base.currentPeriod}:${subDue.key}`;
   const subDueShowing = isPeriodActive && subDue.due && nextSubs.length > 0 && subAckKey !== subDueKey;

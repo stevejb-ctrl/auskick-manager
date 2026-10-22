@@ -27,7 +27,10 @@ export interface RoleModel {
   home: boolean;
   /** Offer "Plays as" (false where the strategy has nothing to place kids in). */
   playsAs: boolean;
-  /** Soccer: the one option is Keeper, asked as "Takes a turn in goal". */
+  /**
+   * The soccer family: the Keeper option (gk) is asked as "Takes a turn
+   * in goal", and any others are outfield lines, asked as "Plays as".
+   */
   keeper: boolean;
   /** The team names its own positions, so the sheet links to the editor. */
   addPositions: boolean;
@@ -73,7 +76,7 @@ export function roleModelFor(resolved: ResolvedPlaybook): RoleModel | null {
   const withHome = strategy.usesPositions || strategy.roleHome === "position";
   const playsAs = strategy.rolePlaysAs !== false;
   // Every soccer-family sport keeps goal (soccer, futsal, hockey).
-  const keeper = isSoccer(resolved.sport);
+  const keeper = isSoccer(resolved.sport) && positionModel.lines.some((l) => l.id === KEEPER_KEY);
   if ((withHome || strategy.rolePositions) && resolved.positions.length > 0) {
     return {
       unit: "position",
@@ -195,14 +198,29 @@ export function prefsFromRole(
   return rows;
 }
 
+/** The soccer family's goal option. */
+export const KEEPER_KEY = "gk";
+
+/**
+ * The outfield half of a keeper model: its lines, asked as "Plays as".
+ * The keeper's home row is a keen keeper, so the lines offer no main.
+ */
+export function outfieldModel(model: RoleModel): RoleModel {
+  if (!model.keeper) return model;
+  return { ...model, keeper: false, home: false, options: model.options.filter((o) => o.key !== KEEPER_KEY) };
+}
+
 /** One line for the squad list: "Plays FF, CHF · main FF · every minute". */
 export function describeRole(role: PlayerRole | undefined, model: RoleModel): string {
   if (!role) return "";
   const label = (k: string) => model.options.find((o) => o.key === k)?.label ?? k;
   const parts: string[] = [];
   if (model.keeper) {
-    if (role.home) parts.push("Keen keeper");
-    else if (role.never.length > 0) parts.push("No turns in goal");
+    if (role.home === KEEPER_KEY) parts.push("Keen keeper");
+    else if (role.never.includes(KEEPER_KEY)) parts.push("No turns in goal");
+    const out = outfieldModel(model);
+    const plays = viewFromRole(role, out).plays;
+    if (plays.length > 0) parts.push(`plays ${plays.map(label).join(", ")}`);
   } else {
     const view = viewFromRole(role, model);
     if (view.plays.length > 0) parts.push(`Plays ${view.plays.map(label).join(", ")}`);

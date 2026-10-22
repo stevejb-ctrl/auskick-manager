@@ -17,6 +17,7 @@ import {
 } from "@/lib/sports/soccer/suggest";
 import { SOCCER_WINDOWS_PRESET } from "@/lib/sports/soccer";
 import { MIN, SEVEN, game } from "./soccerGame";
+import { soccerKeeperPrefs } from "@/lib/sports/soccer/playbook";
 
 const NINE_KIDS = ["k1", "k2", "k3", "k4", "k5", "k6", "k7", "k8", "k9"];
 const U9 = soccerFamilyAgeGroup("soccer", "U9");
@@ -326,5 +327,54 @@ describe("suggestSoccerHalfTime", () => {
 
   it("needs a lineup", () => {
     expect(suggestSoccerHalfTime({ state: replaySoccerGame([]), ageGroup: U9, onFieldSize: 7 })).toBeNull();
+  });
+});
+
+// Steve 2026-10-22: "For soccer … you can go forward and backs or further
+// tailor it." A kid's "Plays as" lines are stored as never rows for the
+// rest (notInLine); every suggester keeps them to those lines.
+describe("plays as: the lines a kid plays", () => {
+  it("seats a kid only in the lines they play at kick-off", () => {
+    // k2 and k3 would start in defence; k2 plays attack only.
+    const { lineup } = suggestSoccerLineup({
+      ageGroup: U9,
+      onFieldSize: 7,
+      players: NINE_KIDS,
+      prefs: { notInLine: { k2: ["def", "mid"] } },
+    });
+    expect(lineup.lines.att).toContain("k2");
+  });
+
+  it("brings a kid on only for a line they play (rolling sub and window batch)", () => {
+    // b1 plays attack only, so comes on for a1, not d1 (first in line).
+    const live = inPlay(6);
+    const prefs = { notInLine: { b1: ["def", "mid"] as const } };
+    expect(suggestSoccerRollingSub({ ...live, prefs })).toEqual({ off_player_id: "a1", on_player_id: "b1", line: "att" });
+    const batch = suggestSoccerWindowBatch({ state: live.state, nowMs: live.nowMs, prefs });
+    expect(batch.find((s) => s.on_player_id === "b1")?.line).toBe("att");
+  });
+
+  it("plans the next half with each kid in the lines they play", () => {
+    const g = game();
+    g.lineup(SEVEN);
+    g.start(1);
+    g.end(1, 20);
+    const plan = suggestSoccerHalfTime({
+      state: replaySoccerGame(g.events),
+      ageGroup: U9,
+      onFieldSize: 7,
+      prefs: { notInLine: { d1: ["def", "mid"] } },
+    });
+    if (plan!.lineup.keeper !== "d1" && !plan!.lineup.bench.includes("d1")) expect(plan!.lineup.lines.att).toContain("d1");
+  });
+
+  it("reads the lines a kid doesn't play from their role", () => {
+    expect(
+      soccerKeeperPrefs([
+        { player_id: "k1", position_key: null, line: "def", kind: "never", rank: null },
+        { player_id: "k1", position_key: null, line: "mid", kind: "never", rank: null },
+        { player_id: "k2", position_key: null, line: "gk", kind: "never", rank: null },
+      ]).notInLine,
+    ).toEqual({ k1: ["def", "mid"] });
   });
 });

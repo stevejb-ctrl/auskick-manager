@@ -174,9 +174,11 @@ describe("soccerFamilyPlaybook", () => {
     expect(hockey.agePolicy("U13").minGameTimePct.source).toBe("Hockey NSW: equal time on the field");
   });
 
-  it("names goal in the role sheet where the age has a keeper", () => {
+  it("names goal and the lines in the role sheet where the age plays them", () => {
     expect(hockey.positionModel(policy("U8"), 6).lines).toEqual([]);
-    expect(hockey.positionModel(policy("U9"), 7).lines.map((l) => l.id)).toEqual(["gk"]);
+    expect(hockey.positionModel(policy("U9"), 7).lines.map((l) => l.id)).toEqual(["gk", "def", "mid", "att"]);
+    // In the sport's own words.
+    expect(hockey.positionModel(policy("U9"), 7).lines.map((l) => l.label).slice(1)).toEqual(["Defenders", "Midfield", "Strikers"]);
   });
 });
 

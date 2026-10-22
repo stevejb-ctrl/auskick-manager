@@ -9,7 +9,7 @@
 //     suggester rotates among them.
 // Pure: the caller says who is here and their keeper minutes.
 
-import type { SoccerKeeperStrategy } from "@/lib/sports/soccer/types";
+import type { SoccerKeeperStrategy, SoccerLine } from "@/lib/sports/soccer/types";
 
 /** A team's keeper prefs (How we play's role sheet, `player_position_prefs`). */
 export interface SoccerKeeperPrefs {
@@ -19,6 +19,8 @@ export interface SoccerKeeperPrefs {
   keenKeepers?: readonly string[];
   /** "Keepers": the kids the coach names, in rotation order. */
   namedKeepers?: readonly string[];
+  /** The outfield lines a kid's "Plays as" leaves out (never rows on def / mid / att). */
+  notInLine?: Readonly<Record<string, readonly SoccerLine[]>>;
 }
 
 export interface PickSoccerKeeperInput {
