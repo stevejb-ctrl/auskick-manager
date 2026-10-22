@@ -193,16 +193,60 @@ test("touch U11 mixed: the Girl/Boy prompt, the cap kept through subs, a girl hu
   expect(boysOf(afterSubs)).toBeLessThanOrEqual(3);
   expect(afterSubs.size).toBe(6);
 
+  // ─── 3b. A hand sub that breaks the cap asks first, then pins a Fix ─
+  // Audit 23 Oct (P1): a girl off for a boy put 4 boys on after only an
+  // "OK", and the next suggestions kept 4 boys on.
+  await expect.poll(async () => boysOf(await fieldNow())).toBe(3);
+  const fieldBefore = await fieldNow();
+  const girlOff = Array.from(fieldBefore).find((id) => groupOf.get(id) === "girl")!;
+  const boyOn = players.find((p) => groupOf.get(p.id) === "boy" && !fieldBefore.has(p.id))!.id;
+  const girlWaiting = players.find((p) => groupOf.get(p.id) === "girl" && !fieldBefore.has(p.id))!.id;
+  const swapsBeforeHand = await count("swap");
+  await field.getByTestId(`player-tile-${girlOff}`).click({ timeout: 10_000 });
+  // Bench boys who'd break the cap are dimmed and say why; the girl isn't.
+  await expect(bench.getByTestId(`player-tile-${boyOn}`)).toHaveAttribute("aria-description", /mixed rule/i);
+  await expect(bench.getByTestId(`player-tile-${girlWaiting}`)).not.toHaveAttribute("aria-description", /mixed rule/i);
+  await bench.getByTestId(`player-tile-${boyOn}`).click();
+  const confirm = page.getByRole("dialog");
+  await expect(confirm).toContainText("That puts 4 boys on: the mixed rule allows 3");
+  await confirm.getByRole("button", { name: "Pick someone else" }).click();
+  await expect(confirm).toHaveCount(0);
+  expect(await count("swap")).toBe(swapsBeforeHand);
+  // The girl is still picked: the coach chooses again, and this time swaps anyway.
+  await bench.getByTestId(`player-tile-${boyOn}`).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Swap anyway" }).click();
+  await expect.poll(() => count("swap"), { timeout: 15_000 }).toBe(swapsBeforeHand + 1);
+  expect(boysOf(await fieldNow())).toBe(4);
+  // Over the cap, a chip stays pinned until it's fixed; Fix brings a girl on for a boy.
+  const breach = page.getByTestId("touch-mixed-breach");
+  await expect(breach).toContainText("4 boys on · rule 3", { timeout: 15_000 });
+  await breach.getByRole("button", { name: /^fix/i }).click();
+  await expect.poll(() => count("swap"), { timeout: 15_000 }).toBe(swapsBeforeHand + 2);
+  const { data: fixSwap } = await admin
+    .from("game_events")
+    .select("metadata")
+    .eq("game_id", game.id)
+    .eq("type", "swap")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const fixMeta = fixSwap?.[0]?.metadata as { off_player_id: string; on_player_id: string };
+  expect(groupOf.get(fixMeta.off_player_id)).toBe("boy");
+  expect(groupOf.get(fixMeta.on_player_id)).toBe("girl");
+  await expect(breach).toHaveCount(0, { timeout: 15_000 });
+  const legalAgain = await fieldNow();
+  expect(boysOf(legalAgain)).toBe(3);
+  expect(legalAgain.size).toBe(6);
+
   // ─── 4. A girl is hurt: only the bench girl can replace her ───
-  const girlsOn = Array.from(afterSubs).filter((id) => groupOf.get(id) === "girl");
-  const benchGirl = players.find((p) => groupOf.get(p.id) === "girl" && !afterSubs.has(p.id))!;
+  const girlsOn = Array.from(legalAgain).filter((id) => groupOf.get(id) === "girl");
+  const benchGirl = players.find((p) => groupOf.get(p.id) === "girl" && !legalAgain.has(p.id))!;
   const hurt1 = girlsOn[0];
   const swapsBefore = await count("swap");
   await openActions(page, hurt1);
   await page.getByRole("button", { name: /mark injured/i }).click({ timeout: 5_000 });
   const replace = page.getByRole("dialog");
   await expect(replace).toContainText(benchGirl.full_name, { timeout: 10_000 });
-  for (const p of players.filter((q) => groupOf.get(q.id) === "boy" && !afterSubs.has(q.id))) {
+  for (const p of players.filter((q) => groupOf.get(q.id) === "boy" && !legalAgain.has(q.id))) {
     await expect(replace.getByRole("button", { name: new RegExp(p.full_name) })).toHaveCount(0);
   }
   await replace.getByRole("button").filter({ hasText: /suggested/i }).click();
