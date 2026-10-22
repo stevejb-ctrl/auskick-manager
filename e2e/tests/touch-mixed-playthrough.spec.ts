@@ -179,7 +179,7 @@ test("touch U11 mixed: the Girl/Boy prompt, the cap kept through subs, a girl hu
     await expect(replace.getByRole("button", { name: new RegExp(p.full_name) })).toHaveCount(0);
   }
   await replace.getByRole("button").filter({ hasText: /suggested/i }).click();
-  await expect.poll(() => count("swap")).toBe(swapsBefore + 1);
+  await expect.poll(() => count("swap"), { timeout: 15_000 }).toBe(swapsBefore + 1);
   const { data: lastSwap } = await admin
     .from("game_events")
     .select("metadata")
@@ -189,12 +189,16 @@ test("touch U11 mixed: the Girl/Boy prompt, the cap kept through subs, a girl hu
     .limit(1);
   expect((lastSwap?.[0]?.metadata as { on_player_id: string }).on_player_id).toBe(benchGirl.id);
 
+  // The field shows her on before the next tap (the phone acts on what it shows).
+  await expect(field.getByTestId(`player-tile-${benchGirl.id}`)).toBeVisible({ timeout: 15_000 });
+
   // ─── 5. Another girl hurt, none left: the field shrinks to five ─
   const nowOn = await fieldNow();
   const hurt2 = Array.from(nowOn).find((id) => groupOf.get(id) === "girl" && id !== hurt1)!;
   await openActions(page, hurt2);
   await page.getByRole("button", { name: /mark injured/i }).click({ timeout: 5_000 });
-  await expect.poll(() => count("injury")).toBe(2);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect.poll(() => count("injury"), { timeout: 15_000 }).toBe(2);
   await expect.poll(() => count("roster_shrink"), { timeout: 15_000 }).toBe(1);
   const { data: shrink } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "roster_shrink").single();
   expect((shrink?.metadata as { on_field_size: number; sport: string })).toMatchObject({ on_field_size: 5, sport: "touch" });
