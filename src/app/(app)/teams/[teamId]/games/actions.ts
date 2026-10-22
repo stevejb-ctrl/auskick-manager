@@ -128,6 +128,9 @@ export async function setTrackScoring(
 
   revalidatePath(`/teams/${teamId}/games`);
   revalidatePath(`/teams/${teamId}/settings`);
+  // The setup wizard's How we play step shows the toggle beside the
+  // locked rules, and "No scores are kept" goes once the team keeps score.
+  revalidatePath(`/teams/${teamId}/setup`);
   return { success: true };
 }
 

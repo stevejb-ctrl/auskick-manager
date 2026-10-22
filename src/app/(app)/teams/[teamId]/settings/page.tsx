@@ -197,6 +197,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           positions={(positionRows ?? []) as HowWePlayPosition[]}
           players={(squadRows ?? []).map((p) => ({ id: p.id as string, name: p.full_name as string }))}
           isAdmin={isAdmin}
+          trackScoring={team.track_scoring ?? false}
         />
         {/* Rugby league §6 Junior Laws: each player plays two full
             unbroken quarters (U6–U9) or one full half (U10–U12). Off by

@@ -21,6 +21,8 @@ import { replaySoccerGame } from "@/lib/sports/soccer/replay";
 import { periodBreakName } from "@/lib/live/periodBreakName";
 import { newGameDefaults } from "@/lib/games/newGameDefaults";
 import type { EffectivePolicy } from "@/lib/playbook/types";
+import { resolveTeamPlaybook } from "@/lib/playbook/team";
+import { lockedRules } from "@/lib/playbook/rules";
 
 const policy = (ageGroup: string) => ({ ageGroup }) as EffectivePolicy;
 
@@ -172,6 +174,22 @@ describe("soccerFamilyPlaybook", () => {
     expect(laws(hockey, "U9")).toEqual(["FIH Rules of Hockey", "Hockey NSW, Under 8 to Under 10"]);
     expect(laws(hockey, "U13")).toEqual(["FIH Rules of Hockey"]);
     expect(hockey.agePolicy("U13").minGameTimePct.source).toBe("Hockey NSW: equal time on the field");
+  });
+
+  it("drops the no-scores law for a team that keeps score", () => {
+    // Soccer's audit (23 Oct 2026): "No scores or ladders are kept" stayed
+    // locked on a MiniRoos team with Track goals on.
+    const ids = (pb: typeof futsal, age: string, trackScoring?: boolean) =>
+      pb.lawRules(policy(age), pb.agePolicy(age), { trackScoring }).map((r) => r.id);
+    expect(ids(soccer, "U9")).toContain("miniroos-scores");
+    expect(ids(soccer, "U9", false)).toContain("miniroos-scores");
+    expect(ids(soccer, "U9", true)).not.toContain("miniroos-scores");
+    expect(ids(soccer, "U9", true)).toHaveLength(2);
+    expect(ids(futsal, "U8", true)).toEqual(["futsal-subs", "futsal-keeper"]);
+    // As the coach sees them, locked under How we play.
+    const resolved = resolveTeamPlaybook({ sport: "soccer", ageGroup: "U9", onFieldSize: 7, row: null });
+    expect(lockedRules(resolved).map((r) => r.id)).toContain("miniroos-scores");
+    expect(lockedRules(resolved, { trackScoring: true }).map((r) => r.id)).not.toContain("miniroos-scores");
   });
 
   it("names goal and the lines in the role sheet where the age plays them", () => {

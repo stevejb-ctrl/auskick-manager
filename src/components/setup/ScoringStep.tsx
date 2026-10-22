@@ -164,6 +164,7 @@ export function ScoringStep({
         positions={positions}
         isAdmin
         inWizard
+        trackScoring={initialEnabled}
       />
 
       <div className="space-y-2">

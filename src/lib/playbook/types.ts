@@ -145,6 +145,12 @@ export interface LockedRule {
   source: string;
 }
 
+/** How a team is set up, where it changes which laws apply. */
+export interface LawRulesTeam {
+  /** The team keeps score (teams.track_scoring). */
+  trackScoring?: boolean;
+}
+
 /**
  * Everything How we play knows about one sport. Each sport owns its own
  * rules, words and laws — nothing here is shared between sports or
@@ -167,8 +173,12 @@ export interface SportPlaybook {
   engineRuleKinds: readonly import("@/lib/playbook/rules").RuleKind[];
   /** The rules the Add-a-rule list offers, for the team's strategy and policy. */
   ruleKinds(strategy: StrategyDef, policy: EffectivePolicy): import("@/lib/playbook/rules").RuleKind[];
-  /** This sport's own laws shown as locked rules (zones, unbroken periods, vests). */
-  lawRules(policy: EffectivePolicy, agePolicy: AgePolicy): LockedRule[];
+  /**
+   * This sport's own laws shown as locked rules (zones, unbroken periods,
+   * vests), for the team as it's set up (a no-scores law goes once the
+   * team keeps score).
+   */
+  lawRules(policy: EffectivePolicy, agePolicy: AgePolicy, team?: LawRulesTeam): LockedRule[];
   agePolicy(ageGroup: string): AgePolicy;
   positionModel(policy: EffectivePolicy, onFieldSize: number): PositionModel;
   strategies(policy: EffectivePolicy): StrategyDef[];

@@ -102,6 +102,8 @@ export interface SoccerLaw {
   source: string;
   /** The age ids it covers; every age when omitted. */
   ages?: readonly string[];
+  /** A law about keeping no score: not shown for a team that keeps one. */
+  noScoreboard?: boolean;
 }
 
 /** How we play's three keeper strategies, in a sport's own words. */

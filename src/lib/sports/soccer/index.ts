@@ -190,7 +190,7 @@ export const SOCCER_RULES: SoccerFamilyRules = {
   },
   ruleSource: {
     laws: [
-      { id: "miniroos-scores", text: "No scores or ladders are kept", source: MINIROOS, ages: MINIROOS_AGES },
+      { id: "miniroos-scores", text: "No scores or ladders are kept", source: MINIROOS, ages: MINIROOS_AGES, noScoreboard: true },
       { id: "miniroos-subs", text: "Subs roll on and off at any time, as often as you like", source: MINIROOS, ages: MINIROOS_AGES },
       { id: "miniroos-offside", text: "No offside", source: MINIROOS, ages: MINIROOS_AGES },
     ],

@@ -136,7 +136,7 @@ export const FUTSAL_RULES: SoccerFamilyRules = {
     laws: [
       { id: "futsal-subs", text: "Subs fly on and off at any time through the sub zone, as often as you like", source: FIFA_FUTSAL },
       { id: "futsal-keeper", text: "A sub can swap with the keeper at any time", source: FIFA_FUTSAL },
-      { id: "futsal-scores", text: "No scores are kept", source: "Capital Football Minis", ages: ["U6", "U7", "U8", "U9"] },
+      { id: "futsal-scores", text: "No scores are kept", source: "Capital Football Minis", ages: ["U6", "U7", "U8", "U9"], noScoreboard: true },
     ],
     format: { source: FIFA_FUTSAL, ages: AGES.map((a) => a.id) },
     equalTime: "Football Australia: equal playing time is a priority",
