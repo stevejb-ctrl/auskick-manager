@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAgeGroupConfig, getSportConfig, teamSport } from "@/lib/sports";
+import { getAgeGroupConfig, getSportConfig, isTouch, teamSport } from "@/lib/sports";
+import { mixedRuleColumns } from "@/lib/sports/touch/mixed";
+import type { MixedRule } from "@/lib/sports/touch/types";
 import type { ActionResult, Sport } from "@/lib/types";
 import { storedOnFieldSize } from "@/lib/games/newGameDefaults";
 
@@ -374,19 +376,24 @@ export async function deleteTeam(teamId: string, confirmName: string): Promise<A
 
 /**
  * Team › Season › Halves or quarters (basketball): the competition plays
- * 2 × 20 or 4 × 10 (migration 0069's teams.period_count). Null = the age
- * group's halves. Only a basketball team takes it. The period-length
- * override is cleared with it: a half's length isn't a quarter's.
+ * 2 × 20 or 4 × 10 (migration 0069's teams.period_count). Touch and
+ * Oztag choose halves or one continuous period instead (0071's 1). Null
+ * = the age group's halves. The period-length override is cleared with
+ * it: a half's length isn't a quarter's.
  */
-export async function setTeamPeriodCount(teamId: string, count: 2 | 4 | null): Promise<ActionResult> {
+export async function setTeamPeriodCount(teamId: string, count: 1 | 2 | 4 | null): Promise<ActionResult> {
   const { supabase, error } = await getAuthedAdmin(teamId);
   if (error) return { success: false, error };
-  if (count !== null && count !== 2 && count !== 4) return { success: false, error: "Halves or quarters only." };
 
   const { data: team } = await supabase.from("teams").select("sport").eq("id", teamId).single();
   if (!team) return { success: false, error: "Team not found." };
-  if (teamSport((team as { sport?: Sport | null }).sport) !== "basketball") {
-    return { success: false, error: "Only basketball teams choose halves or quarters." };
+  const sport = teamSport((team as { sport?: Sport | null }).sport);
+  if (isTouch(sport)) {
+    if (count !== null && count !== 1 && count !== 2) return { success: false, error: "Halves or one period only." };
+  } else if (sport !== "basketball") {
+    return { success: false, error: "Only basketball, touch and Oztag teams choose their periods." };
+  } else if (count !== null && count !== 2 && count !== 4) {
+    return { success: false, error: "Halves or quarters only." };
   }
 
   const { error: updateError } = await supabase
@@ -415,6 +422,64 @@ export async function setTeamTrackFouls(teamId: string, enabled: boolean): Promi
   }
 
   const { error: updateError } = await supabase.from("teams").update({ track_fouls: enabled }).eq("id", teamId);
+  if (updateError) return { success: false, error: updateError.message };
+
+  revalidatePath(`/teams/${teamId}/settings`);
+  return { success: true };
+}
+
+/**
+ * Team › Season › Mixed team (touch, Oztag): the most boys on the field
+ * and the fewest girls and boys (migration 0071), or null for a team that
+ * isn't mixed. A team that stops being mixed loses its girl's-try
+ * setting too. Who counts as a girl or a boy is asked at the lineup.
+ */
+export async function setTeamMixedRule(teamId: string, rule: MixedRule | null): Promise<ActionResult> {
+  const { supabase, error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+
+  const { data: team } = await supabase.from("teams").select("sport, age_group").eq("id", teamId).single();
+  if (!team) return { success: false, error: "Team not found." };
+  const sport = teamSport((team as { sport?: Sport | null }).sport);
+  if (!isTouch(sport)) return { success: false, error: "Only touch and Oztag teams can be mixed." };
+  if (rule) {
+    const size = getAgeGroupConfig(sport, (team as { age_group?: string | null }).age_group ?? null).maxOnFieldSize;
+    const whole = [rule.maxBoys, rule.minGirls, rule.minBoys].every((n) => Number.isInteger(n) && n >= 0 && n <= size);
+    if (!whole) return { success: false, error: `Each number is between 0 and ${size}.` };
+    if (rule.minBoys > rule.maxBoys) return { success: false, error: "The fewest boys can't be more than the most." };
+    if (rule.minGirls + rule.minBoys > size) return { success: false, error: `The fewest girls and boys add up to more than ${size} on the field.` };
+  }
+
+  const { error: updateError } = await supabase
+    .from("teams")
+    .update({ ...mixedRuleColumns(rule), ...(rule ? {} : { girls_try_double: null }) })
+    .eq("id", teamId);
+  if (updateError) return { success: false, error: updateError.message };
+
+  revalidatePath(`/teams/${teamId}/settings`);
+  revalidatePath(`/teams/${teamId}/squad`);
+  return { success: true };
+}
+
+/**
+ * Team › Game-day extras › A girl's try counts 2 (Oztag mixed, ITF rule
+ * 4.3): on by default (null); a competition that doesn't play it turns
+ * it off (false).
+ */
+export async function setTeamGirlsTryDouble(teamId: string, enabled: boolean): Promise<ActionResult> {
+  const { supabase, error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+
+  const { data: team } = await supabase.from("teams").select("sport").eq("id", teamId).single();
+  if (!team) return { success: false, error: "Team not found." };
+  if (teamSport((team as { sport?: Sport | null }).sport) !== "oztag") {
+    return { success: false, error: "Only Oztag teams count a girl's try as 2." };
+  }
+
+  const { error: updateError } = await supabase
+    .from("teams")
+    .update({ girls_try_double: enabled ? null : false })
+    .eq("id", teamId);
   if (updateError) return { success: false, error: updateError.message };
 
   revalidatePath(`/teams/${teamId}/settings`);

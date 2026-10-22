@@ -6,6 +6,9 @@
 // the ACT 4 × 10 quarters. New games follow it; the period-length card
 // beside it resets to the format's length.
 //
+// Touch and Oztag use the same card for "Halves or one period"
+// (Newcastle's juniors play 25 minutes straight): pass `format="touch"`.
+//
 // The same card, radio row and save pattern as the other Season cards.
 
 import { useState, useTransition } from "react";
@@ -15,21 +18,26 @@ import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface PeriodFormatSettingsProps {
   teamId: string;
-  /** 4 = quarters; anything else halves. */
+  /** 4 = quarters (basketball), 1 = one period (touch); anything else halves. */
   initialCount: number | null;
   /** The age group's half, in minutes (2 × 20 → quarters of 10). */
   halfMinutes: number;
+  /** Basketball's halves or quarters (the default), or touch's halves or one period. */
+  format?: "basketball" | "touch";
   isAdmin?: boolean;
 }
 
-export function PeriodFormatSettings({ teamId, initialCount, halfMinutes, isAdmin = false }: PeriodFormatSettingsProps) {
+type Count = 1 | 2 | 4;
+
+export function PeriodFormatSettings({ teamId, initialCount, halfMinutes, format = "basketball", isAdmin = false }: PeriodFormatSettingsProps) {
   const router = useRouter();
-  const [count, setCount] = useState<2 | 4>(initialCount === 4 ? 4 : 2);
+  const other: Count = format === "touch" ? 1 : 4;
+  const [count, setCount] = useState<Count>(initialCount === other ? other : 2);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  function choose(next: 2 | 4) {
+  function choose(next: Count) {
     if (!isAdmin || next === count) return;
     const before = count;
     setError(null);
@@ -47,18 +55,27 @@ export function PeriodFormatSettings({ teamId, initialCount, halfMinutes, isAdmi
     });
   }
 
-  const options: { value: 2 | 4; label: string; detail: string }[] = [
-    { value: 2, label: "Halves", detail: `2 × ${halfMinutes} min` },
-    { value: 4, label: "Quarters", detail: `4 × ${halfMinutes / 2} min` },
-  ];
+  const options: { value: Count; label: string; detail: string }[] =
+    format === "touch"
+      ? [
+          { value: 2, label: "Halves", detail: `2 × ${halfMinutes} min` },
+          { value: 1, label: "One period", detail: `${halfMinutes * 2} min straight` },
+        ]
+      : [
+          { value: 2, label: "Halves", detail: `2 × ${halfMinutes} min` },
+          { value: 4, label: "Quarters", detail: `4 × ${halfMinutes / 2} min` },
+        ];
+  const title = format === "touch" ? "Halves or one period" : "Halves or quarters";
 
   return (
     <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
-      <p className="text-sm font-medium text-ink">Halves or quarters</p>
+      <p className="text-sm font-medium text-ink">{title}</p>
       <p className="text-xs text-ink-mute">
-        Your competition&apos;s format. VIC and WA domestic play halves; QLD and the ACT play quarters.
+        {format === "touch"
+          ? "Your competition's format. Most play two halves; some juniors play one period with no half-time (set its length below)."
+          : <>Your competition&apos;s format. VIC and WA domestic play halves; QLD and the ACT play quarters.</>}
       </p>
-      <div role="radiogroup" aria-label="Halves or quarters" className="mt-3 flex gap-2">
+      <div role="radiogroup" aria-label={title} className="mt-3 flex gap-2">
         {options.map((o) => (
           <button
             key={o.value}
