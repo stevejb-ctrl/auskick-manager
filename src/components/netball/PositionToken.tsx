@@ -59,8 +59,6 @@ interface PositionTokenProps {
    * clockPulseKey pattern on GameHeader / NetballScoreBug.
    */
   pulseKey?: string | number | null;
-  /** Break caption — "STAYS" / "GA → WA" (same shape as AFL PlayerTile). */
-  caption?: { text: string; tone: "move" | "stay" } | null;
   /** Season role "Plays every minute" (lineup screens). */
   keepOn?: boolean;
 }
@@ -94,7 +92,6 @@ export function PositionToken({
   totalMs,
   goalCount,
   pulseKey,
-  caption,
   keepOn = false,
 }: PositionTokenProps) {
   const pos = netballSport.allPositions.find((p) => p.id === positionId);
@@ -283,17 +280,6 @@ export function PositionToken({
         </span>
       )}
 
-      {caption && (
-        <div
-          className={`rounded-t-[11px] border-b px-1 py-0.5 text-center font-mono text-[9px] font-bold uppercase leading-none tracking-micro ${
-            caption.tone === "move"
-              ? "border-brand-700 bg-brand-600 text-white"
-              : "border-hairline bg-surface-alt text-ink-dim"
-          }`}
-        >
-          {caption.text}
-        </div>
-      )}
 
       <div className="flex min-h-[52px] items-center gap-2 py-2 pl-1.5 pr-2">
         {/* Bib disc — white mono on the third's colour (5.2–6.7:1). */}

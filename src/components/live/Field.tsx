@@ -5,7 +5,7 @@ import { useLiveGame } from "@/lib/stores/liveGameStore";
 import type { Lineup, Player, PositionModel, Zone } from "@/lib/types";
 import type { ZoneCaps, ZoneMinutes } from "@/lib/fairness";
 import { positionsFor, ZONE_LABELS } from "@/lib/ageGroups";
-import { PlayerTile, type TileCaption } from "@/components/live/PlayerTile";
+import { PlayerTile } from "@/components/live/PlayerTile";
 import type { ChipKey, ChipMode } from "@/lib/chips";
 
 interface FieldProps {
@@ -62,8 +62,6 @@ interface FieldProps {
    * (field → field is a zone swap); planning screens swap freely.
    */
   dimUnselected?: boolean;
-  /** Per-player tile captions ("STAYS", "BENCH → FWD"). */
-  captions?: Record<string, TileCaption>;
   /** Set positions: playerId → position label shown on the tile. */
   positionLabels?: Record<string, string>;
   /** Kids with a season keep-on role (lineup screens). */
@@ -109,7 +107,6 @@ export function Field({
   selectedPlayerId,
   primedEmptyZone = null,
   dimUnselected = true,
-  captions,
   positionLabels,
   keepOnIds,
   swapDue = false,
@@ -296,7 +293,6 @@ export function Field({
                       }
                       score={playerScores?.[pid]}
                       chipModes={chipModeByKey}
-                      caption={captions?.[pid]}
                       swapDue={swapDue}
                     />
                   );

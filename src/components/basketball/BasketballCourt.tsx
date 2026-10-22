@@ -17,7 +17,6 @@ import type { BasketballLine } from "@/lib/sports/basketball/types";
 import {
   BasketballPlayerTile,
   BASKETBALL_LINE_LABEL,
-  type BasketballTileCaption,
 } from "@/components/basketball/BasketballPlayerTile";
 
 /** Rows drawn top to bottom when the strategy plays lines. */
@@ -47,7 +46,6 @@ interface BasketballCourtProps {
   foulOutAt?: number;
   lockModes?: Record<string, "field" | "zone">;
   pointsByPlayer?: Record<string, number>;
-  captions?: Record<string, BasketballTileCaption>;
   /** The position strategies: each kid's position label ("PG"). */
   positionLabels?: Record<string, string>;
 }
@@ -73,7 +71,6 @@ export function BasketballCourt({
   foulOutAt,
   lockModes,
   pointsByPlayer,
-  captions,
   positionLabels,
 }: BasketballCourtProps) {
   const injuredSet = new Set(injuredIds ?? []);
@@ -118,7 +115,6 @@ export function BasketballCourt({
         foulOutAt={foulOutAt}
         lockMode={lockModes?.[pid] ?? null}
         points={pointsByPlayer?.[pid]}
-        caption={captions?.[pid]}
         swapDue={swapDue}
       />
     );

@@ -17,7 +17,6 @@ import type { SoccerLine, SoccerUnit } from "@/lib/sports/soccer/types";
 import {
   SoccerPlayerTile,
   SOCCER_UNIT_LABEL,
-  type SoccerTileCaption,
 } from "@/components/soccer/SoccerPlayerTile";
 
 /** Rows drawn top to bottom when the shape has lines. */
@@ -48,7 +47,6 @@ interface SoccerFieldProps {
   /** Holds: "field" = Keep on / Keep in goal, "zone" = kept in a line. */
   lockModes?: Record<string, "field" | "zone">;
   goalsByPlayer?: Record<string, number>;
-  captions?: Record<string, SoccerTileCaption>;
   positionLabels?: Record<string, string>;
   keepOnIds?: Set<string>;
   /** Bumped at kick-off: a one-shot halo around the pitch (AFL's wake-up). */
@@ -75,7 +73,6 @@ export function SoccerField({
   injuredIds,
   lockModes,
   goalsByPlayer,
-  captions,
   positionLabels,
   keepOnIds,
   wakeUpKey = null,
@@ -122,7 +119,6 @@ export function SoccerField({
         injured={injuredSet.has(pid)}
         lockMode={lockModes?.[pid] ?? null}
         goals={goalsByPlayer?.[pid]}
-        caption={captions?.[pid]}
         swapDue={swapDue}
       />
     );

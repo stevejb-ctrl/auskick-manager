@@ -9,7 +9,7 @@
 import type { Player } from "@/lib/types";
 import type { BasketballLineMs } from "@/lib/sports/basketball/replay";
 import type { BasketballLine } from "@/lib/sports/basketball/types";
-import { BasketballPlayerTile, type BasketballTileCaption } from "@/components/basketball/BasketballPlayerTile";
+import { BasketballPlayerTile } from "@/components/basketball/BasketballPlayerTile";
 
 interface BasketballBenchProps {
   bench: string[];
@@ -34,7 +34,6 @@ interface BasketballBenchProps {
   foulOutAt?: number;
   lockModes?: Record<string, "field" | "zone">;
   pointsByPlayer?: Record<string, number>;
-  captions?: Record<string, BasketballTileCaption>;
 }
 
 export function BasketballBench({
@@ -56,7 +55,6 @@ export function BasketballBench({
   foulOutAt,
   lockModes,
   pointsByPlayer,
-  captions,
 }: BasketballBenchProps) {
   const injuredSet = new Set(injuredIds ?? []);
   const loanedSet = new Set(loanedIds ?? []);
@@ -99,7 +97,6 @@ export function BasketballBench({
                 foulOutAt={foulOutAt}
                 lockMode={lockModes?.[pid] ?? null}
                 points={pointsByPlayer?.[pid]}
-                caption={captions?.[pid]}
               />
             );
           })}

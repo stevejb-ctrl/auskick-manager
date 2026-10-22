@@ -30,7 +30,6 @@ export function CourtDisplay({
   positionPulseKeys,
   wakeUpKey,
   selectedPlayerId = null,
-  captions,
 }: {
   lineup: GenericLineup;
   ageGroup: AgeGroupConfig;
@@ -76,8 +75,6 @@ export function CourtDisplay({
   wakeUpKey?: number | null;
   /** Planning screens: the player picked for a swap gets the ring. */
   selectedPlayerId?: string | null;
-  /** Per-position captions ("STAYS", "GA → WA") on the break court. */
-  captions?: Record<string, { text: string; tone: "move" | "stay" }>;
 }) {
   const byThird = (third: "attack-third" | "centre-third" | "defence-third") =>
     ageGroup.positions.filter((id) => primaryThirdFor(id) === third);
@@ -119,7 +116,6 @@ export function CourtDisplay({
               }
               pulseKey={positionPulseKeys?.[positionId]}
               selected={pid != null && pid === selectedPlayerId}
-              caption={captions?.[positionId]}
             />
           </div>
         );

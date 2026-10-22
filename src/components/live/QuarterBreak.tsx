@@ -7,7 +7,6 @@
 
 import { useRouter } from "next/navigation";
 import { startTransition as reactStartTransition, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { type RotationMode } from "@/components/quarter-break/RotationModeToggle";
 import { rotateLines } from "@/lib/live/rotateLines";
 import { type InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
@@ -111,6 +110,9 @@ interface QuarterBreakProps {
 }
 
 type Slot = Zone | "bench";
+
+/** AFL's lineup-build modes at the break, as the store and draft keep them. */
+type RotationMode = "suggested" | "keep" | "manual" | "rotate";
 
 // The break screen's strategy names over the store's rotation modes
 // ("keep" is the screen's Repeat).
