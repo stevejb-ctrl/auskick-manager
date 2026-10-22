@@ -34,20 +34,34 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-/** A game 40 s into its first period with 30 s subs, so a sub is due on arrival. */
+/**
+ * A game in its first period with 30 s subs (the database's least) on
+ * a 6× clock, so a sub falls due within 5 s of arriving.
+ *
+ * Union counts from the period start, so its sub is already due. AFL's
+ * countdown sits on a grid from the period start, and a fresh mount
+ * floors onto it (subIntervalStartFloor), so its next sub is up to one
+ * interval away and never already due. At 1× that was up to 30 s, and
+ * from 40 s in it fell due at 60 s, 20 s after setup: the AFL tests'
+ * 20 s waits only caught it when the page took a while to load.
+ */
 async function subDueGame(sport: "afl" | "rugby_union") {
   const admin = createAdminClient();
   const { data: su } = await admin.auth.admin.listUsers();
   const ownerId = su.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
   const union = sport === "rugby_union";
   const ageGroup = union ? "U12" : "U10";
-  const team = await makeTeam(admin, { ownerId, sport, ageGroup, name: `SUB-DUE ${sport} ${Date.now() % 100000}` });
+  // Two workers start the two AFL tests in the same millisecond, so the
+  // time alone gave both teams one name and makeTeam's fetch by name
+  // found two rows. The random part keeps them apart.
+  const suffix = `${Date.now() % 100000}-${Math.random().toString(36).slice(2, 6)}`;
+  const team = await makeTeam(admin, { ownerId, sport, ageGroup, name: `SUB-DUE ${sport} ${suffix}` });
   await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: union ? 17 : 15, ageGroup });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   const { error } = await admin
     .from("games")
-    .update({ clock_multiplier: 1, sub_interval_seconds: 30, status: "in_progress" })
+    .update({ clock_multiplier: 6, sub_interval_seconds: 30, status: "in_progress" })
     .eq("id", game.id);
   if (error) throw new Error(error.message);
   await admin.from("game_availability").insert(
@@ -57,11 +71,14 @@ async function subDueGame(sport: "afl" | "rugby_union") {
   const lineup = union
     ? { forwards: ids.slice(0, 8), backs: ids.slice(8, 15), bench: ids.slice(15) }
     : { back: ids.slice(0, 4), hback: [], mid: ids.slice(4, 8), hfwd: [], fwd: ids.slice(8, 12), bench: ids.slice(12) };
+  // 10 s ago is a minute of game time: two of union's intervals, and
+  // AFL's 12-minute quarter has 110 s left for the test to finish in
+  // (union's 25-minute half has longer).
   const t = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString();
   const { error: evErr } = await admin.from("game_events").insert(
     [
-      { type: "lineup_set", metadata: { lineup, sport }, created_at: t(41) },
-      { type: "quarter_start", metadata: { quarter: 1, sport }, created_at: t(40) },
+      { type: "lineup_set", metadata: { lineup, sport }, created_at: t(11) },
+      { type: "quarter_start", metadata: { quarter: 1, sport }, created_at: t(10) },
     ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
   );
   if (evErr) throw new Error(evErr.message);

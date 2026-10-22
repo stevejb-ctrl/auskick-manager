@@ -50,13 +50,24 @@ test("the homepage names every sport, in its title, description and server HTML"
   // the server sends, not just behind the sport picker.
   const html = await (await request.get("/")).text();
   expect(html).toContain(
-    "One app, six sports: junior AFL, netball, rugby league and rugby union, plus football (soccer) and basketball in beta.",
+    "One app, ten sports: junior AFL, netball, rugby league and rugby union, plus football (soccer), basketball, futsal, hockey, touch football and Oztag in beta.",
   );
 
   await page.goto("/");
   await expect(page).toHaveTitle("Siren: fair rotations and subs for junior footy, netball, league and more");
   const description = await page.locator('meta[name="description"]').getAttribute("content");
-  for (const sport of ["AFL", "netball", "rugby league", "rugby union", "football (soccer)", "basketball in beta"]) {
+  for (const sport of [
+    "AFL",
+    "netball",
+    "rugby league",
+    "rugby union",
+    "football (soccer)",
+    "basketball",
+    "futsal",
+    "hockey",
+    "touch football",
+    "Oztag in beta",
+  ]) {
     expect(description, sport).toContain(sport);
   }
 });
@@ -180,7 +191,7 @@ test("the home page tells search engines who makes Siren and that it's an app", 
     applicationCategory: "SportsApplication",
     offers: { "@type": "Offer", price: "0", priceCurrency: "AUD" },
     installUrl: expect.stringContaining("apps.apple.com"),
-    description: expect.stringContaining("plus football (soccer) and basketball in beta"),
+    description: expect.stringContaining("plus football (soccer), basketball, futsal, hockey, touch football and Oztag in beta"),
   });
   expect((app?.featureList as string[]).length).toBeGreaterThan(3);
   // No ratings until they're real ones from a review source.

@@ -9,6 +9,7 @@
 // the resolved playbook rather than per-sport UI.
 
 import type { ResolvedPlaybook } from "@/lib/playbook/team";
+import { isSoccer } from "@/lib/sports/registry";
 import type { PlayerPositionPrefRow, PositionPrefKind } from "@/lib/playbook/types";
 
 export type RoleUnit = "position" | "line";
@@ -71,7 +72,8 @@ export function roleModelFor(resolved: ResolvedPlaybook): RoleModel | null {
   const { strategy, positionModel } = resolved;
   const withHome = strategy.usesPositions || strategy.roleHome === "position";
   const playsAs = strategy.rolePlaysAs !== false;
-  const keeper = resolved.sport === "soccer";
+  // Every soccer-family sport keeps goal (soccer, futsal, hockey).
+  const keeper = isSoccer(resolved.sport);
   if ((withHome || strategy.rolePositions) && resolved.positions.length > 0) {
     return {
       unit: "position",

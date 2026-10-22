@@ -3,7 +3,8 @@
 
 import { describe, expect, it } from "vitest";
 import { seasonBalanceWeight } from "@/lib/playbook/seasonBalance";
-import { soccerAgeGroup } from "@/lib/sports/soccer";
+import { SOCCER_RULES } from "@/lib/sports/soccer";
+import { soccerFamilyAgeGroup } from "@/lib/sports/soccer/family";
 import { soccerOnField, soccerUnitOf, validateSoccerLineup, type SoccerLineup } from "@/lib/sports/soccer/lineup";
 import { replaySoccerGame, soccerGameMs } from "@/lib/sports/soccer/replay";
 import {
@@ -18,7 +19,7 @@ import { SOCCER_WINDOWS_PRESET } from "@/lib/sports/soccer";
 import { MIN, SEVEN, game } from "./soccerGame";
 
 const NINE_KIDS = ["k1", "k2", "k3", "k4", "k5", "k6", "k7", "k8", "k9"];
-const U9 = soccerAgeGroup("U9");
+const U9 = soccerFamilyAgeGroup("soccer", "U9");
 const HALF = 20 * MIN;
 
 const season = (time: SoccerSeasonBalance["time"], strength: "light" | "balanced" | "strong" | null = "balanced"): SoccerSeasonBalance => ({
@@ -36,7 +37,7 @@ describe("suggestSoccerLineup: kick-off", () => {
       lines: { def: ["k2", "k3"], mid: ["k4", "k5", "k6"], att: ["k7"], field: [] },
       bench: ["k8", "k9"],
     });
-    expect(validateSoccerLineup(lineup, U9)).toEqual({ ok: true, issues: [] });
+    expect(validateSoccerLineup(lineup, U9, undefined, SOCCER_RULES)).toEqual({ ok: true, issues: [] });
   });
 
   it("plays the team's own shape", () => {
@@ -73,7 +74,7 @@ describe("suggestSoccerLineup: kick-off", () => {
   });
 
   it("plays 4 a side with no keeper and no lines", () => {
-    const { lineup, formation } = suggestSoccerLineup({ ageGroup: soccerAgeGroup("U6"), onFieldSize: 4, players: NINE_KIDS.slice(0, 6) });
+    const { lineup, formation } = suggestSoccerLineup({ ageGroup: soccerFamilyAgeGroup("soccer", "U6"), onFieldSize: 4, players: NINE_KIDS.slice(0, 6) });
     expect(formation.id).toBe("no-lines");
     expect(lineup).toEqual({ keeper: null, lines: { def: [], mid: [], att: [], field: ["k1", "k2", "k3", "k4"] }, bench: ["k5", "k6"] });
   });
@@ -86,7 +87,7 @@ describe("suggestSoccerLineup: kick-off", () => {
   });
 
   it("rotates among named keepers from U12", () => {
-    const U12 = soccerAgeGroup("U12");
+    const U12 = soccerFamilyAgeGroup("soccer", "U12");
     const time = { k8: { gk: 60 * MIN }, k9: { gk: 30 * MIN } };
     const { lineup } = suggestSoccerLineup({
       ageGroup: U12,
@@ -198,13 +199,13 @@ describe("soccerSubWindowsMs", () => {
   });
 
   it("pulls the windows in when the cutoff would catch the last", () => {
-    const windows = soccerSubWindowsMs({ kind: "windows", perHalf: 4, cutoffSeconds: 300 }, HALF);
+    const windows = soccerSubWindowsMs({ kind: "windows", perPeriod: 4, cutoffSeconds: 300 }, HALF);
     expect(windows).toEqual([3.75 * MIN, 7.5 * MIN, 11.25 * MIN, 15 * MIN]);
   });
 
   it("scales the cutoff with a sped-up clock", () => {
     // 8× demo clock: a 20-minute half lasts 2.5 minutes, the 5-minute cutoff 37.5 s.
-    const fast = soccerSubWindowsMs({ kind: "windows", perHalf: 4, cutoffSeconds: 300 }, HALF / 8, 8);
+    const fast = soccerSubWindowsMs({ kind: "windows", perPeriod: 4, cutoffSeconds: 300 }, HALF / 8, 8);
     expect(fast).toEqual([3.75, 7.5, 11.25, 15].map((m) => (m * MIN) / 8));
   });
 });
@@ -258,7 +259,7 @@ describe("suggestSoccerHalfTime", () => {
     // k has the most minutes but plays out in the field, not the bench.
     expect(soccerUnitOf(plan.lineup, "k")).not.toBeNull();
     expect(plan.lineup.bench).not.toContain("k");
-    expect(validateSoccerLineup(plan.lineup, U9)).toEqual({ ok: true, issues: [] });
+    expect(validateSoccerLineup(plan.lineup, U9, undefined, SOCCER_RULES)).toEqual({ ok: true, issues: [] });
   });
 
   it("benches the kids with the most time this game, and rotates the rest to new lines", () => {
@@ -290,7 +291,7 @@ describe("suggestSoccerHalfTime", () => {
   });
 
   it("rotates named keepers from U12, and one named keeper keeps goal", () => {
-    const U12 = soccerAgeGroup("U12");
+    const U12 = soccerFamilyAgeGroup("soccer", "U12");
     const state = firstHalf();
     const rotate = suggestSoccerHalfTime({ state, ageGroup: U12, onFieldSize: 7, prefs: { namedKeepers: ["k", "m2"] } })!;
     expect(rotate.keeper).toEqual({ from: "k", to: "m2" });
@@ -317,7 +318,7 @@ describe("suggestSoccerHalfTime", () => {
     g.lineup({ keeper: null, lines: { def: [], mid: [], att: [], field: ["p1", "p2", "p3", "p4"] }, bench: ["p5", "p6"] });
     g.start(1);
     g.end(1, 20);
-    const plan = suggestSoccerHalfTime({ state: replaySoccerGame(g.events), ageGroup: soccerAgeGroup("U7"), onFieldSize: 4 })!;
+    const plan = suggestSoccerHalfTime({ state: replaySoccerGame(g.events), ageGroup: soccerFamilyAgeGroup("soccer", "U7"), onFieldSize: 4 })!;
     expect(plan.keeper).toEqual({ from: null, to: null });
     expect(plan.lineup.lines.field).toEqual(expect.arrayContaining(["p5", "p6"]));
     expect(plan.lineup.bench).toHaveLength(2);

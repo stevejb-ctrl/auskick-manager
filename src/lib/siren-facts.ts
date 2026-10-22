@@ -30,9 +30,14 @@ const SPORT_FACTS: Record<SportId, Omit<SportFact, "id">> = {
   netball: { name: "netball", beta: false },
   rugby_league: { name: "rugby league", beta: false },
   rugby_union: { name: "rugby union", beta: false },
-  // Open to every coach in beta (soccer since 17 Oct 2026, then basketball).
+  // Open to every coach in beta (soccer since 17 Oct 2026, then
+  // basketball, then futsal, hockey, touch and Oztag on 22 Oct).
   soccer: { name: "football (soccer)", beta: true },
   basketball: { name: "basketball", beta: true },
+  futsal: { name: "futsal", beta: true },
+  hockey: { name: "hockey", beta: true },
+  touch: { name: "touch football", beta: true },
+  oztag: { name: "Oztag", beta: true },
 };
 
 /** Every sport Siren runs, launched ones first as in the registry. */
@@ -46,7 +51,7 @@ export function isBetaSport(id: SportId): boolean {
 
 const NUMBER_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
 
-/** "six", for "One app, six sports". */
+/** "ten", for "One app, ten sports". */
 export const SPORT_COUNT_WORD = NUMBER_WORDS[SIREN_SPORTS.length];
 
 /** "a, b and c". */
@@ -57,8 +62,8 @@ function joinAnd(items: readonly string[]): string {
 
 /**
  * The sports in a sentence, beta ones last and marked:
- * "AFL, netball, rugby league and rugby union, plus football (soccer)
- * and basketball in beta".
+ * "AFL, netball, rugby league and rugby union, plus football (soccer),
+ * basketball, futsal, hockey, touch football and Oztag in beta".
  */
 export function sportsSentence(): string {
   const launched = SIREN_SPORTS.filter((s) => !s.beta).map((s) => s.name);

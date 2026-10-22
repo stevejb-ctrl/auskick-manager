@@ -14,10 +14,15 @@ const BRAND_THEME = {
   afl: { theme: "#2F6B3E", background: "#ffffff" },
   netball: { theme: "#2E7FB8", background: "#ffffff" },
   rugby_league: { theme: "#2F6B3E", background: "#ffffff" },
-  // Union, soccer and basketball live under the main Siren brand: its palette.
+  // Union, soccer, basketball, futsal, hockey, touch and Oztag live
+  // under the main Siren brand: its palette.
   rugby_union: { theme: "#2F6B3E", background: "#ffffff" },
   soccer: { theme: "#2F6B3E", background: "#ffffff" },
   basketball: { theme: "#2F6B3E", background: "#ffffff" },
+  futsal: { theme: "#2F6B3E", background: "#ffffff" },
+  hockey: { theme: "#2F6B3E", background: "#ffffff" },
+  touch: { theme: "#2F6B3E", background: "#ffffff" },
+  oztag: { theme: "#2F6B3E", background: "#ffffff" },
 } as const;
 
 // Force per-request rendering so middleware's x-brand header is read

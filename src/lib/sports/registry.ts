@@ -11,6 +11,10 @@ import { rugbyLeagueSport } from "@/lib/sports/rugby_league";
 import { rugbyUnionSport } from "@/lib/sports/rugby_union";
 import { soccerSport } from "@/lib/sports/soccer";
 import { basketballSport } from "@/lib/sports/basketball";
+import { futsalSport } from "@/lib/sports/futsal";
+import { hockeySport } from "@/lib/sports/hockey";
+import { touchSport } from "@/lib/sports/touch";
+import { oztagSport } from "@/lib/sports/oztag";
 
 const REGISTRY: Record<SportId, SportConfig> = {
   afl: aflSport,
@@ -19,21 +23,60 @@ const REGISTRY: Record<SportId, SportConfig> = {
   rugby_union: rugbyUnionSport,
   soccer: soccerSport,
   basketball: basketballSport,
+  futsal: futsalSport,
+  hockey: hockeySport,
+  touch: touchSport,
+  oztag: oztagSport,
 };
 
-export const ALL_SPORTS: SportConfig[] = [aflSport, netballSport, rugbyLeagueSport, rugbyUnionSport, soccerSport, basketballSport];
+export const ALL_SPORTS: SportConfig[] = [
+  aflSport,
+  netballSport,
+  rugbyLeagueSport,
+  rugbyUnionSport,
+  soccerSport,
+  basketballSport,
+  futsalSport,
+  hockeySport,
+  touchSport,
+  oztagSport,
+];
 
-export const ALL_SPORT_IDS: SportId[] = ["afl", "netball", "rugby_league", "rugby_union", "soccer", "basketball"];
+export const ALL_SPORT_IDS: SportId[] = [
+  "afl",
+  "netball",
+  "rugby_league",
+  "rugby_union",
+  "soccer",
+  "basketball",
+  "futsal",
+  "hockey",
+  "touch",
+  "oztag",
+];
 
 /**
  * The sports with a site (brand) of their own. Rugby union, Football
- * (soccer) and basketball live under the main Siren brand, so no host or
- * brand id resolves to them.
+ * (soccer), basketball, futsal, hockey, touch and Oztag live under the
+ * main Siren brand, so no host or brand id resolves to them.
  */
 const SITE_SPORTS: SportConfig[] = ALL_SPORTS.filter((cfg) => cfg.brand.id === cfg.id);
 
 export function isSportId(value: unknown): value is SportId {
   return typeof value === "string" && value in REGISTRY;
+}
+
+/**
+ * Sports Siren knows but a coach can't start a team in yet: a new
+ * sport's configs, tests and migration can land before its live game
+ * (.planning/FOUR-SPORTS-PLAN.md, phase 0), and it comes off this list
+ * when its setup pill lands. Empty since the four-sports tracks merged.
+ */
+export const SPORTS_NOT_OPEN: readonly SportId[] = [];
+
+/** Whether a coach can start a team in this sport. */
+export function isSportOpen(sport: SportId): boolean {
+  return !SPORTS_NOT_OPEN.includes(sport);
 }
 
 /**
@@ -98,11 +141,12 @@ export function isRugby(sport: SportId): sport is RugbySport {
 }
 
 /**
- * The sports that run on the soccer engine (only Football (soccer)
- * today; futsal could join it). Typed so `isSoccer` narrows; a test
- * checks it matches the configs' `family`.
+ * The sports that run on the soccer engine: Football (soccer), futsal
+ * and hockey, each with its own rules (.planning/FOUR-SPORTS-PLAN.md).
+ * Typed so `isSoccer` narrows; a test checks it matches the configs'
+ * `family`.
  */
-export const SOCCER_SPORT_IDS = ["soccer"] as const satisfies readonly SportId[];
+export const SOCCER_SPORT_IDS = ["soccer", "futsal", "hockey"] as const satisfies readonly SportId[];
 export type SoccerSport = (typeof SOCCER_SPORT_IDS)[number];
 
 /**
@@ -127,6 +171,22 @@ export type BasketballSport = (typeof BASKETBALL_SPORT_IDS)[number];
  */
 export function isBasketball(sport: SportId): sport is BasketballSport {
   return getSportConfig(sport).family === "basketball";
+}
+
+/**
+ * The sports that run on the touch engine: touch football and Oztag,
+ * each with its own rules (.planning/FOUR-SPORTS-PLAN.md). Typed so
+ * `isTouch` narrows; a test checks it matches the configs' `family`.
+ */
+export const TOUCH_SPORT_IDS = ["touch", "oztag"] as const satisfies readonly SportId[];
+export type TouchSport = (typeof TOUCH_SPORT_IDS)[number];
+
+/**
+ * The one way to ask "is this touch or Oztag?", beside isRugby, isSoccer
+ * and isBasketball: the sport's own config says so.
+ */
+export function isTouch(sport: SportId): sport is TouchSport {
+  return getSportConfig(sport).family === "touch";
 }
 
 /**

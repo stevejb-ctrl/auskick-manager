@@ -16,9 +16,16 @@ import { SFButton } from "@/components/sf";
 
 interface SubDueBannerProps {
   onAcknowledge: () => void;
+  /**
+   * What to do, after "Sub due —". Touch and Oztag wait for the ball
+   * (no interchange after a turnover until the next touch), so theirs is
+   * "make the change next time you have the ball"; it wraps to a second
+   * line on a phone.
+   */
+  hint?: string;
 }
 
-export function SubDueBanner({ onAcknowledge }: SubDueBannerProps) {
+export function SubDueBanner({ onAcknowledge, hint = "rotate a player off" }: SubDueBannerProps) {
   return (
     <div
       role="alert"
@@ -30,7 +37,8 @@ export function SubDueBanner({ onAcknowledge }: SubDueBannerProps) {
       <p className="min-w-0 flex-1 text-sm text-ink-dim">
         {/* Short enough for one line beside Got it on a 375 px phone. */}
         <strong className="font-semibold text-ink">Sub due</strong>
-        {" — "}rotate a player off
+        {" — "}
+        {hint}
       </p>
       <SFButton size="md" variant="ghost" onClick={onAcknowledge} className="shrink-0">
         Got it

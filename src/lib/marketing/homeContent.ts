@@ -48,7 +48,7 @@ export interface HomeContent {
 export const HOME_CONTENT = rawContent as HomeContent;
 
 /**
- * "One app, six sports: junior AFL, netball, …", from the sport list
+ * "One app, ten sports: junior AFL, netball, …", from the sport list
  * in src/lib/siren-facts.ts. The hero puts it before the CMS subtitle,
  * so the sports it names can't fall behind the app.
  */

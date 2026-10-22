@@ -38,8 +38,25 @@ export default function LiveGamePage() {
         (long-press the keeper) changes it mid-half. Basketball subs at a dead
         ball through the table, tracks each kid&apos;s fouls (five and
         they&apos;re out), and its clock waits at 0:00 for the real hooter,
-        since the stadium clock stops in the last minutes. Every sport has a lineup
+        since the stadium clock stops in the last minutes. Touch football and
+        Oztag roll subs on and off whenever you like (make the change when you
+        have the ball), and a mixed team keeps its cap on boys, shrinking the
+        field when it&apos;s short of girls; see{" "}
+        <Link href="/help/rotations#touch-and-oztag" className="text-brand-700 underline">
+          Rotations
+        </Link>
+        . Every sport has a lineup
         picker, scoring buttons and a long-press player-actions sheet.
+      </p>
+      <p className="mt-2 text-sm leading-relaxed text-ink-dim">
+        Futsal runs on football&apos;s live screen, drawn on a court, with
+        futsal&apos;s words: the back, the wings and the front. Its keeper
+        can be swapped mid-half, as in football.
+      </p>
+      <p className="mt-2 text-sm leading-relaxed text-ink-dim">
+        Hockey runs on it too, on a hockey pitch, in halves or quarters.
+        Its keeper changes only at a break: two minutes before one, Siren
+        names who&apos;s in goal next so they can kit up.
       </p>
 
       <section className="mt-8">

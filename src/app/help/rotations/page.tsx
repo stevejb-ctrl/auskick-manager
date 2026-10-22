@@ -9,7 +9,7 @@ import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 export const metadata = {
   title: "Rotations · Help · Siren",
   description:
-    "How suggested rotations work in AFL, netball, league, union, football (soccer) and basketball: badges, position colours, keeping players on, the keeper, fouls, and league's junior laws.",
+    "How suggested rotations work in AFL, netball, league, union, football (soccer), basketball, touch football and Oztag: badges, position colours, keeping players on, the keeper, fouls, the mixed rule, and league's junior laws.",
   alternates: { canonical: "/help/rotations" },
 };
 
@@ -212,6 +212,74 @@ export default function RotationsPage() {
       </section>
 
       <section className="mt-8">
+        <h2 className="text-xl font-semibold text-ink">Rotations in futsal</h2>
+        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
+          Futsal runs on football&apos;s engine: 5 a side with a keeper at
+          every age, and flying subs, on and off through the sub zone at any
+          time. When the sub interval runs out, the swap card suggests a bench
+          rotation that evens out everyone&apos;s minutes, and over the season
+          Siren moves kids through the back, the wings and the front. Those
+          are futsal&apos;s positions in plain words: the back is the fixo,
+          the wings are the alas, and the front is the pivô. The usual shape
+          is 2-2 (two back, two up front); the diamond (1-2-1) and 3-1 are in
+          the lineup&apos;s Game settings.
+        </p>
+
+        <h3 className="mt-5 font-semibold text-ink">The keeper</h3>
+        <p className="mt-2 text-sm text-ink-dim">
+          One kid keeps goal for the half. Futsal&apos;s laws let a sub swap
+          with the keeper at any time, so to change keeper mid-half,
+          long-press the keeper and tap{" "}
+          <strong className="text-ink">Replace keeper</strong>. At half-time
+          Siren plans the next half, starting with who goes in goal.{" "}
+          <strong className="text-ink">Everyone has a turn in goal</strong> is
+          the default to Under 11, and <strong className="text-ink">Keepers</strong>{" "}
+          (you name them) from Under 12.
+        </p>
+        <p className="mt-2 text-sm text-ink-dim">
+          Team fouls and the 2-minute send-off are the referee&apos;s to
+          count: Siren doesn&apos;t track them yet.
+        </p>
+      </section>
+
+      <section className="mt-8">
+        <h2 className="text-xl font-semibold text-ink">Rotations in hockey</h2>
+        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
+          Hockey runs on football&apos;s engine too: rolling subs at any
+          time, as often as you like, and over the season Siren moves kids
+          through the defenders, the midfield and the strikers. The rules
+          allow no sub during a penalty corner, which Siren can&apos;t see,
+          so wait for the corner to finish. Under 7 and Under 8 play 6 a
+          side with no keeper and no lines: Siren just evens out minutes.
+        </p>
+
+        <h3 className="mt-5 font-semibold text-ink">The keeper changes at the break</h3>
+        <p className="mt-2 text-sm text-ink-dim">
+          Keeper kit takes a few minutes to put on, so in hockey goal changes
+          hands only at a break, and there&apos;s no Replace keeper during
+          play. Two minutes before the break Siren names who&apos;s in goal
+          next (&ldquo;Mia&apos;s in goal next half: start kitting
+          up&rdquo;), and the break&apos;s plan starts with them. If the
+          keeper is hurt, long-press them and mark the injury, then pick who
+          goes in.{" "}
+          <strong className="text-ink">Everyone has a turn in goal</strong> is
+          the default from Under 9 to Under 12, and{" "}
+          <strong className="text-ink">Keepers</strong> (you name them) from
+          Under 13.
+        </p>
+
+        <h3 className="mt-5 font-semibold text-ink">Halves or quarters</h3>
+        <p className="mt-2 text-sm text-ink-dim">
+          Siren plays halves to Under 12 and 4 × 15 quarters from Under 13.
+          If your competition plays the other (Victoria plays 2 × 30
+          halves), switch it under <strong className="text-ink">Team</strong>{" "}
+          › <strong className="text-ink">Season</strong> ›{" "}
+          <strong className="text-ink">Halves or quarters</strong>; new games
+          follow it.
+        </p>
+      </section>
+
+      <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Rotations in basketball</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           Five play from a squad of eight to ten, so up to half the team sits
@@ -263,6 +331,97 @@ export default function RotationsPage() {
           <strong className="text-ink">Sit out 5 min</strong>: they can&apos;t
           come back on until five minutes of playing time have run (timeouts
           don&apos;t count).
+        </p>
+      </section>
+
+      <section className="mt-8" id="touch-and-oztag">
+        <h2 className="text-xl font-semibold text-ink">Rotations in touch football and Oztag</h2>
+        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
+          Subs roll on and off as often as you like: through the interchange in
+          touch, from the sub box in Oztag. When the sub interval runs out the
+          swap card names who comes on for whom, and the banner says{" "}
+          <strong className="text-ink">make the change next time you have the ball</strong>.
+          Touch allows no interchange after an intercept or line break until the
+          next touch (TFA rule 17.7), and Oztag&apos;s junior championships allow
+          changes only in attack, so subbing while you defend gets the timing
+          wrong.
+        </p>
+
+        <h3 className="mt-5 font-semibold text-ink">Lanes are optional</h3>
+        <p className="mt-2 text-sm text-ink-dim">
+          The lanes run up the field: middles in the centre, links either side
+          of them, wings on the edges (2, 2 and 2 at six a side; 1, 2 and 2 at
+          five). Choose how kids rotate in <strong className="text-ink">How we play</strong>:
+        </p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
+          <li>
+            <strong className="text-ink">Minutes only</strong> (touch Under 6 to
+            Under 9, and Oztag at every age, since Oztag names no positions): no
+            lanes; Siren just evens out minutes.
+          </li>
+          <li>
+            <strong className="text-ink">Rotate positions</strong> (touch from
+            Under 10, when TFA&apos;s junior framework brings positions in):
+            every kid takes turns at middle, link and wing, evened out over the
+            season.
+          </li>
+          <li>
+            <strong className="text-ink">Home position</strong>: each kid has a
+            home lane, with time in the others too. Set it with{" "}
+            <strong className="text-ink">Role</strong> on the Squad tab.
+          </li>
+        </ul>
+
+        <h3 className="mt-5 font-semibold text-ink">Mixed teams: the boys&apos; cap</h3>
+        <p className="mt-2 text-sm text-ink-dim">
+          A mixed team keeps a cap on boys on the field: touch&apos;s rule is at
+          most 3 boys and at least 1 boy and 1 girl (TFA rule 5.4); Oztag&apos;s
+          is at most 4 boys and at least 1 girl. Turn on{" "}
+          <strong className="text-ink">Mixed team</strong> when you make the team
+          or on the Team tab, where you can also set your competition&apos;s own
+          numbers. Then mark each kid <strong className="text-ink">Girl</strong>{" "}
+          or <strong className="text-ink">Boy</strong> on the Squad tab (Siren
+          asks at the lineup for anyone you missed, and when you add a
+          fill-in). It&apos;s used only for the rule and shows nowhere else.
+        </p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
+          <li>
+            Every suggested lineup and sub keeps the rule. At the cap a boy only
+            comes on for a boy.
+          </li>
+          <li>
+            Boys and girls are evened separately: with 6 on, at most 3 boys, and
+            a squad of 8 boys and 4 girls, the boys share 3 places (about 37 %
+            each) and the girls 3 (75 % each). The time floor in the game report
+            compares each kid within their group.
+          </li>
+          <li>
+            Short of girls, the field shrinks to what the rule allows: with one
+            girl, touch says <strong className="text-ink">You can field 4: 3 boys and 1 girl</strong>,
+            and again if a girl is hurt or leaves.
+          </li>
+          <li>
+            A swap you make by hand that breaks the rule gets a warning, not a
+            block: your competition may play a local rule.
+          </li>
+        </ul>
+
+        <h3 className="mt-5 font-semibold text-ink">Oztag&apos;s girl&apos;s try</h3>
+        <p className="mt-2 text-sm text-ink-dim">
+          In a mixed Oztag game a girl&apos;s try counts 2 (ITF rule 4.3). Credit
+          the try to the scorer and Siren counts it; the opponent&apos;s buttons
+          are <strong className="text-ink">+1</strong> and{" "}
+          <strong className="text-ink">+2 (girl)</strong>. If your competition
+          doesn&apos;t play it, turn off{" "}
+          <strong className="text-ink">A girl&apos;s try counts 2</strong> on the
+          Team tab.
+        </p>
+
+        <h3 className="mt-5 font-semibold text-ink">Rules the referee keeps</h3>
+        <p className="mt-2 text-sm text-ink-dim">
+          In touch, the half (the dummy half) can&apos;t score a try. Junior
+          Oztag plays modified rules: no marker, and the dummy half can run but
+          can&apos;t score. Siren doesn&apos;t track these.
         </p>
       </section>
 

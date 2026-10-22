@@ -10,6 +10,7 @@ import {
   SOCCER_LINES,
   SOCCER_OUTFIELD_LINES,
   type SoccerAgeGroupConfig,
+  type SoccerFamilyRules,
   type SoccerLine,
   type SoccerUnit,
 } from "@/lib/sports/soccer/types";
@@ -68,29 +69,29 @@ export function soccerUnitOf(lineup: SoccerLineup, playerId: string): SoccerUnit
   return null;
 }
 
-/** A soccer age group's own rules; another sport's age group is an error. */
+/** A soccer-family age group's own rules; another sport's age group is an error. */
 function soccerRules(ag: AgeGroupConfig): SoccerAgeGroupConfig {
   if ("keeper" in ag && "formations" in ag && "subMode" in ag) return ag as SoccerAgeGroupConfig;
-  throw new Error(`"${ag.id}" isn't a Football (soccer) age group`);
+  throw new Error(`"${ag.id}" isn't a soccer-family age group`);
 }
-
-const LINE_WORD: Record<SoccerLine, string> = { def: "defence", mid: "midfield", att: "attack", field: "the field" };
 
 /**
  * Check a lineup against the age group's rules and the game's size
- * (`onFieldSize`, else the age group's default):
- *   - a keeper from 7 a side, none at 4 a side;
- *   - kids in defence / midfield / attack with a keeper, all in `field`
- *     without one;
+ * (`onFieldSize`, else the age group's default), in the sport's own
+ * words (`rules.lineLabels`):
+ *   - a keeper where the age plays one, none where it doesn't;
+ *   - kids in the lines with a keeper, all in `field` without one;
  *   - no more on the field than the game plays (fewer is a warning: a
  *     side can play short);
  *   - nobody in two places;
- *   - U12–U13: at least three lines (Football Victoria), a warning.
+ *   - the sport's own lines warning, if it has one (soccer: Football
+ *     Victoria's U12–U13 three lines).
  */
 export function validateSoccerLineup(
   lineup: unknown,
   ageGroup: AgeGroupConfig,
-  onFieldSize?: number,
+  onFieldSize: number | undefined,
+  rules: Pick<SoccerFamilyRules, "lineLabels" | "minLines">,
 ): ValidationResult {
   const l = lineup as Partial<SoccerLineup> | null;
   if (
@@ -108,6 +109,8 @@ export function validateSoccerLineup(
   const lu = normalizeSoccerLineup(l);
   const size = onFieldSize ?? ag.defaultOnFieldSize;
   const withKeeper = ag.keeper !== "none";
+  const words = rules.lineLabels;
+  const phrase = (unit: SoccerUnit) => words[unit].phrase;
   const issues: ValidationIssue[] = [];
 
   if (withKeeper && !lu.keeper) {
@@ -118,17 +121,20 @@ export function validateSoccerLineup(
   }
 
   if (withKeeper && lu.lines.field.length > 0) {
-    issues.push({ kind: "error", message: "With a keeper, kids play in defence, midfield or attack." });
+    issues.push({
+      kind: "error",
+      message: `With a keeper, kids play in ${phrase("def")}, ${phrase("mid")} or ${phrase("att")}.`,
+    });
   }
   if (!withKeeper && SOCCER_OUTFIELD_LINES.some((line) => lu.lines[line].length > 0)) {
-    issues.push({ kind: "error", message: `${ag.label} plays without lines: everyone is in the field.` });
+    issues.push({ kind: "error", message: `${ag.label} plays without lines: everyone is in ${phrase("field")}.` });
   }
 
   const onField = soccerOnField(lu).length;
   if (onField > size) {
-    issues.push({ kind: "error", message: `Too many players on the field (${onField}); this game plays ${size}.` });
+    issues.push({ kind: "error", message: `Too many players on ${phrase("field")} (${onField}); this game plays ${size}.` });
   } else if (onField < size) {
-    issues.push({ kind: "warn", message: `${onField} on the field for a ${size}-a-side game: playing short.` });
+    issues.push({ kind: "warn", message: `${onField} on ${phrase("field")} for a ${size}-a-side game: playing short.` });
   }
 
   const seen = new Map<string, string>();
@@ -143,15 +149,16 @@ export function validateSoccerLineup(
     }
     seen.set(pid, where);
   };
-  if (lu.keeper) mark(lu.keeper, "goal");
-  for (const line of SOCCER_LINES) for (const pid of lu.lines[line]) mark(pid, LINE_WORD[line]);
+  if (lu.keeper) mark(lu.keeper, phrase("gk"));
+  for (const line of SOCCER_LINES) for (const pid of lu.lines[line]) mark(pid, phrase(line));
   for (const pid of lu.bench) mark(pid, "the bench");
 
-  if (withKeeper && (ag.id === "U12" || ag.id === "U13")) {
+  const minLines = rules.minLines;
+  if (withKeeper && minLines && minLines.ages.includes(ag.id)) {
     const outfield = soccerOutfield(lu).length;
     const used = SOCCER_OUTFIELD_LINES.filter((line) => lu.lines[line].length > 0).length;
-    if (outfield >= 3 && used < 3) {
-      issues.push({ kind: "warn", message: "Football Victoria's U12–U13 rules ask for at least three lines." });
+    if (outfield >= minLines.count && used < minLines.count) {
+      issues.push({ kind: "warn", message: minLines.message });
     }
   }
 

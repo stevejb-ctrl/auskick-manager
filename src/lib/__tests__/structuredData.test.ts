@@ -81,9 +81,9 @@ describe("softwareApplicationJsonLd", () => {
   });
 
   it("names every sport, not just the brand's, and lists the features", () => {
-    expect(app.description).toContain("plus football (soccer) and basketball in beta");
+    expect(app.description).toContain("plus football (soccer), basketball, futsal, hockey, touch football and Oztag in beta");
     expect(app.featureList).toEqual([
-      "Sports: AFL, netball, rugby league and rugby union, plus football (soccer) and basketball in beta",
+      "Sports: AFL, netball, rugby league and rugby union, plus football (soccer), basketball, futsal, hockey, touch football and Oztag in beta",
       ...FEATURES,
     ]);
   });

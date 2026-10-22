@@ -7,7 +7,8 @@ import type { Sport } from "@/lib/types";
 import type { BalanceUnit } from "@/lib/playbook/types";
 import { periodsOwed, playersWithinAPeriod } from "@/lib/playbook/seasonBalance";
 import type { UnitTime } from "@/lib/playbook/seasonTime";
-import { isBasketball, isRugby, isSoccer, noSportBranch } from "@/lib/sports/registry";
+import { isBasketball, isRugby, isSoccer, isTouch, noSportBranch } from "@/lib/sports/registry";
+import { soccerFamilyRules } from "@/lib/sports/soccer/family";
 
 export interface SeasonGridCell {
   unit: string;
@@ -77,17 +78,16 @@ export function gridUnits(
     };
   }
   if (isSoccer(sport)) {
-    // The lines season balance evens out. Time in goal isn't one: the
-    // keeper strategy shares goal (turns, or the named keepers), so it
-    // shows in the game report rather than as a debt here.
-    return {
-      unit: "line",
-      columns: [
-        { key: "att", label: "Att" },
-        { key: "mid", label: "Mid" },
-        { key: "def", label: "Def" },
-      ],
+    // The lines season balance evens out, in the sport's own words
+    // ("ATT" reads "Att"; futsal's "FRONT" reads "Front"). Time in goal
+    // isn't one: the keeper strategy shares goal (turns, or the named
+    // keepers), so it shows in the game report rather than as a debt here.
+    const words = soccerFamilyRules(sport).lineLabels;
+    const column = (key: "att" | "mid" | "def") => {
+      const short = words[key].short;
+      return { key, label: short.charAt(0) + short.slice(1).toLowerCase() };
     };
+    return { unit: "line", columns: [column("att"), column("mid"), column("def")] };
   }
   if (isBasketball(sport)) {
     // The position strategies even out 1 to 5; the line strategies
@@ -110,6 +110,18 @@ export function gridUnits(
       columns: [
         { key: "guard", label: "Guard" },
         { key: "forward", label: "Fwd" },
+      ],
+    };
+  }
+  if (isTouch(sport)) {
+    // The lanes season balance evens out, centre out. Minutes only has
+    // no unit (balanceUnit null): the grid shows the lanes, never filled.
+    return {
+      unit: "line",
+      columns: [
+        { key: "middle", label: "Mid" },
+        { key: "link", label: "Link" },
+        { key: "wing", label: "Wing" },
       ],
     };
   }

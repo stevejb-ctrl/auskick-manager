@@ -72,6 +72,15 @@ interface Props {
     subLabel?: string;
     onSelect: () => void;
   };
+  /**
+   * More non-player options, after `extraOption`: Oztag's scorer picker
+   * offers "Not sure who" for a try and for a girl's try (2 points).
+   */
+  extraOptions?: {
+    label: string;
+    subLabel?: string;
+    onSelect: () => void;
+  }[];
 }
 
 export function SlotFillSheet({
@@ -84,6 +93,7 @@ export function SlotFillSheet({
   emptyMessage,
   dismissOnBackdrop = true,
   extraOption,
+  extraOptions = [],
 }: Props) {
   return (
     <div
@@ -136,10 +146,11 @@ export function SlotFillSheet({
           </p>
         </div>
 
-        {extraOption && (
+        {[...(extraOption ? [extraOption] : []), ...extraOptions].map((option) => (
           <button
+            key={option.label}
             type="button"
-            onClick={extraOption.onSelect}
+            onClick={option.onSelect}
             className="flex w-full items-center gap-3 border-b border-hairline bg-surface-alt px-5 py-3 text-left text-sm hover:bg-surface"
           >
             <span
@@ -150,16 +161,16 @@ export function SlotFillSheet({
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate font-medium text-ink">
-                {extraOption.label}
+                {option.label}
               </span>
-              {extraOption.subLabel && (
+              {option.subLabel && (
                 <span className="block truncate text-[11px] text-ink-mute">
-                  {extraOption.subLabel}
+                  {option.subLabel}
                 </span>
               )}
             </span>
           </button>
-        )}
+        ))}
 
         {candidates.length === 0 ? (
           <p className="px-5 py-8 text-center text-sm text-ink-mute">

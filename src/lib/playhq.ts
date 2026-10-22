@@ -84,6 +84,14 @@ export const PLAYHQ_TENANT: Record<Sport, string | null> = {
   soccer: null,
   // Basketball has a tenant per state (below); Victoria's is the example.
   basketball: "basketball-victoria",
+  // None of these four is on PlayHQ (.planning/FOUR-SPORTS-PLAN.md):
+  // futsal runs on PlayFootball, Dribl, Squadi and GameDay; hockey on
+  // revolutioniseSPORT; touch on MySideline; Oztag on Assemble Sports
+  // and MySportsEdge.
+  futsal: null,
+  hockey: null,
+  touch: null,
+  oztag: null,
 };
 
 /**

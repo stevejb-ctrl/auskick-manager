@@ -69,6 +69,10 @@ const MENTIONS: Record<string, RegExp> = {
   rugby_union: /rugby union/i,
   soccer: /soccer|\bfootball \(/i,
   basketball: /basketball/i,
+  futsal: /futsal/i,
+  hockey: /hockey/i,
+  touch: /touch football/i,
+  oztag: /oztag/i,
 };
 
 const COUNT_WORDS = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
@@ -88,17 +92,24 @@ describe("Siren facts", () => {
     }
   });
 
-  it("marks soccer and basketball as beta, and only them", () => {
-    expect(SIREN_SPORTS.filter((s) => s.beta).map((s) => s.id)).toEqual(["soccer", "basketball"]);
+  it("marks the six newest sports as beta, and only them", () => {
+    expect(SIREN_SPORTS.filter((s) => s.beta).map((s) => s.id)).toEqual([
+      "soccer",
+      "basketball",
+      "futsal",
+      "hockey",
+      "touch",
+      "oztag",
+    ]);
     expect(isBetaSport("soccer")).toBe(true);
     expect(isBetaSport("afl")).toBe(false);
   });
 
   it("says the sports in one sentence, beta ones last", () => {
     expect(sportsSentence()).toBe(
-      "AFL, netball, rugby league and rugby union, plus football (soccer) and basketball in beta",
+      "AFL, netball, rugby league and rugby union, plus football (soccer), basketball, futsal, hockey, touch football and Oztag in beta",
     );
-    expect(SPORT_COUNT_WORD).toBe("six");
+    expect(SPORT_COUNT_WORD).toBe("ten");
     expect(sirenOneLiner()).toContain(sportsSentence());
   });
 });
@@ -111,7 +122,7 @@ describe("marketing copy agrees with the facts", () => {
   });
 
   it("opens the homepage hero with the facts' sports", () => {
-    expect(heroSportsSentence()).toBe(`One app, six sports: junior ${sportsSentence()}.`);
+    expect(heroSportsSentence()).toBe(`One app, ten sports: junior ${sportsSentence()}.`);
   });
 
   it("counts the sports right", () => {
