@@ -6,7 +6,7 @@
 // once.
 
 import type { RuleCheckItem } from "@/lib/playbook/ruleCheck";
-import { findFix, type BoardSlot } from "@/lib/live/break/board";
+import { BENCH, findFix, type BoardSlot } from "@/lib/live/break/board";
 
 export interface BreakIssue {
   id: string;
@@ -33,12 +33,27 @@ export interface BreakIssuesInput<L> {
   /** The sport's swap of two slots. */
   swap: (lineup: L, a: BoardSlot, b: BoardSlot) => L;
   sidelined: ReadonlySet<string>;
-  /** Soft notes the check doesn't make ("1 spot is empty"). */
+  /**
+   * Warn about empty field spots ("1 spot is empty"). Off for a sport
+   * whose own check already says it (netball's empty bib is a rule).
+   */
+  emptySpots?: boolean;
+  /** Other soft notes the check doesn't make. */
   extraWarnings?: readonly string[];
 }
 
-export function breakIssues<L>({ lineup, check, board, swap, sidelined, extraWarnings = [] }: BreakIssuesInput<L>): BreakIssues {
+export function breakIssues<L>({
+  lineup,
+  check,
+  board,
+  swap,
+  sidelined,
+  emptySpots = true,
+  extraWarnings = [],
+}: BreakIssuesInput<L>): BreakIssues {
   const items = check(lineup);
+  const empty = emptySpots ? board(lineup).filter((s) => s.zone !== BENCH && !s.playerId).length : 0;
+  const emptyNote = empty === 0 ? [] : [empty === 1 ? "1 spot is empty" : `${empty} spots are empty`];
   const broken = items
     .filter((i) => i.status === "fail")
     .map((i) => ({
@@ -47,6 +62,6 @@ export function breakIssues<L>({ lineup, check, board, swap, sidelined, extraWar
       rule: i.rule || undefined,
       fix: findFix({ lineup, board, swap, check, sidelined, itemId: i.id }) ?? undefined,
     }));
-  const warnings = [...extraWarnings, ...items.filter((i) => i.status === "warn").map((i) => i.text)];
+  const warnings = [...emptyNote, ...extraWarnings, ...items.filter((i) => i.status === "warn").map((i) => i.text)];
   return { broken, warnings };
 }

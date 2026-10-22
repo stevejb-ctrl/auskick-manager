@@ -289,9 +289,11 @@ export function SoccerBreak({
     () =>
       breakIssues({
         lineup: draft,
-        check: (l) =>
-          soccerBreakCheck({
-            lineup: benchOutInSoccerLineup(l, sidelinedSet),
+        check: (l) => {
+          // Kids who can't play aren't held to the rules.
+          const out = benchOutInSoccerLineup(l, sidelinedSet);
+          return soccerBreakCheck({
+            lineup: { ...out, bench: out.bench.filter((id) => !sidelinedSet.has(id)) },
             state,
             ageGroup,
             onFieldSize: game.on_field_size,
@@ -300,10 +302,13 @@ export function SoccerBreak({
             names,
             keeperStrategy: strategyForKeeper,
             prefs: keeperPrefs,
-          }),
+          });
+        },
         board: (l) => buildBoard(config.zones, withOut(l), sidelinedSet),
         swap: swapSlots,
         sidelined: sidelinedSet,
+        // Soccer's own check already says "playing short".
+        emptySpots: false,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [draft, sidelinedSet, state, ageGroup, game.on_field_size, nextPeriod, periodMs, names, strategyForKeeper, keeperPrefs, config.zones],

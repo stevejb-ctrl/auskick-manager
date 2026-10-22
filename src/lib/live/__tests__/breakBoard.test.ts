@@ -169,10 +169,10 @@ describe("Fix", () => {
       board: (s) => buildBoard(AFL, s, sidelined),
       swap: swapInStaged,
       sidelined,
-      extraWarnings: ["1 spot is empty"],
     });
     expect(issues.broken.map((i) => i.id)).toEqual(["bench-twice"]);
     expect(issues.broken[0].fix).toHaveLength(1);
+    // The empty Centre spot is noted on its own.
     expect(issues.warnings).toEqual(["1 spot is empty", "Pete hasn't played Centre"]);
   });
 });

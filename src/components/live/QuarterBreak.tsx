@@ -704,22 +704,18 @@ export function QuarterBreak({
   const board = useMemo(() => buildBoard(config.zones, staged, sidelinedSet), [config.zones, staged, sidelinedSet]);
   const previous = useMemo(() => placesOf(stagedOf(lineup)), [lineup]);
 
-  const issues = useMemo(() => {
-    const emptySpots = config.zones.reduce(
-      (n, z) => n + Math.max(0, z.slots - (staged.groups[z.key] ?? []).length),
-      0,
-    );
-    const extraWarnings = emptySpots > 0 ? [emptySpots === 1 ? "1 spot is empty" : `${emptySpots} spots are empty`] : [];
-    if (!ruleCheckFor) return { broken: [], warnings: extraWarnings };
-    return breakIssues({
-      lineup: draft,
-      check: ruleCheckFor,
-      board: (l) => buildBoard(config.zones, stagedOf(l), sidelinedSet),
-      swap: (l, a, b) => lineupOf(swapInStaged(stagedOf(l), a, b)),
-      sidelined: sidelinedSet,
-      extraWarnings,
-    });
-  }, [config.zones, staged, ruleCheckFor, draft, sidelinedSet]);
+  const issues = useMemo(
+    () =>
+      breakIssues({
+        lineup: draft,
+        // Kids who can't play aren't held to the rules.
+        check: (l) => (ruleCheckFor ? ruleCheckFor({ ...l, bench: l.bench.filter((id) => !sidelinedSet.has(id)) }) : []),
+        board: (l) => buildBoard(config.zones, stagedOf(l), sidelinedSet),
+        swap: (l, a, b) => lineupOf(swapInStaged(stagedOf(l), a, b)),
+        sidelined: sidelinedSet,
+      }),
+    [config.zones, ruleCheckFor, draft, sidelinedSet],
+  );
 
   const sidelined = useMemo(() => {
     const out: Record<string, string> = {};

@@ -613,7 +613,9 @@ export function NetballQuarterBreak({
   const ruleCheck = useMemo(() => {
     const names: Record<string, string> = {};
     for (const p of squad) names[p.id] = p.full_name;
-    return (l: GenericLineup): RuleCheckItem[] => {
+    return (lineup: GenericLineup): RuleCheckItem[] => {
+      // Kids who can't play aren't held to the rules.
+      const l = { ...lineup, bench: lineup.bench.filter((id) => !sidelinedNow.has(id)) };
       const valid = netballSport.validateLineup?.(l, ageGroup, effectiveOnFieldSize);
       const errors: RuleCheckItem[] = (valid?.issues ?? [])
         .filter((i) => i.kind === "error")
@@ -632,7 +634,7 @@ export function NetballQuarterBreak({
         : [];
       return [...errors, ...team];
     };
-  }, [squad, ageGroup, effectiveOnFieldSize, netballPlaybook, previousLineup, thirdMs, nextQuarter, periodSeconds]);
+  }, [squad, ageGroup, effectiveOnFieldSize, netballPlaybook, previousLineup, thirdMs, nextQuarter, periodSeconds, sidelinedNow]);
 
   const issues = useMemo(
     () =>
@@ -642,6 +644,8 @@ export function NetballQuarterBreak({
         board: (l) => buildBoard(config.zones, withSidelined(l), sidelinedNow),
         swap: (l, a, b) => lineupOf(swapInStaged(stagedOf(l), a, b)),
         sidelined: sidelinedNow,
+        // An empty bib is already a broken rule here.
+        emptySpots: false,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [draft, ruleCheck, config.zones, sidelined, sidelinedNow],
