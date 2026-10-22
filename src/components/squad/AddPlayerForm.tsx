@@ -6,6 +6,8 @@ import { SFButton } from "@/components/sf";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { MixedGroupPicker } from "@/components/squad/MixedGroupPicker";
+import type { MixedGroup } from "@/lib/types";
 
 interface AddPlayerFormProps {
   teamId: string;
@@ -18,6 +20,8 @@ interface AddPlayerFormProps {
    * preserve AFL behaviour.
    */
   showJersey?: boolean;
+  /** A touch or Oztag mixed team: ask who the kid counts as under the rule. */
+  mixed?: boolean;
 }
 
 export function AddPlayerForm({
@@ -26,8 +30,10 @@ export function AddPlayerForm({
   maxPlayers,
   takenJerseys,
   showJersey = true,
+  mixed = false,
 }: AddPlayerFormProps) {
   const [name, setName] = useState("");
+  const [group, setGroup] = useState<MixedGroup | null>(null);
   const [jersey, setJersey] = useState("");
   const [nameError, setNameError] = useState<string | undefined>();
   const [jerseyError, setJerseyError] = useState<string | undefined>();
@@ -72,12 +78,14 @@ export function AddPlayerForm({
         name.trim(),
         jerseyValue,
         null,
+        mixed ? group : null,
       );
       if (!result.success) {
         setServerError(result.error);
       } else {
         setName("");
         setJersey("");
+        setGroup(null);
       }
     });
   }
@@ -129,6 +137,8 @@ export function AddPlayerForm({
           </div>
         )}
       </div>
+
+      {mixed && <MixedGroupPicker value={group} onChange={setGroup} disabled={isPending} />}
 
       {serverError && (
         <InlineAlert>

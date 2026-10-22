@@ -54,6 +54,7 @@ import {
 import { benchInTouchLineup, placeInTouchLineup, swapInTouchLineup } from "@/lib/sports/touch/live";
 import { MIXED_FAIRNESS_NOTE, mixedFieldMessage, mixedRuleSummary } from "@/lib/sports/touch/mixed";
 import { TOUCH_LANES, type MixedRule, type TouchAgeGroupConfig, type TouchLine, type TouchStrategy } from "@/lib/sports/touch/types";
+import { MixedGroupPicker } from "@/components/squad/MixedGroupPicker";
 import { TouchField } from "./TouchField";
 import { TouchBench } from "./TouchBench";
 import { TOUCH_LINE_ONE, touchStrategyLabel } from "./touchWords";
@@ -298,19 +299,13 @@ export function TouchLineupPicker({
             {ungrouped.map((p) => (
               <li key={p.id} className="flex items-center justify-between gap-2">
                 <span className="min-w-0 truncate text-sm text-ink">{p.full_name}</span>
-                <span className="flex shrink-0 gap-1.5" role="group" aria-label={`${p.full_name} counts as`}>
-                  {(["girl", "boy"] as const).map((g) => (
-                    <button
-                      key={g}
-                      type="button"
-                      disabled={groupPending !== null}
-                      onClick={() => void answerGroup(p.id, g)}
-                      className="min-h-[36px] rounded-full border border-hairline bg-surface px-3 text-xs font-semibold text-ink transition-colors hover:bg-surface-alt disabled:opacity-60"
-                    >
-                      {g === "girl" ? "Girl" : "Boy"}
-                    </button>
-                  ))}
-                </span>
+                <MixedGroupPicker
+                  compact
+                  value={null}
+                  onChange={(g) => void answerGroup(p.id, g)}
+                  disabled={groupPending !== null}
+                  playerName={p.full_name}
+                />
               </li>
             ))}
           </ul>

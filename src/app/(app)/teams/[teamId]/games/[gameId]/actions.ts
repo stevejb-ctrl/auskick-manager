@@ -13,6 +13,8 @@ import type { ActionResult, AvailabilityStatus, LiveAuth } from "@/lib/types";
 interface FillInInput {
   full_name: string;
   jersey_number: number | null;
+  /** Touch and Oztag mixed teams: who the fill-in counts as under the rule. */
+  mixed_group?: "girl" | "boy" | null;
 }
 
 async function authorizeManager(
@@ -188,6 +190,7 @@ export async function addFillIn(
       game_id: gameId,
       full_name: name,
       jersey_number: jersey,
+      ...(input.mixed_group === "girl" || input.mixed_group === "boy" ? { mixed_group: input.mixed_group } : {}),
       created_by: check.kind === "team" ? check.userId : null,
     });
   if (error) return { success: false, error: error.message };
