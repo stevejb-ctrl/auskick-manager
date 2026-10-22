@@ -104,11 +104,17 @@ export function LongPressHint({ enabled = true }: { enabled?: boolean }) {
   if (show !== true) return null;
 
   return (
-    // Fixed bottom-of-viewport chip, centered horizontally. Sits
-    // ABOVE the sticky scorebug (z-40 vs scorebug z-30) so it
-    // doesn't disappear under the bottom bar. `pb-` accounts for
-    // the iPhone home-bar safe area.
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center pb-[calc(96px+env(safe-area-inset-bottom))]">
+    // Fixed bottom-of-viewport chip, centered horizontally, clear of
+    // the sticky score bar: 12px above its measured height (which
+    // includes the home-bar safe area), or 96px when no bar is up.
+    // z-40 keeps it over the page, never over the score chips.
+    <div
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center"
+      style={{
+        paddingBottom:
+          "max(calc(96px + env(safe-area-inset-bottom)), calc(var(--live-score-bar-h, 0px) + 12px))",
+      }}
+    >
       <div className="pointer-events-auto motion-safe:animate-slide-in-bottom">
         <SirenPulseHalo triggerKey="hint" size="sm" className="rounded-full">
           <div
