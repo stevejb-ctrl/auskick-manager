@@ -21,6 +21,8 @@
 // centres need ≥ 26% horizontal separation to avoid overlap;
 // three-across rows use 22/50/78 (the tightest that still clears).
 
+import { placeByPosition } from "@/lib/sports/rugby/fieldPositions";
+
 export type FieldSlotRole = "forward" | "fr" | "dh" | "back" | "fullback";
 
 export interface FieldSlot {
@@ -244,11 +246,21 @@ const ROW_XS: Record<number, number[]> = { 1: [50], 2: [32, 68], 3: [22, 50, 78]
 export function unionFieldSlots(onFieldSize: number, forwards: number): FieldSlot[] {
   const size = Math.max(1, Math.round(onFieldSize));
   const fwd = Math.max(0, Math.min(size - 1, Math.round(forwards)));
-  const backCount = size - fwd;
+  return rowSlots(fwd, size - fwd, []);
+}
+
+/**
+ * Rows of spots: the forwards in rows of up to three across the top, a
+ * row of vest spots (dummy half, first receiver) where they're worn, then
+ * the backs, the fullback last. Rows share the pitch evenly.
+ */
+function rowSlots(forwardCount: number, backCount: number, vests: ("dh" | "fr")[]): FieldSlot[] {
   const fullbackInRow = backCount >= 3 && backCount % 3 === 0;
-  const forwardRows = rowSizes(fwd);
+  const forwardRows = rowSizes(forwardCount);
   const backRows = fullbackInRow ? rowSizes(backCount) : rowSizes(backCount - 1);
-  const rowCount = forwardRows.length + backRows.length + (fullbackInRow ? 0 : 1);
+  const vestRow = vests.length > 0 ? 1 : 0;
+  const fullbackRow = backCount > 0 && !fullbackInRow ? 1 : 0;
+  const rowCount = forwardRows.length + vestRow + backRows.length + fullbackRow;
   const yOf = (row: number) => (rowCount === 1 ? 50 : 13 + ((90 - 13) * row) / (rowCount - 1));
   const slots: FieldSlot[] = [];
   let row = 0;
@@ -257,6 +269,11 @@ export function unionFieldSlots(onFieldSize: number, forwards: number): FieldSlo
     for (const x of ROW_XS[n]) slots.push({ id: `fwd-${++f}`, role: "forward", x, y: yOf(row) });
     row++;
   }
+  if (vestRow) {
+    vests.forEach((role, i) => slots.push({ id: role, role, x: ROW_XS[vests.length][i], y: yOf(row) }));
+    row++;
+  }
+  if (backCount === 0) return slots;
   let b = 0;
   let fullback: FieldSlot = { id: "fullback", role: "fullback", x: 50, y: yOf(row + backRows.length) };
   backRows.forEach((n, r) => {
@@ -269,4 +286,205 @@ export function unionFieldSlots(onFieldSize: number, forwards: number): FieldSlo
   });
   slots.push(fullback);
   return slots;
+}
+
+// ─── Who stands where ────────────────────────────────────────
+// The field's spots with each on-field kid in one. FR / DH vest wearers
+// stand in their vest's spot, whatever their line; forwards fill the
+// forward spots, backs the back spots, the last back at fullback (the
+// coach's "this is my fullback" order). Union with named positions
+// stands each kid in their position's spot (fieldPositions.ts).
+
+type ArrangedKid = { id: string; chip?: ChipForSlot };
+
+export interface ArrangeLeagueFieldInput<T extends ArrangedKid> {
+  /** Spots to draw: never fewer than the kids on the field. */
+  size: number;
+  /** Union's forwards at each size: its field is laid out from them. */
+  forwardsBySize?: Record<number, number>;
+  vestRequirements?: { fr: boolean; dh: boolean };
+  players: T[];
+  forwardPlayers?: T[];
+  backPlayers?: T[];
+  vestByPlayer: Record<string, "fr" | "dh">;
+  /** Union, named positions: playerId → label, and each line's labels in order. */
+  positionLabels?: Record<string, string>;
+  positionOrder?: Record<"forwards" | "backs", string[]>;
+}
+
+export function arrangeLeagueField<T extends ArrangedKid>(
+  input: ArrangeLeagueFieldInput<T>,
+): { slot: FieldSlot; player: T | null }[] {
+  const { forwardsBySize, players, forwardPlayers, backPlayers, vestByPlayer } = input;
+  const slots = fieldSlotsFor(input);
+  if (forwardsBySize && input.positionOrder && input.positionLabels && forwardPlayers && backPlayers) {
+    const placed = placeByPosition(
+      slots,
+      forwardPlayers.map((p) => p.id),
+      backPlayers.map((p) => p.id),
+      input.positionLabels,
+      input.positionOrder,
+    );
+    const byId = new Map([...players, ...forwardPlayers, ...backPlayers].map((p) => [p.id, p]));
+    return slots.map((slot) => ({ slot, player: byId.get(placed[slot.id] ?? "") ?? null }));
+  }
+  return arrangeFieldSlots(players, vestByPlayer, slots, forwardPlayers, backPlayers);
+}
+
+/**
+ * The spots, holding each line's kids in that line (audit, 23 Oct 2026:
+ * with both vests on forwards, two backs stood in the forward rows). The
+ * sport's own shape when the lineup fits it; otherwise the same rows laid
+ * out from the lineup's lines. Union: its split at the size, moved to fit.
+ * League: its hand-made shape, whose vest spots hold the wearers and whose
+ * plain spots must hold everyone else by line.
+ */
+function fieldSlotsFor<T extends ArrangedKid>({
+  size,
+  forwardsBySize,
+  vestRequirements,
+  players,
+  forwardPlayers,
+  backPlayers,
+  vestByPlayer,
+}: ArrangeLeagueFieldInput<T>): FieldSlot[] {
+  const split = forwardPlayers && backPlayers;
+  if (forwardsBySize) {
+    const usual = forwardsBySize[size] ?? Math.floor(size / 2);
+    if (!split) return unionFieldSlots(size, usual);
+    const forwards = Math.max(forwardPlayers.length, Math.min(usual, size - backPlayers.length));
+    return unionFieldSlots(size, forwards);
+  }
+  const slots = getFieldSlots(size, vestRequirements);
+  if (!split) return slots;
+  const wearer = (vest: "fr" | "dh") => players.find((p) => vestByPlayer[p.id] === vest)?.id ?? null;
+  const worn = (["dh", "fr"] as const).filter((v) => slots.some((s) => s.role === v) && wearer(v));
+  const isWearer = (id: string) => worn.some((v) => wearer(v) === id);
+  const forwards = forwardPlayers.filter((p) => !isWearer(p.id)).length;
+  const backs = backPlayers.filter((p) => !isWearer(p.id)).length;
+  // An unworn vest spot takes a kid of its line (dummy half a forward,
+  // first receiver a back), as the overflow pass places them.
+  const unworn = (v: "fr" | "dh") => slots.some((s) => s.role === v) && !worn.includes(v);
+  const forwardRoom = slots.filter((s) => s.role === "forward").length + (unworn("dh") ? 1 : 0);
+  const backRoom = slots.filter((s) => s.role === "back" || s.role === "fullback").length + (unworn("fr") ? 1 : 0);
+  if (forwards <= forwardRoom && backs <= backRoom) return slots;
+  const plain = slots.length - worn.length;
+  const forwardSpots = Math.max(forwards, Math.min(forwardRoom, plain - backs));
+  return rowSlots(forwardSpots, plain - forwardSpots, [...worn]);
+}
+
+/**
+ * Assign each on-field player to a formation slot. FR / DH vest
+ * wearers go to their named slots regardless of zone — they're
+ * positional roles. Forwards fill the forward + dh slot (DH is a
+ * forward position when not vested otherwise), backs fill the
+ * back + fullback + fr slots. The fullback slot prefers the LAST
+ * back in lineup order so the coach's explicit "this player is my
+ * fullback" sort survives.
+ *
+ * When `forwardPlayers` / `backPlayers` aren't supplied, fall back
+ * to the legacy "everyone in players order" routing so the
+ * component still renders correctly for callers that haven't been
+ * updated to pass the split.
+ */
+function arrangeFieldSlots<T extends ArrangedKid>(
+  players: T[],
+  vestByPlayer: Record<string, "fr" | "dh">,
+  slots: FieldSlot[],
+  forwardPlayers?: T[],
+  backPlayers?: T[],
+): { slot: FieldSlot; player: T | null }[] {
+  const frPlayer = players.find((p) => vestByPlayer[p.id] === "fr") ?? null;
+  const dhPlayer = players.find((p) => vestByPlayer[p.id] === "dh") ?? null;
+
+  if (forwardPlayers && backPlayers) {
+    // Zone-aware routing. Pull vest wearers out of their pool to
+    // avoid double-placing them (they fill the FR/DH named slot
+    // instead of a generic forward/back slot).
+    const forwardsRest = forwardPlayers.filter(
+      (p) => p.id !== frPlayer?.id && p.id !== dhPlayer?.id,
+    );
+    const backsRest = backPlayers.filter(
+      (p) => p.id !== frPlayer?.id && p.id !== dhPlayer?.id,
+    );
+    // The last back becomes the fullback by convention. Coach can
+    // change this by reordering the backs bucket via the picker /
+    // long-press menu.
+    const fullbackPlayer = backsRest.length > 0
+      ? backsRest[backsRest.length - 1]
+      : null;
+    const backsForSlots = fullbackPlayer
+      ? backsRest.slice(0, -1)
+      : backsRest;
+    let fwdIdx = 0;
+    let backIdx = 0;
+    const result: { slot: FieldSlot; player: T | null }[] = slots.map(
+      (slot) => {
+        if (slot.role === "fr") return { slot, player: frPlayer };
+        if (slot.role === "dh") return { slot, player: dhPlayer };
+        if (slot.role === "fullback") return { slot, player: fullbackPlayer };
+        if (slot.role === "forward") {
+          const player = forwardsRest[fwdIdx] ?? null;
+          if (player) fwdIdx++;
+          return { slot, player };
+        }
+        // role === "back"
+        const player = backsForSlots[backIdx] ?? null;
+        if (player) backIdx++;
+        return { slot, player };
+      },
+    );
+    // Overflow pass — if the lineup has more forwards than the
+    // formation has forward slots (or vice versa), the excess
+    // players were silently dropped by the zone-respecting first
+    // pass. Place them in any still-empty slot so every on-field
+    // player is visible.
+    //
+    // CHIP-PREFERENCE-AWARE ROUTING (Steve 2026-05-23): when filling
+    // an empty slot from the cross-zone overflow, pick the LEAST-
+    // mismatched candidate first. Unchipped players (no chip
+    // preference) go to wrong-zone slots before strongly
+    // zone-chipped players are forced there.
+    //
+    // Within-zone overflow (forward-bucket surplus into a forward
+    // slot, or back-bucket surplus into a back slot) preserves
+    // declaration order — those are right-zone placements anyway.
+    const fwdOverflow: T[] = forwardsRest.slice(fwdIdx);
+    const backOverflow: T[] = backsForSlots.slice(backIdx);
+
+    for (const row of result) {
+      if (row.player) continue;
+      // Resolve the target zone for this slot. fullback counts as
+      // a back position; fr / dh slots shouldn't reach here (the
+      // first pass fills them by vest), but if they do, default to
+      // back for fr and forward for dh per their real-RL position.
+      const slotZone: "forward" | "back" =
+        row.slot.role === "forward" || row.slot.role === "dh"
+          ? "forward"
+          : "back";
+      const sameZonePool
+        = slotZone === "forward" ? fwdOverflow : backOverflow;
+      const crossZonePool
+        = slotZone === "forward" ? backOverflow : fwdOverflow;
+      const picked
+        = sameZonePool.shift()
+        ?? pickBestForSlot(crossZonePool, slotZone);
+      if (!picked) break;
+      row.player = picked;
+    }
+    return result;
+  }
+
+  // Legacy path — no zone info, fill slots in declaration order.
+  const rest = players.filter(
+    (p) => p.id !== frPlayer?.id && p.id !== dhPlayer?.id,
+  );
+  let restIdx = 0;
+  return slots.map((slot) => {
+    if (slot.role === "fr") return { slot, player: frPlayer };
+    if (slot.role === "dh") return { slot, player: dhPlayer };
+    const player = rest[restIdx] ?? null;
+    if (player) restIdx++;
+    return { slot, player };
+  });
 }
