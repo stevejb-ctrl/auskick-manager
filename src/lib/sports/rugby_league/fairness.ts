@@ -1989,6 +1989,21 @@ export function playerZoneMsOnField(
 }
 
 /**
+ * Season balance's line time (audit, 23 Oct 2026): ms per player in the
+ * forwards and the backs, vest time in its own line — the First
+ * Receiver a back, the Dummy Half a forward, as the vest spots stand on
+ * the field (LeagueField). The tiles' bar keeps vest time as its centre
+ * (playerZoneMsOnField); balance has no centre line to owe, so vest
+ * time used to drop out of it. Completed periods only.
+ */
+export function playerLineMsOnField(events: GameEvent[]): Record<string, { forwards: number; backs: number }> {
+  return walkLeagueStints(events, Number.MAX_SAFE_INTEGER, 0).lines;
+}
+
+/** The line a vest's time counts in: the line its spot stands in. */
+const VEST_LINE: Record<"fr" | "dh", "forwards" | "backs"> = { fr: "backs", dh: "forwards" };
+
+/**
  * Named positions (5.7): ms per player per position key, from the
  * slots recorded on each lineup_set. A sub takes over the slot of the
  * player they replace; a forward/back move leaves the kid unslotted
@@ -2013,6 +2028,7 @@ function walkLeagueStints(
   currentElapsedMs: number,
 ): {
   zones: Record<string, LeagueZoneMs>;
+  lines: Record<string, { forwards: number; backs: number }>;
   slots: Record<string, Record<string, number>>;
   slotOf: Record<string, string>;
 } {
@@ -2025,6 +2041,13 @@ function walkLeagueStints(
     const row = total[pid] ?? { forwards: 0, centre: 0, backs: 0 };
     row[bucket] += ms;
     total[pid] = row;
+  };
+  // Line time rides along, a vest's time in its spot's line.
+  const lineTotal: Record<string, { forwards: number; backs: number }> = {};
+  const addLineMs = (pid: string, line: "forwards" | "backs", ms: number) => {
+    if (ms <= 0) return;
+    lineTotal[pid] ??= { forwards: 0, backs: 0 };
+    lineTotal[pid][line] += ms;
   };
   // Slot time rides along: each open stint is credited to the slot the
   // player holds when it closes.
@@ -2062,13 +2085,13 @@ function walkLeagueStints(
     vestPlanByPeriod.set(meta.period, row);
   }
 
-  // Open-stint state. `zone` is "forward" | "back"; `vest` true when
-  // the player is currently wearing FR or DH. Players not in the map
-  // are currently off-field.
+  // Open-stint state. `zone` is "forward" | "back"; `vest` the vest
+  // the player is wearing (FR or DH), null for none. Players not in the
+  // map are currently off-field.
   type Stint = {
     startMs: number;
     zone: "forward" | "back";
-    vest: boolean;
+    vest: "fr" | "dh" | null;
   };
   const openStint: Record<string, Stint> = {};
   let activeQuarter: number | null = null;
@@ -2081,16 +2104,21 @@ function walkLeagueStints(
   // the on-player the off-player's vacated zone).
   let snapshot: LeagueLineup | null = null;
 
-  const closeStint = (pid: string, endMs: number) => {
-    const s = openStint[pid];
-    if (!s) return;
-    const dur = Math.max(0, endMs - s.startMs);
+  const credit = (pid: string, s: Stint, dur: number) => {
     if (s.vest) addMs(pid, "centre", dur);
     else if (s.zone === "forward") addMs(pid, "forwards", dur);
     else addMs(pid, "backs", dur);
+    addLineMs(pid, s.vest ? VEST_LINE[s.vest] : s.zone === "forward" ? "forwards" : "backs", dur);
     addSlotMs(pid, dur);
+  };
+  const closeStint = (pid: string, endMs: number) => {
+    const s = openStint[pid];
+    if (!s) return;
+    credit(pid, s, Math.max(0, endMs - s.startMs));
     delete openStint[pid];
   };
+  const vestOf = (pid: string): "fr" | "dh" | null =>
+    pid === vestWearer.fr ? "fr" : pid === vestWearer.dh ? "dh" : null;
 
   const zoneOfPid = (pid: string): "forward" | "back" => {
     if (snapshot) {
@@ -2134,9 +2162,7 @@ function walkLeagueStints(
         };
         if (snapshot) {
           for (const pid of leagueOnField(snapshot)) {
-            const zone = zoneOfPid(pid);
-            const vest = pid === vestWearer.fr || pid === vestWearer.dh;
-            openStint[pid] = { startMs: 0, zone, vest };
+            openStint[pid] = { startMs: 0, zone: zoneOfPid(pid), vest: vestOf(pid) };
           }
         }
         break;
@@ -2164,8 +2190,7 @@ function walkLeagueStints(
           snapshot = swapInLeagueLineup(snapshot, off, on).lineup;
         }
         if (on && openStint[on] === undefined) {
-          const vest = on === vestWearer.fr || on === vestWearer.dh;
-          openStint[on] = { startMs: at, zone: offZone, vest };
+          openStint[on] = { startMs: at, zone: offZone, vest: vestOf(on) };
         }
         // Like-for-like: the sub takes the slot the off player held.
         if (off && on) {
@@ -2256,7 +2281,7 @@ function walkLeagueStints(
             openStint[oldWearer] = {
               startMs: at,
               zone: zoneOfPid(oldWearer),
-              vest: false,
+              vest: null,
             };
           }
         }
@@ -2268,7 +2293,7 @@ function walkLeagueStints(
           openStint[newWearer] = {
             startMs: at,
             zone: zoneOfPid(newWearer),
-            vest: true,
+            vest: vestKind,
           };
         }
         vestWearer = { ...vestWearer, [vestKind]: newWearer };
@@ -2288,17 +2313,13 @@ function walkLeagueStints(
   // Live: extend any open stints in the active period to currentElapsedMs.
   if (activeQuarter === currentQuarter) {
     for (const pid of Object.keys(openStint)) {
-      const s = openStint[pid];
-      const dur = Math.max(0, currentElapsedMs - s.startMs);
+      const dur = Math.max(0, currentElapsedMs - openStint[pid].startMs);
       if (dur <= 0) continue;
-      if (s.vest) addMs(pid, "centre", dur);
-      else if (s.zone === "forward") addMs(pid, "forwards", dur);
-      else addMs(pid, "backs", dur);
-      addSlotMs(pid, dur);
+      credit(pid, openStint[pid], dur);
     }
   }
 
-  return { zones: total, slots: slotTotal, slotOf };
+  return { zones: total, lines: lineTotal, slots: slotTotal, slotOf };
 }
 
 // ─── Whole-bench rotation suggestion ──────────────────────────

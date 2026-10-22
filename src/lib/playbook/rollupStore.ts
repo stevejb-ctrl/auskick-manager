@@ -3,7 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAgeGroupConfig, getEffectiveQuarterSeconds, teamSport } from "@/lib/sports";
 import type { GameEvent, Sport } from "@/lib/types";
-import { gameRollupRows, type PlayerGameTimeRow } from "@/lib/playbook/rollup";
+import { gameRollupRows, staleRollupGameIds, type PlayerGameTimeRow } from "@/lib/playbook/rollup";
 
 type Client = SupabaseClient<any, any, any>;
 
@@ -81,11 +81,21 @@ export async function loadRollup(
       .in("game_id", gameIds.slice(i, i + 50));
     rows.push(...((data ?? []) as typeof rows));
   }
-  const have = new Set(rows.map((r) => r.game_id));
+  // A game stored before a counting change is rebuilt, as a missing one.
+  const stale = new Set(staleRollupGameIds(sport, rows));
+  const have = new Set(rows.filter((r) => !stale.has(r.game_id)).map((r) => r.game_id));
+  const kept = rows.filter((r) => !stale.has(r.game_id));
   const missing: PlayerGameTimeRow[] = [];
   for (const id of gameIds) {
     if (have.has(id)) continue;
     missing.push(...gameRollupRows(sport, id, teamId, eventsByGame.get(id) ?? [], periodSecondsOf(id)));
+  }
+  if (stale.size > 0) {
+    try {
+      await admin.from("player_game_time").delete().in("game_id", Array.from(stale));
+    } catch {
+      // Rebuilt below either way; the stale rows go next time.
+    }
   }
   if (missing.length > 0) {
     try {
@@ -93,7 +103,7 @@ export async function loadRollup(
     } catch {
       // Still returned below; stored next time.
     }
-    rows.push(...missing);
+    kept.push(...missing);
   }
-  return rows;
+  return kept;
 }
