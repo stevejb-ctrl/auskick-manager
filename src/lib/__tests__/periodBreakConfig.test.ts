@@ -65,6 +65,40 @@ describe("every sport's break zones", () => {
     expect(keys("soccer", "U6", 4)).toEqual([["field", 4]]);
   });
 
+  it("the soccer family's zones are in each sport's own line words", () => {
+    const words = (sport: Parameters<typeof breakConfigFor>[0], ag: string, size: number) =>
+      breakConfigFor(sport, getAgeGroupConfig(sport, ag), { onFieldSize: size }).zones.map((z) => [z.key, z.label, z.short]);
+    expect(words("soccer", "U10", 9)).toEqual([
+      ["att", "ATTACK", "Attack"],
+      ["mid", "MIDFIELD", "Midfield"],
+      ["def", "DEFENCE", "Defence"],
+      ["gk", "KEEPER", "Keeper"],
+    ]);
+    const futsal = breakConfigFor("futsal", getAgeGroupConfig("futsal", "U12"), { onFieldSize: 5, shape: { att: 1, mid: 2, def: 1 } });
+    expect(futsal.zones.map((z) => [z.key, z.label, z.short])).toEqual([
+      ["att", "FRONT", "Front"],
+      ["mid", "WINGS", "Wings"],
+      ["def", "BACK", "Back"],
+      ["gk", "KEEPER", "Keeper"],
+    ]);
+    const hockey = breakConfigFor("hockey", getAgeGroupConfig("hockey", "U12"), { onFieldSize: 11, shape: { att: 3, mid: 4, def: 3 } });
+    expect(hockey.zones.map((z) => z.label)).toEqual(["STRIKERS", "MIDFIELD", "DEFENDERS", "KEEPER"]);
+  });
+
+  it("touch and Oztag: lanes centre out, or one field under Minutes only", () => {
+    for (const sport of ["touch", "oztag"] as const) {
+      const ag = getAgeGroupConfig(sport, ALL_SPORTS.find((s) => s.id === sport)!.ageGroups.at(-1)!.id);
+      const lanes = breakConfigFor(sport, ag, { onFieldSize: 6, shape: { middle: 2, link: 2, wing: 2, field: 0 } });
+      expect(lanes.zones.map((z) => [z.key, z.label, z.slots, z.color]), sport).toEqual([
+        ["middle", "MIDDLES", 2, "zone2"],
+        ["link", "LINKS", 2, "zone3"],
+        ["wing", "WINGS", 2, "zone1"],
+      ]);
+      const field = breakConfigFor(sport, ag, { onFieldSize: 6, shape: { middle: 0, link: 0, wing: 0, field: 6 } });
+      expect(field.zones.map((z) => [z.key, z.slots]), sport).toEqual([["field", 6]]);
+    }
+  });
+
   it("netball: thirds of bibs, the bib on the slot", () => {
     const { zones } = breakConfigFor("netball", getAgeGroupConfig("netball", "11u"), { onFieldSize: 7 });
     expect(zones.map((z) => [z.key, z.slotLabels])).toEqual([
