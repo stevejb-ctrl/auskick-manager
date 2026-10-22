@@ -18,6 +18,7 @@ import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { ALL_ZONES, replayGame } from "../../src/lib/fairness";
 import type { GameEvent } from "../../src/lib/types";
+import { closeGameSettings, openGameSettings, pickBreakStrategy } from "../helpers/break";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -152,9 +153,7 @@ async function eventsUntilQ2Starts(
 }
 
 async function keepLastQuarter(page: Page): Promise<void> {
-  const settings = page.getByRole("button", { name: /game settings/i });
-  if ((await settings.getAttribute("aria-expanded")) !== "true") await settings.click();
-  await page.getByRole("radio", { name: /keep last quarter/i }).click();
+  await pickBreakStrategy(page, "Repeat");
 }
 
 test("AFL: a swap staged at the break is still there after the team page and back, and starts Q2", async ({
@@ -185,13 +184,11 @@ test("AFL: a swap staged at the break is still there after the team page and bac
 
   // The coach's lineup is still staged, in the mode they picked.
   await expect.poll(() => stagedLineup(page), { timeout: 10_000 }).toEqual(staged);
-  const settings = page.getByRole("button", { name: /game settings/i });
-  if ((await settings.getAttribute("aria-expanded")) !== "true") await settings.click();
-  await expect(page.getByRole("radio", { name: /keep last quarter/i })).toBeChecked();
+  await expect(page.getByRole("radio", { name: "Repeat" })).toBeChecked();
 
   // Start Q2: the committed lineup is the staged one.
   await page.getByRole("button", { name: /^start q2$/i }).click();
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$|^start anyway$/i }).click();
   const q2 = replayGame(await eventsUntilQ2Starts(admin, game.id)).lineup!;
   expect(q2.fwd).toContain(comingOn);
   expect(q2.bench).toContain(goingOff);
@@ -246,7 +243,7 @@ test("AFL: a kid hurt while the coach was away isn't restored onto the staged fi
 
   // Nobody hurt starts Q2 on the field.
   await page.getByRole("button", { name: /^start q2$/i }).click();
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$|^start anyway$/i }).click();
   const q2 = replayGame(await eventsUntilQ2Starts(admin, game.id)).lineup!;
   expect(ALL_ZONES.flatMap((z) => q2[z])).not.toContain(comingOn);
   expect(q2.bench).toContain(comingOn);
@@ -268,6 +265,7 @@ test("AFL: a kid who arrived at the break is still on the staged bench after the
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await reachBreak(page);
   await keepLastQuarter(page);
+  await openGameSettings(page);
   await page.getByRole("button", { name: /add (an )?arrived player|add arrived/i }).click();
   const sheet = page.getByRole("dialog", { name: /add arrived/i });
   await expect(sheet).toBeVisible({ timeout: 5_000 });
@@ -286,6 +284,7 @@ test("AFL: a kid who arrived at the break is still on the staged bench after the
       { timeout: 30_000 },
     )
     .toBeGreaterThanOrEqual(1);
+  await closeGameSettings(page);
   const bench = page.getByRole("group", { name: "Bench", exact: true }).first();
   await expect(bench.getByTestId(`player-tile-${arrival.id}`)).toBeVisible();
   const staged = await stagedLineup(page);
@@ -299,7 +298,7 @@ test("AFL: a kid who arrived at the break is still on the staged bench after the
 
   // Start Q2: the arrival starts it on the bench.
   await page.getByRole("button", { name: /^start q2$/i }).click();
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
+  await page.getByRole("button", { name: /^start [qh]\d+ now$|^start anyway$/i }).click();
   const q2 = replayGame(await eventsUntilQ2Starts(admin, game.id)).lineup!;
   expect(q2.bench).toContain(arrival.id);
 });

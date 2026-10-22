@@ -14,6 +14,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
+import { pickBreakStrategy, startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "serial" });
 
@@ -242,7 +243,12 @@ test("U13 records penalty and field goals for both sides, and Undo takes one bac
     await page.getByRole("button", { name: new RegExp(`^clock — h${half}, running$`, "i") }).click();
     await page.getByRole("button", { name: new RegExp(`^end h${half} now$`, "i") }).click();
     await page.getByRole("button", { name: new RegExp(`^end\\s*[qh]\\s*${half}$`, "i") }).click();
-    if (half === 1) await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click({ timeout: 10_000 });
+    // Half-time is the shared break screen: Repeat keeps H1's lineup (so
+    // the two bench kids still never get on), then Start the 2nd half.
+    if (half === 1) {
+      await pickBreakStrategy(page, "Repeat");
+      await startFromBreak(page, /^start 2nd half/i);
+    }
   }
   await expect(page.getByRole("button", { name: /finish game/i })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText("0T · 0C · 1PG · 1FG").first()).toBeVisible();

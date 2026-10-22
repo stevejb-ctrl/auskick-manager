@@ -37,6 +37,15 @@ interface LiveTopBarProps {
    * SubDueBanner while a sub is due, in every sport.
    */
   banner?: ReactNode;
+  /**
+   * A screen title in the centre in place of the game strip, with an
+   * optional line under it: the period break's "Q3 lineup" over
+   * "Q2 break · vs Hawks".
+   */
+  title?: string;
+  subtitle?: string;
+  /** The feedback (chat) icon. Default on; the period break hides it. */
+  feedback?: boolean;
 }
 
 /**
@@ -50,7 +59,16 @@ interface LiveTopBarProps {
  * Negative inset-x compensates for the parent layout's `px-4` so the
  * bar runs edge-to-edge regardless of which page is hosting it.
  */
-export function LiveTopBar({ exitHref, game, isLive = false, onHelp, banner }: LiveTopBarProps) {
+export function LiveTopBar({
+  exitHref,
+  game,
+  isLive = false,
+  onHelp,
+  banner,
+  title,
+  subtitle,
+  feedback = true,
+}: LiveTopBarProps) {
   // Steve 2026-05-14: switched Exit from `<Link>` to an imperative
   // button + router.push because `<Link>` was silently no-op-ing on
   // some device/cache combos (Steve saw it in production: tap
@@ -76,7 +94,7 @@ export function LiveTopBar({ exitHref, game, isLive = false, onHelp, banner }: L
     // icon rings in ink-dim (the old #8A948C was 3.0:1), the live title
     // in ink 15/600.
     <div className="sticky top-0 z-20 -mx-4 border-b border-hairline bg-surface/90 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/[0.85]">
-      <div className="mx-auto flex h-12 max-w-4xl items-center justify-between gap-3 px-1 sm:px-3">
+      <div className="mx-auto flex min-h-12 max-w-4xl items-center justify-between gap-3 px-1 sm:px-3">
         <button
           type="button"
           onClick={handleExit}
@@ -86,6 +104,14 @@ export function LiveTopBar({ exitHref, game, isLive = false, onHelp, banner }: L
         >
           {exiting ? "Exiting…" : "Exit"}
         </button>
+        {title ? (
+          <div className="flex min-w-0 flex-1 flex-col items-center justify-center py-1 text-center">
+            <h1 className="max-w-full truncate text-[17px] font-bold leading-tight tracking-[-0.01em] text-ink">
+              {title}
+            </h1>
+            {subtitle && <p className="max-w-full truncate text-xs leading-4 text-ink-dim">{subtitle}</p>}
+          </div>
+        ) : (
         <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-center gap-x-2 text-xs text-ink-dim">
           {isLive ? (
             <span className="truncate text-[15px] font-semibold tracking-[-0.01em] text-ink">
@@ -107,6 +133,7 @@ export function LiveTopBar({ exitHref, game, isLive = false, onHelp, banner }: L
             </>
           )}
         </div>
+        )}
         {/* Right-edge utility cluster: feedback + walkthrough "?".
             Wrapped in a zero-gap sub-flex so the two 44pt tap boxes
             sit flush; the visible 28pt pills inside read as a tight
@@ -121,7 +148,7 @@ export function LiveTopBar({ exitHref, game, isLive = false, onHelp, banner }: L
             Surfaces that legitimately need help on the right must
             wire onHelp to a modal; never a Link. */}
         <div className="-mr-1 flex items-center">
-          <FeedbackHeaderButton />
+          {feedback && <FeedbackHeaderButton />}
 
           {/* The visible "?" pill is 28pt, but the surrounding button
               keeps the iOS-min 44pt tap target via `h-11 w-11`. Steve

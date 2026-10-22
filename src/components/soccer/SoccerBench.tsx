@@ -8,7 +8,7 @@
 import type { Player } from "@/lib/types";
 import type { SoccerUnitMs } from "@/lib/sports/soccer/replay";
 import type { SoccerUnit, SoccerUnitWords } from "@/lib/sports/soccer/types";
-import { SoccerPlayerTile, type SoccerTileCaption } from "@/components/soccer/SoccerPlayerTile";
+import { SoccerPlayerTile } from "@/components/soccer/SoccerPlayerTile";
 
 interface SoccerBenchProps {
   /** The sport's words for each unit (SoccerFamilyRules.lineLabels). */
@@ -29,7 +29,6 @@ interface SoccerBenchProps {
   loanedIds?: string[];
   lockModes?: Record<string, "field" | "zone">;
   goalsByPlayer?: Record<string, number>;
-  captions?: Record<string, SoccerTileCaption>;
   keepOnIds?: Set<string>;
 }
 
@@ -49,7 +48,6 @@ export function SoccerBench({
   loanedIds,
   lockModes,
   goalsByPlayer,
-  captions,
   keepOnIds,
 }: SoccerBenchProps) {
   const injuredSet = new Set(injuredIds ?? []);
@@ -88,7 +86,6 @@ export function SoccerBench({
                 loaned={loanedSet.has(pid)}
                 lockMode={lockModes?.[pid] ?? null}
                 goals={goalsByPlayer?.[pid]}
-                caption={captions?.[pid]}
                 keepOn={keepOnIds?.has(pid)}
               />
             );

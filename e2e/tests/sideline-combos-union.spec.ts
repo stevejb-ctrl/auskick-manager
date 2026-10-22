@@ -21,6 +21,7 @@ import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
 import { replayRugbyGame, rugbyPoints } from "../../src/lib/sports/rugby_league/fairness";
 import type { GameEvent } from "../../src/lib/types";
+import { openGameSettings, pickBreakStrategy, startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -117,13 +118,15 @@ test("rugby union at 15 a side: lend, fill, hurt and replaced, a late arrival, t
   await page.getByRole("button", { name: /^clock — h1, running$/i }).click();
   await page.getByRole("button", { name: /^end h1 now$/i }).click();
   await page.getByRole("button", { name: /^end\s*h\s*1$/i }).click();
-  await page.getByRole("button", { name: /back to lineup/i }).click({ timeout: 15_000 });
-  await page.getByTestId(`league-recall-lent-${lent.id}`).click();
+  await expect(page.getByRole("heading", { name: /^2nd half lineup$/i })).toBeVisible({ timeout: 15_000 });
+  await openGameSettings(page);
+  await page.getByTestId(`break-recall-lent-${lent.id}`).click();
   await landed((evs) =>
     evs.some((e) => e.type === "player_loan" && e.player_id === lent.id && (e.metadata as { loaned?: boolean }).loaned === false),
   );
-  await page.getByRole("button", { name: /^start h2$/i }).first().click();
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
+  // Repeat: H2 starts from H1's last lineup, the coach's moves kept.
+  await pickBreakStrategy(page, "Repeat");
+  await startFromBreak(page, /^start 2nd half/i);
   await landed((evs) => evs.some((e) => e.type === "quarter_start" && (e.metadata as { quarter?: number }).quarter === 2));
 
   // ── The replay agrees ──────────────────────────────────────────

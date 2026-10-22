@@ -36,6 +36,10 @@ describe("rule check (RuleCheckBar)", () => {
       ["warn", "Mia and Jack are both in Forward"],
     ]);
     expect(summariseCheck(items)).toEqual({ status: "fail", text: "Ava would sit out twice in a row" });
+    // The break screen prints the rule under it and its Fix moves the
+    // kids it names first.
+    expect(items[1]).toMatchObject({ rule: "Nobody sits out two quarters in a row", playerIds: ["ava"] });
+    expect(items[2]).toMatchObject({ rule: "Keep Mia and Jack apart", playerIds: ["mia", "jack"] });
   });
 
   it("doesn't claim 'All rules kept' when it only checked the floor, and says where season balance stands", () => {
@@ -92,7 +96,12 @@ describe("rule check (RuleCheckBar)", () => {
         unitLabel: (k) => label(k).toLowerCase(),
       },
     });
-    expect(items[1]).toEqual({ id: "season-mia-fwd", status: "warn", text: "Mia hasn't played forward this season" });
+    expect(items[1]).toEqual({
+      id: "season-mia-fwd",
+      status: "warn",
+      text: "Mia hasn't played forward this season",
+      playerIds: ["mia"],
+    });
   });
 
   it("explains a move in one line", () => {

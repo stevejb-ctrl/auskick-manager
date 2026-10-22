@@ -15,6 +15,7 @@ import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { playerMsOnField, replayLeagueGame } from "../../src/lib/sports/rugby_league/fairness";
 import type { GameEvent } from "../../src/lib/types";
+import { openGameSettings, pickBreakStrategy, startFromBreak } from "../helpers/break";
 
 test("rugby league: lend a forward, fill the gap, a back is hurt and replaced, then the lent kid comes back", async ({
   page,
@@ -92,14 +93,16 @@ test("rugby league: lend a forward, fill the gap, a back is hurt and replaced, t
   await page.getByRole("button", { name: /^end h1 now$/i }).click();
   await page.getByRole("button", { name: /^end\s*h\s*1$/i }).click();
 
-  // The break pops the start modal; step back to the break to recall.
-  await page.getByRole("button", { name: /back to lineup/i }).click({ timeout: 15_000 });
-  await page.getByTestId(`league-recall-lent-${lent.id}`).click();
+  // At the break, bring the lent kid back from the game settings sheet.
+  await expect(page.getByRole("heading", { name: /^2nd half lineup$/i })).toBeVisible({ timeout: 15_000 });
+  await openGameSettings(page);
+  await page.getByTestId(`break-recall-lent-${lent.id}`).click();
   await landed((evs) =>
     evs.some((e) => e.type === "player_loan" && e.player_id === lent.id && (e.metadata as { loaned?: boolean }).loaned === false),
   );
-  await page.getByRole("button", { name: /^start h2$/i }).first().click();
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
+  // Repeat: H2 starts from H1's last lineup, the coach's moves kept.
+  await pickBreakStrategy(page, "Repeat");
+  await startFromBreak(page, /^start 2nd half/i);
   await landed((evs) => evs.some((e) => e.type === "quarter_start" && (e.metadata as { quarter?: number }).quarter === 2));
 
   // ── The game as it replays ─────────────────────────────────────
@@ -540,14 +543,11 @@ test("rugby league: at the break, next half's vest wearer on the bench is flagge
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
+  // Repeat keeps H1's last lineup, where the planned DH sat on the bench
+  // after their sub; the vest card flags them as off the field.
+  await expect(page.getByRole("heading", { name: /^2nd half lineup$/i })).toBeVisible({ timeout: 15_000 });
+  await pickBreakStrategy(page, "Repeat");
   await expect(page.getByText(new RegExp(`${plannedDh.full_name} isn.t on the field`))).toBeVisible({ timeout: 15_000 });
-  // League auto-opens "Start H2" on entering the break, over the vest
-  // card. Dismiss it first; racing it only passed where the tap landed
-  // before the dialog (Chromium), not on WebKit.
-  const backToLineup = page.getByRole("button", { name: /back to lineup/i });
-  await expect(backToLineup).toBeVisible({ timeout: 15_000 });
-  await backToLineup.click();
-  await expect(backToLineup).toBeHidden({ timeout: 5_000 });
   await page
     .getByRole("region", { name: "Vest assignment" })
     .getByRole("button", { name: new RegExp(pick.full_name) })

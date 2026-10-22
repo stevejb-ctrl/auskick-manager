@@ -1341,12 +1341,16 @@ export function LiveGame({
 
   if (isBetweenQuarters) {
     return (
-      <div className="ui-nonselect space-y-3">
-        {liveTopBar}
+      <div className="ui-nonselect">
         {walkthroughOverlay}
         <QuarterBreak
           auth={auth}
           gameId={gameId}
+          game={game}
+          exitHref={exitHref}
+          onHelp={handleOpenWalkthrough}
+          ageGroup={ageGroup}
+          trackScoring={trackScoring}
           players={squadPlayers}
           season={season}
           seasonAvailability={seasonAvailability}

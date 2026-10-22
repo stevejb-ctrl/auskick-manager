@@ -55,11 +55,6 @@ export interface SoccerSwapRole {
   totalPairs?: number;
 }
 
-export interface SoccerTileCaption {
-  text: string;
-  tone: "move" | "stay";
-}
-
 interface SoccerPlayerTileProps {
   player: Player;
   /** The sport's words for each unit (SoccerFamilyRules.lineLabels). */
@@ -79,7 +74,6 @@ interface SoccerPlayerTileProps {
   /** "field" = Keep on or Keep in goal (never subbed); "zone" = kept in a line. */
   lockMode?: "field" | "zone" | null;
   goals?: number;
-  caption?: SoccerTileCaption | null;
   /** Named positions: shown in place of the unit ("CB"). */
   positionLabel?: string | null;
   keepOn?: boolean;
@@ -111,7 +105,6 @@ function SoccerPlayerTileImpl({
   loaned,
   lockMode,
   goals,
-  caption,
   positionLabel,
   keepOn,
   swapDue = false,
@@ -212,17 +205,6 @@ function SoccerPlayerTileImpl({
           </div>
         )}
 
-        {caption && !isOff && !isOn && (
-          <div
-            className={`flex items-center justify-center rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[10px] font-bold uppercase leading-none tracking-micro ${
-              caption.tone === "move"
-                ? "border-brand-700 bg-brand-600 text-white"
-                : "border-hairline bg-surface-alt text-ink-dim"
-            }`}
-          >
-            {caption.text}
-          </div>
-        )}
 
         {keepOn && !injured && !loaned && !hasGoals && <KeepOnMarker />}
 
@@ -361,9 +343,7 @@ function areEqual(a: SoccerPlayerTileProps, b: SoccerPlayerTileProps): boolean {
     a.goals !== b.goals ||
     a.positionLabel !== b.positionLabel ||
     a.keepOn !== b.keepOn ||
-    a.swapDue !== b.swapDue ||
-    a.caption?.text !== b.caption?.text ||
-    a.caption?.tone !== b.caption?.tone
+    a.swapDue !== b.swapDue
   ) {
     return false;
   }

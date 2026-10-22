@@ -21,7 +21,14 @@
 //   - The five positions keep basketball's standard labels (PG, SG, SF,
 //     PF, C) and aren't renamed, as netball's bibs aren't.
 
-import type { PositionDef, ScoreTypeDef, SportConfig, ZoneDef } from "@/lib/sports/types";
+import type {
+  BreakZoneColor,
+  PositionDef,
+  ScoreTypeDef,
+  SportBreakSpec,
+  SportConfig,
+  ZoneDef,
+} from "@/lib/sports/types";
 import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
 import { aflSport } from "@/lib/sports/afl";
 import { validateBasketballLineup } from "@/lib/sports/basketball/lineup";
@@ -185,6 +192,29 @@ export function basketballAgeGroupForTeam(
   };
 }
 
+// Break screen: forwards over guards, or one Court zone under Equal
+// minutes (no lines). Slots are the staged lineup's lines, else the age
+// group's suggested strategy's default shape.
+const BASKETBALL_BREAK_ZONES: { key: "forward" | "guard" | "court"; label: string; short: string; color: BreakZoneColor }[] = [
+  { key: "forward", label: "FORWARDS", short: "Fwd", color: "zone1" },
+  { key: "guard", label: "GUARDS", short: "Guard", color: "zone3" },
+  { key: "court", label: "COURT", short: "Court", color: "zone2" },
+];
+
+const basketballPeriodBreak: SportBreakSpec = {
+  zones: ({ ageGroup, onFieldSize, shape }) => {
+    const defaults =
+      basketballAgeGroup(ageGroup.id).suggestedStrategy === "minutes"
+        ? basketballCourtShape(onFieldSize)
+        : basketballShapes(onFieldSize)[0];
+    return BASKETBALL_BREAK_ZONES.map((z) => ({ ...z, slots: shape?.[z.key] ?? defaults.lines[z.key] })).filter(
+      (z) => z.slots > 0,
+    );
+  },
+  scoreDetail: "points",
+  lowTimeMs: 4 * 60_000,
+};
+
 // Basketball lives under the main Siren brand, as union and soccer: the
 // main site's host (so no host resolves to basketball; see
 // getBrandForHost) and the "Siren" name on what it sends.
@@ -211,5 +241,6 @@ export const basketballSport: SportConfig = {
   jerseyNumbers: true,
   // As soccer's and rugby's, basketball's live screen plays no team song.
   teamSong: false,
+  periodBreak: basketballPeriodBreak,
   validateLineup: validateBasketballLineup,
 };

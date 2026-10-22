@@ -10,6 +10,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient, createTestUser, deleteTestUser } from "../fixtures/supabase";
 import { makeGame, makePlayers, makeTeam } from "../fixtures/factories";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
+import { closeGameSettings, openGameSettings } from "../helpers/break";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -618,27 +619,26 @@ test("the rule check reads the lineup, and the break says why kids move", async 
   ]);
   await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  const check = page.getByTestId("rule-check");
-  await expect(check).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByTestId("rule-check-summary")).toHaveText("All rules kept");
-  await check.getByRole("button").first().click();
-  const why = page.getByRole("list", { name: "Why these moves" });
-  await expect(why).toContainText("Hasn't played");
-  await expect(why.getByRole("listitem")).toHaveCount(5);
-  await expect(check).toContainText(/and [0-9]+ more moves for a fair rotation/);
+  // At the break (the shared period break screen) the suggestion brings
+  // Q1's bench kids on: every rule kept, so there's no issues card.
+  await expect(page.getByRole("heading", { name: /^q2 lineup$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("break-issues")).toHaveCount(0);
 
   // Round 5 (rushed-coach, chaotic-substitution): lending a kid at the
   // break left a spot empty while the check said "All rules kept". The
-  // empty spot is in the check. (Q1's bench kid is coming on for Q2;
-  // lending her also trips "sits out twice", which rightly leads.)
-  await page.getByRole("button", { name: /game settings/i }).first().click();
+  // empty spot is a warning now. (A lent kid isn't held to the rules, so
+  // "sits out twice" stays kept.)
+  await openGameSettings(page);
   await page.getByRole("button", { name: /^\+?\s*lend a player$/i }).click();
   await page
     .getByRole("dialog", { name: /lend/i })
     .getByRole("button", { name: new RegExp(players[12].full_name) })
     .click();
-  await expect(page.getByTestId("rule-check-summary")).not.toHaveText("All rules kept");
-  await expect(check).toContainText("1 spot is empty");
+  await closeGameSettings(page);
+  const issues = page.getByTestId("break-issues");
+  await expect(issues.getByTestId("break-broken-rule")).toHaveCount(0);
+  await issues.getByRole("button", { name: /^1 warning/ }).click();
+  await expect(issues).toContainText("1 spot is empty");
 });
 
 test("stats show season balance, backfilled, with since-reset", async ({ page }) => {

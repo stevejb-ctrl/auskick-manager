@@ -24,6 +24,7 @@ import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { replayLeagueGame } from "../../src/lib/sports/rugby_league/fairness";
 import type { GameEvent } from "../../src/lib/types";
+import { openGameSettings, pickBreakStrategy, startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -165,33 +166,16 @@ test("rugby league: at the break a coach can add an arrived player, mark a playe
   await suppressWalkthrough(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // League auto-pops the StartQuarterModal on entering the break
-  // (unlike AFL/netball, which require tapping "Ready for Q2"). It
-  // overlays the break surface, so dismiss it via "Back to lineup"
-  // before reaching for the Manage-availability buttons underneath.
-  // The modal auto-opens once per period (ref-gated), so a single
-  // dismissal holds for the rest of this break.
-  const backToLineup = page.getByRole("button", { name: /back to lineup/i });
-  await expect(backToLineup).toBeVisible({ timeout: 15_000 });
-  await backToLineup.click();
-  await expect(backToLineup).toBeHidden({ timeout: 5_000 });
-
-  // The break surface shows a "Ready for H2"/"Ready for half 2" CTA.
+  // The shared break screen: no start modal pops up on arrival any more.
   await expect(
-    page.getByRole("button", { name: /^start (h2|half 2|q2)$/i }),
+    page.getByRole("button", { name: /^start (2nd half|q2)/i }),
   ).toBeVisible({ timeout: 15_000 });
 
   // ─── 1. ADD ARRIVED ────────────────────────────────────────────
-  // Open the break-surface Manage-availability entry, then add the
-  // late arrival.
-  const manage = page.getByRole("button", {
-    name: /manage availability|match adjustments/i,
-  });
-  if (await manage.isVisible().catch(() => false)) {
-    if ((await manage.getAttribute("aria-expanded")) !== "true") {
-      await manage.click().catch(() => {});
-    }
-  }
+  // Keep last half's field, then open Game settings (the status chip)
+  // and add the late arrival.
+  await pickBreakStrategy(page, "Repeat");
+  await openGameSettings(page);
   await page
     .getByRole("button", { name: /add (an )?arrived player|add arrived/i })
     .click();
@@ -252,7 +236,9 @@ test("rugby league: at the break a coach can add an arrived player, mark a playe
     .getByRole("button", { name: new RegExp(replacement.full_name, "i") })
     .click();
 
-  // Assert BOTH an out event (injury w/ reason "out") AND a swap event.
+  // An out event (injury w/ reason "out"); the replacement takes the
+  // kid's line in the staged lineup (committed with it at Start), and
+  // the out kid sits out on the bench.
   await expect
     .poll(
       async () => {
@@ -260,27 +246,24 @@ test("rugby league: at the break a coach can add an arrived player, mark a playe
           .from("game_events")
           .select("type, player_id, metadata")
           .eq("game_id", game.id)
-          .in("type", ["injury", "swap"]);
-        const out = (data ?? []).find(
+          .eq("type", "injury");
+        return (data ?? []).some(
           (e) =>
-            e.type === "injury" &&
             e.player_id === outPlayer.id &&
             (e.metadata as { injured?: boolean })?.injured === true &&
             (e.metadata as { reason?: string })?.reason === "out",
         );
-        const sw = (data ?? []).find(
-          (e) =>
-            e.type === "swap" &&
-            (e.metadata as { off_player_id?: string })?.off_player_id ===
-              outPlayer.id &&
-            (e.metadata as { on_player_id?: string })?.on_player_id ===
-              replacement.id,
-        );
-        return Boolean(out) && Boolean(sw);
       },
       { timeout: 10_000, intervals: [200, 200, 500, 500, 1000] },
     )
     .toBe(true);
+  await expect(
+    page.getByRole("group", { name: /^(Forwards|Backs)$/ }).getByTestId(`player-tile-${replacement.id}`),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: "Bench", exact: true }).getByTestId(`player-tile-${outPlayer.id}`),
+  ).toContainText("Injured");
+  await openGameSettings(page);
 
   // ─── 3. MARK INJURED (regression guard) ────────────────────────
   await page
@@ -378,8 +361,9 @@ test("rugby league: a pinned plan at the break keeps a hurt kid on the bench and
   await seedPlan(page, game.id, pin);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // The break pops the start modal; start the second half.
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click({ timeout: 15_000 });
+  // The break opens on the plan; start the second half.
+  await expect(page.getByTestId("planned-seed-banner")).toBeVisible({ timeout: 15_000 });
+  await startFromBreak(page, /^start 2nd half/i);
 
   let started: { forwards: string[]; backs: string[]; bench: string[] } | null = null;
   await expect
@@ -469,14 +453,10 @@ test("rugby league: the break shows the planned half, and a swap made there is i
   const swapOn = ids[14];
   const swapOff = ids[6];
 
-  const field = page.getByRole("region", { name: "On field" });
+  const field = page.getByRole("group", { name: /^(Forwards|Backs)$/ });
   const bench = page.getByRole("group", { name: "Bench", exact: true });
-  const tile = (id: string) => page.getByTestId(`league-player-tile-${id}`);
-  const backToLineup = page.getByRole("button", { name: /back to lineup/i });
+  const tile = (id: string) => page.getByTestId(`player-tile-${id}`);
   const toTheBreak = async () => {
-    // The break pops the start modal on arrival; step back to the field.
-    await backToLineup.click({ timeout: 15_000 });
-    await expect(backToLineup).toBeHidden({ timeout: 5_000 });
     await expect(page.getByTestId("planned-seed-banner")).toBeVisible({ timeout: 15_000 });
   };
 
@@ -484,26 +464,25 @@ test("rugby league: the break shows the planned half, and a swap made there is i
   await toTheBreak();
 
   // The field at the break is the plan, not the half just played.
-  await expect.soft(field.getByTestId(`league-player-tile-${plannedOn}`)).toBeVisible({ timeout: 10_000 });
-  await expect.soft(bench.getByTestId(`league-player-tile-${plannedOff}`)).toBeVisible();
+  await expect.soft(field.getByTestId(`player-tile-${plannedOn}`)).toBeVisible({ timeout: 10_000 });
+  await expect.soft(bench.getByTestId(`player-tile-${plannedOff}`)).toBeVisible();
 
   // The swap.
   await tile(swapOn).click();
   await tile(swapOff).click();
-  await expect(field.getByTestId(`league-player-tile-${swapOn}`)).toBeVisible({ timeout: 10_000 });
-  await expect(bench.getByTestId(`league-player-tile-${swapOff}`)).toBeVisible();
-  await expect.soft(field.getByTestId(`league-player-tile-${plannedOn}`)).toBeVisible();
+  await expect(field.getByTestId(`player-tile-${swapOn}`)).toBeVisible({ timeout: 10_000 });
+  await expect(bench.getByTestId(`player-tile-${swapOff}`)).toBeVisible();
+  await expect.soft(field.getByTestId(`player-tile-${plannedOn}`)).toBeVisible();
 
   // It's still there after a reload, on top of the plan.
   await page.reload();
   await toTheBreak();
-  await expect(field.getByTestId(`league-player-tile-${swapOn}`)).toBeVisible({ timeout: 10_000 });
-  await expect(bench.getByTestId(`league-player-tile-${swapOff}`)).toBeVisible();
-  await expect.soft(field.getByTestId(`league-player-tile-${plannedOn}`)).toBeVisible();
+  await expect(field.getByTestId(`player-tile-${swapOn}`)).toBeVisible({ timeout: 10_000 });
+  await expect(bench.getByTestId(`player-tile-${swapOff}`)).toBeVisible();
+  await expect.soft(field.getByTestId(`player-tile-${plannedOn}`)).toBeVisible();
 
   // Start H2: it begins with the plan AND the swap.
-  await page.getByRole("button", { name: /^start h2$/i }).click();
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
+  await startFromBreak(page, /^start 2nd half/i);
   let events: GameEvent[] = [];
   await expect
     .poll(

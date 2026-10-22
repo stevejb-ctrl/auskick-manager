@@ -78,18 +78,8 @@ import {
   type SoccerLineup,
 } from "@/lib/sports/soccer/lineup";
 import { replaySoccerGame, soccerGameMs, type SoccerGameState } from "@/lib/sports/soccer/replay";
-import {
-  suggestSoccerHalfTime,
-  suggestSoccerWindowBatch,
-  type SoccerSeasonBalance,
-} from "@/lib/sports/soccer/suggest";
-import {
-  benchOutInSoccerLineup,
-  placeInSoccerLineup,
-  soccerSubDue,
-  swapInSoccerLineup,
-  withEveryoneInSoccerLineup,
-} from "@/lib/sports/soccer/live";
+import { suggestSoccerHalfTime, suggestSoccerWindowBatch, type SoccerSeasonBalance } from "@/lib/sports/soccer/suggest";
+import { soccerSubDue } from "@/lib/sports/soccer/live";
 import {
   SOCCER_LINES,
   type SoccerAgeGroupConfig,
@@ -101,10 +91,9 @@ import type { SoccerKeeperPrefs } from "@/lib/sports/soccer/keeper";
 import { SoccerField } from "./SoccerField";
 import { SoccerBench } from "./SoccerBench";
 import { SoccerScoreBug } from "./SoccerScoreBug";
-import { KeeperHandoverCard } from "./KeeperHandoverCard";
+import { SoccerBreak } from "./SoccerBreak";
 import { SoccerFullTimeReview, SoccerGameSummaryCard } from "./SoccerFullTime";
-import type { SoccerTileCaption } from "./SoccerPlayerTile";
-import { soccerKeeperNote } from "./soccerWords";
+import { kitUpKey as kitUpKeyFor, readKitUp, writeKitUp } from "./keeperKitUp";
 
 interface SoccerLiveGameProps {
   auth: LiveAuth;
@@ -171,52 +160,8 @@ function lastSetLineup(events: GameEvent[]): SoccerLineup | null {
 const KEEPER_AT_BREAKS =
   "The keeper changes at the break: kit takes a few minutes to put on. If the keeper's hurt, long-press them to mark the injury.";
 
-function readBreakDraft(key: string): SoccerLineup | null {
-  try {
-    const raw = window.sessionStorage.getItem(key);
-    return raw ? normalizeSoccerLineup(JSON.parse(raw)) : null;
-  } catch {
-    return null;
-  }
-}
-function writeBreakDraft(key: string, lineup: SoccerLineup | null) {
-  try {
-    if (lineup) window.sessionStorage.setItem(key, JSON.stringify(lineup));
-    else window.sessionStorage.removeItem(key);
-  } catch {
-    // Private mode or storage blocked: the plan just won't survive a reload.
-  }
-}
-
 function firstName(p: Player): string {
   return p.full_name.trim().split(/\s+/)[0] ?? p.full_name;
-}
-
-/** The keeper named in the kit-up heads-up for a period, if one was. */
-function readKitUp(key: string): string | null {
-  try {
-    return window.sessionStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-function writeKitUp(key: string, playerId: string) {
-  try {
-    window.sessionStorage.setItem(key, playerId);
-  } catch {
-    // Storage blocked: the break suggests afresh, which is all that's lost.
-  }
-}
-
-/**
- * The break's plan with the keeper the kit-up heads-up named in goal
- * (they've been getting ready since), when they can still play. The
- * planned keeper takes their place.
- */
-function withAnnouncedKeeper(plan: SoccerLineup | null, playerId: string | null, away: ReadonlySet<string>): SoccerLineup | null {
-  if (!plan || !playerId || plan.keeper === playerId || away.has(playerId)) return plan;
-  if (soccerUnitOf(plan, playerId) === null && !plan.bench.includes(playerId)) return plan;
-  return plan.keeper ? swapInSoccerLineup(plan, plan.keeper, playerId) : placeInSoccerLineup(plan, playerId, "gk");
 }
 
 export function SoccerLiveGame({
@@ -319,59 +264,14 @@ export function SoccerLiveGame({
     [squad, state],
   );
 
-  // ── The break: the plan for the next period ────────────────
-  // Suggested once per break and kept in session storage, so an edit
-  // survives a trip to the team page; Start commits it.
-  const draftKey = `soccer-break:${game.id}:${base.currentPeriod}`;
-  // The keeper named in the period's kit-up heads-up (below), if any.
-  const kitUpKey = `soccer-kitup:${game.id}:${base.currentPeriod}`;
-  const halfTimePlan = useMemo(
-    () =>
-      isAtBreak
-        ? suggestSoccerHalfTime({
-            state: base,
-            ageGroup,
-            onFieldSize: game.on_field_size,
-            formationId: shapeOf(ageGroup, lastSetLineup(events), game.on_field_size).id,
-            season,
-            keeperStrategy,
-            prefs: keeperPrefs,
-          })
-        : null,
-    [isAtBreak, base, ageGroup, game.on_field_size, events, season, keeperStrategy, keeperPrefs],
-  );
-  const [storedDraft, setBreakDraftState] = useState<SoccerLineup | null>(null);
-  const [announcedKeeper, setAnnouncedKeeper] = useState<string | null>(null);
-  useEffect(() => {
-    if (!isAtBreak) {
-      setBreakDraftState(null);
-      return;
-    }
-    // The kid told to kit up before the break starts in goal.
-    const announced = readKitUp(kitUpKey);
-    const away = new Set([...base.injuredIds, ...base.loanedIds]);
-    setAnnouncedKeeper(announced && !away.has(announced) ? announced : null);
-    setBreakDraftState(readBreakDraft(draftKey) ?? withAnnouncedKeeper(halfTimePlan?.lineup ?? null, announced, away));
-  }, [isAtBreak, draftKey, kitUpKey, halfTimePlan, base.injuredIds, base.loanedIds]);
-  const setBreakDraft = useCallback(
-    (next: SoccerLineup) => {
-      setBreakDraftState(next);
-      writeBreakDraft(draftKey, next);
-    },
-    [draftKey],
-  );
-  // The plan, with anyone who has arrived since it was made on its
-  // bench (a kept plan would otherwise drop them from the game at Start).
-  const breakDraft = useMemo(
-    () => (storedDraft && state.lineup ? withEveryoneInSoccerLineup(storedDraft, state.lineup) : storedDraft),
-    [storedDraft, state.lineup],
-  );
-
-  // What the screen shows: the break's plan, else the lineup in play.
-  const lineup: SoccerLineup | null = isAtBreak ? breakDraft : state.lineup;
+  // Half-time is SoccerBreak, the shared break screen (below); this
+  // screen shows the lineup in play.
+  const lineup: SoccerLineup | null = state.lineup;
+  // The keeper named in this period's kit-up heads-up (below), if any.
+  const kitUpKey = kitUpKeyFor(game.id, base.currentPeriod);
   const shape = useMemo(
-    () => shapeOf(ageGroup, isAtBreak ? breakDraft : lastSetLineup(events), game.on_field_size),
-    [ageGroup, isAtBreak, breakDraft, events, game.on_field_size],
+    () => shapeOf(ageGroup, lastSetLineup(events), game.on_field_size),
+    [ageGroup, events, game.on_field_size],
   );
   const lineCaps = useMemo(() => {
     const caps = { ...shape.lines };
@@ -530,22 +430,6 @@ export function SoccerLiveGame({
   function handleTap(pid: string, unit: SoccerUnit | null) {
     setError(null);
     if (!lineup) return;
-    // At the break a tap edits the plan; the period's Start commits it.
-    if (isAtBreak) {
-      if (pid === "") {
-        if (selectedId && unit) setBreakDraft(placeInSoccerLineup(lineup, selectedId, unit));
-        else if (unit) setFillUnit(unit);
-        setSelectedId(null);
-        return;
-      }
-      if (!selectedId || selectedId === pid) {
-        setSelectedId(selectedId === pid ? null : pid);
-        return;
-      }
-      setBreakDraft(swapInSoccerLineup(lineup, selectedId, pid));
-      setSelectedId(null);
-      return;
-    }
     if (!isPeriodActive) return;
 
     if (pid === "") {
@@ -628,32 +512,6 @@ export function SoccerLiveGame({
   const addLateArrival = (pid: string) =>
     void run("addLateArrival", [auth, game.id, { player_id: pid, ...at() }]);
 
-  // ── The period's Start ──────────────────────────────────────
-  async function handleStartNextHalf() {
-    setStartConfirmOpen(false);
-    setPending(true);
-    setError(null);
-    let el = liveRootRef.current?.parentElement ?? null;
-    while (el) {
-      if (el.scrollTop > 0) el.scrollTop = 0;
-      el = el.parentElement;
-    }
-    window.scrollTo({ top: 0, behavior: "auto" });
-    const plan = breakDraft ?? state.lineup;
-    if (plan) {
-      // Kids who can't play now start on the bench, places left empty.
-      const out = new Set([...state.injuredIds, ...state.loanedIds]);
-      await enqueueLiveAction("recordSoccerLineupSet", [auth, game.id, benchOutInSoccerLineup(plan, out), undefined])
-        .flushed;
-    }
-    await enqueueLiveAction("startSoccerHalf", [auth, game.id, base.currentPeriod + 1]).flushed;
-    writeBreakDraft(draftKey, null);
-    // The heads-up's job is done once the period starts.
-    writeKitUp(kitUpKey, "");
-    setPending(false);
-    router.refresh();
-  }
-
   // ── Tile decorations ────────────────────────────────────────
   const lockModes = useMemo(() => {
     const out: Record<string, "field" | "zone"> = {};
@@ -671,22 +529,6 @@ export function SoccerLiveGame({
       swapOns.set(s.on_player_id, { pair: i + 1, unit: s.line });
     });
   }
-  // At the break, each kid's tile says where they're heading.
-  const captions = useMemo(() => {
-    if (!isAtBreak || !breakDraft || !state.lineup) return undefined;
-    const out: Record<string, SoccerTileCaption> = {};
-    for (const pid of soccerOnField(breakDraft)) {
-      const was = soccerUnitOf(state.lineup, pid);
-      const to = soccerUnitOf(breakDraft, pid)!;
-      const toWord = words[to].short || "ON";
-      out[pid] =
-        was === to
-          ? { text: "Stays", tone: "stay" }
-          : { text: `${was ? words[was].short || "On" : "Bench"} → ${toWord}`, tone: "move" };
-    }
-    return out;
-  }, [isAtBreak, breakDraft, state.lineup, words]);
-
   const selectedPlayer = selectedId ? playerById.get(selectedId) ?? null : null;
   const selectedOnField = selectedId !== null && unitOf(selectedId) !== null;
   const remainingMs = Math.max(0, periodMs - elapsedMs);
@@ -708,35 +550,30 @@ export function SoccerLiveGame({
   const actionUnit = actionPlayerId && state.lineup ? soccerUnitOf(state.lineup, actionPlayerId) : null;
   const actionIsKeeper = actionUnit === "gk";
   const actionHeld = actionPlayerId ? lockModes[actionPlayerId] ?? null : null;
-  const keeper = lineup?.keeper ? playerById.get(lineup.keeper) ?? null : null;
   const lentPlayers = squad.filter((p) => loanedSet.has(p.id) && !injuredSet.has(p.id));
 
-  // Who goes in goal next period, at the break.
-  const breakKeeperCard =
-    isAtBreak && breakDraft && shape.keeper ? (
-      <KeeperHandoverCard
-        periodWord={periodWord}
-        period={base.currentPeriod + 1}
-        gear={rules.keeperGear}
-        from={state.lineup?.keeper ? playerById.get(state.keeperAtEnd[base.currentPeriod] ?? state.lineup.keeper) ?? null : null}
-        to={keeper}
-        candidates={squad.filter(
-          (p) =>
-            !injuredSet.has(p.id) &&
-            !loanedSet.has(p.id) &&
-            (soccerUnitOf(breakDraft, p.id) !== null || breakDraft.bench.includes(p.id)),
-        )}
-        suggestedId={announcedKeeper ?? halfTimePlan?.keeper.to ?? null}
-        strategyNote={soccerKeeperNote(keeperStrategy ?? ageGroup.keeper)}
-        onPick={(pid) => {
-          if (breakDraft.keeper === pid) return;
-          setBreakDraft(
-            breakDraft.keeper ? swapInSoccerLineup(breakDraft, breakDraft.keeper, pid) : placeInSoccerLineup(breakDraft, pid, "gk"),
-          );
-        }}
-        pending={pending}
-      />
-    ) : null;
+  // Half-time: the shared break screen.
+  if (isAtBreak) {
+    return (
+      <div ref={liveRootRef}>
+        <SoccerBreak
+          auth={auth}
+          sport={sport}
+          game={game}
+          exitHref={exitHref}
+          squad={squad}
+          ageGroup={ageGroup}
+          state={base}
+          periodMs={periodMs}
+          trackScoring={trackScoring}
+          season={season}
+          keeperStrategy={keeperStrategy}
+          keeperPrefs={keeperPrefs}
+          formation={shape}
+        />
+      </div>
+    );
+  }
 
   return (
     <div ref={liveRootRef} className={`space-y-3 ${stickyPb}`.trim()}>
@@ -814,34 +651,6 @@ export function SoccerLiveGame({
         </div>
       )}
 
-      {/* Where keepers change only at a break, who's in goal next comes
-          first: they need the break to kit up. */}
-      {!rules.keeperSwapMidPeriod && breakKeeperCard}
-
-      {isAtBreak && (
-        <section className="rounded-xl border border-brand-500/40 bg-brand-50 p-4 shadow-card">
-          <p className="mb-1 text-sm font-medium text-ink">
-            {PeriodWord} {base.currentPeriod} done.
-            {trackScoring && (
-              <>
-                {" "}
-                Score: <strong>{state.teamScore.goals}</strong> – <strong>{state.opponentScore.goals}</strong>.
-              </>
-            )}
-          </p>
-          <p className="mb-3 text-xs text-ink-dim">
-            Here&apos;s the plan for the next {periodWord}: who goes in goal, who plays and where. Tap two players to
-            swap them.
-          </p>
-          <SFButton onClick={() => setStartConfirmOpen(true)} disabled={pending || !breakDraft} variant="accent" size="lg" full>
-            Start {periodLetter}
-            {base.currentPeriod + 1}
-          </SFButton>
-        </section>
-      )}
-
-      {rules.keeperSwapMidPeriod && breakKeeperCard}
-
       {!isFinished && lineup && (
         <>
           <SoccerField
@@ -864,14 +673,13 @@ export function SoccerLiveGame({
             injuredIds={state.injuredIds}
             lockModes={lockModes}
             goalsByPlayer={state.playerGoals}
-            captions={captions}
           />
           <SoccerBench
             words={words}
             bench={lineup.bench}
             playersById={playerById}
             onTap={(pid) => handleTap(pid, null)}
-            onLongPress={isPeriodActive || isAtBreak ? setActionPlayerId : undefined}
+            onLongPress={isPeriodActive ? setActionPlayerId : undefined}
             selectedPlayerId={selectedId}
             dimUnselected={isPeriodActive}
             swapOns={swapOns}
@@ -1022,12 +830,8 @@ export function SoccerLiveGame({
           cue="whistle goes"
           loading={pending}
           onStart={() => {
-            if (isPreKickoff) {
-              setStartConfirmOpen(false);
-              void run("startSoccerHalf", [auth, game.id, 1]);
-            } else {
-              void handleStartNextHalf();
-            }
+            setStartConfirmOpen(false);
+            void run("startSoccerHalf", [auth, game.id, 1]);
           }}
           onCancel={() => setStartConfirmOpen(false)}
         />
@@ -1173,8 +977,7 @@ export function SoccerLiveGame({
           onPick={(pid) => {
             const unit = fillUnit;
             setFillUnit(null);
-            if (isAtBreak) setBreakDraft(placeInSoccerLineup(lineup, pid, unit));
-            else void sub(null, pid, unit);
+            void sub(null, pid, unit);
           }}
           onCancel={() => setFillUnit(null)}
         />

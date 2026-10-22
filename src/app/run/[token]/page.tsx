@@ -542,6 +542,7 @@ export default async function RunPage({ params }: RunPageProps) {
       <div className="space-y-3 px-4 py-3">
         <TouchLiveGame
           auth={auth}
+          sport={sport}
           game={g}
           teamName={teamName}
           squad={squad}

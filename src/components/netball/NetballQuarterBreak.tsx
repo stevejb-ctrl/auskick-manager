@@ -1,54 +1,24 @@
 "use client";
 
 // ─── Netball Quarter Break ────────────────────────────────────
-// Visual + interaction language mirrors AFL's QuarterBreak component
-// at src/components/live/QuarterBreak.tsx. The header card carries the
-// fairness score + suggested-reshuffle toggle, and the body lists
-// players grouped by court third (Attack / Centre / Defence) plus
-// Bench. Tap two players to swap their slots — the same "two-tap to
-// swap" pattern coaches already know from AFL.
-//
-// Differences from AFL:
-//   - Each netball position holds exactly 1 player, so the swap is
-//     position-to-position rather than zone-bucket-to-zone-bucket.
-//   - Time bars show three thirds (attack/centre/defence) instead of
-//     five zones — uses the same colourblind-safe palette tokens
-//     (zone-f / zone-c / zone-b) so the design language carries.
-//   - Position chip (GS / GA / etc.) replaces the AFL jersey-number
-//     badge since netball doesn't use squad numbers.
-//   - Fairness score is the position-count CV from
-//     netballFairnessScore, not minutes-equity.
+// Netball's engine (the position suggester with pinned locks, the
+// position cycle, the plan-ahead seed, the staged draft, the lend /
+// injured / arrived / out writers) adapted onto the one break screen
+// every sport shares (quarter-break/PeriodBreak). Each slot is a bib:
+// a swap moves the kids, the bib stays with the slot. The layout lives
+// there; nothing here draws a third or a tile.
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/Button";
-import { SFButton } from "@/components/sf";
-import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
-import { InlineAlert } from "@/components/ui/InlineAlert";
-import { Label } from "@/components/ui/Label";
-import { RotationModeToggle, type RotationMode } from "@/components/quarter-break/RotationModeToggle";
-import { QuarterKickoffBar } from "@/components/quarter-break/QuarterKickoffBar";
-import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
-import { CourtDisplay } from "@/components/netball/CourtDisplay";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { setNetballOnFieldSize } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
-import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
-import { StartQuarterModal } from "@/components/live/StartQuarterModal";
-import {
-  InjuryReplacementModal,
-  type InjuryReplacementCandidate,
-} from "@/components/live/InjuryReplacementModal";
+import { type InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
 import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
-import {
-  netballSport,
-  pickNetballPositionsToFill,
-  primaryThirdFor,
-} from "@/lib/sports/netball";
+import { netballSport, pickNetballPositionsToFill, primaryThirdFor } from "@/lib/sports/netball";
 import {
   type GenericLineup,
   type PlayerThirdMs,
-  formatMinSec,
   gamePositionCounts,
   lastQuarterThirds,
   lastQuarterTeammatesInThird,
@@ -64,47 +34,40 @@ import { benchPlayerInPositionLineup } from "@/lib/live/lineupOps";
 import { useStagedBreakDraft } from "@/lib/live/useStagedBreakDraft";
 import { hapticTap } from "@/lib/haptics";
 import type { AgeGroupConfig } from "@/lib/sports/types";
-import type { GameEvent, LiveAuth, Player } from "@/lib/types";
-
-import { netballRuleCheck } from "@/lib/sports/netball/engine";
-import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
+import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
+import { cycleLineup, netballRuleCheck } from "@/lib/sports/netball/engine";
 import { pairScoreUndos } from "@/lib/live/scoreUndo";
-// Slot identifiers used to bucket the lineup display. "bench" is a
-// pseudo-third for the strip below the three on-court bands.
-type Slot = "attack-third" | "centre-third" | "defence-third" | "bench";
+import type { RuleCheckItem } from "@/lib/playbook/ruleCheck";
+import { breakConfigFor } from "@/lib/sports/break";
+import { PeriodBreak, type BreakPlayer, type BreakStrategy } from "@/components/quarter-break/PeriodBreak";
+import { buildBoard, placesOf, swapInStaged, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
+import { breakIssues } from "@/lib/live/break/issues";
 
-const SLOT_LABEL: Record<Slot, string> = {
-  "attack-third": "Attack",
-  "centre-third": "Centre",
-  "defence-third": "Defence",
-  bench: "Bench",
+type NetballMode = "suggested" | "rotate" | "keep" | "manual";
+
+// The break screen's strategy names over netball's modes ("keep" is
+// the screen's Repeat; Rotate is the position cycle).
+const STRATEGY_OF: Record<NetballMode, BreakStrategy> = {
+  suggested: "suggested",
+  rotate: "rotate",
+  keep: "repeat",
+  manual: "manual",
 };
-
-// Map third → bar-segment colour. Same palette tokens AFL uses
-// (orange = forward / emerald = centre / blue = back, per the
-// 2026-05-23 centre-colour swap) so a coach who manages both
-// sports doesn't have to relearn the colour code.
-const THIRD_BAR_COLOR: Record<"attack" | "centre" | "defence", string> = {
-  attack: "bg-zone-f",
-  centre: "bg-zone-c",
-  defence: "bg-zone-b",
-};
-
-// Section-header text tint by slot (third). Bench stays neutral.
-// Mirrors the AFL QuarterBreak treatment so the per-third card
-// header colour matches the bar-segment colour on each player
-// tile inside the card. Steve 2026-05-23 — parent feedback to
-// link labels to colours visibly.
-const SLOT_HEADER_TEXT: Record<Slot, string> = {
-  "attack-third": "text-zone-f",
-  "centre-third": "text-zone-c",
-  "defence-third": "text-zone-b",
-  bench: "text-ink-dim",
+const MODE_OF: Record<BreakStrategy, NetballMode> = {
+  suggested: "suggested",
+  rotate: "rotate",
+  repeat: "keep",
+  manual: "manual",
 };
 
 interface Props {
   auth: LiveAuth;
   gameId: string;
+  game: Game;
+  /** The top bar's Exit. */
+  exitHref?: string;
+  /** The top bar's "?" (the walkthrough). */
+  onHelp?: () => void;
   squad: Player[];
   availableIds: string[];
   ageGroup: AgeGroupConfig;
@@ -114,72 +77,57 @@ interface Props {
   previousLineup: GenericLineup;
   /** Lock-for-next-break entries from the live actions menu. Pre-applied to the suggested seed. */
   preAppliedLocks: Record<string, string>;
-  /** Quarter length in seconds — drives time bars. */
+  /** Quarter length in seconds. */
   periodSeconds: number;
   thisGameEvents: GameEvent[];
   seasonEvents: GameEvent[];
   injuredIds: Set<string>;
   loanedIds: Set<string>;
-  /** Per-player goals scored this game — drives the score chip on each tile. */
+  /** Per-player goals scored this game — the score on each tile. */
   playerGoals: Record<string, number>;
-  /** Whether the team has scoring tracked on. Hides the recap + Fix-scores
-   *  panel when false. */
+  /** Whether the team has scoring tracked on: the score chip shows. */
   trackScoring?: boolean;
   /**
-   * Per-player time-by-third map computed by the parent. Includes
-   * mid-quarter substitutions via the segment-based accounting in
-   * NetballLiveGame — passing it down avoids the Q-break tiles
-   * computing their own (event-only) version that misses
-   * mid-quarter subs and shows a substitute as 0:00 while the
-   * injured player keeps the credit.
+   * Per-player time-by-third map computed by the parent, mid-quarter
+   * subs included (segment accounting in NetballLiveGame), so a
+   * substitute doesn't show 0:00 while the player they replaced keeps
+   * the credit.
    */
   playerStats?: Map<string, PlayerThirdMs>;
   /**
-   * Mid-quarter substitution log for the quarter just ended. Threaded
-   * straight into period_break_swap's metadata so the replay engine
-   * can split the closing quarter's time credit between sub-out and
-   * sub-in players. Without this, after the next quarter starts and
-   * the page replays from events, the original lineup would get
-   * credited the full quarter (and the substitute would show 0:00).
+   * Mid-quarter substitution log for the quarter just ended, threaded
+   * into period_break_swap's metadata so the replay splits the closing
+   * quarter's time between sub-out and sub-in players.
    */
   midQuarterSubs: Array<{
     positionId: string;
-    // null when the slot was empty (no sub-out player) — see
-    // NetballLiveGame's MidQuarterSub for the full story.
     outPlayerId: string | null;
-    // null when the sub VACATES the position (short-squad "Move to
-    // empty position" — emits paired vacate + fill subs).
     inPlayerId: string | null;
     atMs: number;
   }>;
-  /**
-   * Steve 2026-05-16 (AFL parity): cohort-chip mode map. AFL has
-   * had this in its Q-break suggester since chips shipped; netball
-   * was silently ignoring it. Each player carries their chip via
-   * the shared `Player.chip` field — this prop just supplies the
-   * team-level per-chip split/group mode.
-   */
+  /** Cohort-chip mode map (AFL parity, Steve 2026-05-16). */
   chipModeByKey?: Partial<Record<"a" | "b" | "c", import("@/lib/chips").ChipMode>>;
   /** How we play for the netball suggester (UX plan Phase 5). */
   netballPlaybook?: import("@/lib/sports/netball/engine").NetballPlaybookInput;
   /**
-   * Steve 2026-05-23: short-squad on-court size. When omitted, falls
-   * back to `ageGroup.defaultOnFieldSize` so existing surfaces are
-   * full-strength. When set, the suggester only fills `onFieldSize`
-   * positions and the validator accepts the shorter lineup. The
-   * Q-break also prefers to keep whichever positions the previous
-   * quarter had filled — preserves the coach's blank-slot choice
-   * across breaks instead of drifting back to the default fill
-   * priority every Q.
+   * Short-squad on-court size (Steve 2026-05-23). Omitted: the age
+   * group's full strength. The break keeps whichever positions the last
+   * quarter had filled.
    */
   currentOnFieldSize?: number;
   /** Called once the period_break_swap + quarter_start actions complete. */
   onStarted: () => void;
 }
 
+const stagedOf = (l: GenericLineup): StagedLineup => ({ groups: l.positions, bench: l.bench });
+const lineupOf = (s: StagedLineup): GenericLineup => ({ positions: s.groups, bench: s.bench });
+
 export function NetballQuarterBreak({
   auth,
   gameId,
+  game,
+  exitHref,
+  onHelp,
   squad,
   availableIds,
   ageGroup,
@@ -201,68 +149,39 @@ export function NetballQuarterBreak({
   onStarted,
 }: Props) {
   const nextQuarter = currentQuarter + 1;
-  const playersById = useMemo(
-    () => new Map(squad.map((p) => [p.id, p])),
-    [squad],
-  );
+  const playersById = useMemo(() => new Map(squad.map((p) => [p.id, p])), [squad]);
   const positions = ageGroup.positions;
 
-  // F2 plan-ahead pin (ROTPLAN-02): when the coach built this upcoming
-  // period's lineup during the dying minutes of the last one, the break
-  // opens PRE-SEEDED from it instead of the cold suggestion. Read from
-  // the SAME shared `plannedRotation` slice AFL uses — netball positions
-  // are the opaque `groupIds`, so the seed contract is identical.
+  // F2 plan-ahead pin (ROTPLAN-02): the same shared `plannedRotation`
+  // slice AFL uses; netball positions are the seed's opaque groupIds.
   const plannedRotation = useLiveGame((s) => s.plannedRotation);
   const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
 
-  // Short-squad target for this break — clamped to the age group's
-  // min/max so a stale on_field_size column doesn't corrupt the
-  // suggester input. Defaults to the age group's full-strength size
-  // for surfaces that don't yet thread the prop.
+  // Short-squad target for this break, clamped to the age group's range.
   const effectiveOnFieldSize = Math.max(
     ageGroup.minOnFieldSize,
-    Math.min(
-      ageGroup.maxOnFieldSize,
-      Math.floor(currentOnFieldSize ?? ageGroup.defaultOnFieldSize),
-    ),
+    Math.min(ageGroup.maxOnFieldSize, Math.floor(currentOnFieldSize ?? ageGroup.defaultOnFieldSize)),
   );
 
-  // Positions to fill for the next quarter. When the previous
-  // quarter's actual filled positions sum to the same on-field size
-  // (no late arrivals / loans mid-quarter), reuse those exact
-  // positions — that's how a Q1 manual "leave WA blank instead of
-  // WD" choice survives into Q2 instead of getting wiped by the
-  // default fill priority. Otherwise fall back to the default
-  // priority. Matches the AFL `effectiveZoneCaps` pattern from
-  // 8a92f71.
+  // Positions to fill next quarter: last quarter's filled positions when
+  // they add up to the on-court size (a coach's "leave WA blank" choice
+  // survives), else the default fill priority.
   const positionsToFill = useMemo(() => {
-    const prev = previousLineup;
-    if (prev) {
-      const filled = new Set(
-        positions.filter((p) => (prev.positions[p]?.length ?? 0) > 0),
-      );
-      if (filled.size === effectiveOnFieldSize) {
-        return pickNetballPositionsToFill(
-          ageGroup,
-          effectiveOnFieldSize,
-          filled,
-        );
-      }
+    const filled = new Set(positions.filter((p) => (previousLineup.positions[p]?.length ?? 0) > 0));
+    if (filled.size === effectiveOnFieldSize) {
+      return pickNetballPositionsToFill(ageGroup, effectiveOnFieldSize, filled);
     }
     return pickNetballPositionsToFill(ageGroup, effectiveOnFieldSize);
   }, [ageGroup, previousLineup, positions, effectiveOnFieldSize]);
 
-
-  // ─── Suggested reshuffle ───────────────────────────────────
   const sidelinedSet = useMemo(() => {
     const s = new Set<string>();
     injuredIds.forEach((id) => s.add(id));
     loanedIds.forEach((id) => s.add(id));
     return s;
   }, [injuredIds, loanedIds]);
-  // Pool: availableIds + anyone currently on court (catches mid-quarter
-  // fill-ins) minus injured/loaned. Same expansion the LineupPicker
-  // does so a substituted-in player doesn't vanish at Q-break.
+  // Pool: availableIds + anyone on court last quarter (mid-quarter
+  // fill-ins), minus injured/loaned.
   const candidatePool = useMemo(() => {
     const seen = new Set<string>();
     const out: string[] = [];
@@ -278,10 +197,7 @@ export function NetballQuarterBreak({
     return out;
   }, [availableIds, previousLineup, sidelinedSet]);
 
-  // Per-player time on court (ms), summed across thirds. Computed
-  // here (above suggestedLineup) so the suggester can use it as the
-  // who-plays sort key. Defined ONCE here and reused by the time-bar
-  // rendering below.
+  // Per-player time on court (ms) by third.
   const thirdMs = useMemo(() => {
     if (playerStats) return playerStats;
     return playerThirdMs(
@@ -291,58 +207,28 @@ export function NetballQuarterBreak({
       primaryThirdFor as (positionId: string) => "attack-third" | "centre-third" | "defence-third" | null,
     );
   }, [playerStats, thisGameEvents, periodSeconds]);
+  const totalMsByPlayer = useMemo(() => {
+    const out: Record<string, number> = {};
+    thirdMs.forEach((stats, pid) => {
+      out[pid] = stats.attack + stats.centre + stats.defence;
+    });
+    return out;
+  }, [thirdMs]);
 
   const suggestedLineup = useMemo(() => {
     const season = seasonPositionCounts(seasonEvents);
     const thisGame = gamePositionCounts(thisGameEvents);
-    const thirdLookup = primaryThirdFor as (
-      positionId: string,
-    ) => "attack-third" | "centre-third" | "defence-third" | null;
+    const thirdLookup = primaryThirdFor as (positionId: string) => "attack-third" | "centre-third" | "defence-third" | null;
     const lastThirds = lastQuarterThirds(thisGameEvents, thirdLookup);
-    const prevTeammates = lastQuarterTeammatesInThird(
-      thisGameEvents,
-      thirdLookup,
-    );
-    // SUB-01/B4 recency guard. Absolute game-elapsed ms of each
-    // player's most recent bench->court transition, persisting across
-    // period breaks. Used as a pure tiebreak so a player who only just
-    // came on at the previous break isn't churned straight back off when
-    // tied on game time — the longer-serving teammate benches instead.
+    const prevTeammates = lastQuarterTeammatesInThird(thisGameEvents, thirdLookup);
+    // SUB-01/B4 recency guard: a kid who only just came on isn't churned
+    // straight back off when tied on game time.
     const lastSubbedOnMs = replayNetballGame(thisGameEvents).lastSubbedOnMs;
-    // Per-player total minutes (in ms). Drives the suggester's
-    // who-plays sort directly — least-time-played first. Sourced
-    // from the parent's playerStats (already computed for the live
-    // bars) which factors in mid-quarter subs via the segment
-    // accounting, so a player who came on at 0:30 of Q1 and got
-    // subbed off at 1:00 has 30,000 ms credited, NOT a full
-    // quarter-equivalent. Falls back to a self-computed thirdMs
-    // when playerStats isn't passed (defensive — shouldn't happen).
-    const totalMsByPlayer: Record<string, number> = {};
-    thirdMs.forEach((stats, pid) => {
-      totalMsByPlayer[pid] = stats.attack + stats.centre + stats.defence;
-    });
-    // Season-level utilisation tiebreak. Counts each player's
-    // quarters-played vs quarters-available across all prior games
-    // — a consistent attendee who's been benched twice already
-    // this season starts collecting sort priority for the next
-    // game. The suggester only consults this signal when in-game
-    // ms is tied, so within a single game the standard rotation
-    // still drives the decisions.
     const seasonAvail = seasonAvailability(seasonEvents);
-    // Chip data is sport-agnostic — pulled from each player's
-    // `chip` field; the team-level mode map arrives via props.
-    // Drives the new tier-6 chip term in suggestNetballLineup
-    // (AFL parity, Steve 2026-05-16).
-    const chipByPlayerId = Object.fromEntries(
-      // Cohort chips retired with How we play (UX plan 5.8): their intent now lives in roles and rules.
-      squad.map((p) => [p.id, null]),
-    );
+    // Cohort chips retired with How we play (UX plan 5.8): their intent now lives in roles and rules.
+    const chipByPlayerId = Object.fromEntries(squad.map((p) => [p.id, null]));
     const base = suggestNetballLineup({
       playerIds: candidatePool,
-      // Short-squad: only fill the positions chosen by
-      // `positionsToFill` above — either the previous quarter's
-      // shape (preserves a coach's manual blank-slot move) or
-      // the default fill priority.
       positions: positionsToFill,
       season,
       thisGame,
@@ -358,20 +244,13 @@ export function NetballQuarterBreak({
       lastSubbedOnMs,
       playbook: netballPlaybook ? { ...netballPlaybook, previousLineup } : undefined,
     });
-    // Pre-apply locks: locked player goes to locked position. If the
-    // locked player was already placed elsewhere by the suggester, we
-    // SWAP them with whoever's at the target slot — not bench-the-
-    // displaced — so we don't leave a hole at the locked player's old
-    // position. Only when the locked player came from the bench (or
-    // wasn't placed at all) does the displaced player end up benched.
+    // Pre-apply locks: the locked kid goes to their locked bib. A kid
+    // displaced from it takes the locked kid's old bib (no hole), else
+    // the bench.
     if (Object.keys(preAppliedLocks).length === 0) return base;
-    const next: GenericLineup = {
-      positions: {},
-      bench: [...base.bench],
-    };
+    const next: GenericLineup = { positions: {}, bench: [...base.bench] };
     for (const id of positions) next.positions[id] = [...(base.positions[id] ?? [])];
     for (const [posId, lockedPid] of Object.entries(preAppliedLocks)) {
-      // Find where the locked player currently is.
       let lockedFromPos: string | null = null;
       for (const id of Object.keys(next.positions)) {
         if (next.positions[id].includes(lockedPid)) {
@@ -381,18 +260,11 @@ export function NetballQuarterBreak({
       }
       const lockedFromBench = next.bench.includes(lockedPid);
       const displacedAtTarget = (next.positions[posId] ?? []).filter((p) => p !== lockedPid);
-      // Vacate locked player from their old spot.
       if (lockedFromPos && lockedFromPos !== posId) {
         next.positions[lockedFromPos] = next.positions[lockedFromPos].filter((p) => p !== lockedPid);
       }
-      if (lockedFromBench) {
-        next.bench = next.bench.filter((p) => p !== lockedPid);
-      }
-      // Place lock at target.
+      if (lockedFromBench) next.bench = next.bench.filter((p) => p !== lockedPid);
       next.positions[posId] = [lockedPid];
-      // Re-home the displaced player. If the lock came from another
-      // court position, swap into that vacated slot — fills the hole
-      // we'd otherwise leave behind. Otherwise bench them.
       for (const p of displacedAtTarget) {
         if (p === lockedPid) continue;
         if (lockedFromPos && lockedFromPos !== posId && next.positions[lockedFromPos].length === 0) {
@@ -406,167 +278,79 @@ export function NetballQuarterBreak({
   }, [
     candidatePool,
     positions,
+    positionsToFill,
     seasonEvents,
     thisGameEvents,
     nextQuarter,
     preAppliedLocks,
-    thirdMs,
+    totalMsByPlayer,
+    squad,
+    chipModeByKey,
+    netballPlaybook,
+    previousLineup,
   ]);
 
   // ─── F2 next-period pre-seed (ROTPLAN-02 / D-13) ─────────────
-  // The upcoming period's 0-based index. At a break, currentQuarter is
-  // the quarter that just ended, so the upcoming period's index is
-  // exactly `nextQuarter - 1` (== currentQuarter). Mirrors AFL QB.
   const upcomingPeriodIndex = nextQuarter - 1;
   const seededDraft = useMemo<GenericLineup | null>(() => {
     const seed = seedNextPeriodLineup({
-      pin:
-        plannedRotation && plannedRotation.gameId === gameId
-          ? plannedRotation
-          : null,
+      pin: plannedRotation && plannedRotation.gameId === gameId ? plannedRotation : null,
       periodIndex: upcomingPeriodIndex,
-      // Only currently-available players may be fielded — a pinned
-      // player now injured/loaned/out is reconciled OUT (D-13). The
-      // candidatePool already excludes sidelined ids.
+      // Only kids who can play may be fielded (D-13).
       availableIds: candidatePool,
       groupIds: positions,
     });
     if (!seed) return null;
-    // Convert the sport-neutral seed into a netball GenericLineup. Every
-    // expected position gets an entry (empty if the pin placed none);
-    // any available player the pin didn't place (e.g. a late arrival
-    // added after the pin) lands on the bench so nobody is lost.
     const positionsObj: Record<string, string[]> = {};
     for (const id of positions) positionsObj[id] = seed.groups[id] ?? [];
     const placed = new Set(Object.values(seed.groups).flat());
     const onBench = new Set(seed.bench);
-    const extraBench = candidatePool.filter(
-      (id) => !placed.has(id) && !onBench.has(id),
-    );
+    const extraBench = candidatePool.filter((id) => !placed.has(id) && !onBench.has(id));
     return { positions: positionsObj, bench: [...seed.bench, ...extraBench] };
   }, [plannedRotation, gameId, upcomingPeriodIndex, candidatePool, positions]);
   const hasPlannedSeed = seededDraft !== null;
 
-  // ─── Draft state + lineup-build mode ─────────────────────────
-  // 3-mode toggle:
-  //   - "suggested": run the fairness rebalancer for the next quarter
-  //     (the default — what coaches who don't micromanage want).
-  //   - "keep": carry last quarter's lineup forward unchanged. Useful
-  //     when the rotation already feels right and the coach just
-  //     wants to keep playing.
-  //   - "manual": clear the court entirely, park the candidate pool
-  //     on the bench, and let the coach build the lineup themselves
-  //     position-by-position. Mirrors the AFL Q-break.
+  // ─── Draft + strategy ───────────────────────────────────────
   const [draft, setDraft] = useState<GenericLineup>(suggestedLineup);
-  // Rule check + Why for the lineup about to start (UX plan 4.3).
-  const breakRuleCheck = useMemo(() => {
-    if (!netballPlaybook) return null;
-    const names: Record<string, string> = {};
-    for (const p of squad) names[p.id] = p.full_name;
-    return netballRuleCheck({
-      lineup: draft,
-      previousLineup,
-      names,
-      thirdMs,
-      period: nextQuarter,
-      periodCount: ageGroup.periodCount ?? 4,
-      periodMs: periodSeconds * 1000,
-      input: netballPlaybook,
-    });
-  }, [netballPlaybook, squad, draft, previousLineup, thirdMs, nextQuarter, periodSeconds, ageGroup.periodCount]);
-  const [selected, setSelected] = useState<string | null>(null);
-  // A kid lent, hurt or marked out stops being selected (the next tap
-  // would swap them on court: Stagehand round 4, sideline-chaos-netball).
-  useEffect(() => {
-    if (selected && sidelinedSet.has(selected)) setSelected(null);
-  }, [selected, sidelinedSet]);
-  // Initial value defers to the live store's rotationMode (set by
-  // the pre-game LineupPicker or by a prior Q-break) so a coach who
-  // picked "Set manually" sees Manual at every QB instead of having
-  // to re-pick each break. Mirrors the AFL QB pattern from
-  // ba04bd1. "keep" is a per-Q decision so it doesn't round-trip
-  // through the store.
+  // Initial mode defers to the live store's rotationMode, so a coach
+  // who picked Manual (or Rotate) keeps it at every break; Repeat
+  // ("keep") is a per-break decision and never persists.
   const persistedRotationMode = useLiveGame((s) => s.rotationMode);
   const setPersistedRotationMode = useLiveGame((s) => s.setRotationMode);
-  const [lineupMode, setLineupMode] = useState<"suggested" | "keep" | "manual">(
-    persistedRotationMode === "manual" ? "manual" : "suggested",
+  const [lineupMode, setLineupMode] = useState<NetballMode>(
+    persistedRotationMode === "manual" ? "manual" : persistedRotationMode === "rotate" ? "rotate" : "suggested",
   );
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  // Phase 5: router.refresh() after startNetballQuarter success so the
-  // page rerenders into the next quarter's live state without a manual
-  // reload. Pairs with revalidatePath in netball-actions.ts.
-  // (Phase 4 deferred item #2 / 04-EVIDENCE.md §5.)
   const router = useRouter();
-  // Long-press target for the actions modal. Populated when the coach
-  // long-presses an INJ / LENT tile in the sidelined section so they
-  // can mark recovered or bring back from loan from the Q-break view
-  // without bouncing back to the live court.
-  const [actionsTarget, setActionsTarget] = useState<string | null>(null);
-  // Position the coach is filling via the SlotFillSheet. Set when
-  // they tap an empty position with no player pre-selected; cleared
-  // on pick or cancel.
-  const [fillTargetPosition, setFillTargetPosition] = useState<string | null>(
-    null,
-  );
-  // Players whom the coach has just un-injured / un-loaned during this
-  // Q-break session. They re-enter the candidate pool, which means the
-  // suggester would otherwise put them straight back on court — but a
-  // recently-recovered player should default to the BENCH so the coach
-  // explicitly decides if and where to bring them on. We post-process
-  // the draft below to push these ids onto the bench regardless of
-  // what the suggester chose. Cleared implicitly when the component
-  // unmounts (next quarter starts a fresh instance).
+  // Kids brought back at this break (recovered, back from a loan): they
+  // default to the bench so the coach decides if and where they go on.
   const [forcedBenchIds, setForcedBenchIds] = useState<Set<string>>(new Set());
-  // Two-step start: handleStart commits the lineup snapshot
-  // (period_break_swap) then surfaces the await-kickoff modal so the
-  // GM can wait for the umpire's whistle. The modal's CTA fires the
-  // actual quarter_start. Splitting the flow this way means the clock
-  // doesn't tick from the lineup-confirm tap — it ticks from when the
-  // umpire calls play, which is the moment a coach actually wants
-  // recorded. (Mirrors AFL's StartQuarterModal pattern.)
-  const [pendingStartQuarter, setPendingStartQuarter] = useState<number | null>(null);
 
-  // Manual-mode seed: every position empty, candidatePool sitting on
-  // the bench. Coach builds the lineup from scratch via tap-tap-to-
-  // place. Memoised so the useEffect-driven draft swap doesn't
-  // rebuild a new bench-array every render and re-trigger itself.
+  // Manual: every position empty, the pool on the bench.
   const manualLineup = useMemo<GenericLineup>(() => {
     const positionsObj: Record<string, string[]> = {};
     for (const id of positions) positionsObj[id] = [];
     return { positions: positionsObj, bench: [...candidatePool] };
   }, [positions, candidatePool]);
 
-  // Refresh draft when mode flips or suggestion changes. Then post-
-  // process: any forcedBenchIds (recently-recovered players) the
-  // suggester put on court get SWAPPED with whoever's first on the
-  // bench, so the slot stays filled and the recovered player lands on
-  // bench by default. Coach can manually swap them back into a slot
-  // if they want to.
-  // Only re-derive `draft` when the user explicitly changes lineup
-  // mode. (A recovery at the break used to re-derive it too, wiping the
-  // coach's edits; the recovered kid is now put on the bench directly,
-  // see restoreToBench.)
-  // Without this guard, ambient prop changes (suggestedLineup
-  // recomputing as thisGameEvents updates) cause the user's
-  // committed draft to be overwritten with a fresh suggestion —
-  // visible as a "lineup flickers a few seconds after Q-break
-  // mounts" bug Steve reported 2026-05-09.
-  const lastAppliedModeRef = useRef<typeof lineupMode | null>(null);
-  // F2 pre-seed: when the coach pinned this upcoming period's lineup,
-  // open the break ON that plan instead of the fresh suggestion. Runs
-  // BEFORE the mode effect below (declaration order = mount run order)
-  // and primes `lastAppliedModeRef` to the current mode so the
-  // suggested/manual effect treats the seed as the applied initial
-  // state and does NOT stomp it (D-12). Applied once; a late-hydrating
-  // pin still seeds via the guard. Mirrors AFL QuarterBreak.
+  // Rotate: the position cycle (GS → GA → … → GK → bench → GS).
+  const rotatedLineup = useMemo<GenericLineup>(() => {
+    const cycled = cycleLineup(previousLineup, positionsToFill, candidatePool, netballPlaybook);
+    for (const id of positions) cycled.positions[id] ??= [];
+    return cycled;
+  }, [previousLineup, positionsToFill, candidatePool, netballPlaybook, positions]);
+
+  // Only re-derive `draft` when the coach explicitly changes the mode
+  // (ambient recomputes must never stomp their edits, Steve 2026-05-09).
+  // Kids brought back this break stay on the bench whatever the mode.
+  const lastAppliedModeRef = useRef<NetballMode | null>(null);
   const didSeedRef = useRef(false);
   useEffect(() => {
     if (didSeedRef.current) return;
     if (!seededDraft) return;
     didSeedRef.current = true;
     setDraft(seededDraft);
-    setSelected(null);
     lastAppliedModeRef.current = lineupMode;
   }, [seededDraft, lineupMode]);
   useEffect(() => {
@@ -575,22 +359,20 @@ export function NetballQuarterBreak({
     const base =
       lineupMode === "suggested"
         ? suggestedLineup
-        : lineupMode === "manual"
-        ? manualLineup
-        : previousLineup;
+        : lineupMode === "rotate"
+          ? rotatedLineup
+          : lineupMode === "manual"
+            ? manualLineup
+            : previousLineup;
     if (forcedBenchIds.size === 0) {
       setDraft(base);
-      setSelected(null);
       return;
     }
     const next: GenericLineup = {
-      positions: Object.fromEntries(
-        Object.entries(base.positions).map(([k, v]) => [k, [...v]]),
-      ),
+      positions: Object.fromEntries(Object.entries(base.positions).map(([k, v]) => [k, [...v]])),
       bench: [...base.bench],
     };
     forcedBenchIds.forEach((pid) => {
-      // Find the recovered player's current spot in the draft.
       let courtPos: string | null = null;
       for (const [posId, ids] of Object.entries(next.positions)) {
         if (ids.includes(pid)) {
@@ -599,39 +381,23 @@ export function NetballQuarterBreak({
         }
       }
       if (courtPos) {
-        // Swap with the first eligible bench player (skip other
-        // forced-bench ids so we don't ping-pong them onto court).
         const swapPartner = next.bench.find((b) => !forcedBenchIds.has(b));
         if (swapPartner) {
-          next.positions[courtPos] = next.positions[courtPos].map((p) =>
-            p === pid ? swapPartner : p,
-          );
+          next.positions[courtPos] = next.positions[courtPos].map((p) => (p === pid ? swapPartner : p));
           next.bench = next.bench.filter((p) => p !== swapPartner);
           if (!next.bench.includes(pid)) next.bench.push(pid);
         }
-        // No bench player to swap with — leave them on court rather
-        // than create an empty slot. Edge case (full court, no bench
-        // space).
       } else if (!next.bench.includes(pid)) {
-        // Not on court: on the bench, even before the refresh brings
-        // them back into the suggestion (they'd otherwise vanish).
         next.bench.push(pid);
       }
     });
     setDraft(next);
-    setSelected(null);
-  }, [lineupMode, suggestedLineup, previousLineup, manualLineup, forcedBenchIds]);
+  }, [lineupMode, suggestedLineup, rotatedLineup, previousLineup, manualLineup, forcedBenchIds]);
 
-  // The coach's staged lineup survives leaving the live screen (the team
-  // page and back, a reload): kept in the live store, restored here over
-  // the seed and suggestion above (declared after them, so it wins), for
-  // the kids who can still play. Shared with the AFL break. Sidelined
-  // kids aren't restored to the bench: the Sidelined strip shows them,
-  // as it does for a fresh suggestion.
-  const stagedForStore = useMemo(
-    () => ({ groups: draft.positions, bench: draft.bench }),
-    [draft],
-  );
+  // The staged lineup survives leaving the live screen (the team page
+  // and back, a reload, the app backgrounded): kept in the live store,
+  // restored over the seed and suggestion above. Shared with every sport.
+  const stagedForStore = useMemo(() => stagedOf(draft), [draft]);
   const stagedBreakDraft = useStagedBreakDraft({
     gameId,
     period: nextQuarter,
@@ -640,233 +406,31 @@ export function NetballQuarterBreak({
     staged: stagedForStore,
     mode: lineupMode,
     onRestore: (restored) => {
-      setDraft({ positions: restored.groups, bench: restored.bench });
-      const mode = restored.mode as typeof lineupMode;
-      if (["suggested", "keep", "manual"].includes(mode)) {
+      setDraft(lineupOf(restored));
+      const mode = restored.mode as NetballMode;
+      if (["suggested", "rotate", "keep", "manual"].includes(mode)) {
         lastAppliedModeRef.current = mode;
         setLineupMode(mode);
       }
       didSeedRef.current = true;
-      setSelected(null);
     },
   });
 
-  // Players currently flagged injured or on loan — sourced from the
-  // events-derived sets in the parent. The candidatePool intentionally
-  // excludes them so the suggester doesn't put them back on court, but
-  // the Q-break still surfaces them in a "Sidelined" strip below the
-  // bench so the coach can:
-  //   - see who's unavailable for this break, and
-  //   - long-press to mark recovered / bring back, which fires the
-  //     same markInjury/markLoan actions the live court uses. Once
-  //     the event lands and the parent's sets refresh, the player
-  //     flows back into candidatePool → suggestedLineup → bench.
-  type SidelinedItem = { player: Player; status: "injured" | "loaned" };
-  const sidelined = useMemo<SidelinedItem[]>(() => {
-    const out: SidelinedItem[] = [];
-    const byId = new Map(squad.map((p) => [p.id, p]));
-    injuredIds.forEach((id) => {
-      const p = byId.get(id);
-      if (p) out.push({ player: p, status: "injured" });
-    });
-    loanedIds.forEach((id) => {
-      if (injuredIds.has(id)) return;
-      const p = byId.get(id);
-      if (p) out.push({ player: p, status: "loaned" });
-    });
-    return out;
-  }, [squad, injuredIds, loanedIds]);
-
-  // ─── Helpers ───────────────────────────────────────────────
-  function slotOfPosition(positionId: string): Slot {
-    const t = primaryThirdFor(positionId);
-    if (t === "attack-third") return "attack-third";
-    if (t === "centre-third") return "centre-third";
-    if (t === "defence-third") return "defence-third";
-    return "bench";
-  }
-
   function positionOfPlayer(pid: string, l: GenericLineup): string | null {
-    for (const [posId, ids] of Object.entries(l.positions)) {
-      if (ids.includes(pid)) return posId;
-    }
+    for (const [posId, ids] of Object.entries(l.positions)) if (ids.includes(pid)) return posId;
     return null;
   }
 
-  function isOnBench(pid: string, l: GenericLineup): boolean {
-    return l.bench.includes(pid);
-  }
-
-  function slotOfPlayer(pid: string, l: GenericLineup): Slot | null {
-    const pos = positionOfPlayer(pid, l);
-    if (pos) return slotOfPosition(pos);
-    if (isOnBench(pid, l)) return "bench";
-    return null;
-  }
-
-  // Two-tap swap. If both selected players are in positions, swap them.
-  // If one is on bench and one is in a position, swap (bench player
-  // takes the position, on-court player goes to bench).
-  // Tap an empty position slot. With a player selected, that player
-  // moves INTO the slot. The selected player's old position (if any)
-  // gets vacated — leaving its own empty placeholder if they came from
-  // court, or just removing them from the bench list. No-op without
-  // a selection.
-  // Place a specific player into a specific position — pulls them
-  // out of any current slot first so we don't double-book. Shared
-  // by the legacy "tap player + tap empty" flow and the
-  // SlotFillSheet pick handler.
-  function placeInPosition(pid: string, positionId: string) {
-    setDraft((prev) => {
-      const next: GenericLineup = {
-        positions: Object.fromEntries(
-          Object.entries(prev.positions).map(([k, v]) => [
-            k,
-            v.filter((p) => p !== pid),
-          ]),
-        ),
-        bench: prev.bench.filter((p) => p !== pid),
-      };
-      next.positions[positionId] = [pid];
-      return next;
-    });
-  }
-
-  // Tap on an empty position. No selection → open the
-  // SlotFillSheet so the coach can pick a bench player in one tap.
-  // Selection → fall through to the legacy "move selected player
-  // into the empty slot" behaviour for coaches who already started
-  // swapping.
-  function handleTapEmpty(positionId: string) {
-    if (!selected) {
-      setFillTargetPosition(positionId);
-      return;
-    }
-    if (sidelinedSet.has(selected)) {
-      setSelected(null);
-      return;
-    }
-    placeInPosition(selected, positionId);
-    setSelected(null);
-  }
-
-  function handleFillPick(playerId: string) {
-    if (!fillTargetPosition) return;
-    placeInPosition(playerId, fillTargetPosition);
-    setFillTargetPosition(null);
-    setSelected(null);
-  }
-
-  // Court captions: where each player goes next quarter, against the
-  // lineup that finished this one ("STAYS", "GA → WA", "BENCH → C").
-  const courtCaptions: Record<string, { text: string; tone: "move" | "stay" }> = {};
-  for (const [positionId, ids] of Object.entries(draft.positions)) {
-    const pid = ids[0];
-    if (!pid || sidelinedSet.has(pid)) continue;
-    const prevPos = positionOfPlayer(pid, previousLineup);
-    const wasOn = prevPos !== null || previousLineup.bench.includes(pid);
-    if (!wasOn) continue;
-    courtCaptions[positionId] =
-      prevPos === positionId
-        ? { text: "Stays", tone: "stay" }
-        : {
-            text: `${prevPos ? prevPos.toUpperCase() : "Bench"} → ${positionId.toUpperCase()}`,
-            tone: "move",
-          };
-  }
-
-  function handleTap(pid: string) {
-    if (sidelinedSet.has(pid)) return;
-    // Nor can a kid selected before they were lent, hurt or marked out:
-    // this tap starts a new selection.
-    const current = selected && !sidelinedSet.has(selected) ? selected : null;
-    if (!current) {
-      setSelected(pid);
-      return;
-    }
-    if (current === pid) {
-      setSelected(null);
-      return;
-    }
-    const a = current;
-    const b = pid;
-    setDraft((prev) => {
-      const aPos = positionOfPlayer(a, prev);
-      const bPos = positionOfPlayer(b, prev);
-      const aBench = isOnBench(a, prev);
-      const bBench = isOnBench(b, prev);
-      const next: GenericLineup = {
-        positions: Object.fromEntries(
-          Object.entries(prev.positions).map(([k, v]) => [k, [...v]]),
-        ),
-        bench: [...prev.bench],
-      };
-      // Helper: replace player x with player y in position posId.
-      const replaceAt = (posId: string, x: string, y: string) => {
-        next.positions[posId] = (next.positions[posId] ?? []).map((p) => (p === x ? y : p));
-      };
-      const removeFromBench = (x: string) => {
-        next.bench = next.bench.filter((p) => p !== x);
-      };
-      if (aPos && bPos) {
-        replaceAt(aPos, a, b);
-        replaceAt(bPos, b, a);
-      } else if (aPos && bBench) {
-        replaceAt(aPos, a, b);
-        removeFromBench(b);
-        next.bench.push(a);
-      } else if (aBench && bPos) {
-        replaceAt(bPos, b, a);
-        removeFromBench(a);
-        next.bench.push(b);
-      } else {
-        // Both on bench: swap order in the bench array (no-op effectively).
-      }
-      return next;
-    });
-    setSelected(null);
-  }
-
-  function handleModeChange(next: RotationMode) {
-    // Netball renders only the default three modes, so "rotate" can't be
-    // emitted here — guard keeps the shared toggle's type sound.
-    if (next === "rotate" || next === lineupMode) return;
-    setLineupMode(next);
-    // "keep" is a one-off per-Q decision so it doesn't persist —
-    // next Q-break falls back to whatever was previously stored
-    // (suggested or manual). Same convention as AFL QB.
-    if (next !== "keep") setPersistedRotationMode(next);
-    setSelected(null);
-  }
-
-  // ─── Sidelined-tile long-press → un-mark handlers ──────────
-  // Open the standard NetballPlayerActions modal targeted at a
-  // sidelined player. Modal exposes "Mark recovered" / "Bring back
-  // from loan"; selecting either fires markInjury/markLoan with
-  // the negation flag, the page revalidates, and the parent's
-  // event-derived injuredIds/loanedIds drop the id — at which
-  // point sidelined recomputes (player vanishes from this strip)
-  // and candidatePool/suggestedLineup re-derive (player appears
-  // on the bench, ready to be tapped into a slot).
-  function handleSidelinedLongPress(playerId: string) {
-    setActionsTarget(playerId);
-  }
-  // A kid brought back at the break (recovered, or back from a loan)
-  // joins the staged bench now, keeping the coach's edits, and is
-  // stamped bench-default so a later mode change doesn't put them
-  // straight on court. They used to land nowhere: missing from the
-  // bench and the pickers until the next quarter (sideline combos).
+  // A kid brought back joins the staged bench now, bench-default.
   function restoreToBench(playerId: string) {
     setForcedBenchIds((prev) => new Set(prev).add(playerId));
     setDraft((prev) =>
-      prev.bench.includes(playerId) ||
-      Object.values(prev.positions).some((ids) => ids.includes(playerId))
+      prev.bench.includes(playerId) || Object.values(prev.positions).some((ids) => ids.includes(playerId))
         ? prev
         : { ...prev, bench: [...prev.bench, playerId] },
     );
   }
-  // Sidelined again at the break: off the staged court, and no longer
-  // bench-default (that's for kids brought back).
+  // Sidelined at the break: off the staged court, no longer bench-default.
   function sidelineInDraft(playerId: string) {
     setForcedBenchIds((prev) => {
       if (!prev.has(playerId)) return prev;
@@ -875,127 +439,9 @@ export function NetballQuarterBreak({
       return next;
     });
     setDraft((prev) => benchPlayerInPositionLineup(prev, playerId));
-    setSelected((s) => (s === playerId ? null : s));
-  }
-  function handleUnInjury() {
-    if (!actionsTarget) return;
-    const playerId = actionsTarget;
-    setActionsTarget(null);
-    restoreToBench(playerId);
-    enqueueLiveAction("markInjury", [
-      auth,
-      gameId,
-      {
-        player_id: playerId,
-        injured: false,
-        quarter: nextQuarter,
-        elapsed_ms: 0,
-      },
-    ]);
-  }
-  function handleUnLoan() {
-    if (!actionsTarget) return;
-    const playerId = actionsTarget;
-    setActionsTarget(null);
-    restoreToBench(playerId);
-    enqueueLiveAction("markLoan", [
-      auth,
-      gameId,
-      {
-        player_id: playerId,
-        loaned: false,
-        quarter: nextQuarter,
-        elapsed_ms: 0,
-      },
-    ]);
   }
 
-  function handleStart() {
-    setError(null);
-    // Nobody injured, lent or out starts on court, however the draft
-    // got there ("Keep last quarter" picked after a lend, say). Kids
-    // brought back at this break count as available even before the
-    // refresh clears their flag. A vacated position then fails the
-    // check below, so the coach fills it.
-    let staged = draft;
-    sidelinedSet.forEach((pid) => {
-      if (!forcedBenchIds.has(pid)) staged = benchPlayerInPositionLineup(staged, pid);
-    });
-    if (staged !== draft) setDraft(staged);
-    // Validate before opening the modal. The pre-game picker already
-    // runs the same gate (NetballLineupPicker:206) — without it here,
-    // an empty slot + a benched player slip through (the suggester
-    // always fills every slot, but a coach manually dragging tiles
-    // can leave one open). validateLineup catches the most common
-    // shapes: empty position, doubled-up position, dup across
-    // position+bench. Surfaces the first issue inline.
-    const validation = netballSport.validateLineup?.(
-      staged,
-      ageGroup,
-      effectiveOnFieldSize,
-    );
-    if (validation && !validation.ok) {
-      setError(validation.issues[0]?.message ?? "Lineup is not valid.");
-      return;
-    }
-    // Open the modal — NO writes yet. Steve 2026-05-13: the
-    // period_break_swap used to commit here, but that made "Back to
-    // lineup" on the modal a dead-end (lineup snapshot already
-    // committed, no way back to the editable QB picker). Both
-    // periodBreakSwap and startNetballQuarter now defer to the
-    // modal's Start handler so cancel is clean.
-    setPendingStartQuarter(nextQuarter);
-  }
-
-  function handleConfirmQuarterStart() {
-    if (pendingStartQuarter === null) return;
-    const quarter = pendingStartQuarter;
-    setError(null);
-    // Step 1: commit the lineup snapshot.
-    enqueueLiveAction("periodBreakSwap", [
-      auth,
-      gameId,
-      quarter,
-      draft,
-      midQuarterSubs,
-    ]);
-    // Step 2: write quarter_start.
-    const { flushed } = enqueueLiveAction("startNetballQuarter", [
-      auth,
-      gameId,
-      quarter,
-    ]);
-    setPendingStartQuarter(null);
-    // The staged lineup is now the quarter's: nothing left to restore.
-    stagedBreakDraft.clear();
-    onStarted();
-    // D-14: the next-period pin has now been consumed (it seeded this
-    // break's draft, which we've just committed). Clear it so it can't
-    // leak into a later period. Only clear a pin that targeted THIS
-    // upcoming period — an unrelated/F1 pin is left alone.
-    // This period's plan (pinned mid-game or before kickoff) is used;
-    // later planned periods stay for their own breaks.
-    if (plannedRotation && plannedRotation.gameId === gameId) {
-      setPlannedRotation(consumePeriodPin(plannedRotation, upcomingPeriodIndex));
-    }
-    // Medium haptic — the "go!" tap that kicks off the quarter,
-    // aligned to the umpire's whistle. Distinct from the light
-    // taps used for score / swap registration. Mirrors AFL
-    // QuarterBreak's `handleConfirmStart` (P1-10 / `15b0a7c`).
-    void hapticTap("medium");
-    // Chain refresh after the queue flushes so SSR sees the
-    // quarter_start event and renders Q(n+1)'s live state.
-    // Without this, the init effect in NetballLiveGame would see
-    // storeAheadOfServer=true on first render and wipe state.
-    flushed.then(() => router.refresh());
-  }
-
-  // ─── Per-quarter score recap (driven by thisGameEvents) ────
-  // Counts goal / opponent_goal events per quarter so the coach
-  // can reconcile each break's scoreline with the opposition.
-  // score_undo events cancel a paired score (pairScoreUndos).
-  // Mirrors AFL replayGame's scoreByQuarter computation but lives
-  // here to avoid coupling NetballQuarterBreak to the AFL store.
+  // ─── Score (from this game's events; undos cancel their score) ──
   const scoreByQuarter = useMemo(() => {
     const periods: Array<{ ours: number; theirs: number }> = [
       { ours: 0, theirs: 0 },
@@ -1003,8 +449,6 @@ export function NetballQuarterBreak({
       { ours: 0, theirs: 0 },
       { ours: 0, theirs: 0 },
     ];
-    // Undos pair the way the replay pairs them (named target, else the
-    // latest standing score), so this matches the header.
     const undoneTargets = new Set(
       pairScoreUndos(
         [...thisGameEvents].sort((a, b) => a.created_at.localeCompare(b.created_at)),
@@ -1014,63 +458,22 @@ export function NetballQuarterBreak({
     for (const ev of thisGameEvents) {
       if (ev.type !== "goal" && ev.type !== "opponent_goal") continue;
       if (undoneTargets.has(ev.id)) continue;
-      const meta = ev.metadata as
-        | { quarter?: number; intended_quarter?: number }
-        | null;
+      const meta = ev.metadata as { quarter?: number; intended_quarter?: number } | null;
       const q =
-        typeof meta?.intended_quarter === "number"
-          ? meta.intended_quarter
-          : typeof meta?.quarter === "number"
-            ? meta.quarter
-            : 0;
+        typeof meta?.intended_quarter === "number" ? meta.intended_quarter : typeof meta?.quarter === "number" ? meta.quarter : 0;
       if (q < 1 || q > 4) continue;
       if (ev.type === "goal") periods[q - 1].ours++;
       else periods[q - 1].theirs++;
     }
     return periods;
   }, [thisGameEvents]);
-
   const cumUs = scoreByQuarter.reduce((a, p) => a + p.ours, 0);
   const cumThem = scoreByQuarter.reduce((a, p) => a + p.theirs, 0);
 
-  const [showFixScores, setShowFixScores] = useState(false);
-
-  // ─── Match-adjustments (lend / mark injured at break) ──────
-  // Mirrors the AFL QuarterBreak panel. Auto-expands when there's
-  // already an active loan or injury so the coach can see and
-  // change them without hunting for a closed section. Steve's
-  // real-game complaint ("the UX only allows lending while the
-  // quarter is running") was pure discoverability.
-  const lentPlayers = useMemo(
-    () =>
-      squad.filter((p) => loanedIds.has(p.id) && !injuredIds.has(p.id)),
-    [squad, loanedIds, injuredIds],
-  );
-  const injuredPlayersList = useMemo(
-    () => squad.filter((p) => injuredIds.has(p.id)),
-    [squad, injuredIds],
-  );
-  // Always start closed (Steve 2026-05-13). The collapsed-header
-  // summary spells out the active state in plain English so a
-  // coach can tell what's set without expanding. Mirrors AFL QB.
-  const [matchAdjustmentsOpen, setMatchAdjustmentsOpen] = useState(false);
-  const [lendPickerOpen, setLendPickerOpen] = useState(false);
-  const [injuredPickerOpen, setInjuredPickerOpen] = useState(false);
-  const [adjustError, setAdjustError] = useState<string | null>(null);
-  const [_adjustPending, startAdjustTransition] = useTransition();
-
-  // Mid-game on-field-size override (Steve 2026-05-23). Mirrors the
-  // pre-game LineupPicker dropdown so a coach who didn't know they'd
-  // be short until kickoff can adjust at Q1 break, or grow back to
-  // full strength when a late player turns up. The size lives on
-  // games.on_field_size; the page rerender threads the new value
-  // back as `currentOnFieldSize` and the suggester picks up the
-  // new shape.
+  // ─── Game settings: players on court, lend, injured, arrived, out ──
   const sizeOptions = useMemo(() => {
     const opts: number[] = [];
-    for (let n = ageGroup.maxOnFieldSize; n >= ageGroup.minOnFieldSize; n--) {
-      opts.push(n);
-    }
+    for (let n = ageGroup.maxOnFieldSize; n >= ageGroup.minOnFieldSize; n--) opts.push(n);
     return opts;
   }, [ageGroup.maxOnFieldSize, ageGroup.minOnFieldSize]);
   const [sizePending, startSizeTransition] = useTransition();
@@ -1078,146 +481,32 @@ export function NetballQuarterBreak({
 
   function handleOnFieldSizeChange(next: number) {
     setSizeError(null);
-    const clamped = Math.max(
-      ageGroup.minOnFieldSize,
-      Math.min(ageGroup.maxOnFieldSize, next),
-    );
+    const clamped = Math.max(ageGroup.minOnFieldSize, Math.min(ageGroup.maxOnFieldSize, next));
     if (clamped === effectiveOnFieldSize) return;
     startSizeTransition(async () => {
       const result = await setNetballOnFieldSize(auth, gameId, clamped);
-      if (!result.success) {
-        setSizeError(result.error);
-      }
+      if (!result.success) setSizeError(result.error);
     });
   }
 
-  // Toggle handlers — both follow the optimistic pattern: flip the
-  // local store first so the chip updates instantly, then write the
-  // event. The next page revalidate rebuilds injuredIds/loanedIds
-  // from events and the local flip becomes durable. We don't need
-  // to roll back on failure — the action returns ActionResult and
-  // the worst case is a stale chip until the next refresh. (AFL's
-  // QuarterBreak does the same.)
   function handleLendToggleAtBreak(pid: string, nextLoaned: boolean) {
-    setAdjustError(null);
-    // A kid lent at the break sits out from the next quarter: off the
-    // staged court (they used to start it there). Brought back: onto
-    // the bench.
+    // A kid lent at the break sits out from the next quarter; brought
+    // back, onto the bench.
     if (nextLoaned) sidelineInDraft(pid);
     else restoreToBench(pid);
-    enqueueLiveAction("markLoan", [
-      auth,
-      gameId,
-      {
-        player_id: pid,
-        loaned: nextLoaned,
-        // Loan applies from the start of Q{nextQuarter}.
-        quarter: nextQuarter,
-        elapsed_ms: 0,
-      },
-    ]);
+    enqueueLiveAction("markLoan", [auth, gameId, { player_id: pid, loaned: nextLoaned, quarter: nextQuarter, elapsed_ms: 0 }]);
   }
   function handleInjuryToggleAtBreak(pid: string, nextInjured: boolean) {
-    setAdjustError(null);
-    // An injured player can't stay on court. The staged draft isn't
-    // auto-reconciled to mid-break injury changes, so pull them off into
-    // the bench — the vacated named position is left empty, which blocks
-    // Start until the coach picks a replacement (netball needs all
-    // positions filled). Without this they started the next quarter on
-    // court, still accruing minutes despite the INJ badge (Steve
-    // 2026-06-15, AFL parity).
+    // An injured player can't stay on court (Steve 2026-06-15): off the
+    // staged court, their bib left empty for the coach to fill.
     if (nextInjured) sidelineInDraft(pid);
     else restoreToBench(pid);
-    enqueueLiveAction("markInjury", [
-      auth,
-      gameId,
-      {
-        player_id: pid,
-        injured: nextInjured,
-        quarter: nextQuarter,
-        elapsed_ms: 0,
-      },
-    ]);
+    enqueueLiveAction("markInjury", [auth, gameId, { player_id: pid, injured: nextInjured, quarter: nextQuarter, elapsed_ms: 0 }]);
   }
 
-  // ─── Manage-availability (AVAIL-02 / B2) ───────────────────────
-  // Mirrors the AFL QuarterBreak entry (src/components/live/
-  // QuarterBreak.tsx). Two new affordances beside Lend / Mark-injured:
-  //   • Add arrived player — a squad member who wasn't available
-  //     pre-game turns up at the break. Reuses the canonical
-  //     addLateArrival writer (same as the in-game late-arrival flow).
-  //   • Mark a player out — an on-court player has to leave. Mirrors
-  //     the injury flow (D-09): forces a bench-replacement pick via the
-  //     shared InjuryReplacementModal so the vacated position doesn't go
-  //     short. Netball has NO swap event at the break — the out is
-  //     recorded as a markInjury with reason:"out" and the replacement
-  //     takes the position in the staged next-quarter lineup (committed
-  //     by period_break_swap on Start Q{n+1}).
-  const [addArrivedPickerOpen, setAddArrivedPickerOpen] = useState(false);
-  const [markOutPickerOpen, setMarkOutPickerOpen] = useState(false);
-  // When set, the InjuryReplacementModal is shown for the mark-out
-  // forced-replacement pick. position = the court position the out
-  // player is vacating (so the replacement lands in the same spot).
-  const [outReplacement, setOutReplacement] = useState<{
-    outId: string;
-    positionId: string;
-  } | null>(null);
-
-  // Add-arrived candidates: squad members not available pre-game and
-  // not already in the staged lineup (neither on court nor bench).
-  const arrivalCandidates = useMemo(() => {
-    const inLineup = new Set<string>(draft.bench);
-    for (const ids of Object.values(draft.positions)) {
-      for (const id of ids) inLineup.add(id);
-    }
-    const availSet = new Set(availableIds);
-    return squad
-      .filter((p) => !inLineup.has(p.id) && !availSet.has(p.id))
-      .map((p) => ({ id: p.id, name: p.full_name }));
-  }, [squad, draft, availableIds]);
-
-  // Mark-out candidates: players currently on a court position in the
-  // staged draft (excludes the bench + anyone sidelined).
-  const markOutCandidates = useMemo(() => {
-    const out: { id: string; name: string }[] = [];
-    for (const ids of Object.values(draft.positions)) {
-      for (const id of ids) {
-        if (sidelinedSet.has(id)) continue;
-        const p = playersById.get(id);
-        if (p) out.push({ id: p.id, name: p.full_name });
-      }
-    }
-    return out;
-  }, [draft, sidelinedSet, playersById]);
-
-  // Bench replacements eligible to fill the vacated position, sorted
-  // ascending by court time (least played = suggested) — same feed
-  // shape as the AFL/league InjuryReplacementModal.
-  const outReplacementCandidates = useMemo<InjuryReplacementCandidate[]>(() => {
-    return draft.bench
-      .filter((id) => !sidelinedSet.has(id))
-      .map((id) => playersById.get(id))
-      .filter((p): p is Player => !!p)
-      .map((p) => {
-        const stats = thirdMs.get(p.id);
-        const totalMs = stats
-          ? stats.attack + stats.centre + stats.defence
-          : 0;
-        return { player: p, totalMs };
-      })
-      .sort((a, b) => a.totalMs - b.totalMs);
-  }, [draft.bench, sidelinedSet, playersById, thirdMs]);
-
+  // A squad member who turns up at the break (AVAIL-02): onto the bench.
   function handleAddArrived(playerId: string) {
-    setAdjustError(null);
-    setAddArrivedPickerOpen(false);
-    // Stage them onto the bench immediately so the coach sees them
-    // before the player_arrived event round-trips.
-    setDraft((prev) =>
-      prev.bench.includes(playerId)
-        ? prev
-        : { ...prev, bench: [...prev.bench, playerId] },
-    );
+    setDraft((prev) => (prev.bench.includes(playerId) ? prev : { ...prev, bench: [...prev.bench, playerId] }));
     const { flushed } = enqueueLiveAction("addLateArrival", [
       auth,
       gameId,
@@ -1226,983 +515,260 @@ export function NetballQuarterBreak({
     flushed.then(() => router.refresh());
   }
 
-  // Coach tapped "Mark a player out" then picked an on-court player.
-  // If a bench replacement is available, open the replacement picker;
-  // otherwise fall through to the direct out write.
-  function handleMarkOutPick(playerId: string) {
-    setMarkOutPickerOpen(false);
-    const positionId = positionOfPlayer(playerId, draft);
-    if (positionId && outReplacementCandidates.length > 0) {
-      setOutReplacement({ outId: playerId, positionId });
-      return;
-    }
-    handleOutDirect(playerId);
-  }
-
-  // Mark a player out WITHOUT a replacement. Records the out reason;
-  // the vacated position is left for the coach to fill manually.
-  function handleOutDirect(playerId: string) {
-    setOutReplacement(null);
-    setAdjustError(null);
-    setSelected((s) => (s === playerId ? null : s));
-    // Stage the player off court → bench so the draft reflects the out.
+  // Mark a player out. Netball has no swap event at the break: the out
+  // is a markInjury reason "out"; a replacement takes the vacated bib in
+  // the staged lineup (committed by period_break_swap at Start).
+  function handleOut(outId: string, replacementId: string | null) {
+    const positionId = positionOfPlayer(outId, draft);
     setDraft((prev) => {
       const next: GenericLineup = {
         positions: Object.fromEntries(
-          Object.entries(prev.positions).map(([k, v]) => [
-            k,
-            v.filter((p) => p !== playerId),
-          ]),
-        ),
-        bench: prev.bench.filter((p) => p !== playerId),
-      };
-      return next;
-    });
-    enqueueLiveAction("markInjury", [
-      auth,
-      gameId,
-      {
-        player_id: playerId,
-        injured: true,
-        quarter: nextQuarter,
-        elapsed_ms: 0,
-        reason: "out",
-      },
-    ]);
-  }
-
-  // Coach picked the bench replacement in the InjuryReplacementModal.
-  // Netball has no recordSwap at the break, so we (1) record the out as
-  // a markInjury reason:"out" and (2) place the replacement into the
-  // vacated court position in the staged draft — that lands durably via
-  // period_break_swap when the coach starts Q{n+1}.
-  function handleOutReplacement(
-    outId: string,
-    replacementId: string,
-    positionId: string,
-  ) {
-    setOutReplacement(null);
-    setAdjustError(null);
-    setSelected((s) => (s === outId ? null : s));
-    setDraft((prev) => {
-      const next: GenericLineup = {
-        positions: Object.fromEntries(
-          Object.entries(prev.positions).map(([k, v]) => [
-            k,
-            v.filter((p) => p !== outId && p !== replacementId),
-          ]),
+          Object.entries(prev.positions).map(([k, v]) => [k, v.filter((p) => p !== outId && p !== replacementId)]),
         ),
         bench: prev.bench.filter((p) => p !== outId && p !== replacementId),
       };
-      // Replacement takes the vacated position; the out player drops off
-      // (they keep the court time they already earned via replay).
-      next.positions[positionId] = [replacementId];
+      if (replacementId && positionId) next.positions[positionId] = [replacementId];
       return next;
     });
     enqueueLiveAction("markInjury", [
       auth,
       gameId,
-      {
-        player_id: outId,
-        injured: true,
-        quarter: nextQuarter,
-        elapsed_ms: 0,
-        reason: "out",
-      },
+      { player_id: outId, injured: true, quarter: nextQuarter, elapsed_ms: 0, reason: "out" },
     ]);
   }
 
-  // ─── Render ────────────────────────────────────────────────
+  const outReplacementCandidates = useMemo<InjuryReplacementCandidate[]>(() => {
+    return draft.bench
+      .filter((id) => !sidelinedSet.has(id))
+      .map((id) => playersById.get(id))
+      .filter((p): p is Player => !!p)
+      .map((p) => ({ player: p, totalMs: totalMsByPlayer[p.id] ?? 0 }))
+      .sort((a, b) => a.totalMs - b.totalMs);
+  }, [draft.bench, sidelinedSet, playersById, totalMsByPlayer]);
+
+  // ─── Start ──────────────────────────────────────────────────
+  // Start Q{n} (the sheet's "now" or "anyway"): period_break_swap, then
+  // quarter_start. Nobody injured, lent or out starts on court however
+  // the draft got there; kids brought back count as available.
+  function handleConfirmQuarterStart() {
+    setError(null);
+    let staged = draft;
+    sidelinedSet.forEach((pid) => {
+      if (!forcedBenchIds.has(pid)) staged = benchPlayerInPositionLineup(staged, pid);
+    });
+    // Sidelined kids stay in the game, on the bench: nobody is lost from
+    // the lineup, whichever strategy built the draft.
+    staged = { ...staged, bench: withSidelined(staged).bench };
+    startTransition(() => {
+      enqueueLiveAction("periodBreakSwap", [auth, gameId, nextQuarter, staged, midQuarterSubs]);
+      const { flushed } = enqueueLiveAction("startNetballQuarter", [auth, gameId, nextQuarter]);
+      // The staged lineup is now the quarter's: nothing left to restore.
+      stagedBreakDraft.clear();
+      onStarted();
+      // D-14: this period's plan is used; later planned periods stay.
+      if (plannedRotation && plannedRotation.gameId === gameId) {
+        setPlannedRotation(consumePeriodPin(plannedRotation, upcomingPeriodIndex));
+      }
+      // Medium haptic — the "go!" tap, aligned to the umpire's whistle.
+      void hapticTap("medium");
+      flushed.then(() => router.refresh());
+    });
+  }
+
+  // ─── The break screen ───────────────────────────────────────
+  const config = useMemo(
+    () => breakConfigFor("netball", ageGroup, { onFieldSize: effectiveOnFieldSize }),
+    [ageGroup, effectiveOnFieldSize],
+  );
+
+  // Who's sidelined among the kids in this game, and why.
+  const sidelined = useMemo(() => {
+    const out: Record<string, string> = {};
+    loanedIds.forEach((id) => {
+      if (playersById.has(id)) out[id] = "Lent";
+    });
+    injuredIds.forEach((id) => {
+      if (playersById.has(id)) out[id] = "Injured";
+    });
+    forcedBenchIds.forEach((id) => delete out[id]);
+    return out;
+  }, [injuredIds, loanedIds, playersById, forcedBenchIds]);
+  const sidelinedNow = useMemo(() => new Set(Object.keys(sidelined)), [sidelined]);
+
+  // The board: the staged lineup, with sidelined kids at the end of the
+  // bench (faded, not tappable) rather than in a strip of their own.
+  const withSidelined = (l: GenericLineup): StagedLineup => {
+    const s = stagedOf(l);
+    const onBoard = new Set([...Object.values(s.groups).flat(), ...s.bench]);
+    return { groups: s.groups, bench: [...s.bench, ...Object.keys(sidelined).filter((id) => !onBoard.has(id))] };
+  };
+  const board = useMemo(
+    () => buildBoard(config.zones, withSidelined(draft), sidelinedNow),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [config.zones, draft, sidelined, sidelinedNow],
+  );
+  const previous = useMemo(() => placesOf(stagedOf(previousLineup)), [previousLineup]);
+
+  // Rules: the lineup's validity (an empty bib, a kid in two places) is
+  // a broken rule with a Fix, never a block; then the team's rules.
+  const ruleCheck = useMemo(() => {
+    const names: Record<string, string> = {};
+    for (const p of squad) names[p.id] = p.full_name;
+    return (lineup: GenericLineup): RuleCheckItem[] => {
+      // Kids who can't play aren't held to the rules.
+      const l = { ...lineup, bench: lineup.bench.filter((id) => !sidelinedNow.has(id)) };
+      const valid = netballSport.validateLineup?.(l, ageGroup, effectiveOnFieldSize);
+      const errors: RuleCheckItem[] = (valid?.issues ?? [])
+        .filter((i) => i.kind === "error")
+        .map((i, n) => ({ id: `lineup-${n}`, status: "fail", text: i.message, rule: "Every position on court has a player" }));
+      const team = netballPlaybook
+        ? netballRuleCheck({
+            lineup: l,
+            previousLineup,
+            names,
+            thirdMs,
+            period: nextQuarter,
+            periodCount: ageGroup.periodCount ?? 4,
+            periodMs: periodSeconds * 1000,
+            input: netballPlaybook,
+          }).items
+        : [];
+      return [...errors, ...team];
+    };
+  }, [squad, ageGroup, effectiveOnFieldSize, netballPlaybook, previousLineup, thirdMs, nextQuarter, periodSeconds, sidelinedNow]);
+
+  const issues = useMemo(
+    () =>
+      breakIssues({
+        lineup: draft,
+        check: ruleCheck,
+        board: (l) => buildBoard(config.zones, withSidelined(l), sidelinedNow),
+        swap: (l, a, b) => lineupOf(swapInStaged(stagedOf(l), a, b)),
+        sidelined: sidelinedNow,
+        // An empty bib is already a broken rule here.
+        emptySpots: false,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [draft, ruleCheck, config.zones, sidelined, sidelinedNow],
+  );
+
+  const asBreakPlayer = (p: Player): BreakPlayer => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number });
+  const breakPlayers = useMemo(() => new Map(squad.map((p) => [p.id, asBreakPlayer(p)])), [squad]);
+  const scores = useMemo(() => {
+    const out: Record<string, { text: string; label: string }> = {};
+    for (const [pid, n] of Object.entries(playerGoals)) if (n > 0) out[pid] = { text: String(n), label: `${n} goals` };
+    return out;
+  }, [playerGoals]);
+  const inLineup = new Set<string>([...draft.bench, ...Object.values(draft.positions).flat()]);
+  const availSet = new Set(availableIds);
+  const healthyNotSidelined = squad.filter((p) => !sidelinedNow.has(p.id));
+
+  function onSwap(a: BoardSlot, b: BoardSlot) {
+    setDraft((prev) => lineupOf(swapInStaged(stagedOf(prev), a, b)));
+  }
 
   return (
-    <div className="space-y-4">
-      {/* Orientation strip — Steve 2026-05-13: mirror the AFL QB
-          redesign. The hero card had eyebrow + title + fairness
-          number + the 3-button rotation toggle + a mode-hint
-          paragraph, which is far too much weight above the actual
-          court tiles. Strip to a flush no-chrome heading. Fairness
-          is gone. The rotation toggle moves into the Match-
-          adjustments collapse below (renamed Game settings) — same
-          place + same UX as the AFL QB. */}
-      <div className="px-1">
-        <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
-          Quarter break
-        </p>
-        <p className="mt-0.5 text-lg font-bold text-ink">
-          Lineup for Q{nextQuarter}
-        </p>
-        {hasPlannedSeed && (
+    <PeriodBreak
+      header={{ exitHref, game, onHelp }}
+      config={config}
+      nextPeriod={nextQuarter}
+      slots={board}
+      players={breakPlayers}
+      previous={previous}
+      gameMs={totalMsByPlayer}
+      scores={scores}
+      sidelined={sidelined}
+      onSwap={onSwap}
+      strategy={STRATEGY_OF[lineupMode]}
+      onStrategy={(next) => {
+        const mode = MODE_OF[next];
+        if (mode === lineupMode) return;
+        setLineupMode(mode);
+        // Repeat is a one-off per-break decision: never persisted.
+        if (mode !== "keep") setPersistedRotationMode(mode);
+      }}
+      issues={issues}
+      score={
+        trackScoring && currentQuarter >= 1
+          ? {
+              line: config.formatScore({ us: { goal: cumUs }, them: { goal: cumThem } }),
+              editor: (
+                <div className="space-y-4">
+                  <QuarterScoreTable
+                    scoreByQuarter={[
+                      { ours: { goals: 0 }, theirs: { goals: 0 } },
+                      ...scoreByQuarter.map((q) => ({ ours: { goals: q.ours }, theirs: { goals: q.theirs } })),
+                    ]}
+                    currentQuarter={currentQuarter}
+                    quarterEnded={true}
+                    sport="netball"
+                    teamName="Us"
+                    opponentName={game.opponent || "Them"}
+                  />
+                  <div className="border-t border-hairline pt-4">
+                    <ScoreReviewPanel
+                      auth={auth}
+                      gameId={gameId}
+                      players={squad}
+                      includeBehinds={false}
+                      defaultQuarter={currentQuarter}
+                    />
+                  </div>
+                </div>
+              ),
+            }
+          : undefined
+      }
+      settings={{
+        size: {
+          value: effectiveOnFieldSize,
+          options: sizeOptions,
+          defaultValue: ageGroup.defaultOnFieldSize,
+          word: "Players on court",
+          onChange: handleOnFieldSizeChange,
+          pending: sizePending,
+          error: sizeError,
+        },
+        injured: {
+          players: squad.filter((p) => injuredIds.has(p.id) && !forcedBenchIds.has(p.id)).map(asBreakPlayer),
+          candidates: healthyNotSidelined.map(asBreakPlayer),
+          onToggle: handleInjuryToggleAtBreak,
+        },
+        lent: {
+          players: squad
+            .filter((p) => loanedIds.has(p.id) && !injuredIds.has(p.id) && !forcedBenchIds.has(p.id))
+            .map(asBreakPlayer),
+          candidates: healthyNotSidelined.map(asBreakPlayer),
+          onToggle: handleLendToggleAtBreak,
+        },
+        arrived: {
+          candidates: squad.filter((p) => !inLineup.has(p.id) && !availSet.has(p.id) && !sidelinedNow.has(p.id)).map(asBreakPlayer),
+          onAdd: handleAddArrived,
+        },
+        markOut: {
+          candidates: Object.values(draft.positions)
+            .flat()
+            .filter((id) => !sidelinedNow.has(id))
+            .map((id) => playersById.get(id))
+            .filter((p): p is Player => !!p)
+            .map(asBreakPlayer),
+          replacements: outReplacementCandidates,
+          spotLabel: (pid) => positionOfPlayer(pid, draft)?.toUpperCase() ?? null,
+          player: (pid) => playersById.get(pid),
+          onOut: handleOut,
+        },
+      }}
+      banner={
+        hasPlannedSeed ? (
           <p
             data-testid="planned-seed-banner"
-            className="mt-1 font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
+            className="text-center font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
           >
             Pre-filled from your planned Q{nextQuarter} lineup
           </p>
-        )}
-        {/* Mode-hint paragraph removed — the active rotation mode
-            now reads off the Game settings collapsed summary
-            below ("Auto-rebalanced" / "Keeping last Q" / "Manual
-            lineup") so duplicating it here was just noise.
-            Mirrors AFL QB. */}
-      </div>
-
-      {/* Match adjustments — collapsed by default, auto-opens when
-          there's already an active loan or injury so the coach can
-          manage both at the boundary between quarters (Steve's
-          real-world request 2026-05-10). On-field size isn't
-          surfaced for netball — it's fixed at 7 per the rules. */}
-      <div className="rounded-md border border-hairline bg-surface shadow-card">
-        <button
-          type="button"
-          onClick={() => setMatchAdjustmentsOpen((v) => !v)}
-          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-alt"
-          aria-expanded={matchAdjustmentsOpen}
-          aria-controls="netball-qb-match-adjustments"
-        >
-          <span className="flex flex-1 items-center gap-3 text-sm">
-            <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
-              Game settings
-            </span>
-            <span className="text-xs text-ink-mute">
-              {(() => {
-                // Summary line — always surface lent/injured (including
-                // "No lent" / "No injured") so the closed header doubles
-                // as a discovery hint for what's inside. Mirrors AFL QB.
-                // The rotation mode no longer leads here — the toggle
-                // moved out of the collapse to sit above the court cards
-                // (UX review #7, Steve 2026-07-08).
-                const bits: string[] = [];
-                if (effectiveOnFieldSize < ageGroup.defaultOnFieldSize) {
-                  bits.push(`${effectiveOnFieldSize} on court`);
-                }
-                bits.push(
-                  lentPlayers.length > 0
-                    ? `${lentPlayers.length} lent`
-                    : "No lent",
-                );
-                bits.push(
-                  injuredPlayersList.length > 0
-                    ? `${injuredPlayersList.length} injured`
-                    : "No injured",
-                );
-                return bits.join(" · ");
-              })()}
-            </span>
-          </span>
-          <span aria-hidden className="text-ink-mute">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              className={`transition-transform duration-fast ease-out-quart ${
-                matchAdjustmentsOpen ? "rotate-180" : ""
-              }`}
-            >
-              <path
-                d="M6 9l6 6 6-6"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </span>
-        </button>
-
-        {matchAdjustmentsOpen && (
-          <div
-            id="netball-qb-match-adjustments"
-            className="space-y-4 border-t border-hairline px-4 py-3"
-          >
-            {/* Short-squad on-court size — Steve 2026-05-23. Mirrors
-                the pre-game LineupPicker dropdown so a coach can also
-                grow (player arrived at Q-break) or shrink (player
-                left at half) mid-game. Persists via
-                `setNetballOnFieldSize` which clamps to the age
-                group's min/max and writes games.on_field_size; the
-                page rerender threads the new value back through
-                `currentOnFieldSize` so the suggester picks the right
-                count for this break. Only renders when the age group
-                actually supports a range. */}
-            {sizeOptions.length > 1 && (
-              <div>
-                <Label
-                  htmlFor="netball-qb-on-field-size"
-                  className="!mb-1 block text-xs font-semibold text-ink"
-                >
-                  Players on court
-                </Label>
-                <div className="flex items-end gap-3">
-                  <div className="flex-1">
-                    <p className="text-xs text-ink-mute">
-                      Adjust mid-game if a player arrives late or
-                      leaves early. Siren will keep the same blank
-                      positions when growing back to full strength,
-                      or drop the lowest-priority positions when
-                      shrinking.
-                    </p>
-                  </div>
-                  <div className="w-24">
-                    <select
-                      id="netball-qb-on-field-size"
-                      value={effectiveOnFieldSize}
-                      onChange={(e) => handleOnFieldSizeChange(Number(e.target.value))}
-                      disabled={isPending || sizePending}
-                      className="block w-full rounded-md border border-hairline bg-surface px-3 py-2 text-sm text-ink shadow-card focus:border-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:opacity-50"
-                    >
-                      {sizeOptions.map((n) => (
-                        <option key={n} value={n}>
-                          {n}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                {sizeError && (
-                  <p className="mt-1 text-xs text-danger" role="alert">
-                    {sizeError}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Lend a player */}
-            <div>
-              <p className="text-xs font-semibold text-ink">Lend a player</p>
-              <p className="mt-0.5 text-xs text-ink-mute">
-                Lent players sit out for the rest of the game until you bring
-                them back.
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                {lentPlayers.map((p) => (
-                  <span
-                    key={p.id}
-                    className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-warn-soft px-2.5 py-1 text-xs font-medium text-warn"
-                  >
-                    <span>{p.full_name}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleLendToggleAtBreak(p.id, false)}
-                      aria-label={`Bring ${p.full_name} back`}
-                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn motion-safe:active:scale-[0.97]"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setLendPickerOpen(true)}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 motion-safe:active:scale-[0.97]"
-                >
-                  <span aria-hidden>+</span>
-                  Lend a player
-                </button>
-              </div>
-            </div>
-
-            {/* Mark injured / left early */}
-            <div>
-              <p className="text-xs font-semibold text-ink">
-                Injured / left early
-              </p>
-              <p className="mt-0.5 text-xs text-ink-mute">
-                Injured players sit out for the rest of the game until you
-                bring them back.
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                {injuredPlayersList.map((p) => (
-                  <span
-                    key={p.id}
-                    className="inline-flex items-center gap-1 rounded-full border border-danger/50 bg-danger/10 px-2.5 py-1 text-xs font-medium text-danger"
-                  >
-                    <span>{p.full_name}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleInjuryToggleAtBreak(p.id, false)}
-                      aria-label={`Mark ${p.full_name} fit`}
-                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-danger/80 hover:bg-danger/15 hover:text-danger motion-safe:active:scale-[0.97]"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setInjuredPickerOpen(true)}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger motion-safe:active:scale-[0.97]"
-                >
-                  <span aria-hidden>+</span>
-                  Mark injured
-                </button>
-              </div>
-            </div>
-
-            {/* Manage availability (AVAIL-02 / B2) — mirrors the AFL
-                QuarterBreak entry. Add a squad member who turned up at
-                the break (addLateArrival), or take an on-court player
-                out (forced bench-replacement pick, recorded with
-                reason:"out"). */}
-            <div>
-              <p className="text-xs font-semibold text-ink">
-                Manage availability
-              </p>
-              <p className="mt-0.5 text-xs text-ink-mute">
-                Add a player who turned up at the break, or take one out of
-                the game (a replacement comes on so the court stays full).
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setAddArrivedPickerOpen(true)}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 motion-safe:active:scale-[0.97]"
-                >
-                  <span aria-hidden>+</span>
-                  Add arrived player
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMarkOutPickerOpen(true)}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger motion-safe:active:scale-[0.97]"
-                >
-                  <span aria-hidden>+</span>
-                  Mark a player out
-                </button>
-              </div>
-            </div>
-
-            {adjustError && (
-              <p className="text-xs text-danger" role="alert">
-                {adjustError}
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Lend-player picker modal — same shape as AFL's. Lists every
-          healthy, not-already-lent squad member. */}
-      {lendPickerOpen && (
-        <SlotFillSheet
-          slotLabel="player"
-          titleVerb="Lend"
-          subtitle="Pick a player to lend to the opposition for the rest of the game. Tap their chip to bring them back."
-          emptyMessage="Everyone is already lent or injured."
-          candidates={squad
-            .filter((p) => !loanedIds.has(p.id) && !injuredIds.has(p.id))
-            .map((p) => ({ id: p.id, name: p.full_name }))}
-          onPick={(pid) => {
-            handleLendToggleAtBreak(pid, true);
-            setLendPickerOpen(false);
-          }}
-          onCancel={() => setLendPickerOpen(false)}
-        />
-      )}
-
-      {/* Injured-player picker — for the "kid had to leave at the
-          break" case. Same shape as the lend picker but flips the
-          injury flag. */}
-      {injuredPickerOpen && (
-        <SlotFillSheet
-          slotLabel="player"
-          titleVerb="Mark injured"
-          subtitle="Pick a player to mark as injured / leaving early. Tap their chip to bring them back."
-          emptyMessage="Everyone is already injured or lent."
-          candidates={squad
-            .filter((p) => !loanedIds.has(p.id) && !injuredIds.has(p.id))
-            .map((p) => ({ id: p.id, name: p.full_name }))}
-          onPick={(pid) => {
-            handleInjuryToggleAtBreak(pid, true);
-            setInjuredPickerOpen(false);
-          }}
-          onCancel={() => setInjuredPickerOpen(false)}
-        />
-      )}
-
-      {/* Add-arrived picker — squad members who weren't available
-          pre-game. Tapping one fires addLateArrival and lands them on
-          the staged bench. */}
-      {addArrivedPickerOpen && (
-        <SlotFillSheet
-          slotLabel="player"
-          titleVerb="Add arrived"
-          subtitle="Pick a squad member who's turned up at the break. They'll join the bench and the next quarter can work them in."
-          emptyMessage="Everyone in the squad is already in the game."
-          candidates={arrivalCandidates}
-          onPick={handleAddArrived}
-          onCancel={() => setAddArrivedPickerOpen(false)}
-        />
-      )}
-
-      {/* Mark-out picker — on-court players in the staged draft. Picking
-          one forces a bench-replacement pick (InjuryReplacementModal)
-          so the vacated position doesn't go short; recorded with
-          reason:"out". */}
-      {markOutPickerOpen && (
-        <SlotFillSheet
-          slotLabel="player"
-          titleVerb="Mark out"
-          subtitle="Pick the on-court player who has to leave. A bench player comes on so the position stays filled."
-          emptyMessage="No on-court players to take out."
-          candidates={markOutCandidates}
-          onPick={handleMarkOutPick}
-          onCancel={() => setMarkOutPickerOpen(false)}
-        />
-      )}
-
-      {/* Mark-out forced-replacement — reuses the shared
-          InjuryReplacementModal (DO NOT fork). Pick the bench player who
-          comes on at the vacated position. Both paths record the out
-          player with reason:"out"; the replacement takes the position
-          in the staged next-quarter lineup. */}
-      {outReplacement &&
-        (() => {
-          const outPlayer = playersById.get(outReplacement.outId);
-          if (!outPlayer) return null;
-          return (
-            <InjuryReplacementModal
-              injuredPlayer={outPlayer}
-              spotLabel={
-                netballSport.allPositions.find((p) => p.id === outReplacement.positionId)?.shortLabel ??
-                outReplacement.positionId.toUpperCase()
-              }
-              candidates={outReplacementCandidates}
-              onPickReplacement={(replacementId) =>
-                handleOutReplacement(
-                  outReplacement.outId,
-                  replacementId,
-                  outReplacement.positionId,
-                )
-              }
-              onSkipReplacement={() => handleOutDirect(outReplacement.outId)}
-              onCancel={() => setOutReplacement(null)}
-            />
-          );
-        })()}
-
-      {/* Score panel — collapsed by default. Single-line score
-          summary so the coach can reconcile with the opposition
-          at a glance. Tap row to expand into the full per-quarter
-          breakdown + per-player event log. */}
-      {trackScoring && currentQuarter >= 1 && (() => {
-        const lead = cumUs - cumThem;
-        const leadLabel =
-          lead === 0 ? "level" : lead > 0 ? `+${lead}` : `${lead}`;
-        const leadClass =
-          lead > 0
-            ? "text-ok"
-            : lead < 0
-              ? "text-warn"
-              : "text-ink-mute";
-        return (
-        <div className="rounded-md border border-hairline bg-surface shadow-card">
-          <button
-            type="button"
-            onClick={() => setShowFixScores((v) => !v)}
-            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-alt"
-            aria-expanded={showFixScores}
-            aria-label={
-              showFixScores
-                ? "Hide score review"
-                : "Review and update scores"
-            }
-          >
-            {/* Header rhythm matches Game settings: [eyebrow]
-                [summary] [chevron]. Score is the summary value, with
-                the lead margin coloured inline so the at-a-glance
-                read is preserved. Mirrors AFL QB. */}
-            <span className="flex flex-1 items-center gap-3 text-sm">
-              <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
-                Score
-              </span>
-              <span className="nums truncate font-mono text-xs tabular-nums text-ink-mute">
-                {cumUs}
-                <span className="mx-1 text-ink-mute/70">–</span>
-                {cumThem}
-                {lead !== 0 && (
-                  <>
-                    <span className="mx-1 text-ink-mute/70">·</span>
-                    <span className={`font-semibold ${leadClass}`}>
-                      {leadLabel}
-                    </span>
-                  </>
-                )}
-              </span>
-            </span>
-            <span aria-hidden className="text-ink-mute">
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                className={`transition-transform duration-fast ease-out-quart ${
-                  showFixScores ? "rotate-180" : ""
-                }`}
-              >
-                <path
-                  d="M6 9l6 6 6-6"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-          </button>
-
-          {showFixScores && (
-            <div className="space-y-4 border-t border-hairline px-4 py-4">
-              <QuarterScoreTable
-                // Adapter: netball's local scoreByQuarter is
-                // Array<{ours: number, theirs: number}> indexed
-                // 0..3 (Q1..Q4). QuarterScoreTable expects the
-                // AFL shape with .goals nested + 1..N indexing
-                // (index 0 unused). Pre-built inline since the
-                // table is only rendered when showFixScores is on.
-                scoreByQuarter={[
-                  { ours: { goals: 0 }, theirs: { goals: 0 } },
-                  ...scoreByQuarter.map((q) => ({
-                    ours: { goals: q.ours },
-                    theirs: { goals: q.theirs },
-                  })),
-                ]}
-                currentQuarter={currentQuarter}
-                quarterEnded={true}
-                sport="netball"
-                teamName="Us"
-                opponentName="Them"
-              />
-              <div className="border-t border-hairline pt-4">
-                <ScoreReviewPanel
-                  auth={auth}
-                  gameId={gameId}
-                  players={squad}
-                  includeBehinds={false}
-                  defaultQuarter={currentQuarter}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-        );
-      })()}
-
-      {/* Rotation mode — surfaced above the court cards, out of the
-          Game-settings collapse, so the modes are discoverable at the
-          moment they matter. Mirrors AFL QB (UX review #7, Steve
-          2026-07-08). handleModeChange persists Suggested/Manual;
-          Keep stays per-quarter. */}
-      <div className="px-1">
-        <RotationModeToggle mode={lineupMode} onChange={handleModeChange} />
-      </div>
-
-      <p className="px-1 text-xs text-ink-dim">
-        Tap any two players to swap them — even across thirds or to the bench.
-      </p>
-
-      {/* Colour key for the per-player time-by-third bars below — shown
-          once so a glance at any bar reads instantly (mirrors the AFL
-          QuarterBreak legend; same palette, third labels). */}
-      <ZoneTimeLegend
-        className="px-1"
-        items={[
-          { label: "Attack", swatchClassName: "bg-zone-f", textClassName: "text-zone-f" },
-          { label: "Centre", swatchClassName: "bg-zone-c", textClassName: "text-zone-c" },
-          { label: "Defence", swatchClassName: "bg-zone-b", textClassName: "text-zone-b" },
-        ]}
-      />
-
-      {breakRuleCheck && (
-        <RuleCheckBar
-          items={breakRuleCheck.items}
-          why={breakRuleCheck.why}
-          emptySpots={positionsToFill.filter((p) => (draft.positions[p]?.length ?? 0) === 0).length}
-          spotWord="position"
-        />
-      )}
-
-      {/* The same court the live game draws (UX plan principle 2: one
-          lineup, one picture). Tap two players to swap — across thirds or
-          with the bench below; tap an empty position to fill it. */}
-      <CourtDisplay
-        lineup={draft}
-        ageGroup={ageGroup}
-        squadById={playersById}
-        selectedPlayerId={selected}
-        onTokenTap={(positionId, pid) => (pid ? handleTap(pid) : handleTapEmpty(positionId))}
-        injuredIds={injuredIds}
-        loanedIds={loanedIds}
-        playerStats={thirdMs}
-        playerGoals={playerGoals}
-        captions={courtCaptions}
-      />
-
-      {/* Bench — list tiles under the court (tap one, then a court
-          player, to swap). */}
-      <div className="grid gap-3">
-        {(["bench"] as const).map((slot) => {
-          const items: { pid: string | null; positionId: string | null }[] =
-            draft.bench.map((pid) => ({ pid, positionId: null }));
-          const cap: number | null = null;
-          return (
-            <div
-              key={slot}
-              className="rounded-md border border-hairline bg-surface p-3 shadow-card"
-            >
-              <div className="mb-2 flex items-center justify-between">
-                <h3
-                  className={`font-mono text-[11px] font-bold uppercase tracking-micro ${SLOT_HEADER_TEXT[slot]}`}
-                >
-                  {SLOT_LABEL[slot]}
-                </h3>
-                <span className="text-xs tabular-nums text-ink-mute">
-                  {items.length}
-                  {cap !== null && ` / ${cap}`}
-                </span>
-              </div>
-              {items.length === 0 ? (
-                <p className="px-1 py-2 text-xs text-ink-mute">Empty</p>
-              ) : (
-                <ul className="space-y-1.5">
-                  {items.map(({ pid, positionId }) => {
-                    if (!pid) return null;
-                    const p = playersById.get(pid);
-                    if (!p) return null;
-                    const isSelected = selected === pid;
-                    const isInjured = injuredIds.has(pid);
-                    const isLoaned = loanedIds.has(pid);
-                    const isSidelined = isInjured || isLoaned;
-                    const stats = thirdMs.get(pid) ?? {
-                      attack: 0,
-                      centre: 0,
-                      defence: 0,
-                    };
-                    const totalMs = stats.attack + stats.centre + stats.defence;
-                    const prevSlot = slotOfPlayer(pid, previousLineup);
-                    const moved = prevSlot && prevSlot !== slot;
-                    return (
-                      <li key={pid}>
-                        <PlayerTile
-                          player={p}
-                          positionId={positionId}
-                          isSelected={isSelected}
-                          isInjured={isInjured}
-                          isLoaned={isLoaned}
-                          isSidelined={isSidelined}
-                          movedFromLabel={
-                            moved && prevSlot
-                              ? SLOT_LABEL[prevSlot]
-                              : null
-                          }
-                          stays={!moved && !isSidelined && prevSlot != null}
-                          stats={stats}
-                          totalMs={totalMs}
-                          goalCount={playerGoals[pid] ?? 0}
-                          onTap={() => handleTap(pid)}
-                        />
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Sidelined strip — players currently injured or on loan.
-          Long-press a tile to open the actions modal and mark
-          recovered / bring back from loan. Hidden when nobody is
-          sidelined to avoid an empty band. */}
-      {sidelined.length > 0 && (
-        <div className="rounded-md border border-hairline bg-surface p-3 shadow-card">
-          <div className="mb-2 flex items-center justify-between">
-            <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
-              Sidelined
-            </h3>
-            <span className="text-[10px] text-ink-mute">
-              long-press to bring back
-            </span>
-          </div>
-          <ul className="space-y-1.5">
-            {sidelined.map(({ player, status }) => {
-              const stats = thirdMs.get(player.id) ?? {
-                attack: 0,
-                centre: 0,
-                defence: 0,
-              };
-              const totalMs = stats.attack + stats.centre + stats.defence;
-              return (
-                <li key={player.id}>
-                  <PlayerTile
-                    player={player}
-                    positionId={null}
-                    isSelected={false}
-                    isInjured={status === "injured"}
-                    isLoaned={status === "loaned"}
-                    isSidelined
-                    movedFromLabel={null}
-                    stays={false}
-                    stats={stats}
-                    totalMs={totalMs}
-                    goalCount={playerGoals[player.id] ?? 0}
-                    onTap={() => {}}
-                    onLongPress={() => handleSidelinedLongPress(player.id)}
-                  />
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-
-      {error && <InlineAlert>{error}</InlineAlert>}
-
-      {/* Sticky kickoff CTA — Steve 2026-05-13: pin the primary
-          Ready button to the bottom of the viewport so it's
-          always reachable without scrolling past zones + bench +
-          score panel. Same treatment as the AFL QB so the two
-          sports feel identical. Outer container above gets pb-24
-          so the last in-flow element isn't hidden behind the bar.
-
-          Two-stage kickoff narrative preserved:
-            Q-break button     "Start Q{n}"
-            StartQuarterModal  heading "Start Q{n}", primary "Start Q{n} now"
-                                body "Tap when the umpire calls play —
-                                the clock starts then."
-          One action name through the flow (UI polish audit §15); the
-          "now" suffix marks the second tap as the moment
-          (commit-lineup → start-clock-on-whistle). */}
-      <QuarterKickoffBar
-        onConfirm={handleStart}
-        confirmLabel={`Start Q${nextQuarter}`}
-        loading={isPending && pendingStartQuarter === null}
-      />
-
-      {pendingStartQuarter !== null && (
-        <StartQuarterModal
-          cue="umpire calls play"
-          quarter={pendingStartQuarter}
-          loading={isPending}
-          onStart={handleConfirmQuarterStart}
-          onCancel={() => setPendingStartQuarter(null)}
-        />
-      )}
-
-      {/* Actions modal — opens on long-press of a sidelined tile.
-          Reuses the same NetballPlayerActions the live court uses,
-          but the lock-for-next-break / mark-injured / mark-loaned
-          paths are hidden because the player is already sidelined
-          (only un-injure / un-loan and Cancel show). */}
-      {actionsTarget && (() => {
-        const player = squad.find((p) => p.id === actionsTarget);
-        if (!player) return null;
-        return (
-          <NetballPlayerActions
-            player={player}
-            positionId={null}
-            isInjured={injuredIds.has(actionsTarget)}
-            isLoaned={loanedIds.has(actionsTarget)}
-            isLockedForNextBreak={false}
-            onMarkInjured={() => setActionsTarget(null)}
-            onUnInjury={handleUnInjury}
-            onMarkLoaned={() => setActionsTarget(null)}
-            onUnLoan={handleUnLoan}
-            onLockForNextBreak={() => setActionsTarget(null)}
-            onUnlock={() => setActionsTarget(null)}
-            onClose={() => setActionsTarget(null)}
-          />
-        );
-      })()}
-
-      {/* Empty-position picker sheet — opens when the coach taps an
-          unfilled court position with no player pre-selected. Lists
-          every bench player so they can place someone in one tap. */}
-      {fillTargetPosition && (() => {
-        const pos = netballSport.allPositions.find(
-          (p) => p.id === fillTargetPosition,
-        );
-        const slotLabel = pos?.shortLabel ?? fillTargetPosition.toUpperCase();
-        return (
-          <SlotFillSheet
-            slotLabel={slotLabel}
-            candidates={draft.bench
-              .filter((pid) => !sidelinedSet.has(pid))
-              .map((pid) => playersById.get(pid))
-              .filter((p): p is Player => !!p)
-              .map((p) => ({ id: p.id, name: p.full_name }))}
-            onPick={handleFillPick}
-            onCancel={() => setFillTargetPosition(null)}
-          />
-        );
-      })()}
-    </div>
-  );
-}
-
-// ─── Player tile ─────────────────────────────────────────────
-// Mirrors the AFL QuarterBreak tile at LiveGame.tsx:364 — flat row,
-// position chip on the left, name + movement underneath, time bar
-// floating to the right. Tapping fires the parent's handleTap.
-// onLongPress fires after a 500ms hold — used by the sidelined
-// strip so the coach can mark a player recovered from the Q-break
-// view without bouncing back to the live court.
-function PlayerTile({
-  player,
-  positionId,
-  isSelected,
-  isInjured,
-  isLoaned,
-  isSidelined,
-  movedFromLabel,
-  stays,
-  stats,
-  totalMs,
-  goalCount,
-  onTap,
-  onLongPress,
-}: {
-  player: Player;
-  positionId: string | null;
-  isSelected: boolean;
-  isInjured: boolean;
-  isLoaned: boolean;
-  isSidelined: boolean;
-  movedFromLabel: string | null;
-  stays: boolean;
-  stats: PlayerThirdMs;
-  totalMs: number;
-  goalCount: number;
-  onTap: () => void;
-  onLongPress?: () => void;
-}) {
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const didLongPressRef = useRef(false);
-  function handlePointerDown(e: React.PointerEvent<HTMLButtonElement>) {
-    if (!onLongPress) return;
-    didLongPressRef.current = false;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    longPressTimerRef.current = setTimeout(() => {
-      didLongPressRef.current = true;
-      longPressTimerRef.current = null;
-      onLongPress();
-    }, 500);
-  }
-  function cancelLongPress() {
-    if (longPressTimerRef.current !== null) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-  }
-  function handleClick() {
-    // Suppress the click if a long-press just fired (prevents the
-    // tap-to-swap path from firing alongside the actions modal).
-    if (didLongPressRef.current) {
-      didLongPressRef.current = false;
-      return;
-    }
-    onTap();
-  }
-  const positionShort = positionId
-    ? netballSport.allPositions.find((pp) => pp.id === positionId)?.shortLabel ??
-      positionId.toUpperCase()
-    : "B";
-  const total = totalMs || 1;
-  const pct = (v: number) => `${(v / total) * 100}%`;
-  return (
-    <button
-      type="button"
-      onClick={handleClick}
-      onPointerDown={onLongPress ? handlePointerDown : undefined}
-      onPointerUp={onLongPress ? cancelLongPress : undefined}
-      onPointerCancel={onLongPress ? cancelLongPress : undefined}
-      onPointerLeave={onLongPress ? cancelLongPress : undefined}
-      // Sidelined tiles stay tappable when onLongPress is wired so
-      // the coach can long-press to mark recovered. Without
-      // onLongPress they remain disabled (the tap-to-swap path is
-      // a no-op for sidelined players anyway).
-      disabled={isSidelined && !onLongPress}
-      aria-disabled={isSidelined && !onLongPress}
-      className={`relative flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left text-sm transition-colors duration-fast ease-out-quart ${
-        isSelected
-          ? "border-brand-500 bg-brand-50 ring-2 ring-brand-400"
-          : isSidelined
-          ? `${onLongPress ? "" : "cursor-not-allowed "}border-hairline bg-surface-alt opacity-60`
-          : "border-hairline bg-surface hover:bg-surface-alt"
-      }`}
-    >
-      {/* Goal-count chip — top-right corner, dark pill, mirrors AFL.
-          Hidden when zero so non-scorers stay visually clean. */}
-      {goalCount > 0 && (
-        <span
-          className="nums absolute -right-1 -top-1.5 z-10 inline-flex items-center gap-0.5 rounded-xs bg-ink px-1 py-0.5 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-warm shadow-card"
-          aria-label={`${goalCount} goal${goalCount === 1 ? "" : "s"}`}
-        >
-          {goalCount}
-        </span>
-      )}
-      <span className="flex items-center gap-2">
-        {/* Position chip — text colour matches the third's time-bar
-            colour (forward=orange, centre=purple, defence=blue) so
-            coaches can map a colour to a third without reading
-            labels. Bench tiles ("B") fall back to neutral ink. */}
-        <span
-          className={`inline-flex h-6 min-w-[1.75rem] items-center justify-center rounded-full bg-surface-alt px-1 font-mono text-[10px] font-bold uppercase tracking-micro tabular-nums ${
-            (() => {
-              if (!positionId) return "text-ink-dim";
-              const t = primaryThirdFor(positionId);
-              if (t === "attack-third") return "text-zone-f";
-              if (t === "centre-third") return "text-zone-c";
-              if (t === "defence-third") return "text-zone-b";
-              return "text-ink-dim";
-            })()
-          }`}
-        >
-          {positionShort}
-        </span>
-        <span className="flex flex-col items-start">
-          <span className="flex items-center gap-1.5">
-            <span className="font-medium text-ink">{player.full_name}</span>
-            {isInjured && (
-              <span className="rounded-xs bg-danger px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white">
-                INJ
-              </span>
-            )}
-            {isLoaned && !isInjured && (
-              <span className="rounded-xs bg-warn px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white">
-                LENT
-              </span>
-            )}
-          </span>
-          {movedFromLabel && !isSidelined && (
-            <span className="text-[10px] font-semibold uppercase tracking-micro text-brand-600">
-              {movedFromLabel} → {positionId
-                ? (netballSport.allPositions.find((pp) => pp.id === positionId)?.shortLabel ?? "")
-                : "Bench"}
-            </span>
-          )}
-          {stays && !isSidelined && !movedFromLabel && (
-            <span className="text-[10px] uppercase tracking-micro text-ink-mute">
-              stays
-            </span>
-          )}
-          {totalMs > 0 && !isSidelined && (
-            <span className="nums font-mono text-[10px] font-semibold text-ink-dim">
-              {formatMinSec(totalMs)}
-            </span>
-          )}
-        </span>
-      </span>
-      {/* Time bar — three thirds, colour-coded zone-f / zone-c / zone-b */}
-      <span
-        className="flex h-3 flex-1 max-w-[60px] overflow-hidden rounded-full bg-surface-alt"
-        aria-hidden
-      >
-        <span style={{ width: pct(stats.attack) }} className={THIRD_BAR_COLOR.attack} />
-        <span style={{ width: pct(stats.centre) }} className={THIRD_BAR_COLOR.centre} />
-        <span style={{ width: pct(stats.defence) }} className={THIRD_BAR_COLOR.defence} />
-      </span>
-    </button>
+        ) : undefined
+      }
+      start={{ onStart: handleConfirmQuarterStart, pending: isPending, cue: "umpire calls play", error }}
+    />
   );
 }

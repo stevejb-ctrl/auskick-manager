@@ -32,6 +32,7 @@ import type { PositionDef, ScoreTypeDef, SportConfig, ZoneDef } from "@/lib/spor
 import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
 import { aflSport } from "@/lib/sports/afl";
 import { validateSoccerLineup } from "@/lib/sports/soccer/lineup";
+import { soccerFamilyPeriodBreak } from "@/lib/sports/soccer";
 import type {
   SoccerAgeGroupConfig,
   SoccerFamilyRules,
@@ -232,5 +233,6 @@ export const hockeySport: SportConfig = {
   fairnessModel: "zone-minutes",
   jerseyNumbers: true,
   teamSong: false,
+  periodBreak: soccerFamilyPeriodBreak(HOCKEY_RULES),
   validateLineup: (lineup, ageGroup, onFieldSize) => validateSoccerLineup(lineup, ageGroup, onFieldSize, HOCKEY_RULES),
 };

@@ -4,10 +4,19 @@
 // getAgeGroupConfig("afl", team.age_group). Zone labels still live in
 // `@/lib/ageGroups` with the live components' zone helpers.
 
-import { ZONE_LABELS, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
-import type { SportConfig, ZoneDef, ZoneId, PositionDef, ScoreTypeDef, AgeGroupConfig } from "@/lib/sports/types";
+import { ZONE_LABELS, ZONE_SHORT_LABELS, zoneCapsFor } from "@/lib/ageGroups";
+import type {
+  SportConfig,
+  ZoneDef,
+  ZoneId,
+  PositionDef,
+  ScoreTypeDef,
+  AgeGroupConfig,
+  BreakZoneColor,
+  SportBreakSpec,
+} from "@/lib/sports/types";
 import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
-import type { AgeGroup, PositionModel } from "@/lib/types";
+import type { AgeGroup, PositionModel, Zone } from "@/lib/types";
 
 const AFL_ZONES_FULL: ZoneDef[] = [
   { id: "back", label: ZONE_LABELS.back, shortLabel: ZONE_SHORT_LABELS.back },
@@ -197,6 +206,35 @@ export function aflPositionModel(ageGroup: AgeGroupConfig): PositionModel {
   return ageGroup.zones.length === 5 ? "positions5" : "zones3";
 }
 
+// Break screen colours by zone: forward orange, centre green, back blue
+// (the field's own zone-f / zone-c / zone-b). The retired half-lines
+// take their line's colour.
+const AFL_BREAK_COLOR: Record<Zone, BreakZoneColor> = {
+  fwd: "zone1",
+  hfwd: "zone1",
+  mid: "zone2",
+  hback: "zone3",
+  back: "zone3",
+};
+
+const aflPeriodBreak: SportBreakSpec = {
+  // Forward at the top, back at the bottom: the ground as the coach
+  // faces it. Slots are the staged lineup's zone caps, else the even
+  // split of this game's on-field size.
+  zones: ({ ageGroup, onFieldSize, shape }) => {
+    const caps = zoneCapsFor(onFieldSize, aflPositionModel(ageGroup));
+    return [...(ageGroup.zones as Zone[])].reverse().map((z) => ({
+      key: z,
+      label: ZONE_LABELS[z].toUpperCase(),
+      short: ZONE_SHORT_LABELS[z],
+      color: AFL_BREAK_COLOR[z],
+      slots: shape?.[z] ?? caps[z],
+    }));
+  },
+  scoreDetail: "goals-behinds",
+  lowTimeMs: 4 * 60_000,
+};
+
 export const aflSport: SportConfig = {
   id: "afl",
   family: "afl",
@@ -221,4 +259,5 @@ export const aflSport: SportConfig = {
   fairnessModel: "zone-minutes",
   jerseyNumbers: true,
   teamSong: true,
+  periodBreak: aflPeriodBreak,
 };

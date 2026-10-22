@@ -16,6 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
+import { startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "serial" });
 
@@ -54,10 +55,11 @@ async function endPeriod(page: Page, tag: string) {
   await page.getByRole("button", { name: new RegExp(`^end\\s*${tag[0]}\\s*${tag.slice(1)}$`, "i") }).click();
 }
 
-/** Start the next period from the break ("Start Q2", then the whistle modal). */
+/** Start the next period from the shared break screen ("Start 2nd half" or "Start Q2", then its sheet). */
 async function startPeriod(page: Page, tag: string) {
-  await page.getByRole("button", { name: new RegExp(`^start ${tag}$`, "i") }).click({ timeout: 15_000 });
-  await page.getByRole("button", { name: new RegExp(`^start ${tag} now$`, "i") }).click({ timeout: 10_000 });
+  const name = tag === "H2" ? "2nd half" : tag;
+  await expect(page.getByRole("heading", { name: new RegExp(`^${name} lineup$`, "i") })).toBeVisible({ timeout: 15_000 });
+  await startFromBreak(page, new RegExp(`^start ${name}`, "i"));
   await expect(page.getByRole("button", { name: new RegExp(`^clock — ${tag}, running$`, "i") })).toBeVisible({
     timeout: 15_000,
   });
@@ -141,14 +143,13 @@ test("hockey U9: 7 a side in halves, keepers change only at the break, with a ki
   const announced = (await kitUp.textContent())!.split("'s in goal")[0].trim();
   expect(announced).not.toBe(firstName(h1Keeper));
 
-  // ─── Half-time: the announced kid is named first, and goes in ─
+  // ─── Half-time: the announced kid goes in goal ────────────────
+  // The shared break screen's Keeper zone holds them (they've been
+  // kitting up); last half's keeper's tile reads where they came from.
   await endPeriod(page, "H1");
-  const keeperCard = page.getByRole("region", { name: "Keeper" });
-  await expect(keeperCard).toContainText(`Keeper kit: ${firstName(h1Keeper)} → ${announced}`, { timeout: 15_000 });
-  // The keeper card comes before the break's plan and its Start.
-  const cardTop = (await keeperCard.boundingBox())!.y;
-  const doneTop = (await page.getByText(/^half 1 done\./i).boundingBox())!.y;
-  expect(cardTop).toBeLessThan(doneTop);
+  await expect(page.getByRole("heading", { name: /^2nd half lineup$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("group", { name: "Keeper" })).toContainText(announced, { timeout: 15_000 });
+  await expect(page.getByTestId(`player-tile-${h1Keeper}`)).toContainText(/from keeper/i);
 
   await startPeriod(page, "H2");
   const h2 = await lineup();
@@ -218,10 +219,8 @@ test("hockey U13: 4 × 15 quarters, named keepers rotate at the breaks, an injur
 
   // ─── Quarter time: the keeper kit goes to the other named keeper ─
   await endPeriod(page, "Q1");
-  await expect(page.getByText(/^quarter 1 done\./i)).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole("region", { name: "Keeper" })).toContainText(
-    `Keeper kit: ${firstName(keeperA.id)} → ${firstName(keeperB.id)}`,
-  );
+  await expect(page.getByRole("heading", { name: /^q2 lineup$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("group", { name: "Keeper" })).toContainText(firstName(keeperB.id));
   await startPeriod(page, "Q2");
   expect((await lineup()).keeper).toBe(keeperB.id);
 
@@ -240,9 +239,9 @@ test("hockey U13: 4 × 15 quarters, named keepers rotate at the breaks, an injur
 
   // ─── Half time (after Q2), then three-quarter time ────────────
   await endPeriod(page, "Q2");
-  await expect(page.getByText(/^quarter 2 done\./i)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("heading", { name: /^q3 lineup$/i })).toBeVisible({ timeout: 15_000 });
   // The hurt keeper is out: the other named keeper goes back in.
-  await expect(page.getByRole("region", { name: "Keeper" })).toContainText(`→ ${firstName(keeperA.id)}`);
+  await expect(page.getByRole("group", { name: "Keeper" })).toContainText(firstName(keeperA.id));
   await startPeriod(page, "Q3");
   expect((await lineup()).keeper).toBe(keeperA.id);
   await endPeriod(page, "Q3");

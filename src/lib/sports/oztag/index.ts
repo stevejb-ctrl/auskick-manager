@@ -26,6 +26,7 @@ import type { PositionDef, ScoreTypeDef, SportConfig, ZoneDef } from "@/lib/spor
 import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
 import { aflSport } from "@/lib/sports/afl";
 import { validateTouchLineup } from "@/lib/sports/touch/lineup";
+import { touchPeriodBreak } from "@/lib/sports/touch/periodBreak";
 import type { MixedRule, TouchAgeGroupConfig, TouchShape } from "@/lib/sports/touch/types";
 
 const OZTAG_ZONES: ZoneDef[] = [{ id: "field", label: "Field", shortLabel: "Fld" }];
@@ -142,5 +143,6 @@ export const oztagSport: SportConfig = {
   fairnessModel: "zone-minutes",
   jerseyNumbers: true,
   teamSong: false,
+  periodBreak: touchPeriodBreak,
   validateLineup: validateTouchLineup,
 };

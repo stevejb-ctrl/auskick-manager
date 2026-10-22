@@ -300,7 +300,7 @@ test("Start Q2 from QuarterBreak advances to StartQuarterModal on a single tap",
   // (replayGame returns currentQuarter=2 + quarterEnded=false, so
   // isBetweenQuarters=false and QuarterBreak unmounts).
   await expect(
-    page.getByText(/lineup for q2/i),
+    page.getByRole("heading", { name: /^q2 lineup$/i }),
   ).toBeHidden({ timeout: 5_000 });
 
   // And the server should have recorded exactly one quarter_start
@@ -415,7 +415,7 @@ test("the clock menu pauses and ends the quarter early", async ({ page }) => {
     .getByRole("button", { name: /^end q1 now$/i })
     .click();
   await page.getByRole("button", { name: /^end q1$/i }).click();
-  await expect(page.getByText(/lineup for q2/i)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("heading", { name: /^q2 lineup$/i })).toBeVisible({ timeout: 10_000 });
 });
 
 // Regression: AFL teams created before the 2026-05-20 boys/girls split

@@ -22,6 +22,7 @@ import type { PositionDef, ScoreTypeDef, SportConfig, ZoneDef } from "@/lib/spor
 import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
 import { aflSport } from "@/lib/sports/afl";
 import { validateTouchLineup } from "@/lib/sports/touch/lineup";
+import { touchPeriodBreak } from "@/lib/sports/touch/periodBreak";
 import type { MixedRule, TouchAgeGroupConfig, TouchShape, TouchStrategy } from "@/lib/sports/touch/types";
 
 // One field region and one synthetic position, as soccer: who plays
@@ -138,5 +139,6 @@ export const touchSport: SportConfig = {
   fairnessModel: "zone-minutes",
   jerseyNumbers: true,
   teamSong: false,
+  periodBreak: touchPeriodBreak,
   validateLineup: validateTouchLineup,
 };

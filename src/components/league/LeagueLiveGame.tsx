@@ -17,7 +17,6 @@ import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { LeagueGameSettingsButton } from "./LeagueGameSettingsButton";
 import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
 import { ClockMenu } from "@/components/live/ClockMenu";
-import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { buildLeagueWalkthroughSteps } from "./leagueWalkthroughSteps";
 // Walkthrough modal is heavy (animations, slide tracking) and only
 // mounts on first visit or "?" tap. Dynamic-import keeps it out of
@@ -64,6 +63,7 @@ import { LeagueScorerPicker } from "./LeagueScorerPicker";
 import { LeagueFullTimeReview } from "./LeagueFullTimeReview";
 import { LeagueGameSummaryCard } from "./LeagueGameSummaryCard";
 import { VestAssignmentCard } from "./VestAssignmentCard";
+import { LeagueBreak } from "./LeagueBreak";
 import { RecordConversionDialog } from "./RecordConversionDialog";
 import { KickoffPicker } from "./KickoffPicker";
 import { currentVests, type VestType } from "@/lib/sports/rugby_league/vests";
@@ -79,7 +79,6 @@ import {
   playerZoneMsOnField,
   rugbyScoreWords,
   suggestLeagueSubs,
-  swapInLeagueLineup,
 } from "@/lib/sports/rugby_league/fairness";
 import { getSportConfig, type RugbySport } from "@/lib/sports/registry";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
@@ -93,7 +92,6 @@ import {
   clearPeriodToBench,
   type GamePlan,
 } from "@/lib/game-plan";
-import { benchSidelinedInLeagueLineup, plannedLeagueLineup } from "@/lib/live/lineupOps";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Game, GameEvent, LeagueLineup, LiveAuth, Player } from "@/lib/types";
 import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
@@ -194,24 +192,6 @@ export function LeagueLiveGame({
   const [fillSpotZone, setFillSpotZone] = useState<"forward" | "back" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [endQConfirmOpen, setEndQConfirmOpen] = useState(false);
-  /**
-   * "Ready for H/Q{n}" confirmation step — shown when the coach taps
-   * the quarter-break "Ready for {period}" button. Mirrors AFL's
-   * `StartQuarterModal` pattern: the coach confirms by tapping "Start
-   * {H|Q}{n}" when the hooter goes. Closing without confirming returns
-   * to the quarter-break view with zero server state changed.
-   */
-  const [startPeriodConfirmOpen, setStartPeriodConfirmOpen] = useState(false);
-  // ── Auto-open the StartQuarterModal at every quarter-break ──
-  // AFL's `QuarterBreak` requires the coach to tap "Ready for Q{n}"
-  // in a sticky-bottom bar before the modal pops. RL has an inline
-  // q-break card and Steve flagged that the "Tap when the siren
-  // goes" modal felt missing in practice. Solution: auto-pop the
-  // modal the first time we enter q-break for each period. If the
-  // coach taps "Back to lineup" they fall back to the inline card
-  // (Ready button there manually re-opens the modal). Tracked per-
-  // period via a ref so dismissing once doesn't keep auto-reopening.
-  const autoOpenedForQbreakRef = useRef<number | null>(null);
   // ── Walkthrough state (mirrors AFL + netball) ──
   // First-visit auto-open uses `league-walkthrough-seen` in
   // localStorage so a coach doesn't see the welcome again on
@@ -270,25 +250,6 @@ export function LeagueLiveGame({
     zone: "forward" | "back";
   } | null>(null);
 
-  // ── Break-time Manage-availability (AVAIL-02 / B2) ────────────
-  // Mirrors AFL `QuarterBreak.tsx` + netball `NetballQuarterBreak.tsx`.
-  // At a period break the coach can ADD an arrived player (reuses the
-  // canonical addLateArrival writer) or MARK a player OUT — the latter
-  // forces a bench-replacement pick via the shared InjuryReplacementModal
-  // and records the out player with reason:"out" PLUS a recordLeagueSwap
-  // so the replacement physically takes the vacated field slot.
-  const [addArrivedPickerOpen, setAddArrivedPickerOpen] = useState(false);
-  const [markOutPickerOpen, setMarkOutPickerOpen] = useState(false);
-  const [breakInjuredPickerOpen, setBreakInjuredPickerOpen] = useState(false);
-  /**
-   * When set, the InjuryReplacementModal is shown for the mark-OUT flow
-   * (distinct from the in-game injury flow above). `zone` infers from the
-   * live lineup so the swap lands the replacement in the right bucket.
-   */
-  const [markOutReplacement, setMarkOutReplacement] = useState<{
-    outId: string;
-    zone: "forward" | "back";
-  } | null>(null);
 
   const kickoffSkippedRef = useRef<Set<number>>(new Set());
   const [kickoffSkippedTick, setKickoffSkippedTick] = useState(0);
@@ -413,19 +374,8 @@ export function LeagueLiveGame({
     [squad, loanedSet, injuredSet],
   );
 
-  // ── The break opens on the plan (F2) ───────────────────────
-  // When the coach has planned the coming period, the break shows that
-  // plan (reconciled: a kid who can't play now is benched) and every
-  // lineup edit made there changes the PLAN, not the saved lineup; the
-  // Start tap commits it (handleStartNextPeriod). That's AFL's break:
-  // it opens on the plan and the coach edits that draft. The plan still
-  // goes on only at the coach's Start tap (threat model T-11-02-B), and
-  // it lives in the persisted store, so leaving the screen keeps it.
-  // The other way out, showing the last period's lineup and dropping
-  // the plan once the coach edits it, loses a whole plan to a one-kid
-  // tweak and shows a field that isn't the one Start puts on.
-  // Everything below reads `lineup`: the plan at such a break, the
-  // saved lineup otherwise.
+  // The pinned plan for the coming period (F2): the plan-ahead modal
+  // pins it; LeagueBreak (the shared break screen) opens on it.
   const plannedRotation = useLiveGame((s) => s.plannedRotation);
   const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
   const pinForThisGame =
@@ -437,29 +387,11 @@ export function LeagueLiveGame({
     && state.currentQuarter >= 1
     && state.currentQuarter < ageGroup.periodCount
     && !state.finalised;
-  // The coming period's 0-based index is state.currentQuarter.
-  const breakPlan = useMemo(
-    () =>
-      isAtQbreak && state.lineup
-        ? plannedLeagueLineup({
-            pin: pinForThisGame,
-            periodIndex: state.currentQuarter,
-            lineup: state.lineup,
-            squad,
-            injured: injuredSet,
-            loaned: loanedSet,
-          })
-        : null,
-    [isAtQbreak, state.lineup, state.currentQuarter, pinForThisGame, squad, injuredSet, loanedSet],
-  );
-  const lineup = breakPlan ?? state.lineup;
+  // The break is LeagueBreak; this screen shows the lineup in play.
+  const lineup = state.lineup;
   // Named positions mid-period: the slot each kid holds (a sub takes
-  // over the replaced kid's), so a sub never re-deals the field. A
-  // break deals the next period afresh (season balance), so none then.
-  const heldSlots = useMemo(
-    () => (breakPlan ? undefined : leagueSlotsNow(thisGameEvents)),
-    [breakPlan, thisGameEvents],
-  );
+  // over the replaced kid's), so a sub never re-deals the field.
+  const heldSlots = useMemo(() => leagueSlotsNow(thisGameEvents), [thisGameEvents]);
 
   // ── Derived lineups ───────────────────────────────────────────
   // `forwardPlayers` and `backPlayers` map the position-aware buckets
@@ -701,41 +633,6 @@ export function LeagueLiveGame({
   );
   const hasSwappableBench = swappableBench.length > 0;
 
-  // ── Break-time Manage-availability candidate lists ────────────
-  // Arrival candidates = squad members not placed anywhere in the
-  // lineup (same set the in-game LateArrivalMenu uses). Mark-out
-  // candidates = on-field players the coach can take out (excludes
-  // anyone already injured / loaned so we never double-sideline).
-  const arrivalCandidates = useMemo(
-    () =>
-      lateArrivalCandidates.map((p) => ({
-        id: p.id,
-        name: p.full_name,
-        jerseyNumber: p.jersey_number,
-      })),
-    [lateArrivalCandidates],
-  );
-  const markOutCandidates = useMemo(
-    () =>
-      fieldPlayers
-        .filter((p) => !injuredSet.has(p.id) && !loanedSet.has(p.id))
-        .map((p) => ({
-          id: p.id,
-          name: p.full_name,
-          jerseyNumber: p.jersey_number,
-        })),
-    [fieldPlayers, injuredSet, loanedSet],
-  );
-  // Replacement candidates for the mark-out flow — swappable bench
-  // sorted least-played first (same shape + sort as the injury flow).
-  const markOutReplacementCandidates = useMemo<InjuryReplacementCandidate[]>(
-    () =>
-      swappableBench
-        .map((p) => ({ player: p, totalMs: totalMsByPlayer[p.id] ?? 0 }))
-        .sort((a, b) => a.totalMs - b.totalMs),
-    [swappableBench, totalMsByPlayer],
-  );
-
   const subIsDue
     = subIntervalMs != null
     && lastSwapOrPeriodElapsed != null
@@ -881,11 +778,11 @@ export function LeagueLiveGame({
   // (e.g. "Replace later" — they may want to bring the wearer
   // back themselves).
   useEffect(() => {
-    if (missingVestWearer == null) return;
+    if (missingVestWearer == null || isAtQbreak) return;
     const key = `${state.currentQuarter}-${missingVestWearer}`;
     if (dismissedForceVestRef.current.has(key)) return;
     setForceVestReplaceOpen(true);
-  }, [missingVestWearer, state.currentQuarter]);
+  }, [missingVestWearer, state.currentQuarter, isAtQbreak]);
   // Clear the "dismissed for period N" set when the period changes.
   useEffect(() => {
     dismissedForceVestRef.current = new Set();
@@ -962,30 +859,6 @@ export function LeagueLiveGame({
     endQuarterAtClient,
   ]);
 
-  // Auto-open the "Tap when the siren goes" modal as soon as we
-  // land at a quarter-break, once per period transition. See the
-  // `autoOpenedForQbreakRef` declaration for the full rationale.
-  // Gated on isAtQbreak (i.e. period ended AND not the final
-  // period AND not finalised) so it never fires at game-end where
-  // the FullTimeReview owns the space.
-  useEffect(() => {
-    if (!state.quarterEnded) {
-      // Period went live again — reset the ref so the NEXT break
-      // gets its own auto-open.
-      autoOpenedForQbreakRef.current = null;
-      return;
-    }
-    if (state.finalised) return;
-    if (state.currentQuarter >= ageGroup.periodCount) return;
-    if (autoOpenedForQbreakRef.current === state.currentQuarter) return;
-    autoOpenedForQbreakRef.current = state.currentQuarter;
-    setStartPeriodConfirmOpen(true);
-  }, [
-    state.quarterEnded,
-    state.finalised,
-    state.currentQuarter,
-    ageGroup.periodCount,
-  ]);
 
   // No first-visit auto-open: the tour is offered on the pre-kickoff
   // lineup screen (LeagueWalkthroughOffer) and the "?" in LiveTopBar
@@ -1031,92 +904,6 @@ export function LeagueLiveGame({
       enforceUnbrokenPeriods,
     ],
   );
-
-  async function handleStartNextPeriod() {
-    setPending(true);
-    setError(null);
-    // Reset any scrolled ancestors before transitioning to the next
-    // period. The public demo at /run/{token} wraps the app in
-    // DeviceFrame, which applies `transform: translateZ(0)` for
-    // its rounded-corner clipping — that transform makes the frame
-    // a containing block for any `position: fixed` descendant. When
-    // the GM has scrolled the QB content down (e.g. to see the
-    // bench rotation suggestion) before tapping "Ready for Q{n}",
-    // the post-transition live view can render with the field
-    // below the visible scroll window inside the frame. Scrolling
-    // every ancestor to 0 first guarantees the next view lands at
-    // the top of the frame. `window.scrollTo` covers the non-
-    // framed (installed PWA) case. Mirrors AFL's fix in ff771c6.
-    if (typeof document !== "undefined") {
-      let el = liveRootRef.current?.parentElement ?? null;
-      while (el) {
-        if (el.scrollTop > 0) el.scrollTop = 0;
-        el = el.parentElement;
-      }
-    }
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "auto" });
-    }
-    const next = state.currentQuarter + 1;
-    // F2 (ROTPLAN-02 / D-13/D-14): the break showed the coach's plan for
-    // this period, with their edits (`breakPlan`: reconciled, so a kid
-    // who can't play now is never fielded). Commit exactly that, through
-    // the SAME auth/RLS-guarded `recordLeagueLineupSet` action used by
-    // every manual lineup edit, and only here, on the coach's explicit
-    // Start tap (threat model T-11-02-B). The pin is then consumed so it
-    // can't re-apply.
-    let lineupRecorded = false;
-    if (breakPlan) {
-      const { flushed: lineupFlushed } = enqueueLiveAction("recordLeagueLineupSet", [
-        auth,
-        game.id,
-        // Named positions: record each kid's slot (UX plan 5.7).
-        withLeagueSlots(breakPlan, leaguePlaybook),
-        undefined,
-      ]);
-      await lineupFlushed;
-      // This period's plan is used; later planned periods stay.
-      setPlannedRotation(consumePeriodPin(pinForThisGame, state.currentQuarter));
-      lineupRecorded = true;
-    }
-    // No plan: the previous period's lineup carries forward, with the
-    // break's swaps (saved as they were made). Reconcile here — drop any
-    // injured / loaned player off the field onto the bench so they don't
-    // start the next period still on the pitch accruing minutes (Steve
-    // 2026-06-15, AFL parity). The field may end up a player short; the
-    // coach fills it via a normal rolling sub.
-    if (!lineupRecorded && lineup) {
-      const sidelined = new Set<string>();
-      injuredSet.forEach((id) => sidelined.add(id));
-      loanedSet.forEach((id) => sidelined.add(id));
-      const reconciled = benchSidelinedInLeagueLineup(lineup, sidelined);
-      if (reconciled !== lineup) {
-        const { flushed: reconcileFlushed } = enqueueLiveAction("recordLeagueLineupSet", [
-          auth,
-          game.id,
-          // Named positions: record each kid's slot (UX plan 5.7).
-          withLeagueSlots(
-            {
-              forwards: reconciled.forwards,
-              backs: reconciled.backs,
-              bench: reconciled.bench,
-            },
-            leaguePlaybook,
-          ),
-          undefined,
-        ]);
-        await reconcileFlushed;
-      }
-    }
-    const { flushed } = enqueueLiveAction("startLeagueQuarter", [
-      auth,
-      game.id,
-      next,
-    ]);
-    await flushed;
-    setPending(false);
-    router.refresh();
-  }
 
   async function recordTryForPlayer(playerId: string) {
     // Defensive gate — even if a stale dock / cached client action
@@ -1223,25 +1010,7 @@ export function LeagueLiveGame({
   }
 
   // ── Lineup edits ──────────────────────────────────────────────
-  // At a break showing the coach's plan, an edit changes the plan (as a
-  // pin of this period, which wins over one made before kickoff) and
-  // Start commits it: see `breakPlan`. Anywhere else it's saved as it's
-  // made.
-  function stageBreakPlan(next: LeagueLineup) {
-    setPlannedRotation({
-      ...(pinForThisGame ?? {}),
-      gameId: game.id,
-      nextPeriodIndex: state.currentQuarter,
-      nextPeriodGroups: { forwards: next.forwards, backs: next.backs },
-      nextPeriodBench: next.bench,
-    });
-  }
-
   function saveLineup(next: LeagueLineup): Promise<void> {
-    if (breakPlan) {
-      stageBreakPlan(next);
-      return Promise.resolve();
-    }
     return enqueueLiveAction("recordLeagueLineupSet", [
       auth,
       game.id,
@@ -1254,10 +1023,6 @@ export function LeagueLiveGame({
 
   // A rolling sub: `onId` takes `offId`'s spot, `offId` goes to the bench.
   function saveSwap(offId: string, onId: string): Promise<void> {
-    if (breakPlan) {
-      stageBreakPlan(swapInLeagueLineup(breakPlan, offId, onId).lineup);
-      return Promise.resolve();
-    }
     return enqueueLiveAction("recordLeagueSwap", [
       auth,
       game.id,
@@ -1621,126 +1386,6 @@ export function LeagueLiveGame({
     router.refresh();
   }
 
-  // ── Break-time Manage-availability handlers (AVAIL-02 / B2) ───
-  // ADD ARRIVED: a squad member who wasn't available pre-game turns
-  // up at the break. Reuses the canonical addLateArrival writer (same
-  // path as the in-game LateArrivalMenu) — the arrival lands on the
-  // bench and the next period's rotation works them in.
-  async function handleAddArrivedAtBreak(playerId: string) {
-    setAddArrivedPickerOpen(false);
-    setPending(true);
-    const { flushed } = enqueueLiveAction("addLateArrival", [
-      auth,
-      game.id,
-      {
-        player_id: playerId,
-        quarter: Math.max(1, state.currentQuarter + 1),
-        elapsed_ms: 0,
-      },
-    ]);
-    await flushed;
-    setPending(false);
-    router.refresh();
-  }
-
-  // MARK OUT: coach picked an on-field player who has to leave. If
-  // they're in a known zone and there's a swappable bench player,
-  // force a replacement pick (so the field doesn't go short);
-  // otherwise mark them out directly.
-  function handleMarkOutPick(playerId: string) {
-    setMarkOutPickerOpen(false);
-    const zone: "forward" | "back" | null = lineup
-      ? lineup.forwards.includes(playerId)
-        ? "forward"
-        : lineup.backs.includes(playerId)
-          ? "back"
-          : null
-      : null;
-    if (zone !== null && markOutReplacementCandidates.length > 0) {
-      setMarkOutReplacement({ outId: playerId, zone });
-      return;
-    }
-    void handleMarkOutDirect(playerId);
-  }
-
-  // Mark a player out WITHOUT a replacement (skip / no bench). Records
-  // an injury event flagged reason:"out" so display can tell an "out"
-  // from a genuine injury; leaves the field slot vacant.
-  async function handleMarkOutDirect(playerId: string) {
-    setMarkOutReplacement(null);
-    setSelectedPlayerId((s) => (s === playerId ? null : s));
-    setPending(true);
-    const { flushed } = enqueueLiveAction("markInjury", [
-      auth,
-      game.id,
-      {
-        player_id: playerId,
-        injured: true,
-        quarter: state.currentQuarter,
-        elapsed_ms: elapsedMs,
-        reason: "out",
-      },
-    ]);
-    await flushed;
-    setPending(false);
-    router.refresh();
-  }
-
-  // Mark a player out WITH a replacement. Fires markInjury(reason:"out")
-  // then recordLeagueSwap (off=out, on=replacement) so the replacement
-  // physically takes the vacated field slot — mirrors the injury
-  // replacement flow but tagged reason:"out".
-  async function handleMarkOutReplacement(
-    outId: string,
-    replacementId: string,
-    zone: "forward" | "back",
-  ) {
-    void zone; // parity with the injury signature; RL swap infers zone
-    setMarkOutReplacement(null);
-    setPending(true);
-    const { flushed: injFlushed } = enqueueLiveAction("markInjury", [
-      auth,
-      game.id,
-      {
-        player_id: outId,
-        injured: true,
-        quarter: state.currentQuarter,
-        elapsed_ms: elapsedMs,
-        reason: "out",
-      },
-    ]);
-    const swapFlushed = saveSwap(outId, replacementId);
-    await Promise.all([injFlushed, swapFlushed]).catch(() => {
-      // individual failures already handled by queue retry cap
-    });
-    setPending(false);
-    router.refresh();
-  }
-
-  // MARK INJURED at the break — plain injury flag (no forced
-  // replacement; the next-period rotation reshuffles around the
-  // sidelined player). Mirrors AFL/netball break "Mark injured" which
-  // fire markInjury directly rather than routing through the in-game
-  // replacement modal. Recorded WITHOUT reason:"out" so it reads as a
-  // genuine injury, not a take-out.
-  async function handleBreakInjured(playerId: string) {
-    setBreakInjuredPickerOpen(false);
-    setPending(true);
-    const { flushed } = enqueueLiveAction("markInjury", [
-      auth,
-      game.id,
-      {
-        player_id: playerId,
-        injured: true,
-        quarter: state.currentQuarter,
-        elapsed_ms: elapsedMs,
-      },
-    ]);
-    await flushed;
-    setPending(false);
-    router.refresh();
-  }
-
   async function handleToggleLoan(playerId: string, loaned: boolean) {
     // A lent kid stops being selected now, before the refresh flags them:
     // the next tap would swap them on (Stagehand round 4).
@@ -1782,18 +1427,6 @@ export function LeagueLiveGame({
       = lineup.forwards.includes(playerId)
       || lineup.backs.includes(playerId);
     if (!wasOnField) return;
-    if (breakPlan) {
-      // Into the plan (see stageBreakPlan); the replay's move: off their
-      // line, onto the end of the other.
-      const others = (ids: string[]) => ids.filter((id) => id !== playerId);
-      stageBreakPlan({
-        forwards: toZone === "forward" ? [...others(lineup.forwards), playerId] : others(lineup.forwards),
-        backs: toZone === "back" ? [...others(lineup.backs), playerId] : others(lineup.backs),
-        bench: lineup.bench,
-      });
-      setActionSheetPlayerId(null);
-      return;
-    }
     setPending(true);
     const { flushed } = enqueueLiveAction("recordLeaguePositionChange", [
       auth,
@@ -1900,6 +1533,128 @@ export function LeagueLiveGame({
     = actionSheetPlayerId != null && injuredSet.has(actionSheetPlayerId);
   const actionSheetLoaned
     = actionSheetPlayerId != null && loanedSet.has(actionSheetPlayerId);
+
+  // The score pickers the scorebug's chips open: in play, and in the
+  // break's score sheet.
+  const scoreOverlays = (
+    <>
+      {conversionDialogOpen && lineup && (
+        <RecordConversionDialog
+          auth={auth}
+          gameId={game.id}
+          squad={squad}
+          onFieldPlayerIds={[
+            ...lineup.forwards,
+            ...lineup.backs,
+          ]}
+          events={thisGameEvents}
+          quarter={state.currentQuarter}
+          elapsedMs={elapsedMs}
+          afterTry={conversionAfterTry}
+          rotation={kickRotations}
+          onClose={() => setConversionDialogOpen(false)}
+        />
+      )}
+
+      {/* U13+: who kicked our penalty / field goal (scorebug +PG / +FG). */}
+      {goalPicker && (
+        <LeagueScorerPicker
+          sport={sport}
+          score={goalPicker}
+          onFieldPlayers={fieldPlayers}
+          pending={pending}
+          onCancel={() => setGoalPicker(null)}
+          onPick={(pid) => {
+            const kind = goalPicker;
+            setGoalPicker(null);
+            void recordLeagueGoalKind(kind, pid);
+          }}
+        />
+      )}
+
+      {/* Own-team scorer picker — invoked by scorebug +T. */}
+      {scorerPickerOpen && (
+        <LeagueScorerPicker
+          sport={sport}
+          onFieldPlayers={fieldPlayers}
+          pending={pending}
+          onCancel={() => setScorerPickerOpen(false)}
+          onPick={(pid) => {
+            setScorerPickerOpen(false);
+            void recordTryForPlayer(pid);
+          }}
+        />
+      )}
+    </>
+  );
+
+  // The break: the shared break screen. Its score sheet holds the
+  // scorebug's chips (a try or goal the coach missed in play).
+  if (isAtQbreak) {
+    return (
+      <div ref={liveRootRef}>
+        {walkthroughOpen && (
+          <WalkthroughModal steps={walkthroughSteps} onClose={handleWalkthroughClose} />
+        )}
+        <LeagueBreak
+          auth={auth}
+          sport={sport}
+          game={game}
+          exitHref={exitHref}
+          onHelp={handleOpenWalkthrough}
+          squad={squad}
+          ageGroup={ageGroup}
+          state={state}
+          events={thisGameEvents}
+          periodSeconds={periodSeconds}
+          injured={injuredSet}
+          loaned={loanedSet}
+          msByPlayer={totalMsByPlayer}
+          enforceUnbrokenPeriods={enforceUnbrokenPeriods}
+          leaguePlaybook={leaguePlaybook}
+          chipModes={chipModes}
+          isAdmin={isAdmin}
+          scoreEditor={
+            trackScoring ? (
+              <div className="space-y-3">
+                <p className="text-xs text-ink-dim">A score you missed counts in the {periodLabel} just played.</p>
+                <LeagueScoreBug
+                  sport={sport}
+                  teamName={teamName}
+                  opponentName={game.opponent || "Opponent"}
+                  teamScore={state.teamScore}
+                  opponentScore={state.opponentScore}
+                  periodLabel={periodLabel}
+                  periodLabelPlural={periodLabelPlural}
+                  currentPeriod={state.currentQuarter}
+                  periodCount={ageGroup.periodCount}
+                  clockReadout={clockReadout}
+                  quarterEnded={state.quarterEnded}
+                  trackScoring={trackScoring}
+                  onTeamTry={() => setScorerPickerOpen(true)}
+                  onTeamConversion={kickingAllowed ? handleOpenConversionDialog : undefined}
+                  onOpponentTry={handleRecordOpponentTry}
+                  onOpponentConversion={kickingAllowed ? handleRecordOpponentConversion : undefined}
+                  kickingAllowed={kickingAllowed}
+                  onTeamPenaltyGoal={goalsFromPlay ? () => setGoalPicker("penalty_goal") : undefined}
+                  onTeamFieldGoal={goalsFromPlay ? () => setGoalPicker("field_goal") : undefined}
+                  onOpponentPenaltyGoal={goalsFromPlay ? () => void recordLeagueGoalKind("opponent_penalty_goal", null) : undefined}
+                  onOpponentFieldGoal={goalsFromPlay ? () => void recordLeagueGoalKind("opponent_field_goal", null) : undefined}
+                  pending={pending}
+                  running={running}
+                />
+                {(state.teamScore.points > 0 || state.opponentScore.points > 0) && (
+                  <UndoStrip flashing={false} message="" onUndo={handleUndoScore} disabled={pending} />
+                )}
+                {scoreOverlays}
+              </div>
+            ) : undefined
+          }
+        />
+        {error && <InlineAlert kind="danger">{error}</InlineAlert>}
+      </div>
+    );
+  }
 
   return (
     // No bottom padding: LiveStickyScoreBar reserves its own height with
@@ -2177,106 +1932,6 @@ export function LeagueLiveGame({
             Cancel
           </button>
         </p>
-      )}
-
-      {isAtQbreak && (
-        <section className="rounded-xl border border-brand-500/40 bg-brand-50 p-4 shadow-card">
-          <p className="mb-3 text-sm font-medium text-ink">
-            {periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)}{" "}
-            {state.currentQuarter} done. Score:{" "}
-            <strong>{state.teamScore.points}</strong> –{" "}
-            <strong>{state.opponentScore.points}</strong>.
-          </p>
-          {/* Planned-seed banner (F2 / D-15): the coach planned this
-              upcoming period, so the field below is that plan (with any
-              edits made here), and it's what Start puts on (see
-              breakPlan / handleStartNextPeriod). */}
-          {breakPlan && (
-            <p
-              data-testid="planned-seed-banner"
-              className="mb-2 font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
-            >
-              Pre-filled from your planned {periodLabel}{" "}
-              {state.currentQuarter + 1} lineup
-            </p>
-          )}
-          <SFButton
-            onClick={() => setStartPeriodConfirmOpen(true)}
-            disabled={pending}
-            variant="accent"
-            size="lg"
-            full
-          >
-            Start {periodLabel.charAt(0).toUpperCase()}{state.currentQuarter + 1}
-          </SFButton>
-
-          {/* Manage availability (AVAIL-02 / B2) — mirrors AFL
-              QuarterBreak + netball NetballQuarterBreak:
-                • Add arrived player: a squad member who wasn't
-                  available pre-game turns up at the break. Reuses the
-                  canonical addLateArrival writer.
-                • Mark a player out: an on-field player has to leave.
-                  Forces a bench-replacement pick so the field doesn't
-                  go short; recorded with reason:"out" so display can
-                  tell an "out" from a genuine injury. */}
-          {isAdmin && (
-            <div className="mt-3 border-t border-brand-500/20 pt-3">
-              <p className="text-xs font-semibold text-ink">
-                Manage availability
-              </p>
-              <p className="mt-0.5 text-xs text-ink-mute">
-                Add a player who turned up at the break, or take one out
-                of the game (a replacement comes on so the field stays
-                full).
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setAddArrivedPickerOpen(true)}
-                  disabled={pending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60 motion-safe:active:scale-[0.97]"
-                >
-                  <span aria-hidden>+</span>
-                  Add arrived player
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMarkOutPickerOpen(true)}
-                  disabled={pending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60 motion-safe:active:scale-[0.97]"
-                >
-                  <span aria-hidden>+</span>
-                  Mark a player out
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBreakInjuredPickerOpen(true)}
-                  disabled={pending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60 motion-safe:active:scale-[0.97]"
-                >
-                  <span aria-hidden>+</span>
-                  Mark injured
-                </button>
-              </div>
-            </div>
-          )}
-        </section>
-      )}
-
-      {isAtQbreak && vestRequired && lineup && (
-        <VestAssignmentCard
-          auth={auth}
-          sport={sport}
-          gameId={game.id}
-          squad={squad}
-          onFieldPlayerIds={[
-            ...lineup.forwards,
-            ...lineup.backs,
-          ]}
-          events={thisGameEvents}
-          ageGroup={ageGroup}
-          period={periodForAssignment}
-        />
       )}
 
       {/* Pre-finalise review — full per-period reconcile + finalise
@@ -2640,23 +2295,6 @@ export function LeagueLiveGame({
         );
       })()}
 
-      {/* "Ready for H/Q{n}" confirmation — mirrors AFL's StartQuarterModal.
-          Opens when the coach taps the quarter-break CTA. The coach
-          confirms by tapping "Start {H|Q}{n}" when the hooter goes.
-          Cancelling returns to the break view with no server writes. */}
-      {startPeriodConfirmOpen && (
-        <StartQuarterModal
-          quarter={state.currentQuarter + 1}
-          periodLabel={periodLabel as "quarter" | "half" | "period"}
-          loading={pending}
-          onStart={() => {
-            setStartPeriodConfirmOpen(false);
-            void handleStartNextPeriod();
-          }}
-          onCancel={() => setStartPeriodConfirmOpen(false)}
-        />
-      )}
-
       {clockMenuOpen && (
         <ClockMenu
           periodAbbr={`${periodLabel.charAt(0).toUpperCase()}${state.currentQuarter}`}
@@ -2696,23 +2334,7 @@ export function LeagueLiveGame({
         />
       )}
 
-      {conversionDialogOpen && lineup && (
-        <RecordConversionDialog
-          auth={auth}
-          gameId={game.id}
-          squad={squad}
-          onFieldPlayerIds={[
-            ...lineup.forwards,
-            ...lineup.backs,
-          ]}
-          events={thisGameEvents}
-          quarter={state.currentQuarter}
-          elapsedMs={elapsedMs}
-          afterTry={conversionAfterTry}
-          rotation={kickRotations}
-          onClose={() => setConversionDialogOpen(false)}
-        />
-      )}
+      {scoreOverlays}
 
       {/* Force-vest-replace modal: shown when an FR/DH wearer leaves
           the field (sub, injury, loan) until the coach picks a
@@ -2754,36 +2376,6 @@ export function LeagueLiveGame({
               onDone={() => setForceVestReplaceOpen(false)}
             />
           </Modal>
-      )}
-
-      {/* U13+: who kicked our penalty / field goal (scorebug +PG / +FG). */}
-      {goalPicker && (
-        <LeagueScorerPicker
-          sport={sport}
-          score={goalPicker}
-          onFieldPlayers={fieldPlayers}
-          pending={pending}
-          onCancel={() => setGoalPicker(null)}
-          onPick={(pid) => {
-            const kind = goalPicker;
-            setGoalPicker(null);
-            void recordLeagueGoalKind(kind, pid);
-          }}
-        />
-      )}
-
-      {/* Own-team scorer picker — invoked by scorebug +T. */}
-      {scorerPickerOpen && (
-        <LeagueScorerPicker
-          sport={sport}
-          onFieldPlayers={fieldPlayers}
-          pending={pending}
-          onCancel={() => setScorerPickerOpen(false)}
-          onPick={(pid) => {
-            setScorerPickerOpen(false);
-            void recordTryForPlayer(pid);
-          }}
-        />
       )}
 
       {/* Long-press action sheet — shared `LockModal` (same modal AFL
@@ -2852,89 +2444,6 @@ export function LeagueLiveGame({
           onCancel={() => setFillSpotZone(null)}
         />
       )}
-
-      {/* Break-time Add-arrived picker — opens from the
-          "+ Add arrived player" button on the break surface. Lists
-          squad members who weren't available pre-game (not placed in
-          the lineup). Tapping one fires addLateArrival. */}
-      {addArrivedPickerOpen && (
-        <SlotFillSheet
-          slotLabel="player"
-          titleVerb="Add arrived"
-          subtitle="Pick a squad member who's turned up at the break. They'll join the bench and the next period can work them in."
-          emptyMessage="Everyone in the squad is already in the game."
-          candidates={arrivalCandidates}
-          onPick={(pid) => void handleAddArrivedAtBreak(pid)}
-          onCancel={() => setAddArrivedPickerOpen(false)}
-        />
-      )}
-
-      {/* Break-time Mark-out picker — opens from "+ Mark a player out".
-          Lists on-field players. Picking one forces a bench-replacement
-          pick (InjuryReplacementModal) so the field doesn't go short;
-          recorded with reason:"out". */}
-      {markOutPickerOpen && (
-        <SlotFillSheet
-          slotLabel="player"
-          titleVerb="Mark out"
-          subtitle="Pick the on-field player who has to leave. A bench player comes on so the field stays full."
-          emptyMessage="No on-field players to take out."
-          candidates={markOutCandidates}
-          onPick={handleMarkOutPick}
-          onCancel={() => setMarkOutPickerOpen(false)}
-        />
-      )}
-
-      {/* Break-time Mark-injured picker — opens from "+ Mark injured".
-          Lists healthy squad players (on field or bench). Fires a plain
-          markInjury flag (no forced replacement at the break; the
-          next-period rotation reshuffles around them). */}
-      {breakInjuredPickerOpen && (
-        <SlotFillSheet
-          slotLabel="player"
-          titleVerb="Mark injured"
-          subtitle="Pick a player to mark as injured / leaving early. Tap their chip to bring them back."
-          emptyMessage="Everyone is already injured or lent."
-          candidates={squad
-            .filter((p) => !injuredSet.has(p.id) && !loanedSet.has(p.id))
-            .map((p) => ({
-              id: p.id,
-              name: p.full_name,
-              jerseyNumber: p.jersey_number,
-            }))}
-          onPick={(pid) => void handleBreakInjured(pid)}
-          onCancel={() => setBreakInjuredPickerOpen(false)}
-        />
-      )}
-
-      {/* Break-time Mark-out forced-replacement — reuses the shared
-          InjuryReplacementModal (DO NOT fork). Pick the bench player who
-          comes on; "without replacement" leaves the field short. Both
-          paths record the out player with reason:"out". */}
-      {markOutReplacement && (() => {
-        const outPlayer = squad.find(
-          (p) => p.id === markOutReplacement.outId,
-        );
-        if (!outPlayer) return null;
-        return (
-          <InjuryReplacementModal
-            injuredPlayer={outPlayer}
-            spotLabel={LEAGUE_SPOT_LABEL[markOutReplacement.zone]}
-            candidates={markOutReplacementCandidates}
-            onPickReplacement={(rid) =>
-              void handleMarkOutReplacement(
-                markOutReplacement.outId,
-                rid,
-                markOutReplacement.zone,
-              )
-            }
-            onSkipReplacement={() =>
-              void handleMarkOutDirect(markOutReplacement.outId)
-            }
-            onCancel={() => setMarkOutReplacement(null)}
-          />
-        );
-      })()}
 
       {/* Injury replacement picker — shown when a field player is marked
           injured and there are swappable bench players. Mirrors AFL's

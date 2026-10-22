@@ -15,6 +15,10 @@ export interface RuleCheckItem {
   id: string;
   status: CheckStatus;
   text: string;
+  /** The rule itself, as the break screen prints it under the text. */
+  rule?: string;
+  /** The kids the item names (the break screen's Fix moves them first). */
+  playerIds?: string[];
 }
 
 export interface RuleCheckInput {
@@ -79,6 +83,8 @@ export function checkRules(input: RuleCheckInput): RuleCheckItem[] {
           id: "min-game-time",
           status: "fail",
           text: `${joinNames(short.map(input.name))} can't reach ${input.minGameTimePct}% now`,
+          rule: `Everyone plays at least ${input.minGameTimePct}% of the game`,
+          playerIds: short,
         },
   );
 
@@ -96,9 +102,17 @@ export function checkRules(input: RuleCheckInput): RuleCheckItem[] {
             id: rule.id,
             status: sev(rule),
             text: `${joinNames(behind.map(input.name))} won't get to ${rule.kind === "every-line-per-game" ? `every ${input.lineWord}` : `${need} ${input.lineWord}s`} this game`,
+            rule: ruleLine(rule, input),
+            playerIds: behind,
           });
         } else if (missing.length > 0 && remainingAfter === 0) {
-          items.push({ id: rule.id, status: sev(rule), text: `${joinNames(missing.map(input.name))} missed a ${input.lineWord} this game` });
+          items.push({
+            id: rule.id,
+            status: sev(rule),
+            text: `${joinNames(missing.map(input.name))} missed a ${input.lineWord} this game`,
+            rule: ruleLine(rule, input),
+            playerIds: missing,
+          });
         } else {
           items.push({
             id: rule.id,
@@ -122,6 +136,8 @@ export function checkRules(input: RuleCheckInput): RuleCheckItem[] {
                 id: rule.id,
                 status: remainingAfter === 0 ? "warn" : "ok",
                 text: `${joinNames(missing.map(input.name))} still to play every ${input.lineWord} today`,
+                rule: ruleLine(rule, input),
+                playerIds: missing,
               },
         );
         break;
@@ -139,6 +155,8 @@ export function checkRules(input: RuleCheckInput): RuleCheckItem[] {
                 id: rule.id,
                 status: sev(rule),
                 text: `${joinNames(clash[1].map(input.name))} are both in ${input.lineLabel(clash[0])}`,
+                rule: ruleLine(rule, input),
+                playerIds: clash[1],
               }
             : { id: rule.id, status: "ok", text: `${joinNames(ids.map(input.name))} kept apart` },
         );
@@ -148,7 +166,13 @@ export function checkRules(input: RuleCheckInput): RuleCheckItem[] {
         const lines = new Set(ids.map((pid) => input.onField[pid]).filter(Boolean));
         items.push(
           lines.size > 1
-            ? { id: rule.id, status: sev(rule), text: `${joinNames(ids.map(input.name))} are split up` }
+            ? {
+                id: rule.id,
+                status: sev(rule),
+                text: `${joinNames(ids.map(input.name))} are split up`,
+                rule: ruleLine(rule, input),
+                playerIds: ids,
+              }
             : { id: rule.id, status: "ok", text: `${joinNames(ids.map(input.name))} together` },
         );
         break;
@@ -161,6 +185,8 @@ export function checkRules(input: RuleCheckInput): RuleCheckItem[] {
                 id: rule.id,
                 status: sev(rule),
                 text: `${joinNames(again.map(input.name))} would sit out twice in a row`,
+                rule: ruleLine(rule, input),
+                playerIds: again,
               }
             : { id: rule.id, status: "ok", text: "Nobody sits out twice in a row" },
         );
@@ -173,7 +199,13 @@ export function checkRules(input: RuleCheckInput): RuleCheckItem[] {
         });
         items.push(
           away.length > 0
-            ? { id: rule.id, status: sev(rule), text: `${joinNames(away.map(input.name))} away from home` }
+            ? {
+                id: rule.id,
+                status: sev(rule),
+                text: `${joinNames(away.map(input.name))} away from home`,
+                rule: ruleLine(rule, input),
+                playerIds: away,
+              }
             : { id: rule.id, status: "ok", text: `${joinNames(ids.map(input.name))} at home` },
         );
         break;
@@ -200,6 +232,7 @@ export function checkRules(input: RuleCheckInput): RuleCheckItem[] {
       items.push({
         id: `season-${g.playerId}-${g.unit}`,
         status: "warn",
+        playerIds: [g.playerId],
         text: g.never
           ? `${input.name(g.playerId)} hasn't played ${input.season.unitLabel(g.unit)} this season`
           : `${input.name(g.playerId)} is ${Math.round(g.owed)} ${input.periodWord}${Math.round(g.owed) === 1 ? "" : "s"} short at ${input.season.unitLabel(g.unit)}`,
@@ -207,6 +240,29 @@ export function checkRules(input: RuleCheckInput): RuleCheckItem[] {
     }
   }
   return items;
+}
+
+/** A rule as the break screen prints it under what broke it. */
+function ruleLine(rule: RuleInstance, input: RuleCheckInput): string {
+  const names = joinNames((rule.params.playerIds ?? []).map(input.name));
+  switch (rule.kind) {
+    case "every-line-per-game":
+      return `Everyone plays every ${input.lineWord} each game`;
+    case "every-line-per-day":
+      return `Everyone plays every ${input.lineWord} across the day`;
+    case "distinct-lines":
+      return `Everyone plays ${rule.params.count ?? 2} different ${input.lineWord}s`;
+    case "keep-apart":
+      return `Keep ${names} apart`;
+    case "keep-together":
+      return `Keep ${names} together`;
+    case "max-bench-in-row":
+      return `Nobody sits out two ${input.periodWord}s in a row`;
+    case "stays-home":
+      return `${names} stay${(rule.params.playerIds?.length ?? 0) === 1 ? "s" : ""} at home`;
+    default:
+      return "";
+  }
 }
 
 /** The single line a collapsed check bar shows. */

@@ -9,7 +9,7 @@
 import type { Player } from "@/lib/types";
 import type { TouchLineMs } from "@/lib/sports/touch/replay";
 import type { TouchLine } from "@/lib/sports/touch/types";
-import { LinePlayerTile, type LineTileCaption } from "@/components/live/LinePlayerTile";
+import { LinePlayerTile } from "@/components/live/LinePlayerTile";
 import { TOUCH_BAR_ORDER, TOUCH_TILE_STYLES, touchTryChip } from "@/components/touch/touchWords";
 
 interface TouchBenchProps {
@@ -30,7 +30,6 @@ interface TouchBenchProps {
   lockModes?: Record<string, "field" | "zone">;
   /** Tries each kid has scored; omitted when scoring is off. */
   triesByPlayer?: Record<string, number>;
-  captions?: Record<string, LineTileCaption>;
 }
 
 export function TouchBench({
@@ -48,7 +47,6 @@ export function TouchBench({
   loanedIds,
   lockModes,
   triesByPlayer,
-  captions,
 }: TouchBenchProps) {
   const injuredSet = new Set(injuredIds ?? []);
   const loanedSet = new Set(loanedIds ?? []);
@@ -87,7 +85,6 @@ export function TouchBench({
                 loaned={loanedSet.has(pid)}
                 lockMode={lockModes?.[pid] ?? null}
                 score={triesByPlayer ? touchTryChip(triesByPlayer[pid]) : null}
-                caption={captions?.[pid]}
               />
             );
           })}

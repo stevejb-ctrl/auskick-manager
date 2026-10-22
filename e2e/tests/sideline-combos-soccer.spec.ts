@@ -12,6 +12,7 @@ import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
 import type { GameEvent } from "../../src/lib/types";
+import { closeGameSettings, openGameSettings, startFromBreak } from "../helpers/break";
 
 interface Seeded {
   team: { id: string };
@@ -140,30 +141,30 @@ test("soccer at half-time: a kid who turns up after the plan is edited still pla
   const late = players[8];
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  await expect(page.getByRole("region", { name: "Keeper" })).toContainText(/keeper top:/i, { timeout: 15_000 });
+  await expect(page.getByRole("heading", { name: /^2nd half lineup$/i })).toBeVisible({ timeout: 15_000 });
 
   // Edit the plan: the bench kid and a defender trade places.
   const benchTile = page.getByRole("group", { name: "Bench" }).locator("[data-testid^='player-tile-']").first();
-  const defTile = page
-    .getByRole("region", { name: "On field" })
-    .getByRole("group", { name: "Defence" })
-    .locator("[data-testid^='player-tile-']")
-    .first();
+  const defTile = page.getByRole("group", { name: "Defence" }).locator("[data-testid^='player-tile-']").first();
   await benchTile.click();
   await defTile.click();
 
-  // The late kid turns up.
-  await page.getByRole("button", { name: /add late arrival/i }).click({ timeout: 10_000 });
-  await page.getByRole("button", { name: new RegExp(`^${late.full_name}$`, "i") }).click({ timeout: 5_000 });
+  // The late kid turns up, from the game settings sheet.
+  await openGameSettings(page);
+  await page.getByRole("button", { name: /add arrived player/i }).click();
+  await page
+    .getByRole("dialog", { name: /add arrived/i })
+    .getByRole("button", { name: new RegExp(late.full_name, "i") })
+    .click({ timeout: 5_000 });
   await expect
     .poll(async () => (await eventsOf(admin, game.id)).some((e) => e.type === "player_arrived" && e.player_id === late.id))
     .toBe(true);
+  await closeGameSettings(page);
   await expect(page.getByRole("group", { name: "Bench" }).getByTestId(`player-tile-${late.id}`)).toBeVisible({
     timeout: 15_000,
   });
 
-  await page.getByRole("button", { name: /^start h2$/i }).click();
-  await page.getByRole("button", { name: /^start h2 now$/i }).click({ timeout: 10_000 });
+  await startFromBreak(page, /^start 2nd half/i);
   await expect(page.getByRole("button", { name: /^clock — h2, running$/i })).toBeVisible({ timeout: 15_000 });
 
   const evs = await eventsOf(admin, game.id);

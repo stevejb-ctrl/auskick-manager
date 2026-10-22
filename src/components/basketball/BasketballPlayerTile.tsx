@@ -61,11 +61,6 @@ export interface BasketballSwapRole {
   totalPairs?: number;
 }
 
-export interface BasketballTileCaption {
-  text: string;
-  tone: "move" | "stay";
-}
-
 interface BasketballPlayerTileProps {
   player: Player;
   /** Where the kid is now; null on the bench. */
@@ -91,7 +86,6 @@ interface BasketballPlayerTileProps {
   /** "field" = Keep on (never subbed); "zone" = kept in a line. */
   lockMode?: "field" | "zone" | null;
   points?: number;
-  caption?: BasketballTileCaption | null;
   /** The position strategies: shown in place of the line ("PG"). */
   positionLabel?: string | null;
   /** The sub card is in its SUB DUE state (AFL's due ring and tint). */
@@ -125,7 +119,6 @@ function BasketballPlayerTileImpl({
   sitOutMsLeft = null,
   lockMode,
   points,
-  caption,
   positionLabel,
   swapDue = false,
 }: BasketballPlayerTileProps) {
@@ -234,17 +227,6 @@ function BasketballPlayerTileImpl({
           </div>
         )}
 
-        {caption && !isOff && !isOn && (
-          <div
-            className={`flex items-center justify-center rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[10px] font-bold uppercase leading-none tracking-micro ${
-              caption.tone === "move"
-                ? "border-brand-700 bg-brand-600 text-white"
-                : "border-hairline bg-surface-alt text-ink-dim"
-            }`}
-          >
-            {caption.text}
-          </div>
-        )}
 
         <div className="flex flex-1 flex-col px-[10px] py-2">
           {/* Row 1 · labels left, status chip right. */}
@@ -400,9 +382,7 @@ function areEqual(a: BasketballPlayerTileProps, b: BasketballPlayerTileProps): b
     a.lockMode !== b.lockMode ||
     a.points !== b.points ||
     a.positionLabel !== b.positionLabel ||
-    a.swapDue !== b.swapDue ||
-    a.caption?.text !== b.caption?.text ||
-    a.caption?.tone !== b.caption?.tone
+    a.swapDue !== b.swapDue
   ) {
     return false;
   }

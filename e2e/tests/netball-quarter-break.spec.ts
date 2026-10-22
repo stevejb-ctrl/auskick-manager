@@ -39,6 +39,7 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { auditKotaraKoalas, KOTARA_KOALAS_TEAM_ID } from "../helpers/seed-audit";
+import { openGameSettings } from "../helpers/break";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -242,16 +243,10 @@ const ROTATION_TOGGLE = /^Suggested$/i;
 // "Game settings" sitting above the rotation modes — opening it
 // reveals RotationModeToggle, on-field-size dropdown, and the loan/
 // injury manager.
-async function expandGameSettings(page: import("@playwright/test").Page) {
-  const trigger = page.getByRole("button", { name: /game settings/i });
-  // The collapse only re-renders when matchAdjustmentsOpen flips, so
-  // clicking when already open would toggle it shut. Guard with
-  // aria-expanded — Next render carries the new attribute.
-  if ((await trigger.getAttribute("aria-expanded")) !== "true") {
-    await trigger.click();
-  }
-  await expect(trigger).toHaveAttribute("aria-expanded", "true");
-}
+// The break is the shared period break screen (22 Oct 2026): the
+// strategy picker sits on the screen; the Game settings sheet (the
+// status chip) holds lend / injured / arrived / out.
+const expandGameSettings = openGameSettings;
 
 // ─── NETBALL-02 mandatory tests ───────────────────────────
 
@@ -269,9 +264,7 @@ test("NETBALL-02: Q-break shell renders with a 7-position suggested lineup after
   // toggle defaults to "suggested" so the active button reads
   // "✓ Suggested"; ROTATION_TOGGLE matches both the active and
   // inactive variants for robustness against any future default-
-  // state change. The toggle now lives inside the collapsed
-  // "Game settings" section — expand it first.
-  await expandGameSettings(page);
+  // state change. The picker sits on the break screen itself.
   await expect(
     page.getByRole("radio", { name: ROTATION_TOGGLE }),
   ).toBeVisible({ timeout: 5_000 });
@@ -327,21 +320,15 @@ test("NETBALL-02: unplayed-third tier dominates — players who didn't play Q1 a
   // rotation" to "Suggested" when the three-mode pill row landed.
   // The toggle is now the shared 44 pt SegmentedControl (UX plan
   // Phase 6): "Suggested" is the checked radio.
-  await expandGameSettings(page);
   await expect(page.getByRole("radio", { name: /^Suggested$/i })).toHaveAttribute(
     "aria-checked",
     "true",
     { timeout: 5_000 },
   );
 
-  // Time-in-zone colour key (Steve 2026-06-29): the per-player time-
-  // by-third bars encode the third by colour alone, so a shared legend
-  // must render once with the Attack/Centre/Defence labels.
-  const legend = page.getByRole("group", { name: /^Colour key:/ });
-  await expect(legend).toBeVisible();
-  await expect(legend).toContainText("Attack");
-  await expect(legend).toContainText("Centre");
-  await expect(legend).toContainText("Defence");
+  // No colour key on the break any more: each third's section is
+  // headed by its colour and name.
+  await expect(page.getByRole("group", { name: /^Colour key:/ })).toHaveCount(0);
 
   // Each unplayed player's tile must include "Bench → ${POSITION}"
   // (the movement hint that PlayerTile renders only when the
@@ -364,9 +351,9 @@ test("NETBALL-02: unplayed-third tier dominates — players who didn't play Q1 a
   // to keep the test resilient to any future tier-scoring tweak
   // that could swap one unplayed player for a same-position-penalty
   // override.
-  await expect(
-    page.getByText(/Bench\s*→\s*(GS|GA|WA|C|WD|GD|GK)/i).first(),
-  ).toBeVisible({ timeout: 3_000 });
+  // A court tile's movement line reads "From bench" for a kid off it.
+  const court = page.getByRole("group", { name: /^(Attack|Centre|Defence)$/ });
+  await expect(court.getByText("From bench").first()).toBeVisible({ timeout: 3_000 });
 });
 
 test("NETBALL-02: Start Q2 writes period_break_swap + quarter_start events", async ({
@@ -527,40 +514,36 @@ test("NETBALL-02 (Kotara optional): suggester runs against Kotara season history
   // The suggester ran with Kotara's full season history feeding the
   // tier-5 utilisation tiebreak. The pure-function logic is covered
   // by netballFairness.test.ts; here we just verify the Q-break shell
-  // rendered against the real-history seed. The rotation toggle now
-  // lives inside the collapsed "Game settings" section — expand it
-  // first so the canary button is in the DOM.
-  await expandGameSettings(page);
+  // rendered against the real-history seed (the strategy picker is the
+  // canary).
   await expect(
     page.getByRole("radio", { name: ROTATION_TOGGLE }),
   ).toBeVisible({ timeout: 5_000 });
 });
 
-// UX plan 1.7 / H4: the netball break listed the next lineup in cards
-// per third while live play showed the court. The break now draws the
-// same court — every bib is a court token with a STAYS / "GA → WA"
-// caption for where the player goes next.
-test("the netball break draws the court with where-next captions", async ({ page }) => {
+// The period break redesign (22 Oct 2026): every sport's break is the
+// same screen. Netball's thirds are sections of bibs — each slot a bib
+// (GS…GK) — and every tile says where the kid has come from ("Stays",
+// "From GA", "From bench").
+test("the netball break shows every bib and where each kid has come from", async ({ page }) => {
   const { team, game, admin } = await setupQ1AutoEnded({});
   await suppressWalkthrough(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await enterQBreakView(page, admin, game.id);
 
-  for (const position of [
-    "Goal Shooter",
-    "Goal Attack",
-    "Wing Attack",
-    "Centre",
-    "Wing Defence",
-    "Goal Defence",
-    "Goal Keeper",
-  ]) {
-    await expect(
-      page.getByRole("button", { name: new RegExp(`^${position}, `) }),
-    ).toBeVisible({ timeout: 5_000 });
+  const thirds: [string, string[]][] = [
+    ["Attack", ["GS", "GA"]],
+    ["Centre", ["WA", "C", "WD"]],
+    ["Defence", ["GD", "GK"]],
+  ];
+  for (const [third, bibs] of thirds) {
+    const section = page.getByRole("group", { name: third, exact: true });
+    await expect(section.getByRole("button")).toHaveCount(bibs.length);
+    for (const bib of bibs) await expect(section.getByText(bib, { exact: true })).toBeVisible({ timeout: 5_000 });
   }
-  // At least one court token carries a where-next caption.
-  await expect(page.getByText(/^(stays|bench → \w+|\w+ → \w+)$/i).first()).toBeVisible();
+  // Every court kid's tile says where they've come from.
+  const court = page.getByRole("group", { name: /^(Attack|Centre|Defence)$/ });
+  await expect(court.getByText(/^(Stays|From bench|From (GS|GA|WA|C|WD|GD|GK))$/).first()).toBeVisible();
 });
 
 // How we play (UX plan 5.2): a Position cycle team's break moves
@@ -592,7 +575,7 @@ test("Position cycle: the break moves everyone along the cycle", async ({ page }
     .toEqual([ids[7], ids[8], ids[0], ids[1], ids[2], ids[3], ids[4]]);
 });
 
-test("the netball break shows the rule check and why kids move", async ({ page }) => {
+test("the netball break shows a broken rule inline, and an empty bib is one", async ({ page }) => {
   const { team, game, admin, players } = await setupQ1AutoEnded({});
   await admin.from("team_playbooks").insert({
     team_id: team.id,
@@ -603,16 +586,12 @@ test("the netball break shows the rule check and why kids move", async ({ page }
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await enterQBreakView(page, admin, game.id);
 
-  const check = page.getByTestId("rule-check");
-  await expect(check).toBeVisible();
-  await expect(page.getByTestId("rule-check-summary")).toHaveText("All rules kept");
-  await check.getByRole("button").first().click();
-  await expect(check).toContainText("Nobody sits out twice in a row");
-  await expect(page.getByRole("list", { name: "Why these moves" })).toContainText("Everyone moves along the cycle");
+  // The cycle keeps every rule: no issues card at all.
+  await expect(page.getByTestId("break-issues")).toHaveCount(0);
 
   // Round 5 (sideline-chaos-netball, rushed-coach, chaotic-substitution):
   // a kid lent at the break left a position empty while the check still
-  // said "All rules kept". The empty position leads the check now.
+  // said "All rules kept". The empty bib is a broken rule now, inline.
   // Q1's GS moves along to WA for Q2: lend her.
   await expandGameSettings(page);
   await page.getByRole("button", { name: /^\+?\s*lend a player$/i }).click();
@@ -620,5 +599,6 @@ test("the netball break shows the rule check and why kids move", async ({ page }
     .getByRole("dialog", { name: /lend/i })
     .getByRole("button", { name: new RegExp(players[0].full_name, "i") })
     .click();
-  await expect(page.getByTestId("rule-check-summary")).toHaveText("1 position is empty");
+  await expect(page.getByTestId("break-broken-rule").first()).toContainText("1 position is empty");
+  await expect(page.getByRole("button", { name: /^start q2/i })).toContainText("rule");
 });
