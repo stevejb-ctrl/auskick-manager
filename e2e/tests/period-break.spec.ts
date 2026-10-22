@@ -165,6 +165,77 @@ test.describe("soccer", () => {
   });
 });
 
+test.describe("rugby", () => {
+  async function seedRugby(sport: "rugby_league" | "rugby_union", ageGroup: string, extra = 3) {
+    const admin = createAdminClient();
+    const ownerId = await ownerOf(admin);
+    const team = await makeTeam(admin, { ownerId, sport, ageGroup, name: `PB-${sport === "rugby_league" ? "RL" : "RU"}-${Date.now() % 1e6}` });
+    await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+    const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Sharks" });
+    const size = game.on_field_size as number;
+    const players = await makePlayers(admin, { teamId: team.id, ownerId, count: size + extra });
+    const k = players.map((p) => p.id);
+    await available(admin, game.id, ownerId, k);
+    const fwd = Math.floor(size / 2);
+    const lineup = { forwards: k.slice(0, fwd), backs: k.slice(fwd, size), bench: k.slice(size) };
+    return { admin, ownerId, team, game, players, k, size, fwd, lineup };
+  }
+
+  test("league: Forwards / Backs / Bench, the vest card under the bench, a swap staged until Start", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await quiet(page);
+    const { admin, ownerId, team, game, k, size, fwd, lineup } = await seedRugby("rugby_league", "U8");
+    await seedBreak(admin, ownerId, game.id, "rugby_league", lineup, 12 * 60_000);
+
+    await openBreak(page, team.id, game.id, /^Q2 lineup$/);
+    await expect(page.getByText("Q1 break · vs Sharks")).toBeVisible();
+    const names = await page.getByRole("group").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+    expect(names.filter((n) => ["Forwards", "Backs", "Bench"].includes(n ?? ""))).toEqual(["Forwards", "Backs", "Bench"]);
+    await expect(page.getByRole("region", { name: "Vest assignment" })).toBeVisible();
+    // No auto-opened start modal on arrival any more.
+    await expect(page.getByRole("button", { name: /^start q2 now$/i })).toHaveCount(0);
+
+    await strategy(page, "Repeat").click();
+    await tile(page, k[0]).click();
+    await tile(page, k[size]).click();
+    await expect(group(page, "Forwards").getByTestId(`player-tile-${k[size]}`)).toContainText("From bench");
+    await expect(group(page, "Bench").getByTestId(`player-tile-${k[0]}`)).toContainText("From Forwards");
+    // Staged: nothing is written until Start.
+    const swaps = await admin.from("game_events").select("id").eq("game_id", game.id).in("type", ["swap", "lineup_set"]);
+    expect(swaps.data?.length).toBe(1);
+    await page.screenshot({ path: test.info().outputPath("league-break.png") });
+
+    const start = page.getByRole("button", { name: /^start q2/i });
+    await start.click();
+    const anyway = page.getByRole("button", { name: "Start anyway" });
+    const now = page.getByRole("button", { name: /^start q2 now$/i });
+    await expect(anyway.or(now)).toBeVisible();
+    await ((await anyway.isVisible()) ? anyway : now).click();
+    await expect
+      .poll(
+        async () => {
+          const { data } = await admin.from("game_events").select("type, metadata").eq("game_id", game.id).order("created_at");
+          const set = [...(data ?? [])].reverse().find((e) => e.type === "lineup_set")?.metadata as { lineup?: { forwards: string[] } };
+          return { last: (data ?? []).map((e) => e.type).slice(-1)[0], forwards: set?.lineup?.forwards?.includes(k[size]) };
+        },
+        { timeout: 20_000 },
+      )
+      .toEqual({ last: "quarter_start", forwards: true });
+    expect(fwd).toBeGreaterThan(0);
+  });
+
+  test("union: 2nd half words, no vests", async ({ page }) => {
+    await quiet(page);
+    const { admin, ownerId, team, game, lineup } = await seedRugby("rugby_union", "U10");
+    await seedBreak(admin, ownerId, game.id, "rugby_union", lineup, 20 * 60_000);
+    await openBreak(page, team.id, game.id, /^2nd half lineup$/);
+    await expect(page.getByText("Half-time · vs Sharks")).toBeVisible();
+    await expect(page.getByRole("button", { name: /^start 2nd half/i })).toBeVisible();
+    await expect(page.getByText(/first receiver|dummy half/i)).toHaveCount(0);
+    await expect(group(page, "Forwards")).toBeVisible();
+  });
+});
+
 test.describe("basketball", () => {
   test("forwards over guards, points on the chip, a fouled-out kid faded on the bench", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
