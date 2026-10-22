@@ -84,7 +84,7 @@ export function LiveStickyScoreBar({
   }, [barHeight]);
   return (
     <>
-      <div aria-hidden className="md:hidden" style={{ height: barHeight }} />
+      <div aria-hidden className="md:hidden" style={{ height: `calc(${barHeight}px + var(--live-hint-h, 0px))` }} />
       <div ref={barRef} className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(26,30,26,0.05)] motion-safe:animate-slide-in-bottom-fast md:sticky md:inset-x-auto">
         <div className="mx-auto max-w-4xl">
           {scoringOff && (
