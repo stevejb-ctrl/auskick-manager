@@ -556,8 +556,9 @@ export function NetballQuarterBreak({
     sidelinedSet.forEach((pid) => {
       if (!forcedBenchIds.has(pid)) staged = benchPlayerInPositionLineup(staged, pid);
     });
-    // Sidelined kids never travel in the lineup's bench.
-    staged = { ...staged, bench: staged.bench.filter((id) => !sidelinedSet.has(id) || forcedBenchIds.has(id)) };
+    // Sidelined kids stay in the game, on the bench: nobody is lost from
+    // the lineup, whichever strategy built the draft.
+    staged = { ...staged, bench: withSidelined(staged).bench };
     startTransition(() => {
       enqueueLiveAction("periodBreakSwap", [auth, gameId, nextQuarter, staged, midQuarterSubs]);
       const { flushed } = enqueueLiveAction("startNetballQuarter", [auth, gameId, nextQuarter]);

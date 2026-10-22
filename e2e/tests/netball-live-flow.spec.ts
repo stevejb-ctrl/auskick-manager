@@ -26,6 +26,7 @@ import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { playerThirdMs, type ThirdLookup } from "../../src/lib/sports/netball/fairness";
 import { primaryThirdFor } from "../../src/lib/sports/netball";
 import type { GameEvent } from "../../src/lib/types";
+import { closeGameSettings, openGameSettings, pickBreakStrategy, startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -1166,23 +1167,20 @@ test("sideline story: lend GA, GS hurt, then the lent kid comes back on at the b
   await expect(token("Goal Shooter", bench2.full_name)).toBeVisible();
 
   // The hooter → the break.
-  await expect(page.getByRole("button", { name: /^start q2$/i })).toBeVisible({ timeout: 60_000 });
-  const settings = page.getByRole("button", { name: /game settings/i });
-  if ((await settings.getAttribute("aria-expanded")) !== "true") await settings.click();
-  await page.getByRole("radio", { name: /keep last quarter/i }).click();
-  // Bring GA back: onto the bench, then in at GS (swapping the GS off).
-  if ((await settings.getAttribute("aria-expanded")) !== "true") await settings.click();
+  await expect(page.getByRole("button", { name: /^start q2/i })).toBeVisible({ timeout: 60_000 });
+  await pickBreakStrategy(page, "Repeat");
+  // Bring GA back (Game settings): onto the bench, then in at GS
+  // (swapping the GS off).
+  await openGameSettings(page);
   await page.getByRole("button", { name: `Bring ${ga.full_name} back` }).click();
-  // Once the recall lands they leave the Sidelined strip: one bench tile.
-  const gaOnBench = page.getByRole("button", { name: new RegExp(`^B ${ga.full_name}`) });
-  await expect(gaOnBench).toHaveCount(1, { timeout: 15_000 });
-  await expect(gaOnBench).toBeEnabled();
+  await closeGameSettings(page);
+  const gaOnBench = page.getByRole("group", { name: "Bench", exact: true }).getByTestId(`player-tile-${ga.id}`);
+  await expect(gaOnBench).toBeEnabled({ timeout: 15_000 });
   await gaOnBench.click();
-  await token("Goal Shooter", bench2.full_name).click();
-  await expect(token("Goal Shooter", ga.full_name)).toBeVisible();
+  await page.getByTestId(`player-tile-${bench2.id}`).click();
+  await expect(page.getByTestId(`player-tile-${ga.id}`).locator("span span").first()).toHaveText("GS");
 
-  await page.getByRole("button", { name: /^start q2$/i }).click();
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
+  await startFromBreak(page, /^start q2/i);
 
   const events = async () => {
     const { data } = await admin.from("game_events").select("*").eq("game_id", game.id).order("created_at", { ascending: true });
