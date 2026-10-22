@@ -13,6 +13,14 @@
 // for the same player at the same quarter + elapsed, so we skip any swap
 // whose (elapsed, off-player) matches such an injury. Pure + event-
 // derived, so it recomputes identically on remount.
+//
+// A due batch made one swap at a time re-anchors only on its last swap:
+// each swap made from the sub card says how many of the batch are still
+// to make (`batch_left`), and one with some left doesn't move the clock.
+// Otherwise doing 1 of 2 due swaps restarted the countdown and the other
+// due swap fell off the card (soccer audit, 23 Oct 2026). A swap with no
+// `batch_left` (every swap before this, other sports') re-anchors as
+// it always has.
 
 import type { GameEvent } from "@/lib/types";
 
@@ -20,6 +28,8 @@ interface SwapMeta {
   quarter?: number;
   elapsed_ms?: number;
   off_player_id?: string;
+  /** Swaps of the due batch still to make after this one. */
+  batch_left?: number;
 }
 interface InjuryMeta {
   quarter?: number;
@@ -29,10 +39,12 @@ interface InjuryMeta {
 
 /**
  * Resolve the rotation-clock anchor for `currentQuarter`:
- *   • the elapsed_ms of the most recent PLANNED swap this period, or
+ *   • the elapsed_ms of the most recent PLANNED swap this period that
+ *     finished its batch, or
  *   • 0 at the period start, or
  *   • null before the period has started.
- * Forced (injury/out) swaps are skipped.
+ * Forced (injury/out) swaps, and swaps with more of their batch to come,
+ * are skipped.
  */
 export function resolveSubAnchorElapsed(
   events: readonly GameEvent[],
@@ -63,6 +75,7 @@ export function resolveSubAnchorElapsed(
       ) {
         continue; // forced swap — doesn't re-anchor the rotation clock
       }
+      if (typeof meta.batch_left === "number" && meta.batch_left > 0) continue; // more of the batch to come
       return typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : null;
     }
     if (ev.type === "quarter_start") {
