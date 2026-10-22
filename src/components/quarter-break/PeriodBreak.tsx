@@ -84,8 +84,23 @@ export interface PeriodBreakProps {
   settings: BreakSettingsProps;
   /** A line under the hint ("Pre-filled from your planned Q3 lineup"). */
   banner?: ReactNode;
-  /** Sport extras after the bench (league's vest card). */
+  /** Sport extras after the bench. */
   extras?: ReactNode;
+  /**
+   * A sport's own status chip under the score and game settings (league's
+   * vests: "FR Kira · DH Maya"), opening a bottom sheet with its picker,
+   * as game settings does.
+   */
+  statusChip?: {
+    /** The chip's eyebrow, e.g. "Vests". */
+    title: string;
+    /** What's set, e.g. "FR Kira · DH Maya". */
+    summary: string;
+    /** Something needs a pick: the chip turns amber. */
+    attention?: boolean;
+    /** The sheet's content. */
+    sheet: ReactNode;
+  };
   start: {
     onStart: () => void;
     pending?: boolean;
@@ -131,6 +146,7 @@ export function PeriodBreak(props: PeriodBreakProps) {
   const setSelected = (i: number | null) => setPicked(i === null ? null : slots[i] ?? null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [scoreOpen, setScoreOpen] = useState(false);
+  const [chipOpen, setChipOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const sidelinedSet = useMemo(() => new Set(Object.keys(sidelined)), [sidelined]);
@@ -291,6 +307,25 @@ export function PeriodBreak(props: PeriodBreakProps) {
           </button>
         </div>
 
+        {props.statusChip && (
+          <button
+            type="button"
+            onClick={() => setChipOpen(true)}
+            aria-label={`${props.statusChip.title}: ${props.statusChip.summary}`}
+            className={`flex h-11 w-full items-center gap-2 rounded-[12px] border px-3 text-left text-sm ${
+              props.statusChip.attention ? "border-due/50 bg-due-tint" : "border-hairline bg-surface"
+            }`}
+          >
+            <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">{props.statusChip.title}</span>
+            <span className={`min-w-0 flex-1 truncate font-medium ${props.statusChip.attention ? "text-due" : "text-ink"}`}>
+              {props.statusChip.summary}
+            </span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden className="shrink-0 text-ink-dim">
+              <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        )}
+
         <SegmentedControl
           compact
           label="How the next lineup is built"
@@ -408,6 +443,18 @@ export function PeriodBreak(props: PeriodBreakProps) {
       )}
 
       {settingsOpen && <BreakSettingsSheet {...props.settings} onClose={() => setSettingsOpen(false)} />}
+
+      {chipOpen && props.statusChip && (
+        <Modal placement="sheet" size="md" label={props.statusChip.title} onClose={() => setChipOpen(false)}>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-bold text-ink">{props.statusChip.title}</h2>
+            <SFButton variant="ghost" size="sm" onClick={() => setChipOpen(false)}>
+              Done
+            </SFButton>
+          </div>
+          <div className="mt-3 min-h-0 flex-1 overflow-y-auto">{props.statusChip.sheet}</div>
+        </Modal>
+      )}
 
       {scoreOpen && props.score?.editor && (
         <Modal placement="sheet" size="md" label="Score" onClose={() => setScoreOpen(false)}>
