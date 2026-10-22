@@ -129,8 +129,6 @@ export function SoccerLineupPicker({
   const [onFieldSize, setOnFieldSize] = useState(() => clampSize(initialSize));
   const playing = useMemo(() => players.filter((p) => !loanedIds.has(p.id)).map((p) => p.id), [players, loanedIds]);
   const shapes = soccerFormations(ageGroup, Math.min(onFieldSize, playing.length || onFieldSize));
-  const [formationId, setFormationId] = useState<string | null>(null);
-  const formation = shapes.find((f) => f.id === formationId) ?? shapes[0];
 
   const suggest = (size: number, shape: string | null, kids: string[]) =>
     suggestSoccerLineup({
@@ -142,6 +140,16 @@ export function SoccerLineupPicker({
       keeperStrategy,
       prefs: keeperPrefs,
     });
+  const [firstSuggestion] = useState(() =>
+    initialDraft
+      ? null
+      : suggest(clampSize(initialSize), null, players.map((p) => p.id).filter((id) => !initialLoanedIds.includes(id))),
+  );
+  // The shape on the pitch: the coach's pick, else the suggestion's (the
+  // first that fits every kid's "Plays as": futsal's diamond for a
+  // Wings-only kid, never 2-2 with them up front).
+  const [formationId, setFormationId] = useState<string | null>(firstSuggestion?.formation.id ?? null);
+  const formation = shapes.find((f) => f.id === formationId) ?? shapes[0];
 
   const [lineup, setLineup] = useState<SoccerLineup>(() => {
     if (initialDraft) {
@@ -161,7 +169,7 @@ export function SoccerLineupPicker({
         bench: [...keep(draft.bench), ...players.map((p) => p.id).filter((id) => !placed.has(id))],
       };
     }
-    return suggest(clampSize(initialSize), null, players.map((p) => p.id).filter((id) => !initialLoanedIds.includes(id))).lineup;
+    return firstSuggestion!.lineup;
   });
   const suggestedKeeper = useMemo(
     () => suggest(onFieldSize, formation.id, playing).lineup.keeper,
@@ -183,7 +191,10 @@ export function SoccerLineupPicker({
   const lineCaps = formation.lines;
 
   function resuggest(size: number, shape: string | null) {
-    setLineup(suggest(size, shape, playing).lineup);
+    const next = suggest(size, shape, playing);
+    setLineup(next.lineup);
+    // No shape picked: the suggestion's.
+    if (shape === null) setFormationId(next.formation.id);
     setSelectedId(null);
   }
 
