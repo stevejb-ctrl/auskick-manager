@@ -72,6 +72,16 @@ export function LiveStickyScoreBar({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  // Floating chips above the bar (the long-press hint) read its height,
+  // so they never sit on the score chips (Steve 2026-10-22: basketball's
+  // taller bar had the hint over +1 / +2, and taps hit the hint).
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--live-score-bar-h", `${barHeight}px`);
+    return () => {
+      root.style.removeProperty("--live-score-bar-h");
+    };
+  }, [barHeight]);
   return (
     <>
       <div aria-hidden className="md:hidden" style={{ height: barHeight }} />

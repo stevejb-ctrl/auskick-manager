@@ -6,8 +6,8 @@
 // and chips on the left, the dark clock pill in the centre (period, live
 // dot, countdown; at the hooter it widens amber and names the break),
 // the opponent's mirror on the right. Basketball's chips are +1, +2 and
-// +3 a side (the shared SCORE_CHIP, three a side as union shows four);
-// +3 hides where the age plays no 3-pointers.
+// +3 a side (the shared SCORE_CHIP), in one full-width row under the
+// scores; +3 hides where the age plays no 3-pointers.
 //
 // Our chips open the scorer picker for that many points (the parent owns
 // it); the opponent's record straight away. With scoring off the chips
@@ -42,7 +42,6 @@ interface BasketballScoreBugProps {
   trackScoring: boolean;
   /** The age (or team) plays 3-pointers: the +3 chips show. */
   threePointers: boolean;
-  pending?: boolean;
   onTeamScore?: (points: Points) => void;
   onOpponentScore?: (points: Points) => void;
   onClockTap?: () => void;
@@ -66,7 +65,6 @@ export function BasketballScoreBug({
   breakName,
   trackScoring,
   threePointers,
-  pending = false,
   onTeamScore,
   onOpponentScore,
   onClockTap,
@@ -97,28 +95,6 @@ export function BasketballScoreBug({
             <RollingNumber value={teamPoints} className={TOTAL} />
           </p>
         </div>
-        {onTeamScore && trackScoring && (
-          <div className="relative flex flex-wrap gap-1.5">
-            {teamGhost && (
-              <span key={teamGhost.key} aria-hidden className={`${SCORE_GHOST} left-3`}>
-                {teamGhost.text}
-              </span>
-            )}
-            {chips.map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => onTeamScore(n)}
-                onPointerDown={tapDown}
-                disabled={pending}
-                className={`${SCORE_CHIP} px-2`}
-                aria-label={`Add ${n} ${n === 1 ? "point" : "points"}, ${teamName}`}
-              >
-                +{n}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Centre: the clock pill (tap opens the clock menu). */}
@@ -166,29 +142,55 @@ export function BasketballScoreBug({
             <RollingNumber value={opponentPoints} className={TOTAL} />
           </p>
         </div>
-        {onOpponentScore && trackScoring && (
-          <div className="relative flex flex-wrap justify-end gap-1.5">
+      </div>
+{/* Row 2 · the chips, one row a side (Steve 2026-10-22: the 2 + 1
+          stack "looks terrible"). Three 44 pt chips don't fit in a score
+          column on a 375 px phone, so they take the full width under the
+          scores: ours left, theirs mirrored right, AFL's +G / +B size. */}
+      {trackScoring && (onTeamScore || onOpponentScore) && (
+        <div className="col-span-3 mt-3 flex items-center justify-between gap-3">
+          <div className="relative flex gap-1.5">
+            {teamGhost && (
+              <span key={teamGhost.key} aria-hidden className={`${SCORE_GHOST} left-3`}>
+                {teamGhost.text}
+              </span>
+            )}
+            {onTeamScore &&
+              chips.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => onTeamScore(n)}
+                  onPointerDown={tapDown}
+                  className={`${SCORE_CHIP} w-12`}
+                  aria-label={`Add ${n} ${n === 1 ? "point" : "points"}, ${teamName}`}
+                >
+                  +{n}
+                </button>
+              ))}
+          </div>
+          <div className="relative flex gap-1.5">
             {oppGhost && (
               <span key={oppGhost.key} aria-hidden className={`${SCORE_GHOST} right-3`}>
                 {oppGhost.text}
               </span>
             )}
-            {chips.map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => onOpponentScore(n)}
-                onPointerDown={tapDown}
-                disabled={pending}
-                className={`${SCORE_CHIP} px-2`}
-                aria-label={`Add ${n} ${n === 1 ? "point" : "points"}, ${opponentName}`}
-              >
-                +{n}
-              </button>
-            ))}
+            {onOpponentScore &&
+              chips.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => onOpponentScore(n)}
+                  onPointerDown={tapDown}
+                  className={`${SCORE_CHIP} w-12`}
+                  aria-label={`Add ${n} ${n === 1 ? "point" : "points"}, ${opponentName}`}
+                >
+                  +{n}
+                </button>
+              ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
