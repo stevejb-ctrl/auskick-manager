@@ -64,12 +64,13 @@ describe("sport registry", () => {
   });
 
   it("keeps the four-sports plan's sports closed to new teams until their live game lands", () => {
-    for (const id of ["hockey", "touch", "oztag"] as const) expect(isSportOpen(id), id).toBe(false);
+    for (const id of ["touch", "oztag"] as const) expect(isSportOpen(id), id).toBe(false);
     for (const id of ["afl", "netball", "rugby_league", "rugby_union", "soccer", "basketball"] as const) {
       expect(isSportOpen(id), id).toBe(true);
     }
-    // Futsal's live game landed (track A).
+    // Futsal's and hockey's live games landed (track A).
     expect(isSportOpen("futsal")).toBe(true);
+    expect(isSportOpen("hockey")).toBe(true);
   });
 
   it("resolves brand from host header", () => {

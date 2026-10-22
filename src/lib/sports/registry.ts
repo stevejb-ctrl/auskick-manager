@@ -72,7 +72,7 @@ export function isSportId(value: unknown): value is SportId {
  * (.planning/FOUR-SPORTS-PLAN.md, phase 0). Each build track takes its
  * sports off this list when their setup pill lands.
  */
-export const SPORTS_NOT_OPEN: readonly SportId[] = ["hockey", "touch", "oztag"];
+export const SPORTS_NOT_OPEN: readonly SportId[] = ["touch", "oztag"];
 
 /** Whether a coach can start a team in this sport. */
 export function isSportOpen(sport: SportId): boolean {

@@ -46,6 +46,11 @@ export default function LiveGamePage() {
         futsal&apos;s words: the back, the wings and the front. Its keeper
         can be swapped mid-half, as in football.
       </p>
+      <p className="mt-2 text-sm leading-relaxed text-ink-dim">
+        Hockey runs on it too, on a hockey pitch, in halves or quarters.
+        Its keeper changes only at a break: two minutes before one, Siren
+        names who&apos;s in goal next so they can kit up.
+      </p>
 
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Before the game: the lineup picker</h2>

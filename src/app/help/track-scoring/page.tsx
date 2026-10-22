@@ -42,6 +42,10 @@ export default function TrackScoringPage() {
         starts off to Under 9, as Capital Football&apos;s Minis keep no
         scores, and on from Under 10.
       </p>
+      <p className="mt-2 text-sm text-ink-dim">
+        Hockey games record goals for each side too. Scoring starts off to
+        Under 10, where junior hockey keeps no results, and on from Under 11.
+      </p>
 
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Turning it on</h2>
