@@ -68,6 +68,12 @@ export interface LinePlayerTileProps {
   swapDue?: boolean;
   /** A sport's own status chip after the score (basketball's fouls). */
   extraChip?: ReactNode;
+  /**
+   * Why swapping this kid in now would break a rule ("Would put 4 boys
+   * on: the mixed rule allows 3"): the tile dims and says so to screen
+   * readers. It can still be tapped; the sport asks before the swap.
+   */
+  ruleNote?: string | null;
 }
 
 function formatMinSec(ms: number): string {
@@ -98,6 +104,7 @@ function LinePlayerTileImpl({
   score,
   swapDue = false,
   extraChip,
+  ruleNote = null,
 }: LinePlayerTileProps) {
   const { handlers: longPressHandlers, arming: longPressArming, consumedLongPress } = useLongPress({ onLongPress });
 
@@ -170,10 +177,11 @@ function LinePlayerTileImpl({
         onClick={handleClick}
         {...longPressHandlers}
         disabled={!onClick && !onLongPress}
+        aria-description={ruleNote ?? undefined}
         className={[
           "relative flex min-h-[68px] w-full flex-col items-stretch rounded-md text-left [transition:transform_120ms_cubic-bezier(0.2,0.8,0.2,1),opacity_120ms_cubic-bezier(0.2,0.8,0.2,1),box-shadow_240ms_cubic-bezier(0.2,0.8,0.2,1),background-color_240ms_cubic-bezier(0.2,0.8,0.2,1)]",
           baseBg,
-          dimmed && !selected ? "opacity-40" : "",
+          (dimmed || ruleNote) && !selected ? "opacity-40" : "",
           away ? "grayscale" : "",
           !onClick && !onLongPress ? "cursor-default" : "",
           onClick || onLongPress ? "motion-safe:active:scale-[0.97]" : "",
