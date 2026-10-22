@@ -165,6 +165,71 @@ test.describe("soccer", () => {
   });
 });
 
+test.describe("basketball", () => {
+  test("forwards over guards, points on the chip, a fouled-out kid faded on the bench", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await quiet(page);
+    const admin = createAdminClient();
+    const ownerId = await ownerOf(admin);
+    const team = await makeTeam(admin, { ownerId, sport: "basketball", ageGroup: "U12", name: `PB-BBL-${Date.now() % 1e6}` });
+    await admin.from("teams").update({ track_scoring: true, track_fouls: true }).eq("id", team.id);
+    const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 8 });
+    const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Rivals" });
+    const k = players.map((p) => p.id);
+    await available(admin, game.id, ownerId, k);
+    const lineup = { lines: { guard: k.slice(0, 2), forward: k.slice(2, 5), court: [] }, bench: k.slice(5) };
+    await seedBreak(admin, ownerId, game.id, "basketball", lineup, 20 * 60_000, [
+      { type: "two_pointer", player_id: k[0], metadata: { quarter: 1, elapsed_ms: 60_000 } },
+      { type: "opponent_three_pointer", metadata: { quarter: 1, elapsed_ms: 90_000 } },
+      // k[4] fouls out (5 personals) and was benched.
+      ...[1, 2, 3, 4, 5].map((n) => ({ type: "foul", player_id: k[4], metadata: { kind: "personal", quarter: 1, elapsed_ms: 100_000 + n * 1000 } })),
+      { type: "injury", player_id: k[4], metadata: { injured: true, reason: "fouled_out", quarter: 1, elapsed_ms: 106_000 } },
+    ]);
+
+    await openBreak(page, team.id, game.id, /^2nd half lineup$/);
+    await expect(page.getByText("Half-time · vs Rivals")).toBeVisible();
+    const score = page.getByRole("button", { name: /review and update scores/i });
+    await expect(score).toContainText("2 – 3");
+    await expect(score).toContainText("Points");
+    const names = await page.getByRole("group").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+    expect(names.filter((n) => ["Forwards", "Guards", "Bench"].includes(n ?? ""))).toEqual(["Forwards", "Guards", "Bench"]);
+
+    const out = group(page, "Bench").getByTestId(`player-tile-${k[4]}`);
+    await expect(out).toBeDisabled();
+    await expect(out).toContainText("Fouled out");
+    await expect(out).toContainText("5F");
+    await expect(group(page, "Bench")).toContainText("+ 1 fouled out");
+
+    // A guard and a forward trade lines.
+    await strategy(page, "Repeat").click();
+    await tile(page, k[0]).click();
+    await tile(page, k[2]).click();
+    await expect(group(page, "Forwards").getByTestId(`player-tile-${k[0]}`)).toContainText("From Guard");
+    await page.screenshot({ path: test.info().outputPath("basketball-break.png") });
+
+    // The score sheet keeps basketball's +1/+2/+3.
+    await score.click();
+    await expect(page.getByRole("button", { name: /^add 3 points, rivals$/i })).toBeVisible();
+    await page.getByRole("button", { name: "Done" }).click();
+
+    const start = page.getByRole("button", { name: /^start 2nd half/i });
+    await start.click();
+    const anyway = page.getByRole("button", { name: "Start anyway" });
+    const now = page.getByRole("button", { name: /^start 2nd half now$/i });
+    await expect(anyway.or(now)).toBeVisible();
+    await (await anyway.isVisible() ? anyway : now).click();
+    await expect
+      .poll(
+        async () => {
+          const { data } = await admin.from("game_events").select("type").eq("game_id", game.id).order("created_at");
+          return (data ?? []).map((e) => e.type).slice(-2);
+        },
+        { timeout: 20_000 },
+      )
+      .toEqual(["lineup_set", "quarter_start"]);
+  });
+});
+
 test.describe("netball", () => {
   const BIBS = ["gs", "ga", "wa", "c", "wd", "gd", "gk"];
 

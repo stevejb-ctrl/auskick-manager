@@ -16,6 +16,12 @@ export interface BreakScoreInput {
   us: Readonly<Record<string, number>>;
   /** Theirs, keyed by the same (own) score type ids. */
   them: Readonly<Record<string, number>>;
+  /**
+   * Points already added up, for a sport whose live state keeps points
+   * rather than a tally per score type (basketball, rugby). Wins over
+   * the tallies for the main line and the margin.
+   */
+  points?: { us: number; them: number };
 }
 
 export interface BreakScoreLine {
@@ -79,9 +85,9 @@ export function breakConfigFor(
     breakName: (n) => breakName(label, n),
     zones: cfg.periodBreak.zones({ ageGroup, onFieldSize: game.onFieldSize, shape: game.shape }),
     showJumperNumbers: cfg.jerseyNumbers,
-    formatScore: ({ us, them }) => {
-      const ours = points(us);
-      const theirs = points(them);
+    formatScore: ({ us, them, points: given }) => {
+      const ours = given?.us ?? points(us);
+      const theirs = given?.them ?? points(them);
       const tallyOf = (t: Readonly<Record<string, number>>) => own.map((s) => t[s.id] ?? 0).join(".");
       return {
         main: `${ours} – ${theirs}`,

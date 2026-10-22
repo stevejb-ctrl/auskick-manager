@@ -148,5 +148,11 @@ describe("break score line", () => {
       them: { two_pointer: 2 },
     });
     expect(line).toEqual({ main: "10 – 4", detail: "Points", margin: 6 });
+    // A live state that keeps points hands them over as they are.
+    expect(cfg.formatScore({ us: {}, them: {}, points: { us: 23, them: 30 } })).toEqual({
+      main: "23 – 30",
+      detail: "Points",
+      margin: -7,
+    });
   });
 });
