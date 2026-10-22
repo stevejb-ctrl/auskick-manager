@@ -722,6 +722,7 @@ export default async function LivePage({ params }: LivePageProps) {
       <div className="space-y-3">
         <TouchLiveGame
           auth={{ kind: "team", teamId: params.teamId }}
+          sport={sport}
           game={g}
           teamName={teamName}
           squad={squad}

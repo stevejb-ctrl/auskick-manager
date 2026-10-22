@@ -6,7 +6,8 @@
 // the same shell: the shared LiveTopBar (sub due as a banner under it),
 // the next-sub card, the field and bench, the shared player dock and
 // LockModal long-press actions, the sticky scorebug with undo, the clock
-// menu, the break, and the full-time review and share card. What's the
+// menu, the shared break screen (TouchBreak), and the full-time review
+// and share card. What's the
 // touch family's own (.planning/FOUR-SPORTS-PLAN.md):
 //
 //   - Lanes are optional: the team's How we play strategy plays no
@@ -31,8 +32,7 @@ import { SFButton } from "@/components/sf";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
-import { QuarterKickoffBar } from "@/components/quarter-break/QuarterKickoffBar";
-import { BreakScoreRow } from "@/components/quarter-break/BreakScoreRow";
+import { BreakScoreEditor } from "@/components/quarter-break/BreakScoreEditor";
 import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
 import { ClockMenu } from "@/components/live/ClockMenu";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
@@ -42,7 +42,6 @@ import { LongPressHint } from "@/components/live/LongPressHint";
 import { LockModal } from "@/components/live/LockModal";
 import { UndoStrip } from "@/components/live/UndoStrip";
 import { NextSubCard } from "@/components/live/NextSubCard";
-import type { LineTileCaption } from "@/components/live/LinePlayerTile";
 import { InjuryReplacementModal, type InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
@@ -55,31 +54,25 @@ import { resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { countTags, keepsComposition, rollingSubDue } from "@/lib/live/rollingSubs";
 import type { Game, GameEvent, LiveAuth, MixedGroup, Player } from "@/lib/types";
+import type { TouchSport } from "@/lib/sports";
 import { normalizeTouchLineup, touchLineOf, touchOnField, type TouchLineup } from "@/lib/sports/touch/lineup";
 import { replayTouchGame, touchCanPlay, touchGameMs, type TouchGameState } from "@/lib/sports/touch/replay";
 import {
-  suggestTouchBreakPlan,
   suggestTouchSubs,
   touchFieldPlan,
   touchShapeFor,
   touchShapeIdOf,
-  usesTouchLanes,
   type TouchMixed,
   type TouchPrefs,
   type TouchSeasonBalance,
 } from "@/lib/sports/touch/suggest";
-import {
-  benchOutInTouchLineup,
-  placeInTouchLineup,
-  swapInTouchLineup,
-  withEveryoneInTouchLineup,
-} from "@/lib/sports/touch/live";
 import { mixedConstraints, mixedFieldMessage, mixedTags } from "@/lib/sports/touch/mixed";
 import { TOUCH_LANES, TOUCH_LINES, type MixedRule, type TouchAgeGroupConfig, type TouchLine, type TouchStrategy } from "@/lib/sports/touch/types";
 import { TouchField } from "./TouchField";
 import { TouchBench } from "./TouchBench";
 import { TouchScoreBug } from "./TouchScoreBug";
 import { TouchFullTimeReview, TouchGameSummaryCard } from "./TouchFullTime";
+import { TouchBreak } from "./TouchBreak";
 import {
   TOUCH_CARD_LABEL_CLASS,
   TOUCH_LINE_LABEL,
@@ -90,6 +83,8 @@ import {
 
 interface TouchLiveGameProps {
   auth: LiveAuth;
+  /** Touch or Oztag: the break's words come from its config. */
+  sport: TouchSport;
   game: Game;
   teamName: string;
   /** Every kid who could play: the squad and today's fill-ins. */
@@ -130,27 +125,11 @@ function lastSetLineup(events: GameEvent[]): TouchLineup | null {
   return null;
 }
 
-function readBreakDraft(key: string): TouchLineup | null {
-  try {
-    const raw = window.sessionStorage.getItem(key);
-    return raw ? normalizeTouchLineup(JSON.parse(raw)) : null;
-  } catch {
-    return null;
-  }
-}
-function writeBreakDraft(key: string, lineup: TouchLineup | null) {
-  try {
-    if (lineup) window.sessionStorage.setItem(key, JSON.stringify(lineup));
-    else window.sessionStorage.removeItem(key);
-  } catch {
-    // Private mode or storage blocked: the plan just won't survive a reload.
-  }
-}
-
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 export function TouchLiveGame({
   auth,
+  sport,
   game,
   teamName,
   squad,
@@ -184,7 +163,6 @@ export function TouchLiveGame({
   const [endConfirmOpen, setEndConfirmOpen] = useState(false);
   const [startConfirmOpen, setStartConfirmOpen] = useState(false);
   const [pickingScorer, setPickingScorer] = useState(false);
-  const [showBreakScore, setShowBreakScore] = useState(false);
   const [actionPlayerId, setActionPlayerId] = useState<string | null>(null);
   const [fillLine, setFillLine] = useState<TouchLine | null>(null);
   const [leaving, setLeaving] = useState<{ playerId: string; line: TouchLine } | null>(null);
@@ -280,63 +258,22 @@ export function TouchLiveGame({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fieldPlan?.size, fieldSize, base.finalised, isPreStart, base.currentPeriod]);
 
-  // ── The break: the plan for the next half ───────────────────
-  // Suggested once per break and kept in session storage, so an edit
-  // survives a trip to the team page; Start commits it.
-  const draftKey = `touch-break:${game.id}:${base.currentPeriod}`;
-  const breakPlan = useMemo(
-    () =>
-      isAtBreak
-        ? suggestTouchBreakPlan({
-            state: base,
-            ageGroup,
-            onFieldSize: game.on_field_size,
-            strategy,
-            shapeId: touchShapeIdOf(lastSetLineup(events)),
-            prefs,
-            season,
-            mixed,
-          })
-        : null,
-    [isAtBreak, base, ageGroup, game.on_field_size, strategy, events, prefs, season, mixed],
-  );
-  const [storedDraft, setBreakDraftState] = useState<TouchLineup | null>(null);
-  useEffect(() => {
-    if (!isAtBreak) {
-      setBreakDraftState(null);
-      return;
-    }
-    setBreakDraftState(readBreakDraft(draftKey) ?? breakPlan?.lineup ?? null);
-  }, [isAtBreak, draftKey, breakPlan]);
-  const setBreakDraft = useCallback(
-    (next: TouchLineup) => {
-      setBreakDraftState(next);
-      writeBreakDraft(draftKey, next);
-    },
-    [draftKey],
-  );
-  // The plan, with anyone who has arrived since it was made on its bench.
-  const breakDraft = useMemo(
-    () => (storedDraft && state.lineup ? withEveryoneInTouchLineup(storedDraft, state.lineup) : storedDraft),
-    [storedDraft, state.lineup],
-  );
-
-  // What the screen shows: the break's plan, else the lineup in play.
-  const lineup: TouchLineup | null = isAtBreak ? breakDraft : state.lineup;
-  const onFieldNow = lineup ? touchOnField(lineup).length : 0;
+  // Half-time is TouchBreak, the shared break screen (below); this
+  // screen shows the lineup in play.
+  const lineup: TouchLineup | null = state.lineup;
   const shape = useMemo(
-    () => touchShapeFor(ageGroup, strategy, isAtBreak ? onFieldNow : fieldSize, touchShapeIdOf(isAtBreak ? breakDraft : lastSetLineup(events))),
-    [ageGroup, strategy, isAtBreak, onFieldNow, fieldSize, breakDraft, events],
+    () => touchShapeFor(ageGroup, strategy, fieldSize, touchShapeIdOf(lastSetLineup(events))),
+    [ageGroup, strategy, fieldSize, events],
   );
   // Places in each lane: the shape's, and an empty place only while the
   // field is short of its size (a field the rule shrank shows none).
   const lineCaps = useMemo(() => {
     const caps = { ...shape.lines };
     if (!lineup) return caps;
-    const full = !isAtBreak && touchOnField(lineup).length >= fieldSize;
+    const full = touchOnField(lineup).length >= fieldSize;
     for (const l of TOUCH_LINES) caps[l] = full ? lineup.lines[l].length : Math.max(caps[l], lineup.lines[l].length);
     return caps;
-  }, [shape, lineup, isAtBreak, fieldSize]);
+  }, [shape, lineup, fieldSize]);
 
   // ── Subs ────────────────────────────────────────────────────
   const anchorMs = useMemo(
@@ -451,22 +388,6 @@ export function TouchLiveGame({
   function handleTap(pid: string, line: TouchLine | null) {
     setError(null);
     if (!lineup) return;
-    // At a break a tap edits the plan; the half's Start commits it.
-    if (isAtBreak) {
-      if (pid === "") {
-        if (selectedId && line) setBreakDraft(placeInTouchLineup(lineup, selectedId, line));
-        else if (line) setFillLine(line);
-        setSelectedId(null);
-        return;
-      }
-      if (!selectedId || selectedId === pid) {
-        setSelectedId(selectedId === pid ? null : pid);
-        return;
-      }
-      setBreakDraft(swapInTouchLineup(lineup, selectedId, pid));
-      setSelectedId(null);
-      return;
-    }
     if (!isPeriodActive) return;
 
     if (pid === "") {
@@ -590,29 +511,6 @@ export function TouchLiveGame({
     void run("recordPlayerLock", [auth, game.id, { player_id: pid, lock, ...at() }]);
   const addLateArrival = (pid: string) => void run("addLateArrival", [auth, game.id, { player_id: pid, ...at() }]);
 
-  // ── The next half's Start ───────────────────────────────────
-  async function handleStartNextPeriod() {
-    setStartConfirmOpen(false);
-    setPending(true);
-    setError(null);
-    let el = liveRootRef.current?.parentElement ?? null;
-    while (el) {
-      if (el.scrollTop > 0) el.scrollTop = 0;
-      el = el.parentElement;
-    }
-    window.scrollTo({ top: 0, behavior: "auto" });
-    const plan = breakDraft ?? state.lineup;
-    if (plan) {
-      // Kids who can't play now start on the bench, places left empty.
-      const out = new Set([...touchOnField(plan), ...plan.bench].filter((p) => !touchCanPlay(state, p)));
-      await enqueueLiveAction("recordTouchLineupSet", [auth, game.id, benchOutInTouchLineup(plan, out), undefined]).flushed;
-    }
-    await enqueueLiveAction("startTouchPeriod", [auth, game.id, base.currentPeriod + 1]).flushed;
-    writeBreakDraft(draftKey, null);
-    setPending(false);
-    router.refresh();
-  }
-
   // ── Tile decorations ────────────────────────────────────────
   const lockModes = useMemo(() => {
     const out: Record<string, "field" | "zone"> = {};
@@ -630,22 +528,6 @@ export function TouchLiveGame({
       swapOns.set(s.on_player_id, { pair: i + 1, line: s.line });
     });
   }
-  // At a break, each kid's tile says where they're heading.
-  const captions = useMemo(() => {
-    if (!isAtBreak || !breakDraft || !state.lineup) return undefined;
-    const out: Record<string, LineTileCaption> = {};
-    const word = (lu: TouchLineup, pid: string) => {
-      const line = touchLineOf(lu, pid);
-      return line ? TOUCH_LINE_SHORT[line] || "On" : "Bench";
-    };
-    for (const pid of touchOnField(breakDraft)) {
-      const was = touchLineOf(state.lineup, pid) ? word(state.lineup, pid) : "Bench";
-      const to = word(breakDraft, pid);
-      out[pid] = was === to ? { text: "Stays", tone: "stay" } : { text: `${was} → ${to}`, tone: "move" };
-    }
-    return out;
-  }, [isAtBreak, breakDraft, state.lineup]);
-
   const selectedPlayer = selectedId ? (playerById.get(selectedId) ?? null) : null;
   const selectedOnField = selectedId !== null && lineOf(selectedId) !== null;
   const remainingMs = Math.max(0, periodMs - elapsedMs);
@@ -656,14 +538,12 @@ export function TouchLiveGame({
   const breakName = base.currentPeriod >= ageGroup.periodCount ? "Full time" : "Half time";
   const playerDockVisible = isPeriodActive && selectedPlayer !== null;
   const scoreDockVisible = playerDockVisible && selectedOnField && trackScoring;
-  // The break has the shared Start bar instead of the scorebug.
-  const hasStickyBottom = !isPreStart && !isAtBreak;
+  const hasStickyBottom = !isPreStart;
 
   const actionPlayer = actionPlayerId ? (playerById.get(actionPlayerId) ?? null) : null;
   const actionLine = actionPlayerId && state.lineup ? touchLineOf(state.lineup, actionPlayerId) : null;
   const actionHeld = actionPlayerId ? (lockModes[actionPlayerId] ?? null) : null;
   const lentPlayers = squad.filter((p) => loanedSet.has(p.id) && !injuredSet.has(p.id));
-  const lanes = usesTouchLanes(strategy);
 
   // The field the rule allows, when it's fewer than the game's size.
   const shortBanner =
@@ -688,10 +568,89 @@ export function TouchLiveGame({
       ]
     : [{ label: "Not sure who", subLabel: "Counts the try without a scorer", onSelect: noScorer(false) }];
 
+  const scorerSheet = pickingScorer ? (
+    <SlotFillSheet
+      slotLabel="try"
+      titleVerb="Who scored the"
+      subtitle="Pick who scored the try."
+      dismissOnBackdrop={false}
+      candidates={(state.lineup ? touchOnField(state.lineup) : [])
+        .map((id) => playerById.get(id))
+        .filter((p): p is Player => Boolean(p))
+        .map((p) => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number }))}
+      emptyMessage="Nobody is on the field."
+      extraOptions={scorerOptions}
+      onPick={(pid) => {
+        setPickingScorer(false);
+        teamScore(pid);
+      }}
+      onCancel={() => setPickingScorer(false)}
+    />
+  ) : null;
+
+  // Half-time: the shared break screen.
+  if (isAtBreak) {
+    return (
+      <div ref={liveRootRef}>
+        <TouchBreak
+          auth={auth}
+          sport={sport}
+          game={game}
+          exitHref={exitHref}
+          squad={squad}
+          ageGroup={ageGroup}
+          state={base}
+          periodMs={periodMs}
+          strategy={strategy}
+          prefs={prefs}
+          season={season}
+          mixed={mixed}
+          shapeId={touchShapeIdOf(lastSetLineup(events))}
+          score={
+            trackScoring
+              ? {
+                  us: teamPoints,
+                  them: opponentPoints,
+                  editor: (
+                    <>
+                      <BreakScoreEditor
+                        teamName={teamName}
+                        opponentName={opponentName}
+                        teamPoints={teamPoints}
+                        opponentPoints={opponentPoints}
+                        scoreByPeriod={state.scoreByPeriod}
+                        periodCount={ageGroup.periodCount}
+                        currentPeriod={base.currentPeriod}
+                        periodLetter={periodLetter}
+                        periodWord={periodWord}
+                        teamChips={[{ key: "try", text: "+T", label: `Add a try, ${teamName}`, onClick: () => setPickingScorer(true) }]}
+                        opponentChips={
+                          girlsTryDouble
+                            ? [
+                                { key: "try", text: "+1", label: `Add a try, ${opponentName}`, onClick: () => opponentScore(false) },
+                                { key: "girls", text: "+2 (girl)", label: `Add a girl's try, ${opponentName}`, onClick: () => opponentScore(true) },
+                              ]
+                            : [{ key: "try", text: "+T", label: `Add a try, ${opponentName}`, onClick: () => opponentScore(false) }]
+                        }
+                        missedNote={`A try you missed counts in ${periodLetter}${base.currentPeriod}.`}
+                        onUndo={undoScore}
+                        undoDisabled={pending}
+                      />
+                      {scorerSheet}
+                    </>
+                  ),
+                }
+              : undefined
+          }
+        />
+      </div>
+    );
+  }
+
   return (
     // No bottom padding: LiveStickyScoreBar reserves its own height with
     // a measured in-flow spacer, and the player dock floats over the page.
-    <div ref={liveRootRef} className={`space-y-3${isAtBreak ? " pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-0" : ""}`}>
+    <div ref={liveRootRef} className="space-y-3">
       <LiveTopBar
         exitHref={exitHref}
         game={game}
@@ -768,56 +727,6 @@ export function TouchLiveGame({
         </div>
       )}
 
-      {/* The break, as AFL's, netball's and basketball's: the orientation
-          strip, the Score row (the per-half breakdown, and late tries),
-          the swap hint, the field and bench with where each kid is
-          heading, and the shared Start bar. */}
-      {isAtBreak && (
-        <>
-          <div className="px-1">
-            <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">{breakName}</p>
-            <p className="mt-0.5 text-lg font-bold text-ink">
-              Lineup for {periodLetter}
-              {base.currentPeriod + 1}
-            </p>
-          </div>
-
-          {trackScoring && (
-            <BreakScoreRow
-              open={showBreakScore}
-              onToggle={() => setShowBreakScore((v) => !v)}
-              teamName={teamName}
-              opponentName={opponentName}
-              teamPoints={teamPoints}
-              opponentPoints={opponentPoints}
-              scoreByPeriod={state.scoreByPeriod}
-              periodCount={ageGroup.periodCount}
-              currentPeriod={base.currentPeriod}
-              periodLetter={periodLetter}
-              periodWord={periodWord}
-              teamChips={[{ key: "try", text: "+T", label: `Add a try, ${teamName}`, onClick: () => setPickingScorer(true) }]}
-              opponentChips={
-                girlsTryDouble
-                  ? [
-                      { key: "try", text: "+1", label: `Add a try, ${opponentName}`, onClick: () => opponentScore(false) },
-                      { key: "girls", text: "+2 (girl)", label: `Add a girl's try, ${opponentName}`, onClick: () => opponentScore(true) },
-                    ]
-                  : [{ key: "try", text: "+T", label: `Add a try, ${opponentName}`, onClick: () => opponentScore(false) }]
-              }
-              missedNote={`A try you missed counts in ${periodLetter}${base.currentPeriod}.`}
-              onUndo={undoScore}
-              undoDisabled={pending}
-            />
-          )}
-
-          <p className="px-1 text-xs text-ink-dim">
-            Who starts the next {periodWord}
-            {lanes ? " and in which lane" : ""}. Tap any two players to swap them.
-          </p>
-          {mixed && <p className="px-1 text-[11px] text-ink-mute">Boys and girls are evened separately under the mixed rule.</p>}
-        </>
-      )}
-
       {!isFinished && lineup && (
         <>
           <TouchField
@@ -836,13 +745,12 @@ export function TouchLiveGame({
             injuredIds={state.injuredIds}
             lockModes={lockModes}
             triesByPlayer={trackScoring ? playerTries : undefined}
-            captions={captions}
           />
           <TouchBench
             bench={lineup.bench}
             playersById={playerById}
             onTap={(pid) => handleTap(pid, null)}
-            onLongPress={isPeriodActive || isAtBreak ? setActionPlayerId : undefined}
+            onLongPress={isPeriodActive ? setActionPlayerId : undefined}
             selectedPlayerId={selectedId}
             dimUnselected={isPeriodActive}
             swapOns={swapOns}
@@ -986,27 +894,15 @@ export function TouchLiveGame({
         />
       )}
 
-      {isAtBreak && (
-        <QuarterKickoffBar
-          onConfirm={() => setStartConfirmOpen(true)}
-          confirmLabel={`Start ${periodLetter}${base.currentPeriod + 1}`}
-          disabled={pending || !breakDraft}
-        />
-      )}
-
       {startConfirmOpen && (
         <StartQuarterModal
           quarter={base.currentPeriod + 1}
           periodLabel={periodLabel}
-          cue={isPreStart ? "referee starts play" : "whistle goes"}
+          cue="referee starts play"
           loading={pending}
           onStart={() => {
-            if (isPreStart) {
-              setStartConfirmOpen(false);
-              void run("startTouchPeriod", [auth, game.id, 1]);
-            } else {
-              void handleStartNextPeriod();
-            }
+            setStartConfirmOpen(false);
+            void run("startTouchPeriod", [auth, game.id, 1]);
           }}
           onCancel={() => setStartConfirmOpen(false)}
         />
@@ -1037,25 +933,7 @@ export function TouchLiveGame({
         />
       )}
 
-      {pickingScorer && (
-        <SlotFillSheet
-          slotLabel="try"
-          titleVerb="Who scored the"
-          subtitle="Pick who scored the try."
-          dismissOnBackdrop={false}
-          candidates={(state.lineup ? touchOnField(state.lineup) : [])
-            .map((id) => playerById.get(id))
-            .filter((p): p is Player => Boolean(p))
-            .map((p) => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number }))}
-          emptyMessage="Nobody is on the field."
-          extraOptions={scorerOptions}
-          onPick={(pid) => {
-            setPickingScorer(false);
-            teamScore(pid);
-          }}
-          onCancel={() => setPickingScorer(false)}
-        />
-      )}
+      {scorerSheet}
 
       {actionPlayer && (
         <LockModal
@@ -1116,7 +994,7 @@ export function TouchLiveGame({
         <SlotFillSheet
           slotLabel={fillLine === "field" ? "spot" : `${TOUCH_LINE_ONE[fillLine]} spot`}
           candidates={lineup.bench
-            .filter((id) => (isAtBreak ? !injuredSet.has(id) && !loanedSet.has(id) : canComeOn(id) && keepsRule(id, null)))
+            .filter((id) => canComeOn(id) && keepsRule(id, null))
             .map((id) => playerById.get(id))
             .filter((p): p is Player => Boolean(p))
             .map((p) => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number }))}
@@ -1124,8 +1002,7 @@ export function TouchLiveGame({
           onPick={(pid) => {
             const line = fillLine;
             setFillLine(null);
-            if (isAtBreak) setBreakDraft(placeInTouchLineup(lineup, pid, line));
-            else void sub(null, pid, line);
+            void sub(null, pid, line);
           }}
           onCancel={() => setFillLine(null)}
         />
