@@ -23,14 +23,31 @@ test.describe("unauthenticated entry", () => {
 
   test("the homepage picker shows Siren in football (soccer) mode, with soccer's own features", async ({ page }) => {
     await page.goto("/");
+    // The picker opens on AFL, spelt as an acronym.
+    await expect(page.getByRole("heading", { name: "See Siren in AFL mode." })).toBeVisible();
     const card = page.getByTestId("sport-card-football");
-    await expect(card).toHaveAttribute("aria-label", "Show Siren in Football (soccer) mode");
+    // Soccer is in beta (src/lib/siren-facts.ts), and says so.
+    await expect(card).toHaveAttribute("aria-label", "Show Siren in Football (soccer) mode (beta)");
+    await expect(card).toContainText(/beta/i);
+    await expect(page.getByTestId("sport-card-afl")).not.toContainText(/beta/i);
+    // "RL", not the NRL's trade mark (Siren isn't affiliated).
+    await expect(page.getByTestId("sport-card-league")).toContainText("RL");
+    await expect(page.getByTestId("sport-card-league")).not.toContainText("NRL");
     await card.click();
     await expect(card).toHaveAttribute("aria-selected", "true");
     await expect(page.getByRole("heading", { name: /see siren in football mode/i })).toBeVisible();
     // Soccer's own copy (content/marketing/brands/soccer.json), not AFL's.
     await expect(page.getByText("Everyone gets a").first()).toBeAttached();
     await expect(page.getByText("Not always stuck at the").first()).toBeAttached();
+  });
+
+  test("the homepage only claims features the app has", async ({ request }) => {
+    // The breaks show a rule check, not a fairness number, and PlayHQ
+    // import brings fixtures, not results (copy audit, 21 Oct 2026).
+    const html = await (await request.get("/")).text();
+    expect(html).not.toMatch(/fairness score/i);
+    expect(html).not.toMatch(/results synced|results stay in sync/i);
+    expect(html).toContain("Rule check updates as you swap players");
   });
 
   test("unauthenticated GET / renders the marketing hero", async ({ page }) => {

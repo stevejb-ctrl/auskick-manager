@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { HelpPage, HelpCallout } from "@/components/help/HelpPage";
+import { PLATFORMS } from "@/lib/siren-facts";
 
 export const metadata = {
   title: "FAQ · Help · Siren",
-  description: "Quick answers to the most common questions about Siren.",
+  description:
+    "Answers to common Siren questions: does it work offline, which phones it runs on, undoing a score, sub alerts, late arrivals, fair playing time and inviting another coach.",
   alternates: { canonical: "/help/faq" },
 };
 
@@ -20,10 +22,9 @@ const FAQ: FAQItem[] = [
     a: (
       <>
         Scores are saved to the server as events, so they should survive page
-        refreshes and navigation. If scores appear to have reset, check that you
-        have a working internet connection. The live game screen requires
-        connectivity to persist events. If you were offline, the events may not
-        have saved; see{" "}
+        refreshes and navigation. Taps made with no signal wait on your phone
+        and are sent once it reconnects, so another phone won&apos;t see them
+        until then. If scores still look wrong, see{" "}
         <Link href="/help/troubleshooting" className="font-medium underline">
           Troubleshooting
         </Link>
@@ -65,11 +66,13 @@ const FAQ: FAQItem[] = [
     q: "Does it work offline?",
     a: (
       <>
-        The app needs an internet connection to save game events to the server.
-        The UI will load from the browser cache if you&apos;ve visited before, but
-        any actions you take (scoring, subs, ending quarters or halves) require connectivity
-        to persist. If you lose connection during a game, actions may fail silently.
-        Reconnect and refresh to check the current saved state.
+        Yes, during a game. If the signal drops, the game keeps running on
+        your phone (the clock, subs, scores, the lot) and Siren keeps your
+        taps on the device. When the connection comes back it sends them to
+        the server in the order you made them, so nothing is lost or counted
+        twice. Signing in, setting up teams and games, and opening a screen
+        you haven&apos;t loaded yet still need a connection, so open the game
+        before you lose signal.
       </>
     ),
   },
@@ -161,10 +164,12 @@ const FAQ: FAQItem[] = [
     q: "Can I use this on my phone?",
     a: (
       <>
-        Yes, the app is a mobile-first PWA. It works in any modern mobile browser
-        (Safari on iOS, Chrome on Android). For the best sideline experience, open
-        it in your browser and add it to your home screen via the Share → Add to
-        Home Screen option.
+        Yes. Siren is {PLATFORMS.sentence}. On an iPhone or iPad,{" "}
+        <a href={PLATFORMS.ios.url} className="font-medium underline">
+          get the app from the App Store
+        </a>
+        . On Android, open Siren in Chrome and add it to your home screen
+        (menu → Add to Home screen) so it opens like an app.
       </>
     ),
   },

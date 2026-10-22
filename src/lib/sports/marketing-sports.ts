@@ -8,18 +8,25 @@
 // without pulling React. Order here is the order the sports render
 // in the picker on the homepage.
 
+import type { SportId } from "@/lib/sports/types";
+
 export type MarketingSportId = "afl" | "league" | "union" | "netball" | "football";
 
 export interface MarketingSportConfig {
   id: MarketingSportId;
+  /** The app's sport. Its facts (beta or not) come from
+   *  src/lib/siren-facts.ts by this id. */
+  sport: SportId;
   /** Small uppercase code that runs above each picker-card name
-   *  ("AFL" / "NRL" / "RU" / "NB"). */
+   *  ("AFL" / "RL" / "RU" / "NB"). Not "NRL": that's the league's
+   *  trade mark, and Siren isn't affiliated with it. */
   code: string;
   /** Short label used in pill / chip labels. */
   short: string;
   /** Full sport name shown as the picker-card headline. */
   label: string;
-  /** Lowercase word that drops into "See Siren in __ mode." */
+  /** Word that drops into "See Siren in __ mode." Lower case
+   *  unless it's an acronym ("AFL mode"). */
   modeWord: string;
   /** Period descriptor for the small top-right "AFL · 4 QUARTERS"
    *  label inside the dark section. */
@@ -60,10 +67,11 @@ export interface MarketingSportConfig {
 export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
   {
     id: "afl",
+    sport: "afl",
     code: "AFL",
     short: "AFL",
     label: "AFL",
-    modeWord: "afl",
+    modeWord: "AFL",
     periods: "4 quarters",
     // Brand's alarm-orange — matches `bg-brand-600` (#D9442D) so the
     // AFL accent reads as the existing Siren brand colour.
@@ -75,7 +83,8 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
   },
   {
     id: "league",
-    code: "NRL",
+    sport: "rugby_league",
+    code: "RL",
     short: "League",
     label: "Rugby League",
     modeWord: "league",
@@ -93,6 +102,7 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
   // Netball sits in slot 3 and Union, the newest, in slot 4.
   {
     id: "netball",
+    sport: "netball",
     code: "NB",
     short: "Netball",
     label: "Netball",
@@ -106,6 +116,7 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
   },
   {
     id: "union",
+    sport: "rugby_union",
     code: "RU",
     short: "Union",
     label: "Rugby Union",
@@ -120,6 +131,7 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
   // Football (soccer), the newest (17 Oct 2026; in beta in the app).
   {
     id: "football",
+    sport: "soccer",
     code: "FB",
     short: "Football",
     label: "Football (soccer)",

@@ -3,6 +3,9 @@ import { Suspense } from "react";
 import { LoginScreen } from "@/components/auth/LoginScreen";
 
 export const metadata: Metadata = {
+  title: "Sign in · Siren",
+  description:
+    "Sign in to Siren, or create an account, to run your junior team's rotations, subs and scores on game day.",
   alternates: { canonical: "/login" },
 };
 

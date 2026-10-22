@@ -11,7 +11,7 @@ import {
   MARKETING_SPORTS,
   type MarketingSportConfig,
 } from "@/lib/sports/marketing-sports";
-import { HOME_CONTENT, getHeroEyebrow } from "@/lib/marketing/homeContent";
+import { HOME_CONTENT, getHeroEyebrow, heroSportsSentence } from "@/lib/marketing/homeContent";
 import {
   AflOvalField,
   LeagueRectField,
@@ -245,106 +245,108 @@ export function HeroCarousel() {
 
       <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-16 lg:py-28">
         <div>
-          <RevealOnScroll>
-            {/* Eyebrow swaps per active sport AND adopts the
-                sport's accent colour — same cascade as the picker
-                card fill, so the eyebrow visually echoes "this
-                sport is selected." Inline style (not a Tailwind
-                colour) because the accent is a runtime data value
-                from MarketingSportConfig, not a token in the
-                theme palette. */}
-            <p
-              key={`eyebrow-${active.id}`}
-              className="font-mono text-[11px] font-semibold uppercase tracking-micro motion-safe:animate-[sirenFieldFadeIn_320ms_cubic-bezier(0.2,0.8,0.2,1)_forwards]"
-              style={{ color: active.accent }}
-            >
-              {getHeroEyebrow(active.id)}
-            </p>
-            <h1 className="mt-3 text-4xl font-bold leading-[1.02] tracking-tightest text-ink [text-wrap:balance] sm:text-5xl md:text-6xl lg:text-7xl">
-              {HOME_CONTENT.hero.headline}
-            </h1>
-            <p className="mt-6 max-w-xl text-lg text-ink-dim sm:text-xl">
-              {HOME_CONTENT.hero.subtitle}
-            </p>
+          {/* No RevealOnScroll here: its inline opacity:0 held the H1,
+              the page's largest paint, back until JavaScript ran and
+              the observer fired. The text is there on first paint;
+              the phone mock still fades in. */}
+          {/* Eyebrow swaps per active sport AND adopts the
+              sport's accent colour — same cascade as the picker
+              card fill, so the eyebrow visually echoes "this
+              sport is selected." Inline style (not a Tailwind
+              colour) because the accent is a runtime data value
+              from MarketingSportConfig, not a token in the
+              theme palette. */}
+          <p
+            key={`eyebrow-${active.id}`}
+            className="font-mono text-[11px] font-semibold uppercase tracking-micro motion-safe:animate-[sirenFieldFadeIn_320ms_cubic-bezier(0.2,0.8,0.2,1)_forwards]"
+            style={{ color: active.accent }}
+          >
+            {getHeroEyebrow(active.id)}
+          </p>
+          <h1 className="mt-3 text-4xl font-bold leading-[1.02] tracking-tightest text-ink [text-wrap:balance] sm:text-5xl md:text-6xl lg:text-7xl">
+            {HOME_CONTENT.hero.headline}
+          </h1>
+          <p className="mt-6 max-w-xl text-lg text-ink-dim sm:text-xl">
+            {heroSportsSentence()} {HOME_CONTENT.hero.subtitle}
+          </p>
 
-            {/* Binary CTA row: iOS app OR web app. AppStoreBadge
-                renders on every carousel slide — Steve 2026-05-26:
-                show the App Store path on all sport variants, not
-                just AFL. The iOS app itself is footy-only in v1
-                (per mobile/capacitor.config.ts), but a visitor on
-                a non-AFL slide tapping the badge still lands on a
-                legitimate destination (the Siren listing), which
-                is better than a missing affordance that makes the
-                hero feel sport-gated. */}
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <AppStoreBadge theme="light" />
-              <MarketingAuthCTAs variant="hero" />
-            </div>
+          {/* Binary CTA row: iOS app OR web app. AppStoreBadge
+              renders on every carousel slide — Steve 2026-05-26:
+              show the App Store path on all sport variants, not
+              just AFL. The iOS app itself is footy-only in v1
+              (per mobile/capacitor.config.ts), but a visitor on
+              a non-AFL slide tapping the badge still lands on a
+              legitimate destination (the Siren listing), which
+              is better than a missing affordance that makes the
+              hero feel sport-gated. */}
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <AppStoreBadge theme="light" />
+            <MarketingAuthCTAs variant="hero" />
+          </div>
 
-            {/* Trust line. Same accent-colour cascade as the
-                eyebrow — both lines visually echo "you're looking
-                at the X sport variant" without needing a label.
-                Uses the same key+animate pattern as the eyebrow
-                so the colour transition fades smoothly when the
-                carousel rotates. */}
-            <p
-              key={`trust-${active.id}`}
-              className="mt-5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] motion-safe:animate-[sirenFieldFadeIn_320ms_cubic-bezier(0.2,0.8,0.2,1)_forwards]"
-              style={{ color: active.accent }}
-            >
-              {HOME_CONTENT.hero.trustLine}
-            </p>
+          {/* Trust line. Same accent-colour cascade as the
+              eyebrow — both lines visually echo "you're looking
+              at the X sport variant" without needing a label.
+              Uses the same key+animate pattern as the eyebrow
+              so the colour transition fades smoothly when the
+              carousel rotates. */}
+          <p
+            key={`trust-${active.id}`}
+            className="mt-5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] motion-safe:animate-[sirenFieldFadeIn_320ms_cubic-bezier(0.2,0.8,0.2,1)_forwards]"
+            style={{ color: active.accent }}
+          >
+            {HOME_CONTENT.hero.trustLine}
+          </p>
 
-            {/* Pagination dots — one per sport. Active dot fills with
-                the sport accent; inactive dots stay neutral. Layout
-                mirrors Claude Design's horizontal pill row. */}
-            <div
-              role="tablist"
-              aria-label="Hero carousel — pick a sport"
-              className="mt-8 flex items-center gap-2"
-            >
-              {HERO_CAROUSEL_SPORTS.map((sport, i) => {
-                const isActive = i === activeIndex;
-                return (
-                  <button
-                    key={sport.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={isActive}
-                    aria-label={`Show ${sport.label} hero`}
-                    data-testid={`hero-carousel-dot-${sport.id}`}
-                    onClick={() => handlePick(i)}
+          {/* Pagination dots — one per sport. Active dot fills with
+              the sport accent; inactive dots stay neutral. Layout
+              mirrors Claude Design's horizontal pill row. */}
+          <div
+            role="tablist"
+            aria-label="Hero carousel — pick a sport"
+            className="mt-8 flex items-center gap-2"
+          >
+            {HERO_CAROUSEL_SPORTS.map((sport, i) => {
+              const isActive = i === activeIndex;
+              return (
+                <button
+                  key={sport.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-label={`Show ${sport.label} hero`}
+                  data-testid={`hero-carousel-dot-${sport.id}`}
+                  onClick={() => handlePick(i)}
+                  className="
+                    group inline-flex h-6 w-12 items-center justify-center
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2
+                  "
+                >
+                  {/* Each pill is tinted with ITS OWN sport's accent
+                      (not the active sport's) — so the row reads as
+                      a colour-coded sport picker rather than 3 grey
+                      pills + 1 coloured one. Active = full accent;
+                      inactive = same accent at ~55% alpha (hex `8C`)
+                      so it's still visibly that sport's colour but
+                      clearly subordinate. Previous 35% alpha read
+                      as nearly-invisible against the cream hero
+                      background. */}
+                  <span
                     className="
-                      group inline-flex h-6 w-12 items-center justify-center
-                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2
+                      block h-1 w-full rounded-full
+                      transition-colors duration-[240ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]
+                      group-hover:opacity-80
                     "
-                  >
-                    {/* Each pill is tinted with ITS OWN sport's accent
-                        (not the active sport's) — so the row reads as
-                        a colour-coded sport picker rather than 3 grey
-                        pills + 1 coloured one. Active = full accent;
-                        inactive = same accent at ~55% alpha (hex `8C`)
-                        so it's still visibly that sport's colour but
-                        clearly subordinate. Previous 35% alpha read
-                        as nearly-invisible against the cream hero
-                        background. */}
-                    <span
-                      className="
-                        block h-1 w-full rounded-full
-                        transition-colors duration-[240ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]
-                        group-hover:opacity-80
-                      "
-                      style={{
-                        backgroundColor: isActive
-                          ? sport.accent
-                          : `${sport.accent}8C`,
-                      }}
-                    />
-                  </button>
-                );
-              })}
-            </div>
-          </RevealOnScroll>
+                    style={{
+                      backgroundColor: isActive
+                        ? sport.accent
+                        : `${sport.accent}8C`,
+                    }}
+                  />
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Desktop-only phone mock — mobile drops the hero phone

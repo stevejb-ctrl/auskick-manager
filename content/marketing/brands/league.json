@@ -144,11 +144,11 @@
         "italic": "plan",
         "after": "."
       },
-      "body": "At half-time, Siren suggests a reshuffle that balances forward/back time, settles the unbroken-period count, and rotates the FR/DH vests. One tap to accept, or rearrange manually.",
+      "body": "At half-time, Siren suggests a reshuffle that balances forward/back time, keeps every player's unbroken periods on track, and rotates the FR/DH vests. One tap to accept, or tap two players to switch them.",
       "bullets": [
         "Suggested H2 lineup based on time equity + vest rotation",
-        "One tap to accept or drag to customise",
-        "Unbroken-period counter updates as you swap players"
+        "One tap to accept, or tap two players to switch",
+        "Suggestions keep each player's unbroken periods intact"
       ],
       "image": "/marketing/screenshots/rl-score-reconciliation.png",
       "imageAlt": "Half-time break screen with suggested reshuffle and field-time bars"
