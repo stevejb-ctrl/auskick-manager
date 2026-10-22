@@ -89,7 +89,7 @@ import {
 import { BasketballCourt } from "./BasketballCourt";
 import { BasketballBench } from "./BasketballBench";
 import { BasketballScoreBug } from "./BasketballScoreBug";
-import { BasketballScoreEditor } from "./BasketballScoreEditor";
+import { BreakScoreEditor } from "@/components/quarter-break/BreakScoreEditor";
 import { BasketballBreak } from "./BasketballBreak";
 import { BasketballFullTimeReview, BasketballGameSummaryCard } from "./BasketballFullTime";
 import {
@@ -623,7 +623,7 @@ export function BasketballLiveGame({
                   them: opponentPoints,
                   editor: (
                     <>
-                      <BasketballScoreEditor
+                      <BreakScoreEditor
                         teamName={teamName}
                         opponentName={opponentName}
                         teamPoints={teamPoints}
@@ -633,9 +633,19 @@ export function BasketballLiveGame({
                         currentPeriod={base.currentPeriod}
                         periodLetter={periodLetter}
                         periodWord={periodWord}
-                        chips={scoreChips}
-                        onTeamScore={(n) => setScorerPoints(n)}
-                        onOpponentScore={opponentScore}
+                        teamChips={scoreChips.map((n) => ({
+                          key: String(n),
+                          text: `+${n}`,
+                          label: `Add ${n} ${n === 1 ? "point" : "points"}, ${teamName}`,
+                          onClick: () => setScorerPoints(n),
+                        }))}
+                        opponentChips={scoreChips.map((n) => ({
+                          key: String(n),
+                          text: `+${n}`,
+                          label: `Add ${n} ${n === 1 ? "point" : "points"}, ${opponentName}`,
+                          onClick: () => opponentScore(n),
+                        }))}
+                        missedNote={`A basket you missed counts in ${periodLetter}${base.currentPeriod}.`}
                         onUndo={undoScore}
                         undoDisabled={pending}
                       />
