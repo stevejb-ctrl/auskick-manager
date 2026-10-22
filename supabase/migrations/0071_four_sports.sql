@@ -142,7 +142,9 @@ insert into public.sport_lines (sport, line) values
   ('oztag', 'field')
 on conflict do nothing;
 
--- A mixed team's rule: all three set, or none.
+-- A mixed team's rule: all three set, or none. The second branch says
+-- "is not null" outright: a CHECK passes when it comes out NULL, so a
+-- range test alone would let one of the three be cleared.
 alter table public.teams
   add column if not exists mixed_max_boys smallint,
   add column if not exists mixed_min_girls smallint,
@@ -156,6 +158,9 @@ alter table public.teams
     (mixed_max_boys is null and mixed_min_girls is null and mixed_min_boys is null)
     or (
       sport in ('touch', 'oztag')
+      and mixed_max_boys is not null
+      and mixed_min_girls is not null
+      and mixed_min_boys is not null
       and mixed_max_boys between 0 and 15
       and mixed_min_girls between 0 and 15
       and mixed_min_boys between 0 and mixed_max_boys
