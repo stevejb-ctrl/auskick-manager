@@ -199,7 +199,7 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   // Q-break shell renders. The Q-break header overline is the
   // marker.
   await expect(
-    page.getByText(/quarter break/i).first(),
+    page.getByRole("heading", { name: /^q2 lineup$/i }),
   ).toBeVisible({ timeout: 25_000 });
 
   // ─── Phase 4: Q-break recap + Review and update scores ────
@@ -238,6 +238,8 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
       { timeout: 5_000 },
     )
     .toBeGreaterThanOrEqual(1);
+  // The score review is a sheet over the break; close it to start Q2.
+  await page.getByRole("dialog", { name: "Score" }).getByRole("button", { name: "Done" }).click();
 
   // Two-tap kickoff helper with DISTINCT labels:
   //   1. Q-break "Ready for Q{n}" — fires periodBreakSwap, surfaces
@@ -248,13 +250,13 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   // the second tap.
   async function startNextQuarter(n: number): Promise<void> {
     await page
-      .getByRole("button", { name: new RegExp(`^start q${n}$`, "i") })
+      .getByRole("button", { name: new RegExp(`^start q${n}`, "i") })
       .click();
     await page
       .getByText(/tap when the umpire calls play/i)
       .waitFor({ timeout: 5_000 });
     await page
-      .getByRole("button", { name: /^start [qh]\d+ now$/i })
+      .getByRole("button", { name: /^start [qh]\d+ now$|^start anyway$/i })
       .click();
   }
 
@@ -277,7 +279,7 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   for (const next of [3, 4]) {
     await expect(
       page.getByRole("button", {
-        name: new RegExp(`^start q${next}$`, "i"),
+        name: new RegExp(`^start q${next}`, "i"),
       }),
     ).toBeVisible({ timeout: 25_000 });
     await startNextQuarter(next);

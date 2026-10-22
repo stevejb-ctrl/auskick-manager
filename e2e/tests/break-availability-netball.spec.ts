@@ -24,6 +24,7 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { closeGameSettings, openGameSettings, pickBreakStrategy, startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -64,15 +65,9 @@ async function enterQBreakView(
   ).toBeVisible({ timeout: 10_000 });
 }
 
-async function expandGameSettings(
-  page: import("@playwright/test").Page,
-): Promise<void> {
-  const trigger = page.getByRole("button", { name: /game settings/i });
-  if ((await trigger.getAttribute("aria-expanded")) !== "true") {
-    await trigger.click();
-  }
-  await expect(trigger).toHaveAttribute("aria-expanded", "true");
-}
+// The break's Game settings sheet (the status chip) holds lend, injured,
+// arrived and mark out; the strategy picker is on the screen itself.
+const expandGameSettings = openGameSettings;
 
 test("netball: at the break a coach can add an arrived player, mark a player out (out reason), and mark a player injured", async ({
   page,
@@ -151,14 +146,14 @@ test("netball: at the break a coach can add an arrived player, mark a player out
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await enterQBreakView(page, admin, game.id);
 
-  // The break-surface availability controls live in the collapsed
-  // "Game settings" / Match-adjustments section.
-  await expandGameSettings(page);
+  // Freeze the lineup to Repeat ("keep last quarter") so the fairness
+  // suggester doesn't rotate the seeded court/bench — the mark-out flow
+  // needs `outPlayer` to still be on court and `replacement` on the bench.
+  await pickBreakStrategy(page, "Repeat");
 
-  // Freeze the lineup to "Keep last quarter" so the fairness suggester
-  // doesn't rotate the seeded court/bench — the mark-out flow needs
-  // `outPlayer` to still be on court and `replacement` on the bench.
-  await page.getByRole("radio", { name: /keep last quarter/i }).click();
+  // The break-surface availability controls live in the Game settings
+  // sheet behind the status chip.
+  await expandGameSettings(page);
 
   // ─── 1. ADD ARRIVED ────────────────────────────────────────────
   await page
@@ -338,11 +333,12 @@ test("netball: lending at the break takes the kid off court, and a kid brought b
   await suppressWalkthrough(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await enterQBreakView(page, admin, game.id);
+  await pickBreakStrategy(page, "Repeat");
   await expandGameSettings(page);
-  await page.getByRole("radio", { name: /keep last quarter/i }).click();
 
-  const token = (position: string, name: string) =>
-    page.getByRole("button", { name: new RegExp(`^${position},\\s*${name}`, "i") });
+  // A kid's tile on court carries their bib; an empty bib is its own spot.
+  const tile = (id: string) => page.getByTestId(`player-tile-${id}`);
+  const emptyGS = page.getByRole("button", { name: /^empty gs spot$/i });
   const loanEvents = async (pid: string) => {
     const { data } = await admin
       .from("game_events")
@@ -355,29 +351,28 @@ test("netball: lending at the break takes the kid off court, and a kid brought b
   };
 
   // Lend the GS: they come off court, leaving GS to fill.
-  await expect(token("Goal Shooter", gs.full_name)).toBeVisible();
+  await expect(tile(gs.id)).toContainText("GS");
   await page.getByRole("button", { name: /^\+?\s*lend a player$/i }).click();
   const lendSheet = page.getByRole("dialog", { name: /lend/i });
   await expect(lendSheet).toBeVisible({ timeout: 5_000 });
   await lendSheet.getByRole("button", { name: new RegExp(gs.full_name, "i") }).click();
   await expect.poll(() => loanEvents(gs.id), { timeout: 15_000 }).toEqual([true]);
-  await expect(token("Goal Shooter", gs.full_name)).toHaveCount(0);
-  await expect(token("Goal Shooter", "empty")).toBeVisible();
+  await expect(page.getByRole("group", { name: "Bench", exact: true }).getByTestId(`player-tile-${gs.id}`)).toContainText("Lent");
+  await expect(emptyGS).toBeVisible();
 
-  // Bring the Q1 loaner back, then put them in at GS.
+  // Bring the Q1 loaner back, then put them in at GS: tap the empty
+  // spot, then the kid (back on the bench).
   await expandGameSettings(page);
   await page.getByRole("button", { name: `Bring ${q1Loaner.full_name} back` }).click();
   await expect.poll(() => loanEvents(q1Loaner.id), { timeout: 15_000 }).toEqual([true, false]);
-  await token("Goal Shooter", "empty").click();
-  const fillSheet = page.getByRole("dialog", { name: /fill/i });
-  await expect(fillSheet).toBeVisible({ timeout: 5_000 });
-  await fillSheet.getByRole("button", { name: new RegExp(q1Loaner.full_name, "i") }).click();
-  await expect(token("Goal Shooter", q1Loaner.full_name)).toBeVisible();
+  await closeGameSettings(page);
+  await emptyGS.click();
+  await tile(q1Loaner.id).click();
+  await expect(tile(q1Loaner.id)).toContainText("GS");
 
   // Start Q2: the committed lineup has the recalled kid at GS and
   // nobody lost (everyone but the lent GS is on court or the bench).
-  await page.getByRole("button", { name: /^start q2$/i }).click();
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
+  await startFromBreak(page, /^start q2/i);
   let q2: { positions: Record<string, string[]>; bench: string[] } | null = null;
   await expect
     .poll(
@@ -443,16 +438,14 @@ test("netball: a kid selected and then lent at the break doesn't swap on with th
   await suppressWalkthrough(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await enterQBreakView(page, admin, game.id);
-  await expandGameSettings(page);
-  await page.getByRole("radio", { name: /keep last quarter/i }).click();
+  await pickBreakStrategy(page, "Repeat");
 
   const lent = players[7];
   const gs = players[0];
-  const token = (position: string, name: string) =>
-    page.getByRole("button", { name: new RegExp(`^${position},\\s*${name}`, "i") });
+  const tile = (id: string) => page.getByTestId(`player-tile-${id}`);
 
   // Select the bench kid, then lend her.
-  await page.getByRole("button", { name: new RegExp(`^B ${lent.full_name}`) }).first().click();
+  await tile(lent.id).click();
   await expandGameSettings(page);
   await page.getByRole("button", { name: /^\+?\s*lend a player$/i }).click();
   const lendSheet = page.getByRole("dialog", { name: /lend/i });
@@ -465,10 +458,13 @@ test("netball: a kid selected and then lent at the break doesn't swap on with th
     .toBe(1);
   // The lend lands; then the coach taps the GS.
   await expect(page.getByRole("button", { name: `Bring ${lent.full_name} back` })).toBeVisible({ timeout: 15_000 });
-  await token("Goal Shooter", gs.full_name).click();
+  await closeGameSettings(page);
+  await tile(gs.id).click();
 
-  // No swap: the GS is still on, the lent kid isn't on court.
-  await expect(token("Goal Shooter", gs.full_name)).toBeVisible();
-  // (Court tokens are named "<Position>, <name>"; bench tiles aren't.)
-  await expect(page.getByRole("button", { name: new RegExp(`,\\s*${lent.full_name}`, "i") })).toHaveCount(0);
+  // No swap: the GS is still on, the lent kid is still on the bench.
+  await expect(tile(gs.id)).toContainText("GS");
+  await expect(page.getByRole("group", { name: "Bench", exact: true }).getByTestId(`player-tile-${lent.id}`)).toContainText("Lent");
+  for (const third of ["Attack", "Centre", "Defence"]) {
+    await expect(page.getByRole("group", { name: third, exact: true }).getByTestId(`player-tile-${lent.id}`)).toHaveCount(0);
+  }
 });
