@@ -12,8 +12,9 @@
 //   - A mixed team keeps to its rule (lib/sports/touch/mixed.ts): the
 //     starting side and every suggested sub. Fair time is evened within
 //     each group, so a girl comes on for a girl and a boy for a boy; at
-//     the cap that's the rule anyway. Short of girls, the side is what
-//     the rule allows.
+//     the cap that's the rule anyway. A side a hand sub took outside the
+//     rule is put back first. Short of girls, the side is what the rule
+//     allows.
 //   - Nobody hurt or lent comes on; no sub takes off a kid held on.
 //   - Where kids play follows the strategy: anywhere (Minutes only), the
 //     lane they're short of (Rotate positions), their home lane (Home
@@ -22,7 +23,7 @@
 import type { MixedGroup } from "@/lib/types";
 import type { UnitTime } from "@/lib/playbook/seasonTime";
 import { periodsOwed } from "@/lib/playbook/seasonBalance";
-import { suggestRollingSubs, sortByKeys } from "@/lib/live/rollingSubs";
+import { compositionFixes, suggestRollingSubs, sortByKeys, type RollingSub, type RollingSubsInput } from "@/lib/live/rollingSubs";
 import { touchLineOf, touchOnField, type TouchLineup } from "@/lib/sports/touch/lineup";
 import {
   countMixedGroups,
@@ -301,45 +302,74 @@ export interface SuggestTouchSubsInput {
  * A sub-due batch through the shared rolling-sub pick: the bench, least
  * time this game first, on for the kids on the field with the most,
  * while each sub evens their time. A mixed team's kids come on for
- * their own group and never break the rule. A lane hold keeps a kid to
+ * their own group and never break the rule; a side that already breaks
+ * it (a hand sub put a fourth boy on) is fixed first, a girl on for the
+ * boy on longest, before anything evens time. A lane hold keeps a kid to
  * their lane; Home position brings a kid on into their home lane when
  * that evens time too; under Rotate positions the kids coming on are
  * matched to the lanes being left by this game's lanes and season debt.
  */
-export function suggestTouchSubs(input: SuggestTouchSubsInput): TouchSub[] {
-  const { state, nowMs, strategy, prefs, season, mixed } = input;
-  const lu = state.lineup;
-  if (!lu) return [];
+const laneHoldOf = (state: TouchGameState) => (pid: string): TouchLine | null => {
+  const l = state.locks[pid];
+  return l?.kind === "zone" && (TOUCH_LANES as readonly string[]).includes(l.zone) ? (l.zone as TouchLine) : null;
+};
+const poolOfFor = (mixed: TouchMixed | undefined) => (pid: string) => mixed?.groupOf(pid) ?? "none";
+
+/** The game now as the shared rolling-sub pick reads it. */
+function touchRollingInput(input: SuggestTouchSubsInput, lu: TouchLineup): RollingSubsInput<TouchLine> {
+  const { state, nowMs, strategy, prefs, mixed } = input;
   const minStint = input.minStintMs ?? 0;
   const guard = minStint > 0;
-  const laneHold = (pid: string): TouchLine | null => {
-    const l = state.locks[pid];
-    return l?.kind === "zone" && (TOUCH_LANES as readonly string[]).includes(l.zone) ? (l.zone as TouchLine) : null;
-  };
-  const poolOf = (pid: string) => mixed?.groupOf(pid) ?? "none";
-  const subs = suggestRollingSubs<TouchLine>({
+  return {
     field: touchOnField(lu).map((id) => ({ id, line: touchLineOf(lu, id) as TouchLine })),
     bench: lu.bench.filter((p) => touchCanPlay(state, p)),
     gameMs: (p) => touchGameMs(state, p),
     held: (p) => state.locks[p]?.kind === "field",
     keepOn: (p) => keptOn(prefs, p) === 0,
-    onlyLine: laneHold,
+    onlyLine: laneHoldOf(state),
     preferLine: strategy === "home-position" ? (p) => prefs?.homeLane?.[p] ?? null : undefined,
     plays: (p, line) => line === "field" || !prefs?.neverLane?.[p]?.includes(line),
-    ...(mixed ? { tags: mixedTags(mixed.groupOf), constraints: mixedConstraints(mixed.rule), pool: poolOf } : {}),
+    ...(mixed ? { tags: mixedTags(mixed.groupOf), constraints: mixedConstraints(mixed.rule), pool: poolOfFor(mixed) } : {}),
     justOn: (p) => guard && nowMs - (state.lastSubbedOnMs[p] ?? 0) < minStint,
     justOff: (p) => guard && state.lastSubbedOffMs[p] !== undefined && nowMs - state.lastSubbedOffMs[p] < minStint,
     maxSubs: input.maxSubs,
-  });
+  };
+}
+
+const asTouchSub = (s: RollingSub<TouchLine>): TouchSub => ({ off_player_id: s.off, on_player_id: s.on, line: s.line });
+
+/**
+ * The subs that put a mixed side that breaks its rule (a hand sub put a
+ * fourth boy on) back inside it: a girl on for the boy on longest, or a
+ * boy for a girl when there's no boy on. Empty when the side keeps the
+ * rule, nobody on the bench can fix it, or the team isn't mixed.
+ */
+export function touchMixFixSubs(input: SuggestTouchSubsInput): TouchSub[] {
+  const lu = input.state.lineup;
+  if (!lu || !input.mixed) return [];
+  return compositionFixes(touchRollingInput(input, lu)).map(asTouchSub);
+}
+
+export function suggestTouchSubs(input: SuggestTouchSubsInput): TouchSub[] {
+  const { state, strategy, prefs, season, mixed } = input;
+  const lu = state.lineup;
+  if (!lu) return [];
+  const laneHold = laneHoldOf(state);
+  const poolOf = poolOfFor(mixed);
+  const rolling = touchRollingInput(input, lu);
+  const subs = suggestRollingSubs<TouchLine>(rolling);
+  // A side that breaks the mixed rule is fixed first: those subs lead
+  // the batch, and stay as they are.
+  const fixCount = mixed ? compositionFixes(rolling).length : 0;
 
   // Rotate positions: match the kids coming on to the lanes being left,
   // within each group so every pair still keeps the mixed rule alone.
-  if (strategy === "rotate-positions" && subs.length > 1) {
+  if (strategy === "rotate-positions" && subs.length - fixCount > 1) {
     const periodMs = season?.periodMs ?? (state.periodElapsedMs || 20 * 60_000);
     const score = laneScore(strategy, prefs, season, (pid, lane) => state.ms[pid]?.[lane] ?? 0, periodMs);
-    const pools = Array.from(new Set(subs.map((s) => poolOf(s.on))));
+    const pools = Array.from(new Set(subs.slice(fixCount).map((s) => poolOf(s.on))));
     for (const pool of pools) {
-      const idx = subs.map((s, i) => (poolOf(s.on) === pool && !laneHold(s.on) ? i : -1)).filter((i) => i >= 0);
+      const idx = subs.map((s, i) => (i >= fixCount && poolOf(s.on) === pool && !laneHold(s.on) ? i : -1)).filter((i) => i >= 0);
       if (idx.length < 2) continue;
       const ons = idx.map((i) => subs[i].on);
       const lanes = idx.map((i) => subs[i].line);
@@ -351,7 +381,7 @@ export function suggestTouchSubs(input: SuggestTouchSubsInput): TouchSub[] {
     }
   }
 
-  return subs.map((s) => ({ off_player_id: s.off, on_player_id: s.on, line: s.line }));
+  return subs.map(asTouchSub);
 }
 
 // ─── The next half ───────────────────────────────────────────
