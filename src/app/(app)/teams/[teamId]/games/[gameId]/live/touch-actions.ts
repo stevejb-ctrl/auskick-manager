@@ -541,3 +541,48 @@ export async function recordTouchFieldSize(
   if (!result.success) return result;
   return revalidateAfterMutation(auth, gameId);
 }
+
+// ─── setTouchMixedGroup ──────────────────────────────────────
+// Who a kid counts as under the team's mixed rule, asked at the lineup
+// when a kid on a mixed team has no group yet (one tap: Girl or Boy).
+// A squad kid's is players.mixed_group; a fill-in's is the game's
+// game_fill_ins.mixed_group. Only a mixed team asks.
+export async function setTouchMixedGroup(
+  auth: LiveAuth,
+  gameId: string,
+  playerId: string,
+  group: MixedGroup,
+): Promise<ActionResult> {
+  if (group !== "girl" && group !== "boy") return { success: false, error: "A kid counts as a girl or a boy." };
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+  const { mixed } = await touchTeam(w.teamId);
+  if (!mixed) return { success: false, error: "Only a mixed team asks who counts as a girl or a boy." };
+
+  // Past RLS: players are the admins' to edit, but a game manager (or a
+  // run link) running the lineup is allowed to answer this one question,
+  // and resolveWriter has checked them. Scoped to this team and game.
+  const admin = createAdminClient();
+  const { data: squadRow, error } = await admin
+    .from("players")
+    .update({ mixed_group: group })
+    .eq("id", playerId)
+    .eq("team_id", w.teamId)
+    .select("id");
+  if (error) return { success: false, error: error.message };
+  if (!squadRow || squadRow.length === 0) {
+    const { error: fillInError } = await admin
+      .from("game_fill_ins")
+      .update({ mixed_group: group })
+      .eq("id", playerId)
+      .eq("game_id", gameId);
+    if (fillInError) return { success: false, error: fillInError.message };
+  }
+  if (auth.kind === "team") {
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
+    revalidatePath(`/teams/${w.teamId}/squad`);
+  } else {
+    revalidatePath(`/run/${auth.token}`, "layout");
+  }
+  return { success: true };
+}

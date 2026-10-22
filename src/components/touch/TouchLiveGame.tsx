@@ -54,7 +54,7 @@ import { usePeriodPause } from "@/lib/live/periodPauseStorage";
 import { resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { countTags, keepsComposition, rollingSubDue } from "@/lib/live/rollingSubs";
-import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
+import type { Game, GameEvent, LiveAuth, MixedGroup, Player } from "@/lib/types";
 import { normalizeTouchLineup, touchLineOf, touchOnField, type TouchLineup } from "@/lib/sports/touch/lineup";
 import { replayTouchGame, touchCanPlay, touchGameMs, type TouchGameState } from "@/lib/sports/touch/replay";
 import {
@@ -75,7 +75,7 @@ import {
   withEveryoneInTouchLineup,
 } from "@/lib/sports/touch/live";
 import { mixedConstraints, mixedFieldMessage, mixedTags } from "@/lib/sports/touch/mixed";
-import { TOUCH_LANES, TOUCH_LINES, type TouchAgeGroupConfig, type TouchLine, type TouchStrategy } from "@/lib/sports/touch/types";
+import { TOUCH_LANES, TOUCH_LINES, type MixedRule, type TouchAgeGroupConfig, type TouchLine, type TouchStrategy } from "@/lib/sports/touch/types";
 import { TouchField } from "./TouchField";
 import { TouchBench } from "./TouchBench";
 import { TouchScoreBug } from "./TouchScoreBug";
@@ -105,8 +105,10 @@ interface TouchLiveGameProps {
   trackScoring: boolean;
   /** A girl's try counts 2 (Oztag mixed, unless the team turned it off). */
   girlsTryDouble: boolean;
-  /** A mixed team's rule and who each kid counts as; omitted when it isn't mixed. */
-  mixed?: TouchMixed;
+  /** A mixed team's rule; null when it isn't a mixed team. */
+  mixedRule?: MixedRule | null;
+  /** Who each kid (and fill-in) counts as under the rule. */
+  mixedGroups?: Record<string, MixedGroup | null>;
   events: GameEvent[];
   /** How we play: the rotation, roles and season balance. */
   strategy: TouchStrategy;
@@ -158,7 +160,8 @@ export function TouchLiveGame({
   clockMultiplier = 1,
   trackScoring,
   girlsTryDouble,
-  mixed,
+  mixedRule = null,
+  mixedGroups,
   events,
   strategy,
   prefs,
@@ -169,6 +172,10 @@ export function TouchLiveGame({
   const router = useRouter();
   const opponentName = game.opponent || "Opponent";
   const playerById = useMemo(() => new Map(squad.map((p) => [p.id, p])), [squad]);
+  const mixed: TouchMixed | undefined = useMemo(
+    () => (mixedRule ? { rule: mixedRule, groupOf: (id: string) => mixedGroups?.[id] ?? null } : undefined),
+    [mixedRule, mixedGroups],
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
