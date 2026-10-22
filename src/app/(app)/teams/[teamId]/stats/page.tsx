@@ -31,7 +31,7 @@ import { BasketballDashboardShell } from "@/components/dashboard/BasketballDashb
 import { aggregateBasketballSeason } from "@/lib/dashboard/basketballAggregators";
 import { basketballAgeGroupForTeam } from "@/lib/sports/basketball";
 import { aggregateSoccerSeason } from "@/lib/dashboard/soccerAggregators";
-import { soccerAgeGroup } from "@/lib/sports/soccer";
+import { soccerFamilyAgeGroupForTeam } from "@/lib/sports/soccer/family";
 import type { GameEvent } from "@/lib/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
@@ -151,10 +151,14 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   // finalised before it existed), in the unit the team's strategy
   // balances; "Since reset" when the coach has reset season balance.
   const { resolved: playbook } = await loadTeamPlaybook(supabase, params.teamId, sport, team.age_group);
-  // Basketball plays the team's halves or quarters.
+  // Basketball plays the team's halves or quarters, as does hockey; a
+  // soccer-family team's age group is its own sport's.
+  const teamPeriodCount = (team as { period_count?: number | null }).period_count ?? null;
   const balanceAgeCfg = isBasketball(sport)
-    ? basketballAgeGroupForTeam(team.age_group, (team as { period_count?: number | null }).period_count ?? null)
-    : getAgeGroupConfig(sport, team.age_group);
+    ? basketballAgeGroupForTeam(team.age_group, teamPeriodCount)
+    : isSoccer(sport)
+      ? soccerFamilyAgeGroupForTeam(sport, team.age_group, teamPeriodCount)
+      : getAgeGroupConfig(sport, team.age_group);
   const seasonGameById = new Map(seasonGames.map((g) => [g.id, g]));
   const periodSecondsOf = (gameId: string) =>
     getEffectiveQuarterSeconds(
@@ -207,7 +211,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         aggregate={aggregateSoccerSeason(seasonGames, eventsByGame)}
         totalGames={seasonGames.length}
         trackScoring={team.track_scoring ?? false}
-        withKeeper={soccerAgeGroup(balanceAgeCfg.id).keeper !== "none"}
+        withKeeper={soccerFamilyAgeGroupForTeam(sport, team.age_group, teamPeriodCount).keeper !== "none"}
         seasonBalance={playbook.strategy.balanceUnit ? seasonBalance : undefined}
       />
     );

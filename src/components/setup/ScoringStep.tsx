@@ -8,6 +8,7 @@ import {
 } from "@/components/playbook/HowWePlayCard";
 import { isBasketball, isSoccer, isTouch, noSportBranch, periodLabels, sportNotBuilt } from "@/lib/sports";
 import { rugbyPoints } from "@/lib/sports/rugby_league/fairness";
+import { soccerFamilyRules } from "@/lib/sports/soccer/family";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Sport } from "@/lib/types";
 
@@ -87,13 +88,13 @@ export function ScoringStep({
     ) : isSoccer(sportId) ? (
       ageGroup.tracksScoreDefault ? (
         <>
-          Junior competitions keep score from about Under 12, so {ageGroup.label} starts with the
+          {soccerFamilyRules(sportId).scoringCopy.on}, so {ageGroup.label} starts with the
           scoreboard on: goals for both sides, and who scored. Flip this off if yours doesn&apos;t —{" "}
           <strong className="text-ink">you can change it later on the Team tab</strong>.
         </>
       ) : (
         <>
-          MiniRoos keeps no scores or ladders, so {ageGroup.label} starts with no scoreboard. Flip
+          {soccerFamilyRules(sportId).scoringCopy.off}, so {ageGroup.label} starts with no scoreboard. Flip
           this on if your competition keeps one —{" "}
           <strong className="text-ink">you can change it later on the Team tab</strong>.
         </>

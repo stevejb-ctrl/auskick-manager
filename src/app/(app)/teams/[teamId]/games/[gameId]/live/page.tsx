@@ -20,7 +20,7 @@ import { SoccerLiveGame } from "@/components/soccer/SoccerLiveGame";
 import { SoccerLineupPicker } from "@/components/soccer/SoccerLineupPicker";
 import type { SoccerLineup } from "@/lib/sports/soccer/lineup";
 import type { SoccerSeasonBalance } from "@/lib/sports/soccer/suggest";
-import type { SoccerAgeGroupConfig } from "@/lib/sports/soccer/types";
+import { soccerFamilyAgeGroupForTeam } from "@/lib/sports/soccer/family";
 import { soccerHowWePlay } from "@/lib/sports/soccer/playbook";
 import { BasketballLiveGame } from "@/components/basketball/BasketballLiveGame";
 import { BasketballLineupPicker } from "@/components/basketball/BasketballLineupPicker";
@@ -220,8 +220,15 @@ export default async function LivePage({ params }: LivePageProps) {
   // Parents follow the game read-only: a self-refreshing scoreboard,
   // not the old "only coaches and managers" dead end (UX plan §6).
   if (!canRun) {
-    const periodLabel = (getAgeGroupConfig(sport, teamRow?.age_group ?? null).periodLabel ??
-      "quarter") as "quarter" | "half" | "period";
+    // A soccer-family team plays its own halves or quarters (hockey).
+    const parentAgeCfg = isSoccer(sport)
+      ? soccerFamilyAgeGroupForTeam(
+          sport,
+          teamRow?.age_group ?? null,
+          (teamRow as { period_count?: number | null } | null)?.period_count ?? null,
+        )
+      : getAgeGroupConfig(sport, teamRow?.age_group ?? null);
+    const periodLabel = (parentAgeCfg.periodLabel ?? "quarter") as "quarter" | "half" | "period";
     return (
       <div className="space-y-4">
         <LiveTopBar exitHref={`/teams/${params.teamId}/games/${params.gameId}`} game={g} />
@@ -298,13 +305,19 @@ export default async function LivePage({ params }: LivePageProps) {
   const songStartSecondsTop = teamRow?.song_start_seconds ?? 0;
   const songDurationSecondsTop = teamRow?.song_duration_seconds ?? 15;
 
-  // ─── Football (soccer) branch ─────────────────────────────
-  // Soccer's own family (.planning/SOCCER-PLAN.md): a keeper slot and
-  // lines, rolling subs or windows, halves, goals. Before kick-off the
-  // lineup picker; after it the live game. None of the other sports'
-  // helpers below run for a soccer game.
+  // ─── Soccer family branch ─────────────────────────────────
+  // Football (soccer), futsal and hockey (.planning/SOCCER-PLAN.md,
+  // FOUR-SPORTS-PLAN.md): a keeper slot and lines, rolling subs or
+  // windows, halves (or hockey's quarters), goals, each sport in its own
+  // words. Before kick-off the lineup picker; after it the live game.
+  // None of the other sports' helpers below run for these games.
   if (isSoccer(sport)) {
-    const ageCfgS = getAgeGroupConfig(sport, teamRow?.age_group ?? null) as SoccerAgeGroupConfig;
+    // The team's own age group, in its halves or quarters (hockey).
+    const ageCfgS = soccerFamilyAgeGroupForTeam(
+      sport,
+      teamRow?.age_group ?? null,
+      (teamRow as { period_count?: number | null } | null)?.period_count ?? null,
+    );
     const periodSecondsS = getEffectiveQuarterSeconds(
       {
         quarter_length_seconds:
@@ -333,6 +346,7 @@ export default async function LivePage({ params }: LivePageProps) {
     // what it kicked off with).
     const howWePlay = soccerHowWePlay(
       await loadTeamPlaybook(supabase, params.teamId, sport, teamRow?.age_group ?? null),
+      sport,
       ageCfgS.id,
       g.playbook_snapshot,
     );
@@ -393,6 +407,7 @@ export default async function LivePage({ params }: LivePageProps) {
               // Suggest again when who's here changes.
               key={Array.from(availableIds).sort().join(",")}
               auth={{ kind: "team", teamId: params.teamId }}
+              sport={sport}
               gameId={params.gameId}
               players={availablePlayers}
               ageGroup={ageCfgS}
@@ -414,6 +429,7 @@ export default async function LivePage({ params }: LivePageProps) {
       <div className="space-y-3">
         <SoccerLiveGame
           auth={{ kind: "team", teamId: params.teamId }}
+          sport={sport}
           game={g}
           teamName={teamName}
           squad={squad}

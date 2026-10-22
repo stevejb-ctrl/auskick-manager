@@ -24,12 +24,8 @@ import { scoreFromEvents, scorersFromEvents } from "@/lib/results";
 import { gameTimeByUnit, seasonTimeByUnit } from "@/lib/playbook/seasonTime";
 import { BASE_UNIT, gameRollupRows, seasonFromRollup } from "@/lib/playbook/rollup";
 import type { GameEvent } from "@/lib/types";
-import {
-  SOCCER_AGE_GROUPS,
-  SOCCER_WINDOWS_PRESET,
-  soccerAgeGroup,
-  soccerFormations,
-} from "@/lib/sports/soccer";
+import { SOCCER_AGE_GROUPS, SOCCER_WINDOWS_PRESET, soccerFormations } from "@/lib/sports/soccer";
+import { soccerFamilyAgeGroup } from "@/lib/sports/soccer/family";
 import { SOCCER_OUTFIELD_LINES, SOCCER_UNITS } from "@/lib/sports/soccer/types";
 
 const ALL = ["U6", "U7", "U8", "U9", "U10", "U11", "U12", "U13", "U14", "U15", "U16", "U17"];
@@ -76,7 +72,7 @@ describe("Football (soccer) sport config", () => {
     expect(SOCCER_AGE_GROUPS.map((a) => a.id)).toEqual(ALL);
     expect(soccerSport.ageGroups).toBe(SOCCER_AGE_GROUPS);
     for (const [id, [players, minutes]] of Object.entries(TABLE)) {
-      const ag = soccerAgeGroup(id);
+      const ag = soccerFamilyAgeGroup("soccer", id);
       expect(ag.defaultOnFieldSize, id).toBe(players);
       expect(ag.periodCount, id).toBe(2);
       expect(ag.periodSeconds, id).toBe(minutes * 60);
@@ -89,19 +85,19 @@ describe("Football (soccer) sport config", () => {
 
   it("keeps no score by default to U11 (MiniRoos), then scores from U12", () => {
     for (const [id, [, , , scores]] of Object.entries(TABLE)) {
-      expect(soccerAgeGroup(id).tracksScoreDefault, id).toBe(scores);
+      expect(soccerFamilyAgeGroup("soccer", id).tracksScoreDefault, id).toBe(scores);
     }
   });
 
   it("has no keeper at 4 a side, keeper turns at U8–U11 and named keepers from U12", () => {
     for (const [id, [, , keeper]] of Object.entries(TABLE)) {
-      expect(soccerAgeGroup(id).keeper, id).toBe(keeper);
+      expect(soccerFamilyAgeGroup("soccer", id).keeper, id).toBe(keeper);
     }
   });
 
   it("subs on the run at every age; windows mode starts from Tasmania's", () => {
     for (const ag of SOCCER_AGE_GROUPS) expect(ag.subMode, ag.id).toEqual({ kind: "rolling" });
-    expect(SOCCER_WINDOWS_PRESET).toEqual({ kind: "windows", perHalf: 3, cutoffSeconds: 120 });
+    expect(SOCCER_WINDOWS_PRESET).toEqual({ kind: "windows", perPeriod: 3, cutoffSeconds: 120 });
   });
 
   it("starts a new game at the age group's size", () => {
@@ -112,8 +108,8 @@ describe("Football (soccer) sport config", () => {
   });
 
   it("refuses an age group it doesn't have, rather than borrowing one", () => {
-    expect(() => soccerAgeGroup("go")).toThrow(/Unknown Football \(soccer\) age group "go"/);
-    expect(() => soccerAgeGroup(null)).toThrow(/age group/);
+    expect(() => soccerFamilyAgeGroup("soccer", "go")).toThrow(/Unknown Football \(soccer\) age group "go"/);
+    expect(() => soccerFamilyAgeGroup("soccer", null)).toThrow(/age group/);
   });
 
   it("keeps its team sheets off PlayHQ", () => {
@@ -122,7 +118,7 @@ describe("Football (soccer) sport config", () => {
 });
 
 describe("Football (soccer) formations", () => {
-  const ids = (age: string, size: number) => soccerFormations(soccerAgeGroup(age), size).map((f) => f.id);
+  const ids = (age: string, size: number) => soccerFormations(soccerFamilyAgeGroup("soccer", age), size).map((f) => f.id);
 
   it("defaults to the plan's shapes: 2-3-1, 3-3-2 and 4-3-3, with their alternatives", () => {
     expect(ids("U8", 7)).toEqual(["2-3-1", "3-2-1"]);
@@ -133,7 +129,7 @@ describe("Football (soccer) formations", () => {
 
   it("has no keeper and no lines at 4 a side: minutes only", () => {
     for (const size of [3, 4]) {
-      const [only, ...rest] = soccerFormations(soccerAgeGroup("U6"), size);
+      const [only, ...rest] = soccerFormations(soccerFamilyAgeGroup("soccer", "U6"), size);
       expect(rest).toEqual([]);
       expect(only).toEqual({ id: "no-lines", keeper: false, lines: { def: 0, mid: 0, att: 0, field: size } });
     }

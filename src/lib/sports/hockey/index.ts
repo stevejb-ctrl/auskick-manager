@@ -32,7 +32,12 @@ import type { PositionDef, ScoreTypeDef, SportConfig, ZoneDef } from "@/lib/spor
 import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
 import { aflSport } from "@/lib/sports/afl";
 import { validateSoccerLineup } from "@/lib/sports/soccer/lineup";
-import type { SoccerAgeGroupConfig, SoccerFormation, SoccerKeeperStrategy } from "@/lib/sports/soccer/types";
+import type {
+  SoccerAgeGroupConfig,
+  SoccerFamilyRules,
+  SoccerFormation,
+  SoccerKeeperStrategy,
+} from "@/lib/sports/soccer/types";
 
 const HOCKEY_ZONES: ZoneDef[] = [{ id: "field", label: "Field", shortLabel: "Fld" }];
 const HOCKEY_POSITIONS: PositionDef[] = [{ id: "player", label: "Player", shortLabel: "P" }];
@@ -140,6 +145,67 @@ export const HOCKEY_AGE_GROUPS: SoccerAgeGroupConfig[] = AGES.map((a) => {
   };
 });
 
+/**
+ * Hockey's settings on the soccer family's engine (soccer/types.ts):
+ * Defenders, Midfield and Strikers (the words Newcastle's sheets use),
+ * a hockey pitch with shooting circles, and goal changing hands only at
+ * a break: keeper kit takes minutes to put on, so the next keeper hears
+ * two minutes before the break. Halves or quarters are the team's.
+ */
+export const HOCKEY_RULES: SoccerFamilyRules = {
+  lineLabels: {
+    gk: { label: "Keeper", short: "GK", phrase: "goal" },
+    def: { label: "Defenders", short: "DEF", phrase: "the defenders" },
+    mid: { label: "Midfield", short: "MID", phrase: "the midfield" },
+    att: { label: "Strikers", short: "STR", phrase: "the strikers" },
+    field: { label: "Field", short: "", phrase: "the field" },
+  },
+  surface: "hockey",
+  keeperSwapMidPeriod: false,
+  keeperKitUpSeconds: 120,
+  keeperGear: "Keeper kit",
+  halvesOrQuarters: true,
+  minLines: null,
+  ruleSource: {
+    laws: [
+      {
+        id: "hockey-subs",
+        text: "Subs roll on and off at any time, as often as you like, except during a penalty corner",
+        source: "FIH Rules of Hockey",
+      },
+      {
+        id: "hockey-equal",
+        text: "Equal time on the field and in all positions",
+        source: "Hockey NSW, Under 8 to Under 10",
+        ages: ["U7", "U8", "U9", "U10"],
+      },
+    ],
+    // The states play different formats (VIC, NSW, the ACT, WA), so no
+    // one body's is quoted.
+    format: null,
+    equalTime: "Hockey NSW: equal time on the field",
+  },
+  scoringCopy: {
+    on: "Junior hockey keeps results from about Under 11",
+    off: "Junior hockey keeps no results up to about Under 10",
+  },
+  strategyCopy: {
+    turns: {
+      blurb: "Goal changes hands only at the breaks (keeper kit takes a few minutes), the fewest keeper minutes first. Siren names the next keeper before the break.",
+      fit: "Under 9 to Under 12",
+    },
+    keepers: {
+      blurb: "You name your keepers (home: Keeper) and they share goal, changing at the breaks. Everyone else rotates through the lines.",
+      fit: "Under 13 and up",
+    },
+    minutes: {
+      blurb: "6 a side, no keeper and no lines: kids just play, and Siren evens out their minutes.",
+      fit: "Under 7 and Under 8",
+    },
+  },
+  emoji: "🏑",
+};
+
 // Hockey lives under the main Siren brand, as soccer: the main site's
 // host (so no host resolves to hockey; see getBrandForHost) and the
 // "Siren" name on what it sends.
@@ -166,5 +232,5 @@ export const hockeySport: SportConfig = {
   fairnessModel: "zone-minutes",
   jerseyNumbers: true,
   teamSong: false,
-  validateLineup: validateSoccerLineup,
+  validateLineup: (lineup, ageGroup, onFieldSize) => validateSoccerLineup(lineup, ageGroup, onFieldSize, HOCKEY_RULES),
 };

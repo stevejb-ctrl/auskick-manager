@@ -22,7 +22,12 @@ import type { PositionDef, ScoreTypeDef, SportConfig, ZoneDef } from "@/lib/spor
 import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
 import { aflSport } from "@/lib/sports/afl";
 import { validateSoccerLineup } from "@/lib/sports/soccer/lineup";
-import type { SoccerAgeGroupConfig, SoccerFormation, SoccerKeeperStrategy } from "@/lib/sports/soccer/types";
+import type {
+  SoccerAgeGroupConfig,
+  SoccerFamilyRules,
+  SoccerFormation,
+  SoccerKeeperStrategy,
+} from "@/lib/sports/soccer/types";
 
 const FUTSAL_ZONES: ZoneDef[] = [{ id: "field", label: "Court", shortLabel: "Crt" }];
 const FUTSAL_POSITIONS: PositionDef[] = [{ id: "player", label: "Player", shortLabel: "P" }];
@@ -104,6 +109,59 @@ export const FUTSAL_AGE_GROUPS: SoccerAgeGroupConfig[] = AGES.map((a) => {
   };
 });
 
+const FIFA_FUTSAL = "FIFA Futsal Laws of the Game";
+
+/**
+ * Futsal's settings on the soccer family's engine (soccer/types.ts):
+ * Back, Wings and Front (fixo, alas and pivô, explained in Help), a
+ * futsal court, and a keeper who can swap mid-half (FIFA Law 3 lets a
+ * sub swap with the keeper at any time; the kit is a different shirt).
+ */
+export const FUTSAL_RULES: SoccerFamilyRules = {
+  lineLabels: {
+    gk: { label: "Keeper", short: "GK", phrase: "goal" },
+    def: { label: "Back", short: "BACK", phrase: "the back" },
+    mid: { label: "Wings", short: "WING", phrase: "the wings" },
+    att: { label: "Front", short: "FRONT", phrase: "the front" },
+    field: { label: "Court", short: "", phrase: "the court" },
+  },
+  surface: "court",
+  keeperSwapMidPeriod: true,
+  keeperKitUpSeconds: null,
+  keeperGear: "Keeper top",
+  halvesOrQuarters: false,
+  minLines: null,
+  ruleSource: {
+    laws: [
+      { id: "futsal-subs", text: "Subs fly on and off at any time through the sub zone, as often as you like", source: FIFA_FUTSAL },
+      { id: "futsal-keeper", text: "A sub can swap with the keeper at any time", source: FIFA_FUTSAL },
+      { id: "futsal-scores", text: "No scores are kept", source: "Capital Football Minis", ages: ["U6", "U7", "U8", "U9"] },
+    ],
+    format: { source: FIFA_FUTSAL, ages: AGES.map((a) => a.id) },
+    equalTime: "Football Australia: equal playing time is a priority",
+  },
+  scoringCopy: {
+    on: "Junior futsal keeps score from about Under 10",
+    off: "Capital Football's Minis keep no scores",
+  },
+  strategyCopy: {
+    turns: {
+      blurb: "One keeper a half, the fewest keeper minutes first. Mark keen keepers, and kids who'd rather not.",
+      fit: "Under 6 to Under 11",
+    },
+    keepers: {
+      blurb: "You name your keepers (home: Keeper) and they share goal. Everyone else rotates through the back, the wings and the front.",
+      fit: "Under 12 and up",
+    },
+    // Futsal always plays with a keeper, so this one isn't offered.
+    minutes: {
+      blurb: "No keeper and no lines: kids just play, and Siren evens out their minutes.",
+      fit: "",
+    },
+  },
+  emoji: "⚽",
+};
+
 // Futsal lives under the main Siren brand, as soccer: the main site's
 // host (so no host resolves to futsal; see getBrandForHost) and the
 // "Siren" name on what it sends.
@@ -129,5 +187,5 @@ export const futsalSport: SportConfig = {
   fairnessModel: "zone-minutes",
   jerseyNumbers: true,
   teamSong: false,
-  validateLineup: validateSoccerLineup,
+  validateLineup: (lineup, ageGroup, onFieldSize) => validateSoccerLineup(lineup, ageGroup, onFieldSize, FUTSAL_RULES),
 };

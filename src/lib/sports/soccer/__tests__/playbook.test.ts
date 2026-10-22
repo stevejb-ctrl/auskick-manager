@@ -11,13 +11,13 @@ const pref = (player_id: string, kind: "home" | "never" | "also" | "keep_on", ra
 
 describe("soccerKeeperStrategy", () => {
   it("has no keeper at 4 a side, whatever the team chose", () => {
-    expect(soccerKeeperStrategy("U6", "keepers")).toBe("none");
+    expect(soccerKeeperStrategy("soccer", "U6", "keepers")).toBe("none");
   });
 
   it("plays the team's strategy, turns unless it named keepers", () => {
-    expect(soccerKeeperStrategy("U9", "keepers")).toBe("keepers");
-    expect(soccerKeeperStrategy("U9", "turns")).toBe("turns");
-    expect(soccerKeeperStrategy("U14", null)).toBe("turns");
+    expect(soccerKeeperStrategy("soccer", "U9", "keepers")).toBe("keepers");
+    expect(soccerKeeperStrategy("soccer", "U9", "turns")).toBe("turns");
+    expect(soccerKeeperStrategy("soccer", "U14", null)).toBe("turns");
   });
 });
 
@@ -48,7 +48,7 @@ describe("soccerHowWePlay", () => {
   };
 
   it("reads the team's How we play before kick-off", () => {
-    expect(soccerHowWePlay(loaded, "U10")).toMatchObject({
+    expect(soccerHowWePlay(loaded, "soccer", "U10")).toMatchObject({
       keeperStrategy: "turns",
       balance: "strong",
       since: "2026-10-01T00:00:00Z",
@@ -58,7 +58,7 @@ describe("soccerHowWePlay", () => {
 
   it("plays a game under way as it kicked off", () => {
     const snapshot = { strategy: "keepers", seasonBalance: "off" as const, seasonBalanceSince: null };
-    expect(soccerHowWePlay(loaded, "U12", snapshot)).toMatchObject({
+    expect(soccerHowWePlay(loaded, "soccer", "U12", snapshot)).toMatchObject({
       keeperStrategy: "keepers",
       balance: "off",
       since: null,

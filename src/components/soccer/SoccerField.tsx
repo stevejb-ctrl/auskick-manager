@@ -1,29 +1,30 @@
 "use client";
 
 // ─── SoccerField ─────────────────────────────────────────────
-// The Football (soccer) pitch for the live game, the lineup picker and
-// half-time. Mirrors AFL's Field (the reference): the same green, inset
-// edge and paint-like markings, lines as rows of a two-column grid with
-// an odd tile centred, a hairline between lines, and dashed "Empty"
-// placeholders. Attacking up the page: attack, midfield, defence, then
-// the keeper alone in the goal mouth. 4 a side has no lines and no
-// keeper: one group of kids.
+// The soccer family's playing surface for the live game, the lineup
+// picker and the break: soccer's pitch, futsal's court or a hockey
+// pitch (SoccerFamilyRules.surface). Mirrors AFL's Field (the
+// reference): the same inset edge and paint-like markings, lines as rows
+// of a two-column grid with an odd tile centred, a hairline between
+// lines, and dashed "Empty" placeholders. Attacking up the page: the
+// front line, the middle, the back, then the keeper alone in the goal
+// mouth. An age with no keeper has no lines: one group of kids.
 
 import { Fragment } from "react";
 import type { Player } from "@/lib/types";
 import type { SoccerLineup } from "@/lib/sports/soccer/lineup";
 import type { SoccerUnitMs } from "@/lib/sports/soccer/replay";
-import type { SoccerLine, SoccerUnit } from "@/lib/sports/soccer/types";
-import {
-  SoccerPlayerTile,
-  SOCCER_UNIT_LABEL,
-  type SoccerTileCaption,
-} from "@/components/soccer/SoccerPlayerTile";
+import type { SoccerLine, SoccerSurface, SoccerUnit, SoccerUnitWords } from "@/lib/sports/soccer/types";
+import { SoccerPlayerTile, type SoccerTileCaption } from "@/components/soccer/SoccerPlayerTile";
 
 /** Rows drawn top to bottom when the shape has lines. */
 const LINE_ROWS: SoccerLine[] = ["att", "mid", "def"];
 
 interface SoccerFieldProps {
+  /** The sport's words for each unit (SoccerFamilyRules.lineLabels). */
+  words: Record<SoccerUnit, SoccerUnitWords>;
+  /** What the game is drawn on (SoccerFamilyRules.surface). */
+  surface: SoccerSurface;
   lineup: SoccerLineup;
   /** Places in each line (the formation), so short lines show empties. */
   lineCaps: Record<SoccerLine, number>;
@@ -58,6 +59,8 @@ interface SoccerFieldProps {
 const ORPHAN_WRAP = "col-span-2 mx-auto w-[calc(50%-0.25rem)]";
 
 export function SoccerField({
+  words,
+  surface,
   lineup,
   lineCaps,
   hasKeeper,
@@ -90,7 +93,7 @@ export function SoccerField({
         key={key}
         type="button"
         onClick={() => onTap("", unit)}
-        aria-label={`Empty ${SOCCER_UNIT_LABEL[unit].toLowerCase()} spot`}
+        aria-label={`Empty ${words[unit].label.toLowerCase()} spot`}
         className={`w-full rounded-md border border-dashed py-3 text-center font-mono text-[10px] font-semibold uppercase tracking-micro transition-colors duration-fast ease-out-quart ${
           primed
             ? "border-warn bg-warn/20 text-white"
@@ -109,6 +112,7 @@ export function SoccerField({
     return (
       <SoccerPlayerTile
         player={player}
+        words={words}
         unit={unit}
         positionLabel={positionLabels?.[pid]}
         keepOn={keepOnIds?.has(pid)}
@@ -134,7 +138,7 @@ export function SoccerField({
     if (slotCount === 0) return null;
     const orphanIdx = slotCount % 2 === 1 ? slotCount - 1 : -1;
     return (
-      <div role="group" aria-label={SOCCER_UNIT_LABEL[unit]} className="grid grid-cols-2 gap-2">
+      <div role="group" aria-label={words[unit].label} className="grid grid-cols-2 gap-2">
         {Array.from({ length: slotCount }).map((_, slot) => {
           const pid = ids[slot];
           const content = pid ? tile(pid, unit) : emptyButton(unit, `empty-${slot}`);
@@ -156,7 +160,12 @@ export function SoccerField({
     : [];
 
   return (
-    <div role="region" aria-label="On field" className="relative rounded-[18px] bg-field shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]">
+    <div
+      role="region"
+      aria-label={surface === "court" ? "On court" : "On field"}
+      data-surface={surface}
+      className={`relative rounded-[18px] ${surface === "court" ? "bg-court" : "bg-field"} shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]`}
+    >
       {wakeUpKey !== null && (
         <span
           key={wakeUpKey}
@@ -166,7 +175,7 @@ export function SoccerField({
         />
       )}
       <div className="relative overflow-hidden rounded-[18px]">
-        <PitchMarkings />
+        {surface === "pitch" && <PitchMarkings />}
         <div className="relative space-y-2 px-5 pb-6 pt-8">
           {hasKeeper ? (
             <>
@@ -177,7 +186,7 @@ export function SoccerField({
                 </Fragment>
               ))}
               {/* The keeper, alone in the goal mouth. */}
-              <div role="group" aria-label={SOCCER_UNIT_LABEL.gk} className="grid grid-cols-2 gap-2 pt-3">
+              <div role="group" aria-label={words.gk.label} className="grid grid-cols-2 gap-2 pt-3">
                 <div className={ORPHAN_WRAP}>
                   {lineup.keeper ? tile(lineup.keeper, "gk") : emptyButton("gk", "empty-gk")}
                 </div>

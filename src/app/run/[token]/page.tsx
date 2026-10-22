@@ -12,7 +12,7 @@ import { SoccerLiveGame } from "@/components/soccer/SoccerLiveGame";
 import { SoccerLineupPicker } from "@/components/soccer/SoccerLineupPicker";
 import type { SoccerLineup } from "@/lib/sports/soccer/lineup";
 import type { SoccerSeasonBalance } from "@/lib/sports/soccer/suggest";
-import type { SoccerAgeGroupConfig } from "@/lib/sports/soccer/types";
+import { soccerFamilyAgeGroupForTeam } from "@/lib/sports/soccer/family";
 import { soccerHowWePlay } from "@/lib/sports/soccer/playbook";
 import { BasketballLiveGame } from "@/components/basketball/BasketballLiveGame";
 import { BasketballLineupPicker } from "@/components/basketball/BasketballLineupPicker";
@@ -141,11 +141,17 @@ export default async function RunPage({ params }: RunPageProps) {
   const songStartSecondsTop = teamRow?.song_start_seconds ?? 0;
   const songDurationSecondsTop = teamRow?.song_duration_seconds ?? 15;
 
-  // ─── Football (soccer) branch ────────────────────────────────
+  // ─── Soccer family branch ────────────────────────────────────
   // The runner-token flow mirrors the coach's: before kick-off the
-  // soccer lineup picker, after it the soccer live game.
+  // family's lineup picker, after it its live game (Football (soccer),
+  // futsal, hockey).
   if (isSoccer(sport)) {
-    const ageCfgS = getAgeGroupConfig(sport, teamRow?.age_group ?? null) as SoccerAgeGroupConfig;
+    // The team's own age group, in its halves or quarters (hockey).
+    const ageCfgS = soccerFamilyAgeGroupForTeam(
+      sport,
+      teamRow?.age_group ?? null,
+      (teamRow as { period_count?: number | null } | null)?.period_count ?? null,
+    );
     const periodSecondsS = getEffectiveQuarterSeconds(
       {
         quarter_length_seconds:
@@ -178,6 +184,7 @@ export default async function RunPage({ params }: RunPageProps) {
     // kicked off with).
     const howWePlay = soccerHowWePlay(
       await loadTeamPlaybook(admin, g.team_id, sport, teamRow?.age_group ?? null),
+      sport,
       ageCfgS.id,
       g.playbook_snapshot,
     );
@@ -221,6 +228,7 @@ export default async function RunPage({ params }: RunPageProps) {
           ) : (
             <SoccerLineupPicker
               auth={auth}
+              sport={sport}
               gameId={g.id}
               players={availablePlayers}
               ageGroup={ageCfgS}
@@ -251,6 +259,7 @@ export default async function RunPage({ params }: RunPageProps) {
       <div className="space-y-3 px-4 py-3">
         <SoccerLiveGame
           auth={auth}
+          sport={sport}
           game={g}
           teamName={teamName}
           squad={squad}
