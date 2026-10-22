@@ -65,7 +65,7 @@ function FieldForSport({
  *   │  See Siren in afl mode.                                      │
  *   │                                                              │
  *   │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐         │
- *   │  │   AFL    │ │   NRL    │ │    RU    │ │    NB    │         │
+ *   │  │   AFL    │ │    RL    │ │    RU    │ │    NB    │         │
  *   │  │  [oval]  │ │ [pitch]  │ │ [pitch]  │ │ [court]  │         │
  *   │  │  AFL     │ │ Rugby    │ │ Rugby    │ │ Netball  │         │
  *   │  │  Junior  │ │ League   │ │ Union    │ │ Junior   │         │

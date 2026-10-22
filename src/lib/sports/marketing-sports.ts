@@ -18,7 +18,8 @@ export interface MarketingSportConfig {
    *  src/lib/siren-facts.ts by this id. */
   sport: SportId;
   /** Small uppercase code that runs above each picker-card name
-   *  ("AFL" / "NRL" / "RU" / "NB"). */
+   *  ("AFL" / "RL" / "RU" / "NB"). Not "NRL": that's the league's
+   *  trade mark, and Siren isn't affiliated with it. */
   code: string;
   /** Short label used in pill / chip labels. */
   short: string;
@@ -83,7 +84,7 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
   {
     id: "league",
     sport: "rugby_league",
-    code: "NRL",
+    code: "RL",
     short: "League",
     label: "Rugby League",
     modeWord: "league",

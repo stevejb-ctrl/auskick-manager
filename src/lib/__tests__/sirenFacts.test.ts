@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { heroSportsSentence } from "@/lib/marketing/homeContent";
+import { MARKETING_SPORTS } from "@/lib/sports/marketing-sports";
 import { ALL_SPORT_IDS, getSportConfig } from "@/lib/sports/registry";
 import {
   PRICE,
@@ -150,5 +151,29 @@ describe("marketing copy agrees with the facts", () => {
     );
     expect(stale).toEqual([]);
     expect(PRICE.line).toContain(String(PRICE.season));
+  });
+});
+
+// Features the marketing copy described that the app doesn't have,
+// found by a copy audit against the code (21 Oct 2026). Each check names
+// what the code does instead.
+describe("marketing copy only claims what the app does", () => {
+  const claims = (pattern: RegExp) =>
+    MARKETING_STRINGS.filter(({ text }) => pattern.test(text)).map(({ file, text }) => `${file}: "${text}"`);
+
+  it("shows no fairness score (fairnessScore() feeds tests only; breaks show the rule check)", () => {
+    expect(claims(/fairness score/i)).toEqual([]);
+  });
+
+  it("imports PlayHQ fixtures, not results (src/lib/playhq.ts reads no scores)", () => {
+    expect(claims(/results?\b[^.]*\bsync|sync[^.]*\bresults?\b/i)).toEqual([]);
+  });
+
+  it("swaps by tapping two players, not by dragging", () => {
+    expect(claims(/\bdrag/i)).toEqual([]);
+  });
+
+  it("doesn't badge rugby league with the NRL's trade mark", () => {
+    expect(MARKETING_SPORTS.map((s) => s.code)).not.toContain("NRL");
   });
 });
