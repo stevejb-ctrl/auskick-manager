@@ -11,7 +11,8 @@ import {
   SFIcon,
   StatusPill,
 } from "@/components/sf";
-import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isBasketball, isSoccer, teamSport } from "@/lib/sports";
+import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isBasketball, isSoccer, isTouch, teamSport } from "@/lib/sports";
+import { teamMixedRule } from "@/lib/sports/touch/mixed";
 import { scorersFromEvents } from "@/lib/results";
 import { getSeasonEvents } from "@/lib/season";
 import { gamePlanPlaybooks } from "@/lib/playbook/planInputs";
@@ -26,7 +27,7 @@ import { NetballGameSummaryCard } from "@/components/netball/NetballGameSummaryC
 import { GamePlanButton } from "@/components/game-plan/GamePlanButton";
 import { HowWePlayedCard } from "@/components/playbook/HowWePlayedCard";
 import { buildGameReport } from "@/lib/playbook/gameReportServer";
-import type { Game, GameEvent, Sport } from "@/lib/types";
+import type { Game, GameEvent, MixedGroup, Sport } from "@/lib/types";
 import { BackLink } from "@/components/ui/BackLink";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { teamSportById } from "@/lib/sports/teamSportById";
@@ -80,7 +81,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
       : Promise.resolve({ data: null }),
     supabase
       .from("teams")
-      .select("age_group, sport, name, track_scoring, quarter_length_seconds, on_field_size")
+      .select("age_group, sport, name, track_scoring, quarter_length_seconds, on_field_size, period_count, mixed_max_boys, mixed_min_girls, mixed_min_boys")
       .eq("id", params.teamId)
       .single(),
     // Every event: each sport's replay tallies the scorers, honouring
@@ -92,7 +93,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
       .order("created_at", { ascending: true }),
     supabase
       .from("players")
-      .select("id, full_name, jersey_number, chip, is_active")
+      .select("id, full_name, jersey_number, chip, is_active, mixed_group")
       .eq("team_id", params.teamId),
   ]);
 
@@ -153,8 +154,10 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   // field size, season history and How we play, as the lineup uses.
   // Football (soccer)'s game plan comes with its How we play (phase 3
   // of .planning/SOCCER-PLAN.md); until then its game page has none.
-  // Basketball skips the game-plan preview too (its plan).
-  const planInput = isUp && !isSoccer(sport) && !isBasketball(sport)
+  // Basketball skips the game-plan preview too (its plan), and so do
+  // touch and Oztag: their engine plans at the lineup and each break
+  // (asking gamePlanPlaybooks for them throws by name).
+  const planInput = isUp && !isSoccer(sport) && !isBasketball(sport) && !isTouch(sport)
     ? await (async () => {
         const [{ data: avail }, seasonAll] = await Promise.all([
           supabase.from("game_availability").select("player_id, status").eq("game_id", params.gameId),
@@ -199,6 +202,25 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
     summaryEvents = (data ?? []) as GameEvent[];
   }
 
+  // Touch and Oztag: halves or one period, and a mixed team's rule, whose
+  // report compares each kid's time within their group (squad kids' and
+  // the game's fill-ins').
+  const touchTeam = team as {
+    period_count?: number | null;
+    mixed_max_boys?: number | null;
+    mixed_min_girls?: number | null;
+    mixed_min_boys?: number | null;
+  } | null;
+  let mixedGroups: Record<string, MixedGroup | null> | undefined;
+  if (isFinal && isTouch(sport) && teamMixedRule(touchTeam)) {
+    const { data: fillIns } = await supabase.from("game_fill_ins").select("id, mixed_group").eq("game_id", params.gameId);
+    mixedGroups = Object.fromEntries(
+      [...((players ?? []) as { id: string; mixed_group?: MixedGroup | null }[]), ...((fillIns ?? []) as { id: string; mixed_group?: MixedGroup | null }[])].map(
+        (p) => [p.id, p.mixed_group ?? null],
+      ),
+    );
+  }
+
   // How we played (UX plan 4.4): rules kept and season balance, every sport.
   const howWePlayed =
     isFinal && summaryEvents
@@ -210,10 +232,19 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
             age_group: (team as { age_group?: string | null } | null)?.age_group ?? null,
             quarter_length_seconds:
               (team as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null,
+            ...(isTouch(sport)
+              ? {
+                  period_count: touchTeam?.period_count ?? null,
+                  mixed_max_boys: touchTeam?.mixed_max_boys ?? null,
+                  mixed_min_girls: touchTeam?.mixed_min_girls ?? null,
+                  mixed_min_boys: touchTeam?.mixed_min_boys ?? null,
+                }
+              : {}),
           },
           g,
           summaryEvents,
           Object.fromEntries(Array.from(playerById.values()).map((p) => [p.id, p.full_name])),
+          mixedGroups,
         )
       : null;
 
