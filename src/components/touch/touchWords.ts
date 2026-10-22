@@ -87,3 +87,27 @@ export function touchTryChip(tries: number | undefined): { text: string; label: 
   if (!tries || tries <= 0) return null;
   return { text: `${tries}T`, label: `${tries} ${tries === 1 ? "try" : "tries"}` };
 }
+
+/** One of the opponent's try chips. */
+export interface TouchOpponentChip {
+  key: "try" | "girls";
+  /** A girl's try (Oztag mixed: 2 points). */
+  girl: boolean;
+  text: string;
+  /** A small word under the text ("girl"). */
+  sub?: string;
+  /** Spoken label ("Add a girl's try, 2 points, Sharks"). */
+  label: string;
+}
+
+/**
+ * The opponent's try chips, in the same words on the scorebug, the
+ * break's score editor and full time: "+T", as ours reads, and on an
+ * Oztag mixed team a girl's try, "+2" marked girl. We never know their
+ * scorer, so theirs is the only side with a girl's chip.
+ */
+export function touchOpponentChips(girlsTryDouble: boolean, opponentName: string): TouchOpponentChip[] {
+  const tryChip: TouchOpponentChip = { key: "try", girl: false, text: "+T", label: `Add a try, ${opponentName}` };
+  if (!girlsTryDouble) return [tryChip];
+  return [tryChip, { key: "girls", girl: true, text: "+2", sub: "girl", label: `Add a girl's try, 2 points, ${opponentName}` }];
+}

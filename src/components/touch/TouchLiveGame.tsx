@@ -24,7 +24,7 @@
 //     the mix first. Short of girls the field shrinks ("You can field
 //     4: 3 boys and 1 girl"), recorded as roster_shrink.
 //   - Tries are 1; on an Oztag mixed team a girl's try is 2, and the
-//     opponent's chips are +1 and +2 (girl).
+//     opponent's chips are +T and +2 (girl).
 //
 // Every write goes through the shared write queue (registerLiveActions)
 // in the one game lane, so the event log keeps the coach's order. Who
@@ -86,6 +86,7 @@ import {
   TOUCH_LINE_ONE,
   TOUCH_LINE_SHORT,
   TOUCH_SUB_DUE_HINT,
+  touchOpponentChips,
 } from "./touchWords";
 
 interface TouchLiveGameProps {
@@ -704,14 +705,13 @@ export function TouchLiveGame({
                         periodLetter={periodLetter}
                         periodWord={periodWord}
                         teamChips={[{ key: "try", text: "+T", label: `Add a try, ${teamName}`, onClick: () => setPickingScorer(true) }]}
-                        opponentChips={
-                          girlsTryDouble
-                            ? [
-                                { key: "try", text: "+1", label: `Add a try, ${opponentName}`, onClick: () => opponentScore(false) },
-                                { key: "girls", text: "+2 (girl)", label: `Add a girl's try, ${opponentName}`, onClick: () => opponentScore(true) },
-                              ]
-                            : [{ key: "try", text: "+T", label: `Add a try, ${opponentName}`, onClick: () => opponentScore(false) }]
-                        }
+                        opponentChips={touchOpponentChips(girlsTryDouble, opponentName).map((c) => ({
+                          key: c.key,
+                          text: c.text,
+                          sub: c.sub,
+                          label: c.label,
+                          onClick: () => opponentScore(c.girl),
+                        }))}
                         missedNote={`A try you missed counts in ${periodLetter}${base.currentPeriod}.`}
                         onUndo={undoScore}
                         undoDisabled={pending}

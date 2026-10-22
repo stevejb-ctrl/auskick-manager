@@ -19,6 +19,7 @@ import { finaliseTouchGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/liv
 import type { LiveAuth, Player } from "@/lib/types";
 import type { TouchGameState } from "@/lib/sports/touch/replay";
 import { buildTouchSummary } from "@/lib/sports/touch/summary";
+import { touchOpponentChips } from "@/components/touch/touchWords";
 
 interface TouchFullTimeReviewProps {
   auth: LiveAuth;
@@ -78,12 +79,7 @@ export function TouchFullTimeReview({
   const head = "font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute";
   const chip =
     "rounded-sm px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro transition-colors duration-fast ease-out-quart disabled:opacity-60";
-  const opponentChips = girlsTryDouble
-    ? [
-        { girl: false, text: "+1" },
-        { girl: true, text: "+2 (girl)" },
-      ]
-    : [{ girl: false, text: "+T" }];
+  const opponentChips = touchOpponentChips(girlsTryDouble, opponentName);
 
   return (
     <div className="rounded-md border border-hairline bg-surface p-4 shadow-card">
@@ -154,14 +150,14 @@ export function TouchFullTimeReview({
                   <div className="flex gap-1.5">
                     {opponentChips.map((c) => (
                       <button
-                        key={c.text}
+                        key={c.key}
                         type="button"
                         onClick={() => onOpponentScore(c.girl)}
                         disabled={scorePending}
                         className={`${chip} flex-1 bg-ink text-warm hover:bg-ink/85`}
-                        aria-label={`${c.girl ? "Add a girl's try" : "Add a try"}, ${opponentName}`}
+                        aria-label={c.label}
                       >
-                        {c.text}
+                        {c.sub ? `${c.text} ${c.sub}` : c.text}
                       </button>
                     ))}
                   </div>

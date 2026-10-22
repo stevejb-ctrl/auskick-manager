@@ -410,7 +410,7 @@ export default function RotationsPage() {
         <p className="mt-2 text-sm text-ink-dim">
           In a mixed Oztag game a girl&apos;s try counts 2 (ITF rule 4.3). Credit
           the try to the scorer and Siren counts it; the opponent&apos;s buttons
-          are <strong className="text-ink">+1</strong> and{" "}
+          are <strong className="text-ink">+T</strong> and{" "}
           <strong className="text-ink">+2 (girl)</strong>. If your competition
           doesn&apos;t play it, turn off{" "}
           <strong className="text-ink">A girl&apos;s try counts 2</strong> on the
