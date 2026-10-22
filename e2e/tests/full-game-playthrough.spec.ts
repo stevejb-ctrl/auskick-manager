@@ -352,6 +352,23 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
     .eq("type", "game_finalised");
   expect(finalisedEvents?.length ?? 0).toBeGreaterThanOrEqual(1);
 
+  // The share text counts subs from the event log, as the game page does.
+  // It used the live store's tally, which also counts every break, so a
+  // game with 2 swaps went out as "5 subs" (UX audit, 23 Oct 2026).
+  const { count: swaps } = await admin
+    .from("game_events")
+    .select("id", { count: "exact", head: true })
+    .eq("game_id", game.id)
+    .eq("type", "swap");
+  const subsText = swaps ? `${swaps} sub${swaps === 1 ? "" : "s"}` : null;
+  for (const where of ["live", "game page"] as const) {
+    if (where === "game page") await page.goto(`/teams/${team.id}/games/${game.id}`);
+    const shareText = page.locator("#game-summary-text");
+    await expect(shareText).toContainText(/players?/, { timeout: 10_000 });
+    if (subsText) await expect(shareText, where).toContainText(subsText);
+    else await expect(shareText, where).not.toContainText(/\bsubs?\b/);
+  }
+
   // Finalising writes the season-time rollup (UX plan 4.5): every kid who
   // played has time in a zone.
   await expect

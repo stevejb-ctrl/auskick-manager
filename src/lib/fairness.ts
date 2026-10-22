@@ -1082,6 +1082,12 @@ export interface GameState {
    */
   scoreByQuarter: Array<{ ours: QuarterScore; theirs: QuarterScore }>;
   playerScores: Record<string, { goals: number; behinds: number }>;
+  /**
+   * Subs made: the `swap` events (an injury's replacement included). The
+   * full-time summary's "N subs", live and on the game page. Not the live
+   * store's swapCount, which also ticks at every break.
+   */
+  subCount: number;
   finalised: boolean;
   basePlayedZoneMs: Record<string, ZoneMinutes>;
   /**
@@ -1188,6 +1194,7 @@ export function replayGame(events: GameEvent[]): GameState {
     opponentScore: { goals: 0, behinds: 0 },
     scoreByQuarter: [],
     playerScores: {},
+    subCount: 0,
     finalised: false,
     basePlayedZoneMs: {},
     playedZoneMsByPeriod: {},
@@ -1268,6 +1275,7 @@ export function replayGame(events: GameEvent[]): GameState {
       elapsed_ms?: number;
     };
     const elapsed = meta.elapsed_ms ?? 0;
+    if (ev.type === "swap") state.subCount++;
 
     if (ev.type === "lineup_set" && meta.lineup) {
       const prevOnField = state.lineup ? onFieldSet(state.lineup) : new Set<string>();
