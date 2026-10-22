@@ -41,6 +41,11 @@ export default function LiveGamePage() {
         since the stadium clock stops in the last minutes. Every sport has a lineup
         picker, scoring buttons and a long-press player-actions sheet.
       </p>
+      <p className="mt-2 text-sm leading-relaxed text-ink-dim">
+        Futsal runs on football&apos;s live screen, drawn on a court, with
+        futsal&apos;s words: the back, the wings and the front. Its keeper
+        can be swapped mid-half, as in football.
+      </p>
 
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Before the game: the lineup picker</h2>

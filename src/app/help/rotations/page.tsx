@@ -212,6 +212,37 @@ export default function RotationsPage() {
       </section>
 
       <section className="mt-8">
+        <h2 className="text-xl font-semibold text-ink">Rotations in futsal</h2>
+        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
+          Futsal runs on football&apos;s engine: 5 a side with a keeper at
+          every age, and flying subs, on and off through the sub zone at any
+          time. When the sub interval runs out, the swap card suggests a bench
+          rotation that evens out everyone&apos;s minutes, and over the season
+          Siren moves kids through the back, the wings and the front. Those
+          are futsal&apos;s positions in plain words: the back is the fixo,
+          the wings are the alas, and the front is the pivô. The usual shape
+          is 2-2 (two back, two up front); the diamond (1-2-1) and 3-1 are in
+          the lineup&apos;s Game settings.
+        </p>
+
+        <h3 className="mt-5 font-semibold text-ink">The keeper</h3>
+        <p className="mt-2 text-sm text-ink-dim">
+          One kid keeps goal for the half. Futsal&apos;s laws let a sub swap
+          with the keeper at any time, so to change keeper mid-half,
+          long-press the keeper and tap{" "}
+          <strong className="text-ink">Replace keeper</strong>. At half-time
+          Siren plans the next half, starting with who goes in goal.{" "}
+          <strong className="text-ink">Everyone has a turn in goal</strong> is
+          the default to Under 11, and <strong className="text-ink">Keepers</strong>{" "}
+          (you name them) from Under 12.
+        </p>
+        <p className="mt-2 text-sm text-ink-dim">
+          Team fouls and the 2-minute send-off are the referee&apos;s to
+          count: Siren doesn&apos;t track them yet.
+        </p>
+      </section>
+
+      <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Rotations in basketball</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           Five play from a squad of eight to ten, so up to half the team sits

@@ -37,6 +37,11 @@ export default function TrackScoringPage() {
         Under 11, which keep no scores or ladders, and basketball&apos;s Under 8
         skills games) and on for the rest.
       </p>
+      <p className="mt-2 text-sm text-ink-dim">
+        Futsal games record goals for each side, as football does. Scoring
+        starts off to Under 9, as Capital Football&apos;s Minis keep no
+        scores, and on from Under 10.
+      </p>
 
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Turning it on</h2>

@@ -224,6 +224,15 @@ export function TeamBasicsForm({
               subtitle="U8–U18. Manage subs at the table, guard and forward rotations, fouls, scoring and more."
               badge="Beta"
             />
+            {/* Futsal: open to every coach while it's in beta, as soccer was. */}
+            <SportPill
+              active={sport === "futsal"}
+              onClick={() => handleSportChange("futsal")}
+              disabled={isPending}
+              title="Junior Futsal"
+              subtitle="U6–U17. Manage flying subs, a fair turn in goal, back, wings and front, scoring and more."
+              badge="Beta"
+            />
           </div>
         </div>
       )}
