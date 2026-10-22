@@ -125,6 +125,10 @@ test("oztag U10 mixed: a girl's try scores 2, a boy's 1, the opponent's +1 and +
   test.setTimeout(240_000);
   const errors: string[] = [];
   page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  // This coach has seen the one-time long-press hint: on an iPhone-width
+  // screen it sits over the scorebug's chips (in every sport) until
+  // "Got it", and this test taps them.
+  await page.addInitScript(() => window.localStorage.setItem("siren-longpress-seen-v1", "true"));
 
   const { admin, ownerId } = await ownerIdOf();
   const teamName = `OZT-MIX-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
