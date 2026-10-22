@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 
 // LocalStorage key — persists "user has discovered long-press" across
@@ -92,6 +92,24 @@ export function LongPressHint({ enabled = true }: { enabled?: boolean }) {
     };
   }, [show]);
 
+  // While it shows, the page leaves room for it above the score bar
+  // (LiveStickyScoreBar's spacer adds this), so the last control on the
+  // page scrolls clear of the hint as well as the bar.
+  const chipRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = document.documentElement;
+    const el = chipRef.current;
+    if (!show || !el) return;
+    const publish = () => root.style.setProperty("--live-hint-h", `${el.offsetHeight + 12}px`);
+    publish();
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(publish);
+    ro?.observe(el);
+    return () => {
+      ro?.disconnect();
+      root.style.removeProperty("--live-hint-h");
+    };
+  }, [show]);
+
   function handleGotIt() {
     try {
       window.localStorage.setItem(STORAGE_KEY, "true");
@@ -115,7 +133,7 @@ export function LongPressHint({ enabled = true }: { enabled?: boolean }) {
           "max(calc(96px + env(safe-area-inset-bottom)), calc(var(--live-score-bar-h, 0px) + 12px))",
       }}
     >
-      <div className="pointer-events-auto motion-safe:animate-slide-in-bottom">
+      <div ref={chipRef} className="pointer-events-auto motion-safe:animate-slide-in-bottom">
         <SirenPulseHalo triggerKey="hint" size="sm" className="rounded-full">
           <div
             role="status"

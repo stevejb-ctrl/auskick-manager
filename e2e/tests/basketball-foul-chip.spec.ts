@@ -1,8 +1,8 @@
 // Steve 2026-10-21: "I'd like to show a chip in basketball to simply show
 // how many fouls a player has." Every tile (on court and on the bench)
 // carries an nF chip while the foul tally is on: muted early, amber two
-// short of fouling out, solid amber one short. A long-press adds a foul
-// as well as taking one back.
+// short of fouling out, solid amber one short. The dock steps fouls up
+// and down; the long-press menu adds, takes back, or clears them.
 
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
@@ -58,4 +58,18 @@ test("basketball tiles show each kid's fouls, coloured by how close they are to 
   await page.getByTestId(`player-tile-${k[0]}`).click({ delay: 600 });
   await page.getByTestId("basketball-add-foul").click({ timeout: 5_000 });
   await expect(chip(k[0])).toHaveText("1F", { timeout: 10_000 });
+
+  // Steve 2026-10-22: "Need to be able to undo fouls in basketball."
+  // The dock steps a kid's fouls back down.
+  await page.getByTestId(`player-tile-${k[1]}`).click();
+  await page.getByTestId("basketball-unfoul").click();
+  await expect(chip(k[1])).toHaveText("2F", { timeout: 10_000 });
+  // Nothing to take back at 0F.
+  await page.getByTestId(`player-tile-${k[3]}`).click();
+  await expect(page.getByTestId("basketball-unfoul")).toBeDisabled();
+  await page.getByRole("button", { name: /^cancel$/i }).first().click();
+  // The long-press menu clears them all.
+  await page.getByTestId(`player-tile-${k[2]}`).click({ delay: 600 });
+  await page.getByTestId("basketball-clear-fouls").click({ timeout: 5_000 });
+  await expect(chip(k[2])).toHaveText("0F", { timeout: 15_000 });
 });
