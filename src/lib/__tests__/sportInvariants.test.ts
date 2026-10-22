@@ -9,7 +9,7 @@ import { PLAYHQ_TENANT } from "@/lib/playhq";
 import type { SportId } from "@/lib/sports/types";
 
 /** Sports whose How we play isn't built yet (.planning/FOUR-SPORTS-PLAN.md). */
-const NOT_BUILT: SportId[] = ["futsal", "hockey", "touch", "oztag"];
+const NOT_BUILT: SportId[] = ["futsal", "hockey"];
 
 describe("every sport", () => {
   for (const sport of ALL_SPORTS) {
@@ -39,10 +39,10 @@ describe("every sport", () => {
           expect(() => playbook.agePolicy(sport.ageGroups[0].id)).toThrow(/isn't built yet/);
           return;
         }
-        // Football (soccer)'s and basketball's engines act on no catalogue
-        // rule yet, so their Rules editors offer none rather than rules
-        // that do nothing.
-        if (sport.id === "soccer" || sport.id === "basketball") {
+        // Football (soccer)'s, basketball's and the touch family's engines
+        // act on no catalogue rule yet, so their Rules editors offer none
+        // rather than rules that do nothing.
+        if (sport.id === "soccer" || sport.id === "basketball" || sport.id === "touch" || sport.id === "oztag") {
           expect(playbook.engineRuleKinds).toEqual([]);
           return;
         }

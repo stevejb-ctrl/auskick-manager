@@ -8,8 +8,8 @@
 //
 // Football (soccer) was known before its screens were built (soccer
 // plan, phases 2–3): each of those branches failed for it by name.
-// Touch football and Oztag are known now and their engine isn't built
-// yet (four-sports plan, track B), so theirs fail the same way.
+// Touch football and Oztag run their own engine (four-sports plan, track
+// B); like soccer and basketball they have no game-plan preview.
 
 import { describe, expect, it } from "vitest";
 import { aflBranch, noSportBranch, sportNotBuilt } from "@/lib/sports";
@@ -88,22 +88,38 @@ describe("Football (soccer)'s unbuilt surfaces", () => {
   });
 });
 
-describe("touch and Oztag's unbuilt surfaces", () => {
+describe("touch and Oztag's surfaces", () => {
   const unbuilt = (sport: string, where: string) => `${where}: ${sport} isn't built yet`;
 
-  it("never scores, plans, grids or times them under another sport's rules", () => {
-    expect(() => scoreFromEvents("touch", [])).toThrow(unbuilt("Touch football", "scoreFromEvents"));
+  it("score, grid and time them in their own lanes, with no game-plan preview", () => {
+    expect(scoreFromEvents("touch", [])).toEqual({ us: 0, them: 0 });
+    expect(gridUnits("oztag", "line").columns.map((c) => c.key)).toEqual(["middle", "link", "wing"]);
+    expect(gameTimeByUnit("oztag", [event], "line", 900)).toEqual({});
     expect(() => projectGamePlan({ sport: "oztag" } as never)).toThrow(unbuilt("Oztag", "projectGamePlan"));
-    expect(() => gridUnits("touch", "line")).toThrow(unbuilt("Touch football", "gridUnits"));
-    expect(() => gameTimeByUnit("oztag", [event], "line", 900)).toThrow(unbuilt("Oztag", "gameTimeByUnit"));
   });
+
+  it("have their own How we play: three strategies, the lanes, their own laws", () => {
+    const touch = getSportPlaybook("touch");
+    const u9 = effectivePolicy("touch", "U9", {});
+    expect(touch.strategies(u9).map((s) => s.id)).toEqual(["minutes", "rotate-positions", "home-position"]);
+    expect(touch.recommendedStrategy(u9)).toBe("minutes");
+    expect(touch.recommendedStrategy(effectivePolicy("touch", "U10", {}))).toBe("rotate-positions");
+    expect(touch.positionModel(u9, 5).lines.map((l) => l.id)).toEqual(["middle", "link", "wing"]);
+    expect(touch.lawRules(u9, touch.agePolicy("U9")).map((r) => r.id)).toContain("touch-no-change-after-turnover");
+    const oztag = getSportPlaybook("oztag");
+    const u12 = effectivePolicy("oztag", "U12", {});
+    expect(oztag.recommendedStrategy(u12)).toBe("minutes");
+    expect(oztag.lawRules(u12, oztag.agePolicy("U12")).map((r) => r.id)).toContain("oztag-equal-time");
+  });
+});
+
+describe("futsal and hockey's unbuilt surfaces", () => {
+  const unbuilt = (sport: string, where: string) => `${where}: ${sport} isn't built yet`;
 
   it("has no How we play until its own is built", () => {
     for (const [sport, name] of [
       ["futsal", "Futsal"],
       ["hockey", "Hockey"],
-      ["touch", "Touch football"],
-      ["oztag", "Oztag"],
     ] as const) {
       const playbook = getSportPlaybook(sport);
       expect(playbook.sport).toBe(sport);

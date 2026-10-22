@@ -7,6 +7,8 @@ import { leaguePlaybook } from "@/lib/sports/rugby_league/playbook";
 import { unionPlaybook } from "@/lib/sports/rugby_union/playbook";
 import { soccerPlaybook } from "@/lib/sports/soccer/playbook";
 import { basketballPlaybook } from "@/lib/sports/basketball/playbook";
+import { touchPlaybook } from "@/lib/sports/touch/playbook";
+import { oztagPlaybook } from "@/lib/sports/oztag/playbook";
 import { resolvePolicy } from "@/lib/playbook/resolve";
 import { sportNotBuilt } from "@/lib/sports/registry";
 import type { Sport } from "@/lib/types";
@@ -22,9 +24,8 @@ export { resolvePolicy } from "@/lib/playbook/resolve";
 
 /**
  * How we play for a sport whose own isn't built yet (futsal and hockey
- * come with track A of .planning/FOUR-SPORTS-PLAN.md, touch and Oztag
- * with track B): every question throws rather than answering with
- * another sport's.
+ * come with track A of .planning/FOUR-SPORTS-PLAN.md): every question
+ * throws rather than answering with another sport's.
  */
 function notBuiltPlaybook(sport: Sport): SportPlaybook {
   const where = "How we play";
@@ -54,8 +55,8 @@ const PLAYBOOKS: Record<Sport, SportPlaybook> = {
   basketball: basketballPlaybook,
   futsal: notBuiltPlaybook("futsal"),
   hockey: notBuiltPlaybook("hockey"),
-  touch: notBuiltPlaybook("touch"),
-  oztag: notBuiltPlaybook("oztag"),
+  touch: touchPlaybook,
+  oztag: oztagPlaybook,
 };
 
 export function getSportPlaybook(sport: Sport): SportPlaybook {
