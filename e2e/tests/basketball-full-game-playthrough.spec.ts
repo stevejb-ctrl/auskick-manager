@@ -22,6 +22,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
+import { startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "serial" });
 
@@ -153,11 +154,10 @@ test("basketball U12: guards and forwards, baskets each way, a foul-out, a sit-o
   await page.getByRole("button", { name: /^clock — h1, running$/i }).click();
   await page.getByRole("button", { name: /^end h1 now$/i }).click();
   await page.getByRole("button", { name: /^end\s*h\s*1$/i }).click();
-  await expect(page.getByRole("button", { name: /^start h2$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("heading", { name: /^2nd half lineup$/i })).toBeVisible({ timeout: 15_000 });
 
   // ─── 7. Start H2 with the plan, end it, finish ────────────────
-  await page.getByRole("button", { name: /^start h2$/i }).click({ timeout: 10_000 });
-  await page.getByRole("button", { name: /^start h2 now$/i }).click({ timeout: 10_000 });
+  await startFromBreak(page, /^start 2nd half/i);
   await expect(page.getByRole("button", { name: /^clock — h2, running$/i })).toBeVisible({ timeout: 15_000 });
   const h2 = await lineup();
   const onCourt = [...h2.lines.guard, ...h2.lines.forward];

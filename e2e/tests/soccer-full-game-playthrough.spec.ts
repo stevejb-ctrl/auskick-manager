@@ -18,6 +18,7 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
+import { startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "serial" });
 
@@ -50,7 +51,6 @@ test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top change
   await admin.from("game_availability").insert(
     players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
   );
-  const nameOf = (id: string) => players.find((p) => p.id === id)!.full_name;
 
   const lineup = async (): Promise<SoccerLineupMeta> => {
     const { data } = await admin
@@ -111,13 +111,16 @@ test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top change
   await page.getByRole("button", { name: /^clock — h1, running$/i }).click();
   await page.getByRole("button", { name: /^end h1 now$/i }).click();
   await page.getByRole("button", { name: /^end\s*h\s*1$/i }).click();
-  const keeperCard = page.getByRole("region", { name: "Keeper" });
-  await expect(keeperCard).toContainText(/keeper top:/i, { timeout: 15_000 });
-  await expect(keeperCard).toContainText(nameOf(h1Keeper).split(" ")[0]);
+  // Half-time is the shared break screen: the plan puts someone else in
+  // goal, and last half's keeper's tile reads where they came from.
+  await expect(page.getByRole("heading", { name: /^2nd half lineup$/i })).toBeVisible({ timeout: 15_000 });
+  const keeperZone = page.getByRole("group", { name: "Keeper" });
+  await expect(keeperZone.locator("[data-testid^='player-tile-']")).toHaveCount(1);
+  await expect(keeperZone.getByTestId(`player-tile-${h1Keeper}`)).toHaveCount(0);
+  await expect(page.getByTestId(`player-tile-${h1Keeper}`)).toContainText(/from keeper/i);
 
   // ─── 5. Start H2 with the plan, end it, finish ────────────────
-  await page.getByRole("button", { name: /^start h2$/i }).click({ timeout: 10_000 });
-  await page.getByRole("button", { name: /^start h2 now$/i }).click({ timeout: 10_000 });
+  await startFromBreak(page, /^start 2nd half/i);
   await expect(page.getByRole("button", { name: /^clock — h2, running$/i })).toBeVisible({ timeout: 15_000 });
   const h2 = await lineup();
   // Everyone has a turn: a new keeper, and last half's keeper plays out.

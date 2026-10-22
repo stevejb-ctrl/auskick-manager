@@ -1,19 +1,19 @@
 // Steve 2026-10-21: "The half time breaks in basketball look different to
-// the other sports. It should be consistent." Basketball's break was a
-// green card ("H1 done. Score … Start H2") above the court, with the live
-// scorebug still pinned below. It now has AFL's and netball's shape: the
-// orientation strip, the Score row (per-period breakdown and late
-// baskets), the court with where each kid is heading, and the shared
-// Start bar in place of the scorebug.
+// the other sports. It should be consistent." Basketball's break is the
+// shared period break screen (quarter-break/PeriodBreak, 22 Oct 2026):
+// "2nd half lineup" over "Half-time · vs …", the score chip (points)
+// opening the per-period table and late baskets, Forwards / Guards /
+// Bench, and the shared Start footer in place of the scorebug.
 
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
+import { startFromBreak } from "../helpers/break";
 
 test("basketball's half-time break has the other sports' shape", async ({ page }) => {
   const admin = createAdminClient();
-  const { data } = await admin.auth.admin.listUsers();
+  const { data } = await admin.auth.admin.listUsers({ perPage: 1000 });
   const ownerId = data.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
   const team = await makeTeam(admin, { ownerId, sport: "basketball", ageGroup: "U12", name: `BBL-BRK-${Date.now() % 100000}` });
   await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
@@ -42,21 +42,22 @@ test("basketball's half-time break has the other sports' shape", async ({ page }
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  await expect(page.getByText("Lineup for H2")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText("Half time", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "2nd half lineup" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Half-time · vs Rivals")).toBeVisible();
   // No green "H1 done" card, and no live scorebug or clock at the break.
   await expect(page.getByText(/H1 done/)).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^clock — /i })).toHaveCount(0);
 
-  // The Score row opens to the per-half breakdown.
-  const score = page.getByRole("button", { name: "Review and update scores" });
-  await expect(score).toContainText("2–3");
+  // The score chip opens the per-half breakdown.
+  const score = page.getByRole("button", { name: /review and update scores/i });
+  await expect(score).toContainText("2 – 3");
   await score.click();
   const table = page.getByRole("table");
   await expect(table.getByRole("row", { name: /^H1/ })).toContainText("2");
   await expect(table.getByRole("row", { name: /^H2/ })).toBeVisible();
+  await page.getByRole("button", { name: "Done" }).click();
 
-  // Start H2 sits in the shared bottom bar, as AFL's Start Q2 does.
-  await page.getByRole("button", { name: /^start h2$/i }).click();
-  await expect(page.getByRole("button", { name: /^start h2 now$/i })).toBeVisible();
+  // Start the 2nd half from the shared footer, as AFL's Start Q2.
+  await startFromBreak(page, /^start 2nd half/i);
+  await expect(page.getByRole("button", { name: /^clock — h2, running$/i })).toBeVisible({ timeout: 15_000 });
 });
