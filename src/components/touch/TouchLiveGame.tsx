@@ -37,6 +37,7 @@ import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfi
 import { ClockMenu } from "@/components/live/ClockMenu";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { SubDueBanner } from "@/components/live/SubDueBanner";
+import { subDueBannerShows } from "@/components/live/SubDue";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { LockModal } from "@/components/live/LockModal";
@@ -655,7 +656,13 @@ export function TouchLiveGame({
         exitHref={exitHref}
         game={game}
         isLive={base.currentPeriod > 0}
-        banner={subDueShowing ? <SubDueBanner hint={TOUCH_SUB_DUE_HINT} onAcknowledge={() => setSubAckKey(subDueKey)} /> : null}
+        // The sub card is the alert while it has pairs (SubDue.tsx); the
+        // banner speaks only for a due sub with nothing to suggest.
+        banner={
+          isPeriodActive && subDueBannerShows(subDue.due, nextSubs.length) && subAckKey !== subDueKey ? (
+            <SubDueBanner hint={TOUCH_SUB_DUE_HINT} onAcknowledge={() => setSubAckKey(subDueKey)} />
+          ) : null
+        }
       />
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
@@ -691,6 +698,7 @@ export function TouchLiveGame({
           msUntilDue={subDue.msUntilDue}
           subIntervalMs={subDue.spanMs}
           due={subDue.due}
+          dueHint={TOUCH_SUB_DUE_HINT.charAt(0).toUpperCase() + TOUCH_SUB_DUE_HINT.slice(1)}
           onApplyAll={() => void applyAllSubs()}
           onApplyOne={(i) => {
             const s = nextSubs[i];

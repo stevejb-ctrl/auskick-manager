@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { SUB_DUE_RING, SUB_IDLE_SHADOW, SubDueHeading, SubDueRoot } from "@/components/live/SubDue";
 import type { Lineup, Player, Zone } from "@/lib/types";
 import type { SwapSuggestion } from "@/lib/fairness";
 import {
@@ -280,37 +281,16 @@ export function SwapCard({
           </svg>
         </span>
       )}
-      <span className="min-w-0 flex-1">
-        {isDue ? (
-          <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase leading-4 tracking-micro text-due-dark">
-            <span
-              aria-hidden
-              className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-due-dark shadow-[0_0_0_3px_rgba(242,166,90,0.25)]"
-            />
-            Sub due — {countLabel}
+      <SubDueHeading
+        due={isDue}
+        count={valid.length}
+        summary={valid.map(({ off, on, index }, i) => (
+          <span key={index} className={`flex items-center gap-1.5 ${i > 0 ? "ml-1.5" : ""}`}>
+            <span className={`${PAIR_CHIP} h-4 w-4 text-[10px] leading-4`}>{index + 1}</span>
+            {first(off.full_name)} → {first(on.full_name)}
           </span>
-        ) : (
-          <span className="block font-mono text-[10px] font-bold uppercase leading-4 tracking-micro text-warm/[0.64]">
-            Suggested — {countLabel}
-          </span>
-        )}
-        {isDue ? (
-          // The banner's copy moved into the card; the list below already
-          // names who, so the summary line doesn't repeat it.
-          <span className="block text-sm font-medium leading-5 text-warm/[0.92]">
-            Rotate a player off
-          </span>
-        ) : (
-          <span className="flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-sm font-medium leading-5 text-warm/[0.92]">
-            {valid.map(({ off, on, index }, i) => (
-              <span key={index} className={`flex items-center gap-1.5 ${i > 0 ? "ml-1.5" : ""}`}>
-                <span className={`${PAIR_CHIP} h-4 w-4 text-[10px] leading-4`}>{index + 1}</span>
-                {first(off.full_name)} → {first(on.full_name)}
-              </span>
-            ))}
-          </span>
-        )}
-      </span>
+        ))}
+      />
     </>
   );
 
@@ -330,9 +310,7 @@ export function SwapCard({
   );
 
   const rootClass = `overflow-hidden rounded-md bg-ink text-warm transition-shadow duration-fast ease-out-quart ${
-    isDue
-      ? "shadow-[0_0_0_2px_#A8590F,0_8px_24px_rgba(26,30,26,0.18)]"
-      : "shadow-[0_4px_12px_rgba(26,30,26,0.12)]"
+    isDue ? SUB_DUE_RING : SUB_IDLE_SHADOW
   }`;
 
   const body = (
@@ -590,13 +568,9 @@ export function SwapCard({
     </>
   );
 
-  // Due: the card IS the alert (the banner it replaces carried
-  // role="alert"), so there's exactly one on screen.
-  return isDue ? (
-    <section role="alert" aria-label="Sub due" className={rootClass}>
+  return (
+    <SubDueRoot due={isDue} className={rootClass}>
       {body}
-    </section>
-  ) : (
-    <div className={rootClass}>{body}</div>
+    </SubDueRoot>
   );
 }

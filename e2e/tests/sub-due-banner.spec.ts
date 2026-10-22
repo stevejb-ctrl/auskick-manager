@@ -1,8 +1,9 @@
-// "Sub due" is a banner under the top bar, not a modal, in every sport
-// (Steve, 16 Oct 2026). The modal sat over the score chips, so a coach
-// had to dismiss it before recording a try that had just been scored
-// (Stagehand union). The banner leaves the field and the chips tappable;
-// "Got it" clears it. It beeps as AFL's always has.
+// "Sub due" is never a modal, in any sport (Steve, 16 Oct 2026): the
+// modal sat over the score chips, so a coach had to dismiss it before
+// recording a try that had just been scored (Stagehand union). Since the
+// re-skin the sub card itself is the alert, one voice, in every sport;
+// the top-bar banner is only for a sub due with nothing to suggest. It
+// beeps as AFL's always has.
 
 import { test, expect, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
@@ -45,19 +46,20 @@ test.beforeEach(async ({ page }) => {
  * from 40 s in it fell due at 60 s, 20 s after setup: the AFL tests'
  * 20 s waits only caught it when the page took a while to load.
  */
-async function subDueGame(sport: "afl" | "rugby_union") {
+async function subDueGame(sport: "afl" | "rugby_union" | "basketball" | "soccer") {
   const admin = createAdminClient();
   const { data: su } = await admin.auth.admin.listUsers();
   const ownerId = su.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
   const union = sport === "rugby_union";
-  const ageGroup = union ? "U12" : "U10";
+  const ageGroup = union ? "U12" : sport === "basketball" ? "U12" : sport === "soccer" ? "U9" : "U10";
   // Two workers start the two AFL tests in the same millisecond, so the
   // time alone gave both teams one name and makeTeam's fetch by name
   // found two rows. The random part keeps them apart.
   const suffix = `${Date.now() % 100000}-${Math.random().toString(36).slice(2, 6)}`;
   const team = await makeTeam(admin, { ownerId, sport, ageGroup, name: `SUB-DUE ${sport} ${suffix}` });
   await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
-  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: union ? 17 : 15, ageGroup });
+  const count = union ? 17 : sport === "basketball" ? 7 : sport === "soccer" ? 9 : 15;
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count, ageGroup });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
   const { error } = await admin
     .from("games")
@@ -70,7 +72,11 @@ async function subDueGame(sport: "afl" | "rugby_union") {
   const ids = players.map((p) => p.id);
   const lineup = union
     ? { forwards: ids.slice(0, 8), backs: ids.slice(8, 15), bench: ids.slice(15) }
-    : { back: ids.slice(0, 4), hback: [], mid: ids.slice(4, 8), hfwd: [], fwd: ids.slice(8, 12), bench: ids.slice(12) };
+    : sport === "basketball"
+      ? { lines: { guard: ids.slice(0, 2), forward: ids.slice(2, 5), court: [] }, bench: ids.slice(5) }
+      : sport === "soccer"
+        ? { keeper: ids[0], lines: { def: ids.slice(1, 3), mid: ids.slice(3, 6), att: ids.slice(6, 7), field: [] }, bench: ids.slice(7) }
+        : { back: ids.slice(0, 4), hback: [], mid: ids.slice(4, 8), hfwd: [], fwd: ids.slice(8, 12), bench: ids.slice(12) };
   // 10 s ago is a minute of game time: two of union's intervals, and
   // AFL's 12-minute quarter has 110 s left for the test to finish in
   // (union's 25-minute half has longer).
@@ -85,20 +91,22 @@ async function subDueGame(sport: "afl" | "rugby_union") {
   return { coach: `/teams/${team.id}/games/${game.id}/live`, runner: `/run/${game.share_token}` };
 }
 
-async function expectBannerNotModal(page: Page, chip: string) {
-  const banner = page.getByRole("alert").filter({ hasText: /sub due/i });
-  await expect(banner).toBeVisible({ timeout: 20_000 });
-  expect((await banner.locator("p").boundingBox())!.height).toBeLessThan(30);
-  // It beeps as it appears, in every sport (league and union were silent).
+// Every other sport (23 Oct 2026, UI polish round 2 R2): the same one
+// voice. Their sub card (NextSubCard, a fork of AFL's) is the alert too;
+// the top-bar banner is only for a sub due with nothing to suggest.
+async function expectOneVoice(page: Page, chip: string | RegExp) {
+  const spoken = page.getByRole("alert").filter({ hasText: /\S/ });
+  await expect(spoken.filter({ hasText: /sub due/i })).toBeVisible({ timeout: 20_000 });
+  await expect(spoken).toHaveCount(1);
+  const card = spoken.first();
+  await expect(card).toContainText("Rotate a player off");
+  await expect(card.getByRole("button", { name: /^make (all \d+ swaps|this swap)$/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Got it" })).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => (window as unknown as { __beeps: number }).__beeps)).toBeGreaterThan(0);
-  // Nothing modal over the screen: the score chip would take the tap
-  // (a trial click checks nothing covers it, without recording).
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("button", { name: chip }).first().click({ trial: true, timeout: 5_000 });
-  // Got it clears the banner.
-  await banner.getByRole("button", { name: "Got it" }).click();
-  await expect(banner).toHaveCount(0);
 }
+
 
 // AFL: one event, one voice (design session 17 Oct 2026). The swap card
 // IS the sub-due alert — amber ring, SUB DUE eyebrow, role="alert" — and
@@ -138,12 +146,18 @@ test("AFL runner: sub due is the same card", async ({ page }) => {
   await expectCardIsTheAlert(page);
 });
 
-test("union: sub due is a banner, and +T still takes the tap", async ({ page }) => {
-  test.setTimeout(90_000);
-  await page.goto((await subDueGame("rugby_union")).coach);
-  await waitForHydration(page);
-  await expectBannerNotModal(page, "Record a try for our team");
-});
+for (const { sport, chip } of [
+  { sport: "rugby_union" as const, chip: "Record a try for our team" },
+  { sport: "basketball" as const, chip: /^add 2 points, /i },
+  { sport: "soccer" as const, chip: /^add goal, /i },
+]) {
+  test(`${sport}: sub due is the sub card alone, and the score chip still takes the tap`, async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.goto((await subDueGame(sport)).coach);
+    await waitForHydration(page);
+    await expectOneVoice(page, chip);
+  });
+}
 
 // The banner's screenshots (16 Oct 2026) showed the sub card's swap rows
 // at 375 px clipping names: AFL's to a single glyph ("D [ ⌄ → O ( ⌄"),
