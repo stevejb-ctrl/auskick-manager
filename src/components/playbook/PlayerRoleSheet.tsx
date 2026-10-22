@@ -7,7 +7,9 @@ import { Toggle } from "@/components/ui/Toggle";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { SFButton } from "@/components/sf";
 import {
+  KEEPER_KEY,
   normaliseRole,
+  outfieldModel,
   roleFromView,
   viewFromRole,
   type PlayerRole,
@@ -95,22 +97,23 @@ function SwitchRow({
  * whether they play every minute. Options come from the team's role
  * model, so the same sheet serves AFL lines or positions, netball thirds
  * or bibs, rugby lines or positions, basketball lines or 1–5, and
- * soccer's keeper.
+ * the soccer family's goal and lines.
  */
 export function PlayerRoleSheet({ playerName, model, initial, onSave, onClose, teamId }: PlayerRoleSheetProps) {
-  const [view, setView] = useState<RoleView>(() => viewFromRole(initial, model));
-  // Soccer's keeper question works on the stored role directly: one
-  // option, so "Plays as" would read as all or nothing.
+  // The soccer family asks about goal on its own (the keeper toggles,
+  // on the stored role) and "Plays as" over the outfield lines.
+  const lines = outfieldModel(model);
+  const [view, setView] = useState<RoleView>(() => viewFromRole(initial, lines));
   const [keeperRole, setKeeperRole] = useState<PlayerRole>(initial);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const unitWord = model.unit === "line" ? "line" : "position";
-  const keys = model.options.map((o) => o.key);
-  const gk = keys[0];
+  const keys = lines.options.map((o) => o.key);
+  const gk = model.keeper ? KEEPER_KEY : null;
 
   function save() {
     setError(null);
-    const role = model.keeper ? normaliseRole(keeperRole, keys) : roleFromView(view, model);
+    const role = model.keeper ? keeperAndLines() : roleFromView(view, model);
     startTransition(async () => {
       const res = await onSave(role);
       if (!res.success) {
@@ -119,6 +122,21 @@ export function PlayerRoleSheet({ playerName, model, initial, onSave, onClose, t
       }
       onClose();
     });
+  }
+
+  /** Goal from the keeper toggles, the lines from "Plays as". */
+  function keeperAndLines(): PlayerRole {
+    const out = roleFromView({ ...view, main: null }, lines);
+    return normaliseRole(
+      {
+        home: keeperRole.home === KEEPER_KEY ? KEEPER_KEY : null,
+        also: [],
+        never: [...(keeperRole.never.includes(KEEPER_KEY) ? [KEEPER_KEY] : []), ...out.never],
+        keepOn: keeperRole.keepOn,
+        ...(out.plays ? { plays: out.plays } : {}),
+      },
+      model.options.map((o) => o.key),
+    );
   }
 
   const togglePlay = (key: string) =>
@@ -178,14 +196,14 @@ export function PlayerRoleSheet({ playerName, model, initial, onSave, onClose, t
           </section>
         )}
 
-        {!model.keeper && model.playsAs && model.options.length > 0 && (
+        {lines.playsAs && lines.options.length > 0 && (
           <section>
             <p className="text-sm font-semibold text-ink">Plays as</p>
             <p className="text-xs text-ink-dim">
               Siren suggests them only here. Pick none and they play anywhere.
             </p>
             <div role="group" aria-label="Plays as" className="mt-1.5 flex flex-wrap gap-1.5">
-              {model.options.map((o) => (
+              {lines.options.map((o) => (
                 <OptionChip
                   key={o.key}
                   option={o}
@@ -195,7 +213,7 @@ export function PlayerRoleSheet({ playerName, model, initial, onSave, onClose, t
                 />
               ))}
             </div>
-            <Picked keys={view.plays} model={model} testId="role-picked-plays" />
+            <Picked keys={view.plays} model={lines} testId="role-picked-plays" />
             {view.restrictNote && view.plays.length > 0 && (
               <p className="mt-1 text-xs text-ink-dim" data-testid="role-restrict-note">
                 Re-saving will keep them to these {unitWord}s.
