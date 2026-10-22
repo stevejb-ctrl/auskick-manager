@@ -107,6 +107,15 @@ const GAME_LANE = new Set([
   "undoBasketballScore",
   "recordBasketballFoul",
   "recordBasketballSitOut",
+  // Touch and Oztag
+  "startTouchPeriod",
+  "endTouchPeriod",
+  "recordTouchLineupSet",
+  "recordTouchSwap",
+  "recordTouchMove",
+  "recordTouchScore",
+  "undoTouchScore",
+  "recordTouchFieldSize",
 ]);
 // The bulk availability write shares the per-row lane, so a row tap and
 // "Mark all in" land in the order the coach made them.

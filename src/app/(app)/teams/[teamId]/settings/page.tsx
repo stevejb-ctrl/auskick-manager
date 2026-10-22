@@ -22,7 +22,11 @@ import {
   type MemberRow,
   type PendingInvite,
 } from "@/components/team/TeamMembersSettings";
-import { getAgeGroupConfig, getSportConfig, isBasketball, isRugby, isSoccer, teamSport, periodLabels } from "@/lib/sports";
+import { getAgeGroupConfig, getSportConfig, isBasketball, isRugby, isSoccer, isTouch, teamSport, periodLabels } from "@/lib/sports";
+import { touchAgeGroup, touchAgeGroupForTeam } from "@/lib/sports/touch/family";
+import { girlsTryCountsDouble, teamMixedRule } from "@/lib/sports/touch/mixed";
+import { MixedRuleSettings } from "@/components/team/MixedRuleSettings";
+import { GirlsTryToggle } from "@/components/team/GirlsTryToggle";
 import { basketballAgeGroup, basketballAgeGroupForTeam } from "@/lib/sports/basketball";
 import { soccerFamilyAgeGroup, soccerFamilyAgeGroupForTeam, soccerFamilyRules } from "@/lib/sports/soccer/family";
 import { PeriodFormatSettings } from "@/components/team/PeriodFormatSettings";
@@ -44,7 +48,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   const [{ data: team }, { data: membership }] = await Promise.all([
     supabase
       .from("teams")
-      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, on_field_size, period_count, track_fouls, allow_mid_quarter_subs, enforce_unbroken_periods, track_zone_time, song_url, song_start_seconds, song_duration_seconds, song_enabled")
+      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, on_field_size, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, allow_mid_quarter_subs, enforce_unbroken_periods, track_zone_time, song_url, song_start_seconds, song_duration_seconds, song_enabled")
       .eq("id", params.teamId)
       .single(),
     user
@@ -128,18 +132,23 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   }
 
   // Basketball plays the team's halves or quarters (migration 0069), as
-  // does hockey; a soccer-family team's age group is its own sport's.
+  // does hockey; a soccer-family team's age group is its own sport's;
+  // touch and Oztag play halves or one period (0071).
   const teamPeriodCount = (team as { period_count?: number | null }).period_count ?? null;
   const teamAgeGroup = (team as { age_group?: string | null }).age_group ?? null;
   const ageGroupCfg = isBasketball(sport)
     ? basketballAgeGroupForTeam(teamAgeGroup, teamPeriodCount)
     : isSoccer(sport)
       ? soccerFamilyAgeGroupForTeam(sport, teamAgeGroup, teamPeriodCount)
-      : getAgeGroupConfig(sport, teamAgeGroup);
+      : isTouch(sport)
+        ? touchAgeGroupForTeam(sport, teamAgeGroup, teamPeriodCount)
+        : getAgeGroupConfig(sport, teamAgeGroup);
   // Hockey's halves or quarters: the game's length is the age group's
   // (4 × 15 is 2 × 30).
   const hockeyFormat =
     isSoccer(sport) && soccerFamilyRules(sport).halvesOrQuarters ? soccerFamilyAgeGroup(sport, teamAgeGroup) : null;
+  // Touch and Oztag: the team's mixed rule (null: not mixed).
+  const mixedRule = isTouch(sport) ? teamMixedRule(team as { mixed_max_boys?: number | null; mixed_min_girls?: number | null; mixed_min_boys?: number | null }) : null;
   const [{ data: playbookRow }, { data: positionRows }, { data: squadRows }] = await Promise.all([
     supabase
       .from("team_playbooks")
@@ -276,6 +285,26 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
             isAdmin={isAdmin}
           />
         )}
+        {isTouch(sport) && (
+          <PeriodFormatSettings
+            teamId={params.teamId}
+            initialCount={teamPeriodCount}
+            halfMinutes={touchAgeGroup(sport, ageGroupCfg.id).periodSeconds / 60}
+            format="one-period"
+            note="Your competition's format. Most play two halves; some juniors play one period with no half-time (set its length below)."
+            isAdmin={isAdmin}
+          />
+        )}
+        {isTouch(sport) && (
+          <MixedRuleSettings
+            teamId={params.teamId}
+            sportName={getSportConfig(sport).shortName}
+            preset={touchAgeGroup(sport, ageGroupCfg.id).mixedPreset}
+            initialRule={mixedRule}
+            maxOnField={ageGroupCfg.maxOnFieldSize}
+            isAdmin={isAdmin}
+          />
+        )}
         <QuarterLengthInput
           // Fresh after an age or a halves/quarters change: its default moves.
           key={`${ageGroupCfg.id}:${ageGroupCfg.periodCount}`}
@@ -284,7 +313,13 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           initialOverrideSeconds={
             (team as { quarter_length_seconds?: number | null }).quarter_length_seconds ?? null
           }
-          periodWord={periodLabels(sport, ageGroupCfg).label === "half" ? "Half" : "Quarter"}
+          periodWord={
+            periodLabels(sport, ageGroupCfg).label === "half"
+              ? "Half"
+              : periodLabels(sport, ageGroupCfg).label === "period"
+                ? "Period"
+                : "Quarter"
+          }
           isAdmin={isAdmin}
         />
       </SettingsSection>
@@ -302,6 +337,17 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
             initialEnabled={
               (team as { track_fouls?: boolean | null }).track_fouls ?? basketballAgeGroup(ageGroupCfg.id).tracksFoulsDefault
             }
+            isAdmin={isAdmin}
+          />
+        )}
+        {sport === "oztag" && mixedRule && (
+          <GirlsTryToggle
+            teamId={params.teamId}
+            initialEnabled={girlsTryCountsDouble(
+              touchAgeGroup(sport, ageGroupCfg.id),
+              mixedRule,
+              (team as { girls_try_double?: boolean | null }).girls_try_double,
+            )}
             isAdmin={isAdmin}
           />
         )}

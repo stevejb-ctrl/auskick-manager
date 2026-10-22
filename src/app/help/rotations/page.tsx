@@ -9,7 +9,7 @@ import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 export const metadata = {
   title: "Rotations · Help · Siren",
   description:
-    "How suggested rotations work in AFL, netball, league, union, football (soccer) and basketball: badges, position colours, keeping players on, the keeper, fouls, and league's junior laws.",
+    "How suggested rotations work in AFL, netball, league, union, football (soccer), basketball, touch football and Oztag: badges, position colours, keeping players on, the keeper, fouls, the mixed rule, and league's junior laws.",
   alternates: { canonical: "/help/rotations" },
 };
 
@@ -331,6 +331,97 @@ export default function RotationsPage() {
           <strong className="text-ink">Sit out 5 min</strong>: they can&apos;t
           come back on until five minutes of playing time have run (timeouts
           don&apos;t count).
+        </p>
+      </section>
+
+      <section className="mt-8" id="touch-and-oztag">
+        <h2 className="text-xl font-semibold text-ink">Rotations in touch football and Oztag</h2>
+        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
+          Subs roll on and off as often as you like: through the interchange in
+          touch, from the sub box in Oztag. When the sub interval runs out the
+          swap card names who comes on for whom, and the banner says{" "}
+          <strong className="text-ink">make the change next time you have the ball</strong>.
+          Touch allows no interchange after an intercept or line break until the
+          next touch (TFA rule 17.7), and Oztag&apos;s junior championships allow
+          changes only in attack, so subbing while you defend gets the timing
+          wrong.
+        </p>
+
+        <h3 className="mt-5 font-semibold text-ink">Lanes are optional</h3>
+        <p className="mt-2 text-sm text-ink-dim">
+          The lanes run up the field: middles in the centre, links either side
+          of them, wings on the edges (2, 2 and 2 at six a side; 1, 2 and 2 at
+          five). Choose how kids rotate in <strong className="text-ink">How we play</strong>:
+        </p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
+          <li>
+            <strong className="text-ink">Minutes only</strong> (touch Under 6 to
+            Under 9, and Oztag at every age, since Oztag names no positions): no
+            lanes; Siren just evens out minutes.
+          </li>
+          <li>
+            <strong className="text-ink">Rotate positions</strong> (touch from
+            Under 10, when TFA&apos;s junior framework brings positions in):
+            every kid takes turns at middle, link and wing, evened out over the
+            season.
+          </li>
+          <li>
+            <strong className="text-ink">Home position</strong>: each kid has a
+            home lane, with time in the others too. Set it with{" "}
+            <strong className="text-ink">Role</strong> on the Squad tab.
+          </li>
+        </ul>
+
+        <h3 className="mt-5 font-semibold text-ink">Mixed teams: the boys&apos; cap</h3>
+        <p className="mt-2 text-sm text-ink-dim">
+          A mixed team keeps a cap on boys on the field: touch&apos;s rule is at
+          most 3 boys and at least 1 boy and 1 girl (TFA rule 5.4); Oztag&apos;s
+          is at most 4 boys and at least 1 girl. Turn on{" "}
+          <strong className="text-ink">Mixed team</strong> when you make the team
+          or on the Team tab, where you can also set your competition&apos;s own
+          numbers. Then mark each kid <strong className="text-ink">Girl</strong>{" "}
+          or <strong className="text-ink">Boy</strong> on the Squad tab (Siren
+          asks at the lineup for anyone you missed, and when you add a
+          fill-in). It&apos;s used only for the rule and shows nowhere else.
+        </p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
+          <li>
+            Every suggested lineup and sub keeps the rule. At the cap a boy only
+            comes on for a boy.
+          </li>
+          <li>
+            Boys and girls are evened separately: with 6 on, at most 3 boys, and
+            a squad of 8 boys and 4 girls, the boys share 3 places (about 37 %
+            each) and the girls 3 (75 % each). The time floor in the game report
+            compares each kid within their group.
+          </li>
+          <li>
+            Short of girls, the field shrinks to what the rule allows: with one
+            girl, touch says <strong className="text-ink">You can field 4: 3 boys and 1 girl</strong>,
+            and again if a girl is hurt or leaves.
+          </li>
+          <li>
+            A swap you make by hand that breaks the rule gets a warning, not a
+            block: your competition may play a local rule.
+          </li>
+        </ul>
+
+        <h3 className="mt-5 font-semibold text-ink">Oztag&apos;s girl&apos;s try</h3>
+        <p className="mt-2 text-sm text-ink-dim">
+          In a mixed Oztag game a girl&apos;s try counts 2 (ITF rule 4.3). Credit
+          the try to the scorer and Siren counts it; the opponent&apos;s buttons
+          are <strong className="text-ink">+1</strong> and{" "}
+          <strong className="text-ink">+2 (girl)</strong>. If your competition
+          doesn&apos;t play it, turn off{" "}
+          <strong className="text-ink">A girl&apos;s try counts 2</strong> on the
+          Team tab.
+        </p>
+
+        <h3 className="mt-5 font-semibold text-ink">Rules the referee keeps</h3>
+        <p className="mt-2 text-sm text-ink-dim">
+          In touch, the half (the dummy half) can&apos;t score a try. Junior
+          Oztag plays modified rules: no marker, and the dummy half can run but
+          can&apos;t score. Siren doesn&apos;t track these.
         </p>
       </section>
 

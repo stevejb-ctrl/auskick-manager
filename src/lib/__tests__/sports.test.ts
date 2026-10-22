@@ -63,14 +63,8 @@ describe("sport registry", () => {
     expect(() => teamSport("touch_football")).toThrow(/Unknown sport "touch_football"/);
   });
 
-  it("keeps the four-sports plan's sports closed to new teams until their live game lands", () => {
-    for (const id of ["touch", "oztag"] as const) expect(isSportOpen(id), id).toBe(false);
-    for (const id of ["afl", "netball", "rugby_league", "rugby_union", "soccer", "basketball"] as const) {
-      expect(isSportOpen(id), id).toBe(true);
-    }
-    // Futsal's and hockey's live games landed (track A).
-    expect(isSportOpen("futsal")).toBe(true);
-    expect(isSportOpen("hockey")).toBe(true);
+  it("opens every sport to new teams, now the four-sports plan's live games have landed", () => {
+    for (const id of ALL_SPORT_IDS) expect(isSportOpen(id), id).toBe(true);
   });
 
   it("resolves brand from host header", () => {

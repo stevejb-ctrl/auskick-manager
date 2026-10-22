@@ -28,6 +28,13 @@ import type { BasketballLineup } from "@/lib/sports/basketball/lineup";
 import type { BasketballSeasonBalance } from "@/lib/sports/basketball/suggest";
 import { basketballAgeGroupForTeam } from "@/lib/sports/basketball";
 import { basketballHowWePlay } from "@/lib/sports/basketball/playbook";
+import { TouchLiveGame } from "@/components/touch/TouchLiveGame";
+import { TouchLineupPicker } from "@/components/touch/TouchLineupPicker";
+import type { TouchLineup } from "@/lib/sports/touch/lineup";
+import type { TouchSeasonBalance } from "@/lib/sports/touch/suggest";
+import { touchAgeGroupForTeam } from "@/lib/sports/touch/family";
+import { touchHowWePlay } from "@/lib/sports/touch/familyPlaybook";
+import { girlsTryCountsDouble, teamMixedRule } from "@/lib/sports/touch/mixed";
 import { AflWalkthroughOffer, LeagueWalkthroughOffer } from "@/components/live/WalkthroughOffer";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { ParentScoreboard } from "@/components/live/ParentScoreboard";
@@ -39,11 +46,11 @@ import {
   seasonAvailability,
   zoneCapsFor,
 } from "@/lib/fairness";
-import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isBasketball, isRugby, isSoccer, isTouch, netballSport, sportNotBuilt, teamSport, periodLabels } from "@/lib/sports";
+import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isBasketball, isRugby, isSoccer, isTouch, netballSport, teamSport, periodLabels } from "@/lib/sports";
 import { replayNetballGame } from "@/lib/sports/netball/fairness";
 import { replayRugbyGame, rugbyPoints } from "@/lib/sports/rugby_league/fairness";
 import { normalizeChipMode } from "@/lib/chips";
-import type { FillIn, Game, GameEvent, LeagueLineup, Player, Sport } from "@/lib/types";
+import type { FillIn, Game, GameEvent, LeagueLineup, MixedGroup, Player, Sport } from "@/lib/types";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { teamSportById } from "@/lib/sports/teamSportById";
 
@@ -70,6 +77,8 @@ function fillInToPlayer(f: FillIn, teamId: string): Player {
     team_id: teamId,
     full_name: f.full_name,
     jersey_number: f.jersey_number,
+    // Touch and Oztag mixed teams: who a fill-in counts as (0071).
+    mixed_group: f.mixed_group ?? null,
     is_active: true,
     created_by: f.created_by ?? "",
     created_at: f.created_at,
@@ -192,7 +201,7 @@ export default async function LivePage({ params }: LivePageProps) {
       .single(),
     supabase
       .from("teams")
-      .select("name, sport, track_scoring, track_zone_time, enforce_unbroken_periods, age_group, quarter_length_seconds, period_count, track_fouls, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
+      .select("name, sport, track_scoring, track_zone_time, enforce_unbroken_periods, age_group, quarter_length_seconds, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
       .eq("id", params.teamId)
       .single(),
     supabase
@@ -205,9 +214,6 @@ export default async function LivePage({ params }: LivePageProps) {
   const g = game as Game;
   const teamName = teamRow?.name ?? "Team";
   const sport: Sport = teamRow ? teamSport(teamRow.sport) : ((await teamSportById(params.teamId)) ?? notFound());
-  // Touch and Oztag's live game comes with their engine (four-sports plan,
-  // track B): until then it fails here rather than running as AFL.
-  if (isTouch(sport)) sportNotBuilt(sport, "Live game");
   // track_scoring is sport-agnostic — both AFL and netball flows
   // honour it. Hoisted ABOVE the netball branch (was nested inside
   // the AFL branch) so plan 04-04's NetballLiveGame can consume it.
@@ -576,6 +582,157 @@ export default async function LivePage({ params }: LivePageProps) {
           trackScoring={trackScoring}
           trackFouls={trackFouls}
           threePointers={ageCfgB.threePointers}
+          events={events}
+          strategy={howWePlay.strategy}
+          prefs={howWePlay.prefs}
+          season={season}
+          isAdmin={isAdmin}
+          exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
+        />
+      </div>
+    );
+  }
+
+  // ─── Touch and Oztag branch ───────────────────────────────
+  // The touch family (.planning/FOUR-SPORTS-PLAN.md): lanes or none (How
+  // we play's rotation), unlimited rolling subs, halves or one period,
+  // tries, and a mixed team's boys' cap. Before the start the lineup
+  // picker; after it the live game. None of the other sports' helpers
+  // below run for a touch or Oztag game.
+  if (isTouch(sport)) {
+    const teamExtras = teamRow as {
+      quarter_length_seconds?: number | null;
+      period_count?: number | null;
+      mixed_max_boys?: number | null;
+      mixed_min_girls?: number | null;
+      mixed_min_boys?: number | null;
+      girls_try_double?: boolean | null;
+    } | null;
+    const ageCfgT = touchAgeGroupForTeam(sport, teamRow?.age_group ?? null, teamExtras?.period_count ?? null);
+    const periodSecondsT = getEffectiveQuarterSeconds(
+      { quarter_length_seconds: teamExtras?.quarter_length_seconds ?? null },
+      ageCfgT,
+      { quarter_length_seconds: g.quarter_length_seconds },
+    );
+    const mixedRule = teamMixedRule(teamExtras);
+    const girlsTryDouble = girlsTryCountsDouble(ageCfgT, mixedRule, teamExtras?.girls_try_double);
+    const [{ data: avail }, { data: players }, { data: fillInRows }] = await Promise.all([
+      supabase.from("game_availability").select("player_id, status").eq("game_id", params.gameId).eq("status", "available"),
+      supabase.from("players").select("*").eq("team_id", params.teamId).eq("is_active", true).order("jersey_number"),
+      supabase.from("game_fill_ins").select("*").eq("game_id", params.gameId).order("created_at"),
+    ]);
+    const fillIns = ((fillInRows ?? []) as FillIn[]).map((f) => fillInToPlayer(f, params.teamId));
+    const squad = [...((players ?? []) as Player[]), ...fillIns];
+    const events = (thisGameEvents ?? []) as GameEvent[];
+    // Who each kid counts as under a mixed team's rule (squad and fill-ins).
+    const groups: Record<string, MixedGroup | null> = mixedRule
+      ? Object.fromEntries(squad.map((p) => [p.id, p.mixed_group ?? null]))
+      : {};
+    // Here today: availability rows, fill-ins, and late arrivals.
+    const availableIds = new Set<string>([
+      ...(avail ?? []).map((a) => a.player_id),
+      ...fillIns.map((f) => f.id),
+      ...events.filter((e) => e.type === "player_arrived" && e.player_id).map((e) => e.player_id as string),
+    ]);
+    const availablePlayers = squad.filter((p) => availableIds.has(p.id));
+    // How we play: the rotation, home lanes, and season balance (a game
+    // under way plays what it started with).
+    const howWePlay = touchHowWePlay(
+      sport,
+      await loadTeamPlaybook(supabase, params.teamId, sport, teamRow?.age_group ?? null),
+      ageCfgT.id,
+      g.playbook_snapshot,
+    );
+    // Season time per lane (this game left out) feeds the suggestions.
+    const seasonEvents = (await getSeasonEvents(params.teamId)).filter((e) => e.game_id !== params.gameId);
+    const season: TouchSeasonBalance = {
+      time: seasonTimeByUnit(sport, seasonEvents as GameEvent[], "line", { since: howWePlay.since }),
+      weight: howWePlay.balance === "off" ? 0 : seasonBalanceWeight(sport, howWePlay.balance),
+      periodMs: periodSecondsT * 1000,
+    };
+
+    if (!events.some((e) => e.type === "lineup_set")) {
+      const { data: draftRow } = await supabase
+        .from("game_lineup_drafts")
+        .select("lineup, updated_at")
+        .eq("game_id", params.gameId)
+        .maybeSingle();
+      const initialDraft = draftRow
+        ? {
+            lineup: (draftRow as { lineup: unknown }).lineup as TouchLineup,
+            updated_at: (draftRow as { updated_at: string }).updated_at,
+          }
+        : null;
+      // Kids lent before the start (the latest loan event per kid wins).
+      const lent = new Map<string, { ts: string; loaned: boolean }>();
+      for (const ev of events) {
+        if (ev.type !== "player_loan" || !ev.player_id) continue;
+        const loaned = (ev.metadata as { loaned?: boolean } | null)?.loaned ?? true;
+        const cur = lent.get(ev.player_id);
+        if (!cur || cur.ts < ev.created_at) lent.set(ev.player_id, { ts: ev.created_at, loaned });
+      }
+      const initialLoanedIds = Array.from(lent.entries())
+        .filter(([, v]) => v.loaned)
+        .map(([id]) => id);
+      const touchAvailabilityPanel = (
+        <GameDayAvailabilityPanel
+          auth={{ kind: "team", teamId: params.teamId }}
+          teamId={params.teamId}
+          gameId={params.gameId}
+          squad={(players ?? []) as Player[]}
+          availableIds={availableIds}
+          fillInCount={fillIns.length}
+          canManageMatch
+          showJerseyNumber={getSportConfig(sport).jerseyNumbers}
+        />
+      );
+      return (
+        <div className="space-y-4">
+          <LiveTopBar exitHref={`/teams/${params.teamId}/games/${params.gameId}`} game={g} />
+          {availablePlayers.length === 0 ? (
+            <>
+              {touchAvailabilityPanel}
+              <EmptyState title="Mark who's here to build the lineup." />
+            </>
+          ) : (
+            <TouchLineupPicker
+              // Suggest again when who's here changes.
+              key={Array.from(availableIds).sort().join(",")}
+              auth={{ kind: "team", teamId: params.teamId }}
+              gameId={params.gameId}
+              players={availablePlayers}
+              ageGroup={ageCfgT}
+              onFieldSize={g.on_field_size}
+              defaultSubMinutes={g.sub_interval_seconds / 60}
+              strategy={howWePlay.strategy}
+              prefs={howWePlay.prefs}
+              season={season}
+              mixedRule={mixedRule}
+              initialGroups={groups}
+              initialDraft={initialDraft}
+              initialLoanedIds={initialLoanedIds}
+              availabilityPanel={touchAvailabilityPanel}
+            />
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        <TouchLiveGame
+          auth={{ kind: "team", teamId: params.teamId }}
+          game={g}
+          teamName={teamName}
+          squad={squad}
+          ageGroup={ageCfgT}
+          periodSeconds={periodSecondsT}
+          subIntervalSeconds={g.sub_interval_seconds}
+          clockMultiplier={g.clock_multiplier ?? 1}
+          trackScoring={trackScoring}
+          girlsTryDouble={girlsTryDouble}
+          mixedRule={mixedRule}
+          mixedGroups={groups}
           events={events}
           strategy={howWePlay.strategy}
           prefs={howWePlay.prefs}

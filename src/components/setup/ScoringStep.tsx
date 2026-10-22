@@ -6,7 +6,7 @@ import {
   type HowWePlayPosition,
   type HowWePlayRow,
 } from "@/components/playbook/HowWePlayCard";
-import { isBasketball, isSoccer, isTouch, noSportBranch, periodLabels, sportNotBuilt } from "@/lib/sports";
+import { isBasketball, isSoccer, isTouch, noSportBranch, periodLabels } from "@/lib/sports";
 import { rugbyPoints } from "@/lib/sports/rugby_league/fairness";
 import { soccerFamilyRules } from "@/lib/sports/soccer/family";
 import type { AgeGroupConfig } from "@/lib/sports/types";
@@ -123,8 +123,19 @@ export function ScoringStep({
         .
       </>
     ) : isTouch(sportId) ? (
-      // Touch and Oztag's setup comes with their live game (four-sports plan, track B).
-      sportNotBuilt(sportId, "ScoringStep")
+      ageGroup.tracksScoreDefault ? (
+        <>
+          Junior {sportId === "oztag" ? "Oztag" : "touch"} keeps score from about Under 10, so {ageGroup.label} starts with
+          the scoreboard on: tries for both sides, and who scored
+          {sportId === "oztag" ? " (on a mixed team a girl's try counts 2)" : ""}. Flip this off if yours doesn&apos;t —{" "}
+          <strong className="text-ink">you can change it later on the Team tab</strong>.
+        </>
+      ) : (
+        <>
+          Juniors keep no score to about Under 9, so {ageGroup.label} starts with no scoreboard. Flip this on if your
+          competition keeps one — <strong className="text-ink">you can change it later on the Team tab</strong>.
+        </>
+      )
     ) : (
       noSportBranch(sportId, "ScoringStep")
     );

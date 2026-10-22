@@ -6,10 +6,6 @@ import { describe, expect, it } from "vitest";
 import { ALL_SPORTS, getSportConfig, periodLabels } from "@/lib/sports";
 import { getSportPlaybook } from "@/lib/playbook";
 import { PLAYHQ_TENANT } from "@/lib/playhq";
-import type { SportId } from "@/lib/sports/types";
-
-/** Sports whose How we play isn't built yet (.planning/FOUR-SPORTS-PLAN.md). */
-const NOT_BUILT: SportId[] = ["touch", "oztag"];
 
 describe("every sport", () => {
   for (const sport of ALL_SPORTS) {
@@ -33,16 +29,11 @@ describe("every sport", () => {
       it("has its own playbook, with rules its engine acts on", () => {
         const playbook = getSportPlaybook(sport.id);
         expect(playbook.sport).toBe(sport.id);
-        // The four-sports plan's sports get theirs in tracks A and B;
-        // until then every question fails by name (sportBranches.test).
-        if (NOT_BUILT.includes(sport.id)) {
-          expect(() => playbook.agePolicy(sport.ageGroups[0].id)).toThrow(/isn't built yet/);
-          return;
-        }
-        // The soccer family's (soccer, futsal, hockey) and basketball's
-        // engines act on no catalogue rule yet, so their Rules editors
-        // offer none rather than rules that do nothing.
-        if (sport.family === "soccer" || sport.id === "basketball") {
+        // The soccer family's (soccer, futsal, hockey), basketball's and
+        // the touch family's (touch, Oztag) engines act on no catalogue
+        // rule yet, so their Rules editors offer none rather than rules
+        // that do nothing.
+        if (sport.family === "soccer" || sport.family === "touch" || sport.id === "basketball") {
           expect(playbook.engineRuleKinds).toEqual([]);
           return;
         }

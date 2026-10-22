@@ -16,9 +16,10 @@
 // the legacy AGE_GROUPS table, and hand-made games of every sport
 // took the DB default of 180s.
 
-import { getAgeGroupConfig, isSoccer, isSportId } from "@/lib/sports";
+import { getAgeGroupConfig, isSoccer, isSportId, isTouch } from "@/lib/sports";
 import { basketballAgeGroupForTeam } from "@/lib/sports/basketball";
 import { soccerFamilyAgeGroupForTeam } from "@/lib/sports/soccer/family";
+import { touchAgeGroupForTeam } from "@/lib/sports/touch/family";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 
 export interface NewGameDefaults {
@@ -67,16 +68,22 @@ export function newGameDefaults(
   sport: string | null | undefined,
   ageGroup: string | null | undefined,
   teamSize?: number | null,
-  /** Basketball and hockey: the team's halves or quarters (teams.period_count). */
+  /**
+   * Basketball and hockey: the team's halves or quarters; touch and
+   * Oztag: halves or one period (teams.period_count).
+   */
   periodCount?: number | null,
 ): NewGameDefaults {
   // A basketball team's quarters take a quarter's sub interval, as do a
-  // hockey team's (and its halves a half's).
+  // hockey team's (and its halves a half's), and a touch team's one
+  // period its own.
   const cfg =
     sport === "basketball"
       ? basketballAgeGroupForTeam(ageGroup, periodCount)
       : isSportId(sport) && isSoccer(sport) && periodCount != null
         ? soccerFamilyAgeGroupForTeam(sport, ageGroup, periodCount)
+        : isSportId(sport) && isTouch(sport)
+          ? touchAgeGroupForTeam(sport, ageGroup, periodCount)
         : getAgeGroupConfig(sport, ageGroup);
   return {
     on_field_size: teamOnFieldSize(cfg, teamSize),

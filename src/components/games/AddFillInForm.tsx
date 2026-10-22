@@ -5,7 +5,8 @@ import { addFillIn } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { SFButton } from "@/components/sf";
-import type { LiveAuth } from "@/lib/types";
+import type { LiveAuth, MixedGroup } from "@/lib/types";
+import { MixedGroupPicker } from "@/components/squad/MixedGroupPicker";
 
 interface AddFillInFormProps {
   auth: LiveAuth;
@@ -17,14 +18,18 @@ interface AddFillInFormProps {
    * `showJersey` flag the setup wizard already uses on AddPlayerForm.
    */
   showJerseyNumber?: boolean;
+  /** A touch or Oztag mixed team: ask who the fill-in counts as under the rule. */
+  mixed?: boolean;
 }
 
 export function AddFillInForm({
   auth,
   gameId,
   showJerseyNumber = true,
+  mixed = false,
 }: AddFillInFormProps) {
   const [open, setOpen] = useState(false);
+  const [group, setGroup] = useState<MixedGroup | null>(null);
   const [name, setName] = useState("");
   const [jersey, setJersey] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +38,7 @@ export function AddFillInForm({
   function reset() {
     setName("");
     setJersey("");
+    setGroup(null);
     setError(null);
   }
 
@@ -47,11 +53,16 @@ export function AddFillInForm({
       setError("Number must be a positive integer.");
       return;
     }
+    if (mixed && !group) {
+      setError("Mark Girl or Boy for the mixed rule.");
+      return;
+    }
     setError(null);
     startTransition(async () => {
       const res = await addFillIn(auth, gameId, {
         full_name: trimmed,
         jersey_number: num,
+        ...(mixed && group ? { mixed_group: group } : {}),
       });
       if (!res.success) {
         setError(res.error);
@@ -132,6 +143,7 @@ export function AddFillInForm({
           Cancel
         </Button>
       </div>
+      {mixed && <MixedGroupPicker value={group} onChange={setGroup} disabled={isPending} />}
       {error && <p className="text-xs text-danger">{error}</p>}
     </div>
   );

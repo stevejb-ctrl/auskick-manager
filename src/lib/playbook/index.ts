@@ -9,8 +9,9 @@ import { soccerPlaybook } from "@/lib/sports/soccer/playbook";
 import { futsalPlaybook } from "@/lib/sports/futsal/playbook";
 import { hockeyPlaybook } from "@/lib/sports/hockey/playbook";
 import { basketballPlaybook } from "@/lib/sports/basketball/playbook";
+import { touchPlaybook } from "@/lib/sports/touch/playbook";
+import { oztagPlaybook } from "@/lib/sports/oztag/playbook";
 import { resolvePolicy } from "@/lib/playbook/resolve";
-import { sportNotBuilt } from "@/lib/sports/registry";
 import type { Sport } from "@/lib/types";
 import type {
   EffectivePolicy,
@@ -21,29 +22,6 @@ import type {
 
 export * from "@/lib/playbook/types";
 export { resolvePolicy } from "@/lib/playbook/resolve";
-
-/**
- * How we play for a sport whose own isn't built yet (futsal and hockey
- * come with track A of .planning/FOUR-SPORTS-PLAN.md, touch and Oztag
- * with track B): every question throws rather than answering with
- * another sport's.
- */
-function notBuiltPlaybook(sport: Sport): SportPlaybook {
-  const where = "How we play";
-  return {
-    sport,
-    unitWord: "line",
-    benchPeriodWord: () => sportNotBuilt(sport, where),
-    engineRuleKinds: [],
-    ruleKinds: () => sportNotBuilt(sport, where),
-    lawRules: () => sportNotBuilt(sport, where),
-    agePolicy: () => sportNotBuilt(sport, where),
-    positionModel: () => sportNotBuilt(sport, where),
-    strategies: () => sportNotBuilt(sport, where),
-    recommendedStrategy: () => sportNotBuilt(sport, where),
-    fallbackStrategy: () => sportNotBuilt(sport, where),
-  };
-}
 
 // One entry per sport: a new sport fails to compile until it has its own
 // How we play, rather than silently getting AFL's.
@@ -56,8 +34,8 @@ const PLAYBOOKS: Record<Sport, SportPlaybook> = {
   basketball: basketballPlaybook,
   futsal: futsalPlaybook,
   hockey: hockeyPlaybook,
-  touch: notBuiltPlaybook("touch"),
-  oztag: notBuiltPlaybook("oztag"),
+  touch: touchPlaybook,
+  oztag: oztagPlaybook,
 };
 
 export function getSportPlaybook(sport: Sport): SportPlaybook {

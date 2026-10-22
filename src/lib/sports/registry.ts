@@ -67,12 +67,12 @@ export function isSportId(value: unknown): value is SportId {
 }
 
 /**
- * Sports Siren knows but a coach can't start a team in yet: their
- * configs, tests and migration land before their live game
- * (.planning/FOUR-SPORTS-PLAN.md, phase 0). Each build track takes its
- * sports off this list when their setup pill lands.
+ * Sports Siren knows but a coach can't start a team in yet: a new
+ * sport's configs, tests and migration can land before its live game
+ * (.planning/FOUR-SPORTS-PLAN.md, phase 0), and it comes off this list
+ * when its setup pill lands. Empty since the four-sports tracks merged.
  */
-export const SPORTS_NOT_OPEN: readonly SportId[] = ["touch", "oztag"];
+export const SPORTS_NOT_OPEN: readonly SportId[] = [];
 
 /** Whether a coach can start a team in this sport. */
 export function isSportOpen(sport: SportId): boolean {
