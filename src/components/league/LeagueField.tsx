@@ -1,27 +1,14 @@
 "use client";
 
 // ─── LeagueField — the rugby pitch (league and union) ────────
-// Visual playing surface for the rugby-league live view. Mirrors
-// the shape of `Field.tsx` (AFL — oval pitch with zone rows) and
-// `Court.tsx` (netball — rectangular court with thirds + goal
-// circles), but styled as a rugby-league pitch in portrait (the
-// only viable orientation on a mobile screen).
-//
-// Pitch furniture, matching the reference Steve sent (rotated 90°
-// for portrait):
-//   * Solid try lines at top and bottom.
-//   * Dashed 5m line just inside each try line.
-//   * Solid 10m line.
-//   * Solid 20m line.
-//   * Solid halfway line with a centre mark.
-//   * Big white H-shape goal posts anchored on each try line, in
-//     the centre — visually unmistakable rugby furniture.
-//
-// Player tiles laid over the centre band. RL is positionless at
-// this age so the layout is one block of players rather than zone
-// rows. When the lineup has fewer players than `onFieldSize`
-// (e.g. someone was lent without a replacement), we render
-// dashed-outline placeholder tiles so the gap is visible.
+// The rugby live field (league and union), as AFL's Field: the shared
+// card tiles (LeaguePlayerTile on LinePlayerTile) in the formation's rows,
+// Forwards above Backs, on the green with halfway between (UI polish round 2,
+// Steve 23 Oct 2026; it was pill tokens at formation spots on a drawn
+// pitch). The formation slots still decide who's where: FR / DH vest
+// wearers, the fullback, union's named positions; each line keeps their
+// order down the pitch. Short of the size, dashed empty places show the
+// gap.
 
 import type { Player } from "@/lib/types";
 import type { VestType } from "@/lib/sports/rugby_league/vests";
@@ -35,15 +22,6 @@ import {
 import type { RugbySport } from "@/lib/sports/registry";
 import { placeByPosition } from "@/lib/sports/rugby/fieldPositions";
 
-/**
- * Each rugby sport's pitch markings. League: 10 m and 20 m lines;
- * union: the 22 m line and the dashed 10 m lines either side of
- * halfway.
- */
-const PITCH: Record<RugbySport, "league" | "union"> = {
-  rugby_league: "league",
-  rugby_union: "union",
-};
 import { LeaguePlayerTile } from "./LeaguePlayerTile";
 
 /**
@@ -233,6 +211,8 @@ interface LeagueFieldProps {
    * Mirrors AFL `Field.tsx`'s `swapOffs` prop.
    */
   swapOffs?: Map<string, number>;
+  /** The sub card is in its SUB DUE state: the off tiles turn amber. */
+  swapDue?: boolean;
   /** Total pairs in the current rotation suggestion. Drives the
    *  per-tile pair-number badge — shown only when totalPairs > 1
    *  so a single-swap rotation reads as a clean arrow. */
@@ -297,6 +277,7 @@ export function LeagueField({
   loanedIds,
   selectedPlayerId,
   swapOffs,
+  swapDue = false,
   totalSwapPairs = 0,
   chipModes,
   onPlayerClick,
@@ -323,343 +304,145 @@ export function LeagueField({
           }
         />
       )}
-      <div className="relative overflow-hidden rounded-lg">
-        {/* Portrait rugby-league pitch. The reference image is
-            landscape (posts left+right); we rotate the same
-            furniture 90° so the play axis runs top-to-bottom on a
-            phone. 4:5 aspect keeps the pitch readable without
-            dominating the viewport. */}
-        <div className="relative aspect-[4/5] bg-emerald-600">
-          {/* Touch line — solid white border around the pitch */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-1 rounded-sm border-2 border-white/80"
-          />
-
-          {/* Try line — top (solid). */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute left-1 right-1 top-[8%] h-0.5 bg-white/80"
-          />
-          {/* Try line — bottom (solid). */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute bottom-[8%] left-1 right-1 h-0.5 bg-white/80"
-          />
-
-          {/* 5m line — top (dashed). 5m past the try line is the
-              first defensive marker in junior RL; render dashed via
-              a horizontal repeating linear-gradient. */}
-          <DashedLine top="14%" />
-          <DashedLine bottom="14%" />
-
-          {PITCH[sport] === "league" ? (
-            <>
-              {/* 10m line — top + bottom (solid). */}
-              <div
-                aria-hidden
-                className="pointer-events-none absolute left-1 right-1 top-[22%] h-px bg-white/60"
-              />
-              <div
-                aria-hidden
-                className="pointer-events-none absolute bottom-[22%] left-1 right-1 h-px bg-white/60"
-              />
-              {/* 20m line — top + bottom (solid, lighter). */}
-              <div
-                aria-hidden
-                className="pointer-events-none absolute left-1 right-1 top-[36%] h-px bg-white/50"
-              />
-              <div
-                aria-hidden
-                className="pointer-events-none absolute bottom-[36%] left-1 right-1 h-px bg-white/50"
-              />
-            </>
-          ) : (
-            <>
-              {/* Union: the 22 m line — top + bottom (solid). */}
-              <div
-                aria-hidden
-                data-pitch-line="22m"
-                className="pointer-events-none absolute left-1 right-1 top-[27%] h-px bg-white/60"
-              />
-              <div
-                aria-hidden
-                data-pitch-line="22m"
-                className="pointer-events-none absolute bottom-[27%] left-1 right-1 h-px bg-white/60"
-              />
-              {/* Union: the 10 m lines either side of halfway (dashed). */}
-              <DashedLine top="42%" />
-              <DashedLine bottom="42%" />
-            </>
-          )}
-
-          {/* Halfway line — solid white with a centre mark. */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute left-1 right-1 top-1/2 h-0.5 bg-white/80"
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute left-1/2 top-1/2 h-4 w-px -translate-x-1/2 -translate-y-1/2 bg-white/80"
-          />
-
-          {/* Goal posts — large H anchored on each try line. The
-              uprights stand on the line; the crossbar is the bar
-              between the uprights. Drawn as SVG so the proportions
-              stay clean at any size. */}
-          <GoalPosts placement="top" />
-          <GoalPosts placement="bottom" />
-
-          {/* Zone labels in the in-goal corners — orients the coach
-              on which try line their team is attacking. Forwards
-              sit at the top of the pitch (attacking the opponent
-              try line); Backs sit at the bottom (defending our own
-              try line). Steve 2026-05-23: replaces the symmetrical
-              "TRY" labels which were ambiguous about direction. */}
-          <span
-            aria-hidden
-            className="pointer-events-none absolute left-2 top-1 font-mono text-[9px] font-bold uppercase tracking-micro text-white/70"
-          >
-            Forward
-          </span>
-          <span
-            aria-hidden
-            className="pointer-events-none absolute bottom-1 right-2 font-mono text-[9px] font-bold uppercase tracking-micro text-white/70"
-          >
-            Back
-          </span>
-
-          {/* Player band — absolute-positioned slots in a rugby
-              league formation (attacking the TOP try line). The
-              slot array comes from `getFieldSlots(onFieldSize, vestReqs)`
-              so U6 renders 6 tiles, U10 renders 11, U12 renders 13,
-              etc. Players are assigned by vest first (FR + DH into
-              the middle slots when the age group requires them), then
-              the remaining fill the forwards / backs / fullback
-              positions in lineup order. Unfilled slots render vacant
-              placeholders so the gap is visible. */}
-          {(() => {
-            // Never fewer spots than kids on the field: a lineup over
-            // the size (the size dropped after kickoff) still shows
-            // every kid rather than hiding one.
-            const size = Math.max(typeof onFieldSize === "number" ? onFieldSize : 11, players.length);
-            const slots = forwardsBySize
-              ? unionFieldSlots(size, forwardsBySize[size] ?? Math.floor(size / 2))
-              : getFieldSlots(size, vestRequirements);
-            // Union with named positions: each kid in their position's
-            // spot (fieldPositions.ts). Otherwise the lineup-order routing.
-            const placed =
-              forwardsBySize && positionOrder && positionLabels && forwardPlayers && backPlayers
-                ? placeByPosition(
-                    slots,
-                    forwardPlayers.map((p) => p.id),
-                    backPlayers.map((p) => p.id),
-                    positionLabels,
-                    positionOrder,
-                  )
-                : null;
-            const byId = new Map([...players, ...(forwardPlayers ?? []), ...(backPlayers ?? [])].map((p) => [p.id, p]));
-            const arrangement = placed
-              ? slots.map((slot) => ({ slot, player: byId.get(placed[slot.id] ?? "") ?? null }))
-              : arrangeFieldSlots(
-                  players,
-                  vestByPlayer ?? {},
+      {/* The pitch, as AFL's field: the lines' card tiles in the
+          formation's rows (two or three across), Forwards above Backs
+          with halfway between
+          (UI polish round 2, Steve 23 Oct 2026; the pill tokens sat at
+          formation spots on a drawn pitch). Named positions keep their
+          order within a line; the slots below still decide who's where. */}
+      <div className="relative overflow-hidden rounded-lg px-3 pb-4 pt-3">
+        <div aria-hidden className="pointer-events-none absolute inset-1.5 rounded-md border-[1.5px] border-white/[0.22]" />
+        {(() => {
+          // Never fewer spots than kids on the field: a lineup over
+          // the size (the size dropped after kickoff) still shows
+          // every kid rather than hiding one.
+          const size = Math.max(typeof onFieldSize === "number" ? onFieldSize : 11, players.length);
+          const slots = forwardsBySize
+            ? unionFieldSlots(size, forwardsBySize[size] ?? Math.floor(size / 2))
+            : getFieldSlots(size, vestRequirements);
+          // Union with named positions: each kid in their position's
+          // spot (fieldPositions.ts). Otherwise the lineup-order routing.
+          const placed =
+            forwardsBySize && positionOrder && positionLabels && forwardPlayers && backPlayers
+              ? placeByPosition(
                   slots,
-                  forwardPlayers,
-                  backPlayers,
-                );
-            return arrangement.map(({ slot, player }) => {
-              const slotStyle: React.CSSProperties = {
-                left: `${slot.x}%`,
-                top: `${slot.y}%`,
-                // Tile width tuned so two tiles per row leave a
-                // small gap at the centre. 26% is the sweet spot:
-                // wide enough that "Phillip D"-style names render
-                // without the inner truncate ellipsis kicking in,
-                // narrow enough that forwards row 1 (x=32/68)
-                // doesn't crash into the row centre.
-                width: "26%",
-              };
-              return (
-                <div
-                  key={slot.id}
-                  style={slotStyle}
-                  className="absolute -translate-x-1/2 -translate-y-1/2"
-                >
-                  {player ? (
-                    <LeaguePlayerTile
-                      player={player}
-                      variant="field"
-                      tries={triesByPlayer?.[player.id] ?? 0}
-                      totalMs={totalMsByPlayer?.[player.id]}
-                      zoneMs={zoneMsByPlayer?.[player.id]}
-                      vest={vestByPlayer?.[player.id] ?? null}
-                      positionLabel={positionLabels?.[player.id] ?? null}
-                      keepOn={keepOnIds?.has(player.id) ?? false}
-                      conversion={conversionByPlayer?.[player.id] ?? null}
-                      kickedOff={kickoffTakerIds?.has(player.id) ?? false}
-                      injured={injuredIds?.has(player.id) ?? false}
-                      loaned={loanedIds?.has(player.id) ?? false}
-                      selected={selectedPlayerId === player.id}
-                      swap={
-                        swapOffs?.has(player.id)
-                          ? {
-                              role: "off",
-                              pair: swapOffs.get(player.id)!,
-                              totalPairs: totalSwapPairs,
-                            }
-                          : null
-                      }
-                      chipModes={chipModes}
-                      onClick={
-                        onPlayerClick
-                          ? () => onPlayerClick(player.id)
-                          : undefined
-                      }
-                      onLongPress={
-                        onPlayerLongPress
-                          ? () => onPlayerLongPress(player.id)
-                          : undefined
-                      }
-                      disabled={disabled}
-                    />
-                  ) : (
-                    <VacantSpot
-                      // Derive the tap-target zone from the slot's
-                      // role: forward + dh slots are forward-zone
-                      // (DH is structurally a forward in real RL);
-                      // back + fr + fullback slots are back-zone
-                      // (FR is a halfback). The orchestrator uses
-                      // this to route the move correctly when the
-                      // coach taps an empty slot.
-                      slotZone={
-                        slot.role === "forward" || slot.role === "dh"
-                          ? "forward"
-                          : "back"
-                      }
-                      onTap={onVacantSpotTap}
-                      primed={vacantSpotPrimed}
-                      disabled={disabled}
-                    />
-                  )}
-                </div>
-              );
-            });
-          })()}
+                  forwardPlayers.map((p) => p.id),
+                  backPlayers.map((p) => p.id),
+                  positionLabels,
+                  positionOrder,
+                )
+              : null;
+          const byId = new Map([...players, ...(forwardPlayers ?? []), ...(backPlayers ?? [])].map((p) => [p.id, p]));
+          const arrangement = placed
+            ? slots.map((slot) => ({ slot, player: byId.get(placed[slot.id] ?? "") ?? null }))
+            : arrangeFieldSlots(players, vestByPlayer ?? {}, slots, forwardPlayers, backPlayers);
+          const forwardIds = new Set((forwardPlayers ?? []).map((p) => p.id));
+          const backIds = new Set((backPlayers ?? []).map((p) => p.id));
+          const lineOf = (slot: FieldSlot, player: Player | null): "forwards" | "backs" => {
+            if (player && forwardIds.has(player.id)) return "forwards";
+            if (player && backIds.has(player.id)) return "backs";
+            return slot.role === "forward" || slot.role === "dh" ? "forwards" : "backs";
+          };
+          // Down the pitch: the formation's rows top to bottom, left to right.
+          const ordered = [...arrangement].sort((a, b) => a.slot.y - b.slot.y || a.slot.x - b.slot.x);
+          const groups = (["forwards", "backs"] as const).map((line) => ({
+            line,
+            entries: ordered.filter(({ slot, player }) => lineOf(slot, player) === line),
+          }));
 
-          {/* Top-right corner counter — `N / target` so the
-              shortfall is also legible from the corner glance
-              (matches the picker's prominent count pill). */}
-          {typeof onFieldSize === "number" ? (
-            <span
-              aria-hidden
-              className={`pointer-events-none absolute right-2 top-2 inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[10px] font-bold tabular-nums shadow-card ${
-                players.length === onFieldSize
-                  ? "bg-emerald-900/70 text-white"
-                  : "bg-warn text-white"
-              }`}
-            >
-              {players.length} / {onFieldSize}
-            </span>
-          ) : (
-            <span
-              aria-hidden
-              className="pointer-events-none absolute right-2 top-2 rounded-full bg-emerald-900/70 px-2 py-0.5 font-mono text-[10px] font-bold tabular-nums text-white"
-            >
-              {players.length}
-            </span>
-          )}
-        </div>
+          const cell = ({ slot, player }: { slot: FieldSlot; player: Player | null }, line: "forwards" | "backs") =>
+            player ? (
+              <LeaguePlayerTile
+                player={player}
+                variant="field"
+                line={line}
+                tries={triesByPlayer?.[player.id] ?? 0}
+                totalMs={totalMsByPlayer?.[player.id]}
+                zoneMs={zoneMsByPlayer?.[player.id]}
+                vest={vestByPlayer?.[player.id] ?? null}
+                positionLabel={positionLabels?.[player.id] ?? null}
+                keepOn={keepOnIds?.has(player.id) ?? false}
+                conversion={conversionByPlayer?.[player.id] ?? null}
+                kickedOff={kickoffTakerIds?.has(player.id) ?? false}
+                injured={injuredIds?.has(player.id) ?? false}
+                loaned={loanedIds?.has(player.id) ?? false}
+                selected={selectedPlayerId === player.id}
+                dimmed={!!selectedPlayerId && selectedPlayerId !== player.id}
+                swap={
+                  swapOffs?.has(player.id)
+                    ? { role: "off", pair: swapOffs.get(player.id)!, totalPairs: totalSwapPairs }
+                    : null
+                }
+                swapDue={swapDue}
+                chipModes={chipModes}
+                onClick={onPlayerClick ? () => onPlayerClick(player.id) : undefined}
+                onLongPress={onPlayerLongPress ? () => onPlayerLongPress(player.id) : undefined}
+                disabled={disabled}
+              />
+            ) : (
+              <VacantSpot
+                slotZone={line === "forwards" ? "forward" : "back"}
+                onTap={onVacantSpotTap}
+                primed={vacantSpotPrimed}
+                disabled={disabled}
+              />
+            );
+
+          return groups.map(({ line, entries }, gi) => {
+            if (entries.length === 0) return null;
+            // The formation's rows, as on the pitch (Steve 17 Oct: union's
+            // front row, then the 2nd row and N8, …): each its own line,
+            // left to right; a lone kid (the fullback, a vest) centred.
+            const rows: (typeof entries)[] = [];
+            for (const e of entries) {
+              const last = rows[rows.length - 1];
+              if (last && last[0].slot.y === e.slot.y) last.push(e);
+              else rows.push([e]);
+            }
+            return (
+              <div key={line} className={gi > 0 ? "relative mt-4 pt-4" : "relative"}>
+                {gi > 0 && <div aria-hidden className="pointer-events-none absolute -left-3 -right-3 top-0 h-px bg-white/[0.28]" />}
+                <p className="relative mb-2 px-1 font-mono text-[10px] font-bold uppercase tracking-micro text-white/75">
+                  {line === "forwards" ? "Forwards" : "Backs"}
+                </p>
+                <div role="group" aria-label={line === "forwards" ? "Forwards" : "Backs"} className="relative space-y-2">
+                  {rows.map((row) => (
+                    <div key={row[0].slot.id} className={`grid gap-2 ${row.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+                      {row.map((entry) => (
+                        <div key={entry.slot.id} className={row.length === 1 ? "col-span-2 mx-auto w-[calc(50%-0.25rem)]" : undefined}>
+                          {cell(entry, line)}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          });
+        })()}
+
+        {/* Top-right corner counter — `N / target` so the shortfall is
+            also legible from the corner glance (matches the picker's
+            prominent count pill). */}
+        {typeof onFieldSize === "number" ? (
+          <span
+            aria-hidden
+            className={`pointer-events-none absolute right-2.5 top-2.5 inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[10px] font-bold tabular-nums ${
+              players.length === onFieldSize ? "bg-emerald-900/70 text-white" : "bg-warn text-white"
+            }`}
+          >
+            {players.length} / {onFieldSize}
+          </span>
+        ) : (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute right-2.5 top-2.5 rounded-full bg-emerald-900/70 px-2 py-0.5 font-mono text-[10px] font-bold tabular-nums text-white"
+          >
+            {players.length}
+          </span>
+        )}
       </div>
     </section>
-  );
-}
-
-// ─── Goal posts ──────────────────────────────────────────────
-// H-shape rendered with two thick uprights and a crossbar. Sits
-// directly on the try line so the post base aligns with the goal-
-// line stripe — same as the reference image. Drawn at a fixed
-// pixel size that scales with the viewport via the parent's
-// aspect ratio (the bottom/top anchor handles vertical placement).
-function GoalPosts({ placement }: { placement: "top" | "bottom" }) {
-  const anchor
-    = placement === "top"
-      ? "top-[8%] -translate-y-[40%]"
-      : "bottom-[8%] translate-y-[40%]";
-  return (
-    <div
-      aria-hidden
-      className={`pointer-events-none absolute left-1/2 ${anchor} -translate-x-1/2`}
-    >
-      <svg
-        width="48"
-        height="20"
-        viewBox="0 0 48 20"
-        fill="none"
-        className="block"
-      >
-        {/* Crossbar — runs between the uprights only. The uprights
-            sit at x=14 and x=34 so the crossbar spans 14→34, not
-            past the uprights as it would on a soccer goal. */}
-        <line
-          x1="14"
-          y1="8"
-          x2="34"
-          y2="8"
-          stroke="white"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
-        {/* Left upright */}
-        <line
-          x1="14"
-          y1="1"
-          x2="14"
-          y2="19"
-          stroke="white"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
-        {/* Right upright */}
-        <line
-          x1="34"
-          y1="1"
-          x2="34"
-          y2="19"
-          stroke="white"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
-      </svg>
-    </div>
-  );
-}
-
-// ─── Dashed reference line ──────────────────────────────────
-// Used for the 5m line. Rendered as a row of absolute-positioned
-// segments so the dash pattern reads cleanly across screen widths
-// without depending on SVG dasharray (which doesn't scale with the
-// container the way we want at this resolution).
-function DashedLine({ top, bottom }: { top?: string; bottom?: string }) {
-  const positionClass
-    = top !== undefined ? "left-1 right-1" : "left-1 right-1";
-  const style: React.CSSProperties = {};
-  if (top !== undefined) style.top = top;
-  if (bottom !== undefined) style.bottom = bottom;
-  return (
-    <div
-      aria-hidden
-      style={style}
-      className={`pointer-events-none absolute h-px ${positionClass} flex justify-between`}
-    >
-      {Array.from({ length: 16 }).map((_, i) => (
-        <span
-          key={i}
-          className="block h-px w-2 bg-white/50"
-          aria-hidden
-        />
-      ))}
-    </div>
   );
 }
 

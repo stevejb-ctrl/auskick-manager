@@ -155,7 +155,8 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   // "HALF 1", the field renders 11 on-field tiles, and the
   // "+ Try (us)" button is enabled once a player is selected.
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.getByText(/half\s*1/i).first()).toBeVisible({
+  // The clock pill names the period (H1), as every sport's.
+  await expect(page.getByRole("button", { name: /^clock — h1, /i })).toBeVisible({
     timeout: 15_000,
   });
 

@@ -106,7 +106,7 @@ test("a conversion needs a try to convert, and Undo takes back the latest score"
   const kicker = players[1];
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.getByText(/half\s*1/i).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^clock — h1, /i })).toBeVisible({ timeout: 15_000 });
   // That text is server-rendered; a tap before hydration does nothing (WebKit).
   await waitForHydration(page);
 
@@ -171,7 +171,7 @@ test("U13 plays international laws: anyone may kick, and there's no kickoff rota
     } catch {}
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.getByText(/half\s*1/i).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^clock — h1, /i })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("heading", { name: /^kickoff$/i })).toHaveCount(0);
 
   const dialog = page.getByRole("dialog", { name: /record conversion/i });
@@ -201,7 +201,7 @@ test("U13 records penalty and field goals for both sides, and Undo takes one bac
     } catch {}
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.getByText(/half\s*1/i).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^clock — h1, /i })).toBeVisible({ timeout: 15_000 });
 
   // Ours from the scorebug: +PG asks who kicked it.
   await page.getByRole("button", { name: "Record a penalty goal for our team" }).click();

@@ -2,19 +2,19 @@
 
 import { rugbyScoreWords, type LeagueScore, type RugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
 import type { RugbySport } from "@/lib/sports/registry";
-import { SCORE_CHIP } from "@/components/live/scoreChip";
+import { SCORE_CHIP, SCORE_TEAM_NAME } from "@/components/live/scoreChip";
+import { RollingNumber } from "@/components/live/RollingNumber";
 
 // ─── LeagueScoreBug ──────────────────────────────────────────
-// Rugby-league scoreboard contents rendered inside the shared
-// LiveStickyScoreBar. Mirrors AFL `GameHeader` (broadcast scorebug)
-// layout precisely:
+// Rugby's scorebug (league and union), inside the shared
+// LiveStickyScoreBar, on the same layout as AFL's GameHeader and every
+// sport's bug (UI polish round 2, Steve 23 Oct 2026):
 //
-//   Left  : team name + total points (big) + small T·C breakdown
-//           + +T / +C action chips (own-team scoring); U13+
-//           (international laws) adds PG·FG and a +PG / +FG row
-//   Centre: dark clock pill — period chip on top, clock readout
-//           big and bold below.
-//   Right : opponent mirror — +T / +C, total points, T·C.
+//   Left  : team name (wraps rather than cuts off), the 44px total
+//           rolling on a score, and the T·C (·PG·FG) tally.
+//   Centre: the dark clock pill: H1 / Q1 with the live dot, the time.
+//   Right : the opponent, mirrored.
+//   Under : each team's chips in one row (+T +C, U13+ +PG +FG / DG).
 //
 // Own-team +T / +C are wired by the parent to open a player picker
 // for the scorer / kicker; the chips themselves don't mutate state
@@ -68,7 +68,7 @@ function ScoreLine({ score, testId, words }: { score: LeagueScore; testId: strin
   if (score.penaltyGoals > 0) parts.push(`${score.penaltyGoals}${words.penaltyGoal.short}`);
   if (score.fieldGoals > 0) parts.push(`${score.fieldGoals}${words.fieldGoal.short}`);
   return (
-    <span className="text-sm font-semibold text-ink-dim" data-testid={testId}>
+    <span className="text-[13px] font-medium text-ink-dim" data-testid={testId}>
       {parts.map((p, i) => (
         <span key={p}>
           {i > 0 && <span className="text-ink-mute">·</span>}
@@ -108,166 +108,99 @@ export function LeagueScoreBug({
 }: LeagueScoreBugProps) {
   const words = rugbyScoreWords(sport);
   const periodNoun = periodLabel.toUpperCase();
-  const periodLabelLine
-    = `${periodNoun} ${currentPeriod || 1}${quarterEnded ? " · over" : ""}`;
+  const periodTag = `${periodNoun.charAt(0)}${currentPeriod || 1}`;
+  const periodLabelLine = `${periodNoun} ${currentPeriod || 1}${quarterEnded ? " · over" : ""}`;
+  const live = running && !quarterEnded;
+  const TOTAL = "text-[44px] font-bold leading-10 tracking-[-0.04em]";
+
+  type Chip = { key: string; text: string; label: string; onTap: () => void };
+  const ours: Chip[] = [
+    ...(onTeamTry ? [{ key: "t", text: "+T", label: "Record a try for our team", onTap: onTeamTry }] : []),
+    ...(kickingAllowed && onTeamConversion
+      ? [{ key: "c", text: "+C", label: "Record a conversion for our team", onTap: onTeamConversion }]
+      : []),
+    ...(onTeamPenaltyGoal
+      ? [{ key: "pg", text: `+${words.penaltyGoal.short}`, label: `Record a ${words.penaltyGoal.label.toLowerCase()} for our team`, onTap: onTeamPenaltyGoal }]
+      : []),
+    ...(onTeamFieldGoal
+      ? [{ key: "fg", text: `+${words.fieldGoal.short}`, label: `Record a ${words.fieldGoal.label.toLowerCase()} for our team`, onTap: onTeamFieldGoal }]
+      : []),
+  ];
+  const theirs: Chip[] = [
+    ...(onOpponentTry ? [{ key: "t", text: "+T", label: "Record opponent try", onTap: onOpponentTry }] : []),
+    ...(kickingAllowed && onOpponentConversion
+      ? [{ key: "c", text: "+C", label: "Record opponent conversion", onTap: onOpponentConversion }]
+      : []),
+    ...(onOpponentPenaltyGoal
+      ? [{ key: "pg", text: `+${words.penaltyGoal.short}`, label: `Record opponent ${words.penaltyGoal.label.toLowerCase()}`, onTap: onOpponentPenaltyGoal }]
+      : []),
+    ...(onOpponentFieldGoal
+      ? [{ key: "fg", text: `+${words.fieldGoal.short}`, label: `Record opponent ${words.fieldGoal.label.toLowerCase()}`, onTap: onOpponentFieldGoal }]
+      : []),
+  ];
+  const chipRow = (chips: Chip[]) => (
+    <div className="flex shrink-0 gap-1.5">
+      {chips.map((c) => (
+        <button key={c.key} type="button" onClick={c.onTap} disabled={pending} className={`${SCORE_CHIP} w-12`} aria-label={c.label}>
+          {c.text}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 px-4 py-3">
-      {/* Left: home team */}
+    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-x-3 px-4 pb-6 pt-3">
+      {/* Left: our team. */}
       <div className="min-w-0">
-        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
-          {teamName}
-        </p>
-        <p className="nums mt-0.5 flex flex-wrap items-baseline gap-x-1.5 font-mono leading-none text-ink">
-          <span className="text-[36px] font-bold tracking-tightest" data-testid="league-points-team">
-            {teamScore.points}
-          </span>
+        <p data-testid="scorebug-team-name" className={SCORE_TEAM_NAME}>{teamName}</p>
+        <p className="nums mt-1 flex flex-wrap items-baseline gap-x-2 font-mono tabular-nums text-ink">
+          <span data-testid="league-points-team"><RollingNumber value={teamScore.points} className={TOTAL} /></span>
           <ScoreLine score={teamScore} testId="league-score-line-team" words={words} />
         </p>
-        {trackScoring && (onTeamTry || onTeamConversion || onTeamPenaltyGoal || onTeamFieldGoal) && (
-          <div className="mt-1 flex flex-wrap gap-2">
-            {onTeamTry && (
-              <button
-                type="button"
-                onClick={onTeamTry}
-                disabled={pending}
-                className={SCORE_CHIP}
-                aria-label="Record a try for our team"
-              >
-                +T
-              </button>
-            )}
-            {kickingAllowed && onTeamConversion && (
-              <button
-                type="button"
-                onClick={onTeamConversion}
-                disabled={pending}
-                className={SCORE_CHIP}
-                aria-label="Record a conversion for our team"
-              >
-                +C
-              </button>
-            )}
-            {onTeamPenaltyGoal && (
-              <button
-                type="button"
-                onClick={onTeamPenaltyGoal}
-                disabled={pending}
-                className={SCORE_CHIP}
-                aria-label={`Record a ${words.penaltyGoal.label.toLowerCase()} for our team`}
-              >
-                +{words.penaltyGoal.short}
-              </button>
-            )}
-            {onTeamFieldGoal && (
-              <button
-                type="button"
-                onClick={onTeamFieldGoal}
-                disabled={pending}
-                className={SCORE_CHIP}
-                aria-label={`Record a ${words.fieldGoal.label.toLowerCase()} for our team`}
-              >
-                +{words.fieldGoal.short}
-              </button>
-            )}
-          </div>
-        )}
       </div>
 
-      {/* Centre: dark clock pill — tappable to pause/resume.
-          Mirrors AFL `GameHeader`'s centre column exactly: pill
-          shows the period label + ⏸/▶ state icon on top, big
-          time readout below. When paused, an "End half early"
-          chip drops in beneath the pill. */}
-      <div className="flex flex-col items-center gap-1 self-center">
+      {/* Centre: the dark clock pill, as every sport's (tap: pause / resume). */}
+      <div className="flex flex-col items-center">
         <button
           type="button"
           onClick={onClockTap}
           disabled={!onClockTap || quarterEnded}
-          className="flex flex-col items-center justify-center rounded-md bg-ink px-3 py-1.5 text-warm shadow-pop transition-colors duration-fast ease-out-quart hover:bg-ink/90 disabled:opacity-80"
+          className="flex min-w-[104px] flex-col items-center justify-center rounded-md bg-ink px-4 pb-2.5 pt-2 text-warm shadow-[0_6px_16px_rgba(26,30,26,0.18)] transition-colors duration-fast ease-out-quart hover:bg-ink/90 disabled:opacity-80"
           aria-label={
             onClockTap
-              ? `Clock — ${periodNoun.charAt(0)}${currentPeriod || 1}, ${running ? "running" : "paused"}`
+              ? `Clock — ${periodTag}, ${running ? "running" : "paused"}`
               : `${periodLabelLine}, ${clockReadout}`
           }
         >
-          <span className="flex items-center gap-1 font-mono text-[10px] font-bold uppercase leading-none tracking-micro text-warm/70">
-            <span>{periodLabelLine}</span>
-            {onClockTap && !quarterEnded && (
-              <span aria-hidden>{running ? "⏸" : "▶"}</span>
-            )}
+          <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
+            {live && <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-mint" />}
+            <span>{quarterEnded ? `${periodTag} · over` : periodTag}</span>
+            {onClockTap && !quarterEnded && !running && <span aria-hidden>▶</span>}
           </span>
-          <span
-            className="nums mt-0.5 font-mono text-[22px] font-bold leading-none tracking-tightest text-warm"
-            aria-live="polite"
-          >
+          <span className="nums mt-1 font-mono text-[28px] font-bold leading-7 tracking-[-0.03em] tabular-nums text-warm" aria-live="polite">
             {clockReadout}
           </span>
         </button>
-        <p className="font-mono text-[9px] font-semibold uppercase tracking-micro text-ink-dim">
-          of {periodCount} {periodLabelPlural}
+      </div>
+
+      {/* Right: the opponent, mirrored. */}
+      <div className="min-w-0 text-right">
+        <p data-testid="scorebug-team-name" className={SCORE_TEAM_NAME}>{opponentName}</p>
+        <p className="nums mt-1 flex flex-wrap items-baseline justify-end gap-x-2 font-mono tabular-nums text-ink">
+          <ScoreLine score={opponentScore} testId="league-score-line-opponent" words={words} />
+          <span data-testid="league-points-opponent"><RollingNumber value={opponentScore.points} className={TOTAL} /></span>
         </p>
       </div>
 
-      {/* Right: opponent (mirror) */}
-      <div className="min-w-0 text-right">
-        <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
-          {opponentName}
-        </p>
-        <p className="nums mt-0.5 flex flex-wrap items-baseline justify-end gap-x-1.5 font-mono leading-none text-ink">
-          <ScoreLine score={opponentScore} testId="league-score-line-opponent" words={words} />
-          <span className="text-[36px] font-bold tracking-tightest" data-testid="league-points-opponent">
-            {opponentScore.points}
-          </span>
-        </p>
-        {trackScoring && (onOpponentTry || onOpponentConversion || onOpponentPenaltyGoal || onOpponentFieldGoal) && (
-          <div className="mt-1 flex flex-wrap justify-end gap-2">
-            {onOpponentTry && (
-              <button
-                type="button"
-                onClick={onOpponentTry}
-                disabled={pending}
-                className={SCORE_CHIP}
-                aria-label="Record opponent try"
-              >
-                +T
-              </button>
-            )}
-            {kickingAllowed && onOpponentConversion && (
-              <button
-                type="button"
-                onClick={onOpponentConversion}
-                disabled={pending}
-                className={SCORE_CHIP}
-                aria-label="Record opponent conversion"
-              >
-                +C
-              </button>
-            )}
-            {onOpponentPenaltyGoal && (
-              <button
-                type="button"
-                onClick={onOpponentPenaltyGoal}
-                disabled={pending}
-                className={SCORE_CHIP}
-                aria-label={`Record opponent ${words.penaltyGoal.label.toLowerCase()}`}
-              >
-                +{words.penaltyGoal.short}
-              </button>
-            )}
-            {onOpponentFieldGoal && (
-              <button
-                type="button"
-                onClick={onOpponentFieldGoal}
-                disabled={pending}
-                className={SCORE_CHIP}
-                aria-label={`Record opponent ${words.fieldGoal.label.toLowerCase()}`}
-              >
-                +{words.fieldGoal.short}
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+      {/* The chips, one row a side under the scores (ours left, theirs
+          right), as basketball's and AFL's. Union's four a side don't fit
+          two teams across a phone, so theirs wraps beneath, still one row. */}
+      {trackScoring && (ours.length > 0 || theirs.length > 0) && (
+        <div className="col-span-3 mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          {chipRow(ours)}
+          <div className="ml-auto">{chipRow(theirs)}</div>
+        </div>
+      )}
     </div>
   );
 }

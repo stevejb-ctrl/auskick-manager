@@ -59,7 +59,9 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
   const field = page.getByRole("region", { name: "On field" });
   await expect(page.getByText("15 / 15").first()).toBeVisible({ timeout: 15_000 });
   await expect(field.locator("[data-testid^='league-player-tile-']")).toHaveCount(15);
-  await expect(field.locator("[data-pitch-line='22m']")).toHaveCount(2);
+  // Union's 15: eight forwards and seven backs, on the shared card tiles.
+  await expect(field.getByRole("group", { name: "Forwards" }).locator("[data-testid^='league-player-tile-']")).toHaveCount(8);
+  await expect(field.getByRole("group", { name: "Backs" }).locator("[data-testid^='league-player-tile-']")).toHaveCount(7);
   await expect(page.getByText(/First Receiver|Dummy Half/)).toHaveCount(0);
 
   // ─── 2. Start H1 ───────────────────────────────────────────────
