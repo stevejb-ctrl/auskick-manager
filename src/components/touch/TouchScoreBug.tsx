@@ -86,10 +86,13 @@ export function TouchScoreBug({
   const tapDown = () => void hapticTap("light");
 
   const TOTAL = "text-[44px] font-bold leading-10 tracking-[-0.04em]";
-  const opponentChips: { girl: boolean; text: string; label: string }[] = girlsTryDouble
+  // "+2 (girl)" stacks its "girl" under the +2, so both chips fit one
+  // row beside the clock: wrapped to two rows, the bug grew under the
+  // long-press hint and it covered the +1.
+  const opponentChips: { girl: boolean; text: string; sub?: string; label: string }[] = girlsTryDouble
     ? [
         { girl: false, text: "+1", label: `Add a try, ${opponentName}` },
-        { girl: true, text: "+2 (girl)", label: `Add a girl's try, 2 points, ${opponentName}` },
+        { girl: true, text: "+2", sub: "girl", label: `Add a girl's try, 2 points, ${opponentName}` },
       ]
     : [{ girl: false, text: "+T", label: `Add a try, ${opponentName}` }];
 
@@ -183,10 +186,11 @@ export function TouchScoreBug({
                 onClick={() => onOpponentScore(c.girl)}
                 onPointerDown={tapDown}
                 disabled={pending}
-                className={`${SCORE_CHIP} px-2`}
+                className={`${SCORE_CHIP} px-2${c.sub ? " flex-col !py-1 leading-none" : ""}`}
                 aria-label={c.label}
               >
                 {c.text}
+                {c.sub && <span className="mt-0.5 text-[9px] font-semibold uppercase tracking-micro text-ink-dim">({c.sub})</span>}
               </button>
             ))}
           </div>
