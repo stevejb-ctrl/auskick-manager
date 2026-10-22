@@ -32,7 +32,6 @@ describe("the walkthrough quotes the sport's own points", () => {
     vests: { fr: false, dh: false },
     kickingAllowed: true,
     trackZoneTime: false,
-    enforceUnbrokenPeriods: false,
   };
   const scoring = (opts: Parameters<typeof buildLeagueWalkthroughSteps>[0]) =>
     buildLeagueWalkthroughSteps(opts).find((s) => s.title.startsWith("Recording"))!;

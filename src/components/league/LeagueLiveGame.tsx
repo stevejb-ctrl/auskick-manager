@@ -80,6 +80,7 @@ import {
   playerZoneMsOnField,
   rugbyScoreWords,
   suggestLeagueSubs,
+  unbrokenPeriodsRequired,
   type LeagueSubLaws,
 } from "@/lib/sports/rugby_league/fairness";
 import { getSportConfig, type RugbySport } from "@/lib/sports/registry";
@@ -693,11 +694,12 @@ export function LeagueLiveGame({
     () => ({
       periodCount: ageGroup.periodCount,
       periodMs: periodSeconds * 1000,
-      requiredUnbroken: enforceUnbrokenPeriods && ageGroup.unbrokenPeriods ? (ageGroup.minUnbrokenPeriods ?? 0) : 0,
+      // §6 always, where the grade plays it (a locked Must on How we play).
+      requiredUnbroken: unbrokenPeriodsRequired(ageGroup),
       minGameTimePct: leaguePlaybook?.minGameTimePct ?? 50,
       crossLineGapMs: subIntervalMs ?? undefined,
     }),
-    [ageGroup, periodSeconds, enforceUnbrokenPeriods, leaguePlaybook, subIntervalMs],
+    [ageGroup, periodSeconds, leaguePlaybook, subIntervalMs],
   );
   const nextSubSuggestions = useMemo(() => {
     if (state.currentQuarter < 1 || state.quarterEnded || state.finalised) {
@@ -906,7 +908,6 @@ export function LeagueLiveGame({
         kickRotations: ageGroup.kickRotations === true,
         unbrokenPeriods: ageGroup.unbrokenPeriods === true,
         trackZoneTime,
-        enforceUnbrokenPeriods,
       }),
     [
       sport,
@@ -918,7 +919,6 @@ export function LeagueLiveGame({
       ageGroup.kickRotations,
       ageGroup.unbrokenPeriods,
       trackZoneTime,
-      enforceUnbrokenPeriods,
     ],
   );
 

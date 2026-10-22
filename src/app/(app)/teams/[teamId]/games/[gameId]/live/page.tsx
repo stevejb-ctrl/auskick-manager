@@ -975,7 +975,6 @@ export default async function LivePage({ params }: LivePageProps) {
                   kickRotations={ageCfgL.kickRotations === true}
                   unbrokenPeriods={ageCfgL.unbrokenPeriods === true}
                   trackZoneTime={leagueTrackZoneTime}
-                  enforceUnbrokenPeriods={leagueEnforceUnbroken}
                 />
               }
               chipLabels={{

@@ -906,6 +906,54 @@ export function unbrokenPeriodLiveStatus(
   return result;
 }
 
+/**
+ * The unbroken periods each kid needs this game: the age group's §6
+ * count wherever the laws have it (Mini Footy and Mod League), none
+ * past it or in a sport without the law. Always enforced — How we play
+ * shows it as a locked Must (UX audit, 23 Oct 2026: it used to sit
+ * behind a switch that was off by default).
+ */
+export function unbrokenPeriodsRequired(
+  ageGroup: { unbrokenPeriods?: boolean; minUnbrokenPeriods?: number },
+): number {
+  return ageGroup.unbrokenPeriods === true ? (ageGroup.minUnbrokenPeriods ?? 0) : 0;
+}
+
+export interface UnbrokenPeriodNeeds {
+  /** On track this period and short without it: on to the hooter. */
+  mustStay: string[];
+  /** Not on track now and needing every period left: start the next one. */
+  mustStartNext: string[];
+  /** Can't get their unbroken periods any more this game. */
+  missed: string[];
+}
+
+/**
+ * Mid-period, who §6 still binds: kids who must stay on to the hooter,
+ * kids who must start (and play out) every period left, and kids who
+ * can no longer make it. The live warning and the sub suggester
+ * (mustStayOn) read the same walk.
+ */
+export function unbrokenPeriodNeeds(
+  events: GameEvent[],
+  opts: { required: number; currentQuarter: number; periodCount: number; elapsedMs: number },
+): UnbrokenPeriodNeeds {
+  const out: UnbrokenPeriodNeeds = { mustStay: [], mustStartNext: [], missed: [] };
+  if (opts.required <= 0) return out;
+  const remainingAfter = Math.max(0, opts.periodCount - opts.currentQuarter);
+  const status = unbrokenPeriodLiveStatus(events, opts.required, opts.elapsedMs);
+  for (const [pid, s] of Object.entries(status)) {
+    const need = opts.required - s.unbrokenPeriods.length;
+    if (need <= 0) continue;
+    // This period counts if they play it out.
+    const left = s.inProgressPeriods.includes(opts.currentQuarter) ? remainingAfter + 1 : remainingAfter;
+    if (need > left) out.missed.push(pid);
+    else if (left > remainingAfter && need > remainingAfter) out.mustStay.push(pid);
+    else if (need === remainingAfter && left === remainingAfter) out.mustStartNext.push(pid);
+  }
+  return out;
+}
+
 // ─── Auto-suggest lineup ─────────────────────────────────────
 // Coach taps "Auto suggest" on the pre-game picker. The
 // suggester takes the available squad, the target on-field size,
@@ -2397,15 +2445,15 @@ export function mustStayOn(
 ): Set<string> {
   const out = new Set<string>();
   const remainingAfter = Math.max(0, laws.periodCount - currentQuarter);
-  if (laws.requiredUnbroken > 0) {
-    const status = unbrokenPeriodLiveStatus(events, laws.requiredUnbroken, elapsedMs);
-    for (const pid of onFieldIds) {
-      const s = status[pid];
-      if (!s || !s.inProgressPeriods.includes(currentQuarter)) continue;
-      const done = s.unbrokenPeriods.length;
-      if (done < laws.requiredUnbroken && done + remainingAfter < laws.requiredUnbroken) out.add(pid);
-    }
-  }
+  const onField = new Set(onFieldIds);
+  unbrokenPeriodNeeds(events, {
+    required: laws.requiredUnbroken,
+    currentQuarter,
+    periodCount: laws.periodCount,
+    elapsedMs,
+  }).mustStay.forEach((pid) => {
+    if (onField.has(pid)) out.add(pid);
+  });
   const pct = laws.minGameTimePct ?? 0;
   if (pct > 0) {
     const target = (pct / 100) * laws.periodCount * laws.periodMs;

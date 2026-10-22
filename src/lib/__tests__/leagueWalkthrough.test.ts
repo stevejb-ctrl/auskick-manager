@@ -16,7 +16,6 @@ function vestStep(ageGroup: string) {
     vests: { fr: ag.vestRequirements?.fr ?? false, dh: ag.vestRequirements?.dh ?? false },
     kickingAllowed: ag.kickingAllowed === true,
     trackZoneTime: false,
-    enforceUnbrokenPeriods: false,
   });
   return steps.find((s) => s.emoji === "🦺");
 }
