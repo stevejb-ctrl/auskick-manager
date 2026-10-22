@@ -154,44 +154,79 @@ export function canSwap(a: BoardSlot, b: BoardSlot, sidelined: ReadonlySet<strin
   return true;
 }
 
-export interface FixSearch {
-  slots: readonly BoardSlot[];
+/** A rule check item, as far as the Fix search needs it. */
+export interface FixCheckItem {
+  id: string;
+  status: "ok" | "warn" | "fail";
+  playerIds?: string[];
+}
+
+export interface FixSearch<L> {
+  /** The staged lineup, in the sport's own shape. */
+  lineup: L;
+  board: (lineup: L) => readonly BoardSlot[];
+  swap: (lineup: L, a: BoardSlot, b: BoardSlot) => L;
+  check: (lineup: L) => readonly FixCheckItem[];
   sidelined: ReadonlySet<string>;
   /** The broken rule to clear. */
   itemId: string;
-  /** Kids the rule names: swaps involving them are tried first. */
-  offenders?: readonly string[];
-  /** Rules broken now. */
-  failing: ReadonlySet<string>;
-  /** Rules broken after swapping a and b. */
-  failingAfter: (a: BoardSlot, b: BoardSlot) => ReadonlySet<string>;
-  /** Most swaps to try (each one re-runs the rule check). */
+  /** Most swaps in a row (default 3). */
+  maxSwaps?: number;
+  /** Most rule checks to run (default 600). */
   budget?: number;
 }
 
 /**
- * The single swap that clears a broken rule without breaking another, or
- * null. Not a solver: one swap, a bounded number of tries, offenders
- * first. When it finds nothing the screen hides Fix and keeps the rule.
+ * The swaps that clear a broken rule without breaking another, or null.
+ * Not a solver: single swaps, one after another (at most three), each
+ * one cutting the kids the rule names (a rule that names nobody must
+ * clear in one), never breaking a rule that wasn't broken, with a fixed
+ * budget of tries, the named kids' swaps first. When it finds nothing
+ * the screen hides Fix and keeps the rule.
  */
-export function findFixSwap(search: FixSearch): [BoardSlot, BoardSlot] | null {
-  const { slots, sidelined, itemId, failing, failingAfter } = search;
-  const budget = search.budget ?? 400;
-  const offenders = new Set(search.offenders ?? []);
-  const named = (s: BoardSlot) => !!s.playerId && offenders.has(s.playerId);
-  const pairs: [BoardSlot, BoardSlot][] = [];
-  for (let i = 0; i < slots.length; i++) {
-    for (let j = i + 1; j < slots.length; j++) {
-      if (canSwap(slots[i], slots[j], sidelined)) pairs.push([slots[i], slots[j]]);
-    }
-  }
-  pairs.sort((p, q) => Number(named(q[0]) || named(q[1])) - Number(named(p[0]) || named(p[1])));
+export function findFix<L>(search: FixSearch<L>): [BoardSlot, BoardSlot][] | null {
+  const { board, swap, check, sidelined, itemId } = search;
+  const maxSwaps = search.maxSwaps ?? 3;
+  const budget = search.budget ?? 600;
+  const failing = (items: readonly FixCheckItem[]) =>
+    new Set(items.filter((i) => i.status === "fail").map((i) => i.id));
+  const target = (items: readonly FixCheckItem[]) => items.find((i) => i.id === itemId && i.status === "fail");
+
+  let lineup = search.lineup;
+  let items = check(lineup);
+  const brokenAtStart = failing(items);
+  const steps: [BoardSlot, BoardSlot][] = [];
   let tries = 0;
-  for (const [a, b] of pairs) {
-    if (tries++ >= budget) break;
-    const after = failingAfter(a, b);
-    if (after.has(itemId)) continue;
-    if (Array.from(after).every((id) => failing.has(id))) return [a, b];
+  for (let step = 0; step < maxSwaps; step++) {
+    const now = target(items);
+    if (!now) return steps;
+    const named = new Set(now.playerIds ?? []);
+    const count = named.size || 1;
+    const slots = board(lineup);
+    const pairs: [BoardSlot, BoardSlot][] = [];
+    for (let i = 0; i < slots.length; i++) {
+      for (let j = i + 1; j < slots.length; j++) {
+        if (canSwap(slots[i], slots[j], sidelined)) pairs.push([slots[i], slots[j]]);
+      }
+    }
+    const names = (s: BoardSlot) => !!s.playerId && named.has(s.playerId);
+    pairs.sort((p, q) => Number(names(q[0]) || names(q[1])) - Number(names(p[0]) || names(p[1])));
+    let moved = false;
+    for (const [a, b] of pairs) {
+      if (tries++ >= budget) return null;
+      const next = swap(lineup, a, b);
+      const after = check(next);
+      if (!Array.from(failing(after)).every((id) => brokenAtStart.has(id))) continue;
+      const still = target(after);
+      const left = still ? (still.playerIds?.length ?? count) : 0;
+      if (left >= count) continue;
+      steps.push([a, b]);
+      lineup = next;
+      items = after;
+      moved = true;
+      break;
+    }
+    if (!moved) return null;
   }
-  return null;
+  return target(items) ? null : steps;
 }

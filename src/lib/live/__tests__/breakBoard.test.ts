@@ -7,7 +7,7 @@ import {
   BENCH,
   buildBoard,
   canSwap,
-  findFixSwap,
+  findFix,
   isLowTime,
   movementText,
   placeIndex,
@@ -118,50 +118,61 @@ describe("movement", () => {
 });
 
 describe("Fix", () => {
-  // A rule: "x" must not be on the bench (stands in for "sat out twice").
-  const check = (s: StagedLineup): RuleCheckItem[] => [
-    { id: "bench-twice", status: s.bench.includes("x") ? "fail" : "ok", text: "x sits out again", playerIds: ["x"] },
-    { id: "keep-a", status: s.bench.includes("a") ? "fail" : "ok", text: "a must play" },
-  ];
+  // Rules: the kids in `benchedBefore` mustn't sit out again (stands in
+  // for "sat out twice in a row"), and "a" must play.
+  const rules =
+    (benchedBefore: string[]) =>
+    (s: StagedLineup): RuleCheckItem[] => {
+      const again = s.bench.filter((id) => benchedBefore.includes(id));
+      return [
+        { id: "bench-twice", status: again.length ? "fail" : "ok", text: "sits out again", playerIds: again },
+        { id: "keep-a", status: s.bench.includes("a") ? "fail" : "ok", text: "a must play" },
+      ];
+    };
   const sidelined = new Set(["hurt"]);
-  const slots = buildBoard(AFL, staged, sidelined);
+  const search = (check: (s: StagedLineup) => RuleCheckItem[]) => ({
+    lineup: staged,
+    board: (s: StagedLineup) => buildBoard(AFL, s, sidelined),
+    swap: swapInStaged,
+    check,
+    sidelined,
+    itemId: "bench-twice",
+  });
+  const applyAll = (swaps: [BoardSlot, BoardSlot][]) => swaps.reduce((s, [a, b]) => swapInStaged(s, a, b), staged);
 
-  it("finds a single swap that clears the rule without breaking another", () => {
-    const fix = findFixSwap({
-      slots,
-      sidelined,
-      itemId: "bench-twice",
-      offenders: ["x"],
-      failing: new Set(["bench-twice"]),
-      failingAfter: (a, b) => new Set(check(swapInStaged(staged, a, b)).filter((i) => i.status === "fail").map((i) => i.id)),
-    });
-    expect(fix).not.toBeNull();
-    const after = swapInStaged(staged, fix![0], fix![1]);
+  it("finds the swap that clears the rule without breaking another", () => {
+    const fix = findFix(search(rules(["x"])));
+    expect(fix).toHaveLength(1);
+    const after = applyAll(fix!);
     expect(after.bench).not.toContain("x");
     expect(after.bench).not.toContain("a");
   });
 
-  it("gives up (no Fix) when no single swap works", () => {
-    const fix = findFixSwap({
-      slots,
-      sidelined,
-      itemId: "bench-twice",
-      failing: new Set(["bench-twice"]),
-      failingAfter: () => new Set(["bench-twice"]),
-    });
-    expect(fix).toBeNull();
+  it("chains single swaps when the rule names more than one kid", () => {
+    const fix = findFix(search(rules(["x", "y"])));
+    expect(fix).toHaveLength(2);
+    const after = applyAll(fix!);
+    expect(after.bench).not.toContain("x");
+    expect(after.bench).not.toContain("y");
+  });
+
+  it("gives up (no Fix) when no swap gets anywhere", () => {
+    const stuck = (): RuleCheckItem[] => [{ id: "bench-twice", status: "fail", text: "stuck" }];
+    expect(findFix(search(stuck))).toBeNull();
   });
 
   it("breakIssues: broken rules carry their fix; warnings fold together", () => {
+    const check = (s: StagedLineup) => [...rules(["x"])(s), { id: "w", status: "warn" as const, text: "Pete hasn't played Centre" }];
     const issues = breakIssues({
-      items: [...check(staged), { id: "w", status: "warn", text: "Pete hasn't played Centre" }],
-      slots,
+      lineup: staged,
+      check,
+      board: (s) => buildBoard(AFL, s, sidelined),
+      swap: swapInStaged,
       sidelined,
-      checkAfter: (a, b) => check(swapInStaged(staged, a, b)),
       extraWarnings: ["1 spot is empty"],
     });
     expect(issues.broken.map((i) => i.id)).toEqual(["bench-twice"]);
-    expect(issues.broken[0].fix).toBeDefined();
+    expect(issues.broken[0].fix).toHaveLength(1);
     expect(issues.warnings).toEqual(["1 spot is empty", "Pete hasn't played Centre"]);
   });
 });

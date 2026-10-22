@@ -207,9 +207,11 @@ export function PeriodBreak(props: PeriodBreakProps) {
   }
 
   function fix(issueId: string) {
-    const pair = issues.broken.find((i) => i.id === issueId)?.fix;
-    if (!pair) return;
-    props.onSwap(pair[0], pair[1]);
+    const swaps = issues.broken.find((i) => i.id === issueId)?.fix;
+    if (!swaps) return;
+    // Each swap is against the lineup the one before it left; adapters
+    // apply swaps to the latest draft, so they compose in order.
+    for (const [a, b] of swaps) props.onSwap(a, b);
     setSelected(null);
   }
 
