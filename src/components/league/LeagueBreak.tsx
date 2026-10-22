@@ -7,8 +7,11 @@
 // an event as it was made; it now stages the next period's lineup in the
 // shared break draft (as every sport does) and Start commits it as one
 // lineup_set. A pinned plan (F2) opens the break, as before. League's
-// vest card stays under the bench (union has no vests); vest picks still
-// save as they're made. The layout lives in PeriodBreak.
+// vests are a status chip under the score ("FR Kira · DH Maya") opening
+// the vest picker in a sheet, as game settings does (UI polish round 2
+// R1: the picker sat under the bench, twice the height of the lineup);
+// union has no vests. Vest picks still save as they're made. The layout
+// lives in PeriodBreak.
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -371,6 +374,24 @@ export function LeagueBreak({
     if (v.dh) out[v.dh] = [...(out[v.dh] ?? []), "DH"];
     return out;
   }, [vestRequired, events, nextPeriod]);
+  // The chip's line: who wears each vest next period, first names; a vest
+  // with no wearer, or a planned wearer who isn't on the field, needs a pick.
+  function vestSummary(): { summary: string; attention: boolean } {
+    const v = currentVests(events, nextPeriod);
+    const reqs = ageGroup.vestRequirements;
+    const parts: string[] = [];
+    let attention = false;
+    for (const [key, label, need] of [["fr", "FR", reqs?.fr], ["dh", "DH", reqs?.dh]] as const) {
+      if (!need) continue;
+      const id = v[key];
+      const name = id ? playerById.get(id)?.full_name.split(" ")[0] : null;
+      if (!id || !name || !onFieldNow.includes(id)) {
+        attention = true;
+        parts.push(`${label} to pick`);
+      } else parts.push(`${label} ${name}`);
+    }
+    return { summary: parts.join(" · "), attention };
+  }
   const placed = new Set(inGame);
   const canPlay = squad.filter((p) => !sidelinedSet.has(p.id));
   const onFieldNow = [...draft.forwards, ...draft.backs].filter((id) => !sidelinedSet.has(id));
@@ -446,19 +467,26 @@ export function LeagueBreak({
           </p>
         ) : undefined
       }
-      extras={
-        vestRequired ? (
-          <VestAssignmentCard
-            auth={auth}
-            sport={sport}
-            gameId={game.id}
-            squad={squad}
-            onFieldPlayerIds={onFieldNow}
-            events={events}
-            ageGroup={ageGroup}
-            period={nextPeriod}
-          />
-        ) : undefined
+      statusChip={
+        vestRequired
+          ? {
+              title: "Vests",
+              ...vestSummary(),
+              sheet: (
+                <VestAssignmentCard
+                  auth={auth}
+                  sport={sport}
+                  gameId={game.id}
+                  squad={squad}
+                  onFieldPlayerIds={onFieldNow}
+                  events={events}
+                  ageGroup={ageGroup}
+                  period={nextPeriod}
+                  bare
+                />
+              ),
+            }
+          : undefined
       }
       start={{ onStart: () => void start(), pending, cue: "siren goes", error }}
     />

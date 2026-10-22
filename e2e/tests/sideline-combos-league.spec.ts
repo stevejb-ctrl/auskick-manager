@@ -547,8 +547,11 @@ test("rugby league: at the break, next half's vest wearer on the bench is flagge
   // after their sub; the vest card flags them as off the field.
   await expect(page.getByRole("heading", { name: /^2nd half lineup$/i })).toBeVisible({ timeout: 15_000 });
   await pickBreakStrategy(page, "Repeat");
+  // The Vests chip flags the DH to pick; its sheet says why.
+  await page.getByRole("button", { name: /^Vests: .*DH to pick/ }).click({ timeout: 15_000 });
   await expect(page.getByText(new RegExp(`${plannedDh.full_name} isn.t on the field`))).toBeVisible({ timeout: 15_000 });
   await page
+    .getByRole("dialog", { name: "Vests" })
     .getByRole("region", { name: "Vest assignment" })
     .getByRole("button", { name: new RegExp(pick.full_name) })
     .click();

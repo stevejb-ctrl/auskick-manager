@@ -181,7 +181,7 @@ test.describe("rugby", () => {
     return { admin, ownerId, team, game, players, k, size, fwd, lineup };
   }
 
-  test("league: Forwards / Backs / Bench, the vest card under the bench, a swap staged until Start", async ({ page }) => {
+  test("league: Forwards / Backs / Bench, the vests a chip under the score, a swap staged until Start", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await quiet(page);
     const { admin, ownerId, team, game, k, size, fwd, lineup } = await seedRugby("rugby_league", "U8");
@@ -191,7 +191,16 @@ test.describe("rugby", () => {
     await expect(page.getByText("Q1 break · vs Sharks")).toBeVisible();
     const names = await page.getByRole("group").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
     expect(names.filter((n) => ["Forwards", "Backs", "Bench"].includes(n ?? ""))).toEqual(["Forwards", "Backs", "Bench"]);
-    await expect(page.getByRole("region", { name: "Vest assignment" })).toBeVisible();
+    // UI polish round 2 R1: the vests are a chip opening a sheet, not a
+    // card under the bench twice the height of the lineup.
+    await expect(page.getByRole("region", { name: "Vest assignment" })).toHaveCount(0);
+    const vests = page.getByRole("button", { name: /^Vests: FR / });
+    await expect(vests).toBeVisible();
+    await vests.click();
+    const sheet = page.getByRole("dialog", { name: "Vests" });
+    await expect(sheet.getByRole("region", { name: "Vest assignment" })).toBeVisible();
+    await sheet.getByRole("button", { name: "Done" }).click();
+    await expect(sheet).toHaveCount(0);
     // No auto-opened start modal on arrival any more.
     await expect(page.getByRole("button", { name: /^start q2 now$/i })).toHaveCount(0);
 

@@ -60,6 +60,8 @@ interface VestAssignmentCardProps {
    * other wearer being off too (Stagehand round 4).
    */
   vest?: VestType;
+  /** Inside the break's Vests sheet: no card of its own (the sheet has the title). */
+  bare?: boolean;
 }
 
 export function VestAssignmentCard({
@@ -73,6 +75,7 @@ export function VestAssignmentCard({
   period,
   onDone,
   vest: onlyVest,
+  bare = false,
 }: VestAssignmentCardProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -175,6 +178,7 @@ export function VestAssignmentCard({
       subtitle={`Rotate each ${periodWord} — no player wears the same vest twice in a game.`}
       error={error}
       rows={rows}
+      bare={bare}
     />
   );
 }
