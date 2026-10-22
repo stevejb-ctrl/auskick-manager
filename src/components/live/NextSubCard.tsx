@@ -16,6 +16,7 @@
 
 import { useEffect, useState } from "react";
 import type { Player } from "@/lib/types";
+import { SUB_DUE_RING, SUB_IDLE_SHADOW, SubDueHeading, SubDueRoot } from "@/components/live/SubDue";
 
 export interface NextSubPair {
   offId: string;
@@ -41,6 +42,8 @@ interface NextSubCardProps {
   playerById: Map<string, Player>;
   /** Prefix for each pair row's test id: `${prefix}-${i}`. */
   pairTestIdPrefix: string;
+  /** What to do when it's due, in the sport's words (default "Rotate a player off"). */
+  dueHint?: string;
 }
 
 function formatCountdown(ms: number): string {
@@ -124,6 +127,7 @@ export function NextSubCard({
   pending,
   playerById,
   pairTestIdPrefix,
+  dueHint,
 }: NextSubCardProps) {
   const [open, setOpen] = useState(due);
   // When the sub-due window opens, auto-expand so the coach can see
@@ -147,10 +151,13 @@ export function NextSubCard({
     && msUntilDue !== undefined
     && subIntervalMs !== null
     && subIntervalMs > 0;
+  // Due, the card IS the alert, as AFL's SwapCard (SubDue.tsx): the
+  // sports showing it keep the top-bar banner for a sub with no pairs.
   return (
-    <div
-      className={`overflow-hidden rounded-md bg-ink text-warm shadow-card transition-shadow duration-fast ease-out-quart ${
-        due ? "ring-2 ring-warn" : ""
+    <SubDueRoot
+      due={due}
+      className={`overflow-hidden rounded-md bg-ink text-warm transition-shadow duration-fast ease-out-quart ${
+        due ? SUB_DUE_RING : SUB_IDLE_SHADOW
       }`}
     >
       <button
@@ -181,17 +188,16 @@ export function NextSubCard({
             </svg>
           </span>
         )}
-        <div className="min-w-0 flex-1">
-          <p className="font-mono text-[10px] font-bold uppercase tracking-micro text-warm/60">
-            {due ? "Sub due" : "Suggested"} — {valid.length}{" "}
-            {valid.length === 1 ? "swap" : "swaps"}
-          </p>
-          <p className="truncate text-xs font-medium text-warm/90">
-            {valid
-              .map(({ off, on }) => `${first(off.full_name)}→${first(on.full_name)}`)
-              .join(" · ")}
-          </p>
-        </div>
+        <SubDueHeading
+          due={due}
+          count={valid.length}
+          hint={dueHint}
+          summary={
+            <span className="truncate">
+              {valid.map(({ off, on }) => `${first(off.full_name)}→${first(on.full_name)}`).join(" · ")}
+            </span>
+          }
+        />
         <svg
           width="16"
           height="16"
@@ -300,6 +306,6 @@ export function NextSubCard({
           </div>
         </>
       )}
-    </div>
+    </SubDueRoot>
   );
 }

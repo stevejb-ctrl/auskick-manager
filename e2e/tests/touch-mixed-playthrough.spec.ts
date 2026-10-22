@@ -148,9 +148,10 @@ test("touch U11 mixed: the Girl/Boy prompt, the cap kept through subs, a girl hu
   // Nobody was short, so the field kept its size.
   expect(await count("roster_shrink")).toBe(0);
 
-  // ─── 3. Sub due: the banner's copy, and the cap kept ──────────
+  // ─── 3. Sub due: the card says touch's own words, and the cap kept ─
+  // The sub card is the alert (one voice, in every sport).
   await expect(page.getByRole("alert").filter({ hasText: /sub due/i })).toContainText(
-    "make the change next time you have the ball",
+    /make the change next time you have the ball/i,
     { timeout: 30_000 },
   );
   // Every swap in the batch lands before anything is read back.

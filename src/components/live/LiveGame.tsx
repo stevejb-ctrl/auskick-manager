@@ -29,6 +29,7 @@ import { QuarterBreak } from "@/components/live/QuarterBreak";
 import { buildWalkthroughSteps } from "@/components/live/WalkthroughModal";
 import { ClockMenu } from "@/components/live/ClockMenu";
 import { SubDueBanner } from "@/components/live/SubDueBanner";
+import { subDueBannerShows } from "@/components/live/SubDue";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
 import { GameSummaryCard } from "@/components/live/GameSummaryCard";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
@@ -1535,7 +1536,7 @@ export function LiveGame({
           isLive={!isPreGame}
           onHelp={handleOpenWalkthrough}
           banner={
-            subDueOpen && suggestions.length === 0 ? (
+            subDueBannerShows(subDueOpen, suggestions.length) ? (
               <SubDueBanner onAcknowledge={handleSubDueAcknowledge} />
             ) : null
           }

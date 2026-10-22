@@ -34,6 +34,7 @@ const GamePlanModal = dynamic(
   { ssr: false },
 );
 import { SubDueBanner } from "@/components/live/SubDueBanner";
+import { subDueBannerShows } from "@/components/live/SubDue";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
 import { hapticTap } from "@/lib/haptics";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
@@ -1667,11 +1668,12 @@ export function LeagueLiveGame({
         game={game}
         isLive={state.currentQuarter > 0}
         onHelp={handleOpenWalkthrough}
-        // Sub due is a banner under the bar, not a modal, as in AFL
-        // (Steve 16 Oct 2026): the field and the score chips stay
-        // tappable.
+        // Sub due is never a modal (Steve 16 Oct 2026): the field and the
+        // score chips stay tappable. The sub card is the alert while it
+        // has pairs (SubDue.tsx); the banner speaks only for a due sub
+        // with nothing to suggest.
         banner={
-          subDueShowing ? (
+          subDueShowing && subDueBannerShows(true, isPeriodActive ? nextSubSuggestions.length : 0) ? (
             <SubDueBanner onAcknowledge={() => setSubAckedAtBaseMs(lastSwapOrPeriodElapsed)} />
           ) : null
         }
