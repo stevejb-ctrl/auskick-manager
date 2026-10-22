@@ -9,7 +9,7 @@ import { PLAYHQ_TENANT } from "@/lib/playhq";
 import type { SportId } from "@/lib/sports/types";
 
 /** Sports whose How we play isn't built yet (.planning/FOUR-SPORTS-PLAN.md). */
-const NOT_BUILT: SportId[] = ["hockey", "touch", "oztag"];
+const NOT_BUILT: SportId[] = ["touch", "oztag"];
 
 describe("every sport", () => {
   for (const sport of ALL_SPORTS) {

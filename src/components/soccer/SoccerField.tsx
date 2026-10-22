@@ -177,6 +177,7 @@ export function SoccerField({
       <div className="relative overflow-hidden rounded-[18px]">
         {surface === "pitch" && <PitchMarkings />}
         {surface === "court" && <FutsalCourtMarkings />}
+        {surface === "hockey" && <HockeyPitchMarkings />}
         <div className="relative space-y-2 px-5 pb-6 pt-8">
           {hasKeeper ? (
             <>
@@ -224,6 +225,35 @@ function FutsalCourtMarkings() {
       <div className="absolute bottom-[26%] left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-court-line" />
       <div className={`absolute left-1/2 top-0.5 h-1.5 w-[16%] -translate-x-1/2 border-x-2 border-t-2 ${line}`} />
       <div className={`absolute bottom-0.5 left-1/2 h-1.5 w-[16%] -translate-x-1/2 border-x-2 border-b-2 ${line}`} />
+    </div>
+  );
+}
+
+/**
+ * A hockey pitch, in the pitch's paint: the sidelines, the centre line
+ * and the 23 m lines, and at each end the shooting circle (quarter
+ * circles from the posts, joined by a short straight), its dashed outer
+ * circle, the penalty spot and the goal. Half-field games use the same
+ * drawing. Attack at the top. Decoration only.
+ */
+function HockeyPitchMarkings() {
+  const line = "border-white/[0.22]";
+  return (
+    <div aria-hidden data-testid="hockey-pitch-markings" className="pointer-events-none absolute inset-0">
+      <div className={`absolute inset-x-2.5 inset-y-2.5 rounded-[10px] border-[1.5px] ${line}`} />
+      <div className="absolute inset-x-2.5 top-1/2 h-0 border-t-[1.5px] border-white/[0.18]" />
+      {/* The 23 m lines, a quarter of the way in from each end. */}
+      <div className="absolute inset-x-2.5 top-[25%] h-0 border-t-[1.5px] border-white/[0.16]" />
+      <div className="absolute inset-x-2.5 bottom-[25%] h-0 border-t-[1.5px] border-white/[0.16]" />
+      {/* The shooting circles, their dashed 5 m circles, the spots and goals. */}
+      <div className={`absolute left-1/2 top-2.5 h-[16%] w-[60%] -translate-x-1/2 rounded-b-full border-[1.5px] border-t-0 ${line}`} />
+      <div className="absolute left-1/2 top-2.5 h-[21%] w-[72%] -translate-x-1/2 rounded-b-full border-[1.5px] border-dashed border-t-0 border-white/[0.14]" />
+      <div className={`absolute bottom-2.5 left-1/2 h-[16%] w-[60%] -translate-x-1/2 rounded-t-full border-[1.5px] border-b-0 ${line}`} />
+      <div className="absolute bottom-2.5 left-1/2 h-[21%] w-[72%] -translate-x-1/2 rounded-t-full border-[1.5px] border-dashed border-b-0 border-white/[0.14]" />
+      <div className="absolute left-1/2 top-[9%] h-1 w-1 -translate-x-1/2 rounded-full bg-white/[0.3]" />
+      <div className="absolute bottom-[9%] left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-white/[0.3]" />
+      <div className={`absolute left-1/2 top-1 h-1.5 w-[10%] -translate-x-1/2 border-x-[1.5px] border-t-[1.5px] ${line}`} />
+      <div className={`absolute bottom-1 left-1/2 h-1.5 w-[10%] -translate-x-1/2 border-x-[1.5px] border-b-[1.5px] ${line}`} />
     </div>
   );
 }
