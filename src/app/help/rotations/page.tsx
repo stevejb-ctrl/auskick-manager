@@ -205,9 +205,9 @@ export default function RotationsPage() {
           </li>
         </ul>
         <p className="mt-2 text-sm text-ink-dim">
-          On the Squad tab, set a kid&apos;s home to Keeper to mark a keen
-          keeper (or one of your named keepers), or mark Keeper as somewhere
-          they&apos;d rather not play.
+          On the Squad tab, tap a kid&apos;s Role and turn on Keen keeper to
+          mark a keen keeper (or one of your named keepers), or turn off
+          Takes a turn in goal for a kid who&apos;d rather not.
         </p>
       </section>
 
