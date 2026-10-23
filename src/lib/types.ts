@@ -498,6 +498,13 @@ export interface GameEvent {
   metadata: Record<string, unknown>;
   created_by: string | null;
   created_at: string;
+  /**
+   * The write queue's op id (game_events.idempotency_key, migration
+   * 0033). The live pages select every column, so it's here at runtime;
+   * an optimistic event on screen carries its op's id and gives way when
+   * the server's copy arrives (src/lib/live/optimisticEvents.ts).
+   */
+  idempotency_key?: string | null;
 }
 
 // ─── Supabase database shape (minimal — expand as schema grows) ───

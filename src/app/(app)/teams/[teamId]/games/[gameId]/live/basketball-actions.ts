@@ -43,6 +43,7 @@ import {
 } from "@/lib/sports/basketball/lineup";
 import { BASKETBALL_LINES, type BasketballAgeGroupConfig, type BasketballLine } from "@/lib/sports/basketball/types";
 import type { BasketballFoulKind } from "@/lib/sports/basketball/replay";
+import { BASKETBALL_SCORE_EVENT_TYPES, basketballScoreEventType } from "@/lib/sports/basketball/scoreEvents";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
 import type { PlaybookSnapshot } from "@/lib/playbook/types";
@@ -412,10 +413,9 @@ export async function recordBasketballMove(
 
 // ─── Baskets ─────────────────────────────────────────────────
 // 1, 2 or 3 points, for either side. player_id is our scorer, or null
-// when the coach didn't say who.
-const OWN_TYPE = { 1: "free_throw", 2: "two_pointer", 3: "three_pointer" } as const;
-const OPPONENT_TYPE = { 1: "opponent_free_throw", 2: "opponent_two_pointer", 3: "opponent_three_pointer" } as const;
-const SCORE_TYPES = [...Object.values(OWN_TYPE), ...Object.values(OPPONENT_TYPE)];
+// when the coach didn't say who. The event types are scoreEvents.ts's,
+// which the live screen's optimistic baskets use too.
+const SCORE_TYPES = Array.from(BASKETBALL_SCORE_EVENT_TYPES);
 
 export async function recordBasketballScore(
   auth: LiveAuth,
@@ -424,7 +424,7 @@ export async function recordBasketballScore(
   idempotencyKey?: string,
 ): Promise<ActionResult> {
   if (![1, 2, 3].includes(input.points)) return { success: false, error: "A basket is 1, 2 or 3 points." };
-  const type = input.side === "ours" ? OWN_TYPE[input.points] : OPPONENT_TYPE[input.points];
+  const type = basketballScoreEventType(input.side, input.points);
   const result = await insertEvent(
     auth,
     gameId,
