@@ -16,7 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
-import { startFromBreak } from "../helpers/break";
+import { pickBreakStrategy, startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "serial" });
 
@@ -161,6 +161,13 @@ test("hockey U9: 7 a side in halves, keepers change only at the break, with a ki
   await expect(page.getByRole("heading", { name: /^2nd half lineup$/i })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("group", { name: "Keeper" })).toContainText(announced, { timeout: 15_000 });
   await expect(page.getByTestId(`player-tile-${h1Keeper}`)).toContainText(/from keeper/i);
+  // Every plan keeps them there (audit, 23 Oct 2026: Repeat put last
+  // half's keeper back in goal). Manual starts empty.
+  for (const plan of ["Repeat", "Rotate", "Suggested"] as const) {
+    await pickBreakStrategy(page, plan);
+    await expect(page.getByRole("group", { name: "Keeper" })).toContainText(announced);
+    await expect(page.getByRole("group", { name: "Keeper" }).getByTestId(`player-tile-${h1Keeper}`)).toHaveCount(0);
+  }
 
   await startPeriod(page, "H2");
   const h2 = await lineup();

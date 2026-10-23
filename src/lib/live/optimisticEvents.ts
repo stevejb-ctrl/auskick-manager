@@ -130,7 +130,7 @@ type At = { quarter: number; elapsed_ms: number };
  */
 export const liveEvents = {
   /** recordSoccerSwap / recordBasketballSwap. */
-  swap(input: { off_player_id: string | null; on_player_id: string; line?: string } & At): OptimisticEventInput {
+  swap(input: { off_player_id: string | null; on_player_id: string; line?: string; batch_left?: number } & At): OptimisticEventInput {
     return {
       type: "swap",
       player_id: input.on_player_id,
@@ -140,6 +140,7 @@ export const liveEvents = {
         ...(input.line ? { line: input.line } : {}),
         quarter: input.quarter,
         elapsed_ms: input.elapsed_ms,
+        ...(input.batch_left ? { batch_left: input.batch_left } : {}),
       },
     };
   },

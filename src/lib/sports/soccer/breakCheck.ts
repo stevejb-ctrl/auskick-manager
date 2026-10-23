@@ -6,7 +6,11 @@
 //   - The lineup fits the age group: a keeper where the age plays with
 //     one, nobody in two places, not too many on (validateSoccerLineup's
 //     errors; its warnings are warnings).
-//   - The game-time floor (the shared check, FA's equal-time 50 %).
+//   - The game-time floor (the shared check, FA's equal-time 50 %). A kid
+//     who starts the half on the bench can still come on in it: rolling
+//     subs any time, windows from the first one. Counting only the halves
+//     after made Suggested fail its own floor ("can't reach 50% now") and
+//     forced "Start anyway" (futsal audit, 23 Oct 2026).
 //   - "Everyone has a turn" (U8–U11): last half's keeper plays out in the
 //     field. The suggester already does it; a coach's edit can undo it.
 //   - A kid marked "not in goal" isn't put there.
@@ -15,6 +19,7 @@ import { checkRules, type RuleCheckItem } from "@/lib/playbook/ruleCheck";
 import { soccerUnitOf, validateSoccerLineup, type SoccerLineup } from "@/lib/sports/soccer/lineup";
 import type { SoccerGameState } from "@/lib/sports/soccer/replay";
 import type { SoccerKeeperPrefs } from "@/lib/sports/soccer/keeper";
+import { soccerSubWindowsMs } from "@/lib/sports/soccer/suggest";
 import type { SoccerAgeGroupConfig, SoccerFamilyRules, SoccerKeeperStrategy } from "@/lib/sports/soccer/types";
 
 export interface SoccerBreakCheckInput {
@@ -65,6 +70,9 @@ export function soccerBreakCheck(c: SoccerBreakCheckInput): RuleCheckItem[] {
     playedThisGame[pid] = Object.fromEntries(Object.entries(ms).filter(([, v]) => typeof v === "number")) as Record<string, number>;
   }
   const lastLineup = c.state.lineup;
+  const mode = c.ageGroup.subMode;
+  const firstWindow = mode.kind === "windows" ? soccerSubWindowsMs(mode, c.periodMs)[0] : 0;
+  const benchReachMs = firstWindow === undefined ? 0 : c.periodMs - firstWindow;
   items.push(
     ...checkRules({
       onField,
@@ -77,6 +85,7 @@ export function soccerBreakCheck(c: SoccerBreakCheckInput): RuleCheckItem[] {
       period: c.period,
       periodCount: c.ageGroup.periodCount,
       periodMs: c.periodMs,
+      benchReachMs,
       periodWord,
       lineWord: "line",
       minGameTimePct: c.minGameTimePct ?? 50,

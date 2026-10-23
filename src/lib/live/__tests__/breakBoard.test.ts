@@ -156,6 +156,27 @@ describe("Fix", () => {
     expect(after.bench).not.toContain("y");
   });
 
+  it("tries the sport's preferred swaps first among equals", () => {
+    // Hockey's kit-up heads-up named the next keeper: Fix for "kept goal
+    // last half" put someone else in goal. A sport can rank the swaps.
+    const plain = applyAll(findFix(search(rules(["x"])))!);
+    expect(plain.bench).toContain("b");
+    const prefer = (a: BoardSlot, b: BoardSlot) => (a.playerId === "d" || b.playerId === "d" ? 1 : 0);
+    const fix = findFix({ ...search(rules(["x"])), prefer });
+    expect(applyAll(fix!).groups.back).toContain("x");
+    expect(applyAll(fix!).bench).toContain("d");
+    // breakIssues hands it on.
+    const issues = breakIssues({
+      lineup: staged,
+      check: rules(["x"]),
+      board: (s) => buildBoard(AFL, s, sidelined),
+      swap: swapInStaged,
+      sidelined,
+      preferFix: prefer,
+    });
+    expect(applyAll(issues.broken[0].fix!).bench).toContain("d");
+  });
+
   it("gives up (no Fix) when no swap gets anywhere", () => {
     const stuck = (): RuleCheckItem[] => [{ id: "bench-twice", status: "fail", text: "stuck" }];
     expect(findFix(search(stuck))).toBeNull();

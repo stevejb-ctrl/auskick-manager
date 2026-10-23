@@ -124,6 +124,11 @@ test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top change
   await expect(field.locator("[data-testid^='player-tile-']")).toHaveCount(7);
 
   // ─── 4. End H1; half-time hands the keeper top on ─────────────
+  // From a scrolled live view: the break still opens at the top (audit,
+  // 23 Oct 2026: it kept the live view's offset, the score off-screen).
+  await page.setViewportSize({ width: 412, height: 640 });
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   await page.getByRole("button", { name: /^clock — h1, running$/i }).click();
   await page.getByRole("button", { name: /^end h1 now$/i }).click();
   await page.getByRole("button", { name: /^end\s*h\s*1$/i }).click();
@@ -134,6 +139,28 @@ test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top change
   await expect(keeperZone.locator("[data-testid^='player-tile-']")).toHaveCount(1);
   await expect(keeperZone.getByTestId(`player-tile-${h1Keeper}`)).toHaveCount(0);
   await expect(page.getByTestId(`player-tile-${h1Keeper}`)).toContainText(/from keeper/i);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await expect(page.getByRole("radiogroup", { name: "How the next lineup is built" })).toBeInViewport();
+
+  // The score sheet speaks halves and the team's name: Half · team ·
+  // opponent, H1 and H2 only, Fix scores under H1, a missed score added
+  // to a half (audit, 23 Oct 2026: QUARTER, H1–H4, "Us", Q1–Q4).
+  await page.getByRole("button", { name: /review and update scores/i }).click();
+  const scoreSheet = page.getByRole("dialog", { name: "Score" });
+  const table = scoreSheet.getByRole("table");
+  await expect(table.getByRole("columnheader")).toHaveText(["Half", team.name, "Coogee Crabs", "Margin"]);
+  await expect(table.getByRole("row")).toHaveCount(3);
+  await expect(table.getByRole("row").nth(1)).toContainText("H1");
+  await expect(table.getByRole("row").nth(2)).toContainText("H2");
+  // Fix scores lists the two goals under H1, never Q1.
+  await expect(scoreSheet.getByRole("listitem")).toHaveCount(2, { timeout: 15_000 });
+  await expect(scoreSheet.getByText("Q1", { exact: true })).toHaveCount(0);
+  await expect(scoreSheet.getByText("H1", { exact: true })).toHaveCount(2);
+  await scoreSheet.getByRole("button", { name: /add a missed score/i }).click();
+  await expect(scoreSheet.getByLabel("Half").locator("option")).toHaveText(["H1", "H2"]);
+  await scoreSheet.getByRole("button", { name: /^cancel$/i }).click();
+  await scoreSheet.getByRole("button", { name: "Done" }).click();
+  await expect(scoreSheet).toHaveCount(0);
 
   // ─── 5. Start H2 with the plan, end it, finish ────────────────
   await startFromBreak(page, /^start 2nd half/i);
@@ -217,6 +244,69 @@ test("soccer: the game page and the runner link open before kick-off", async ({ 
   await waitForHydration(page);
   await expect(page.getByRole("heading", { name: /under 10 starting lineup/i })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("region", { name: "On field" }).locator("[data-testid^='player-tile-']")).toHaveCount(9);
+
+  expect(errors).toEqual([]);
+});
+
+// Two swaps fall due together; the coach makes one. The other stays due
+// and the sub clock waits for it (audit, 23 Oct 2026: the clock
+// restarted on the first, and the second dropped to "Suggested").
+test("soccer: one of two due swaps leaves the other due, and the clock waits for it", async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("siren-longpress-seen-v1", "true");
+    } catch {}
+  });
+  const admin = createAdminClient();
+  const { data: su } = await admin.auth.admin.listUsers();
+  const ownerId = su.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, {
+    ownerId,
+    sport: "soccer",
+    ageGroup: "U9",
+    name: `SOC-BATCH-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 9 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  // Subs every 30 s (the least); 40 s into the half, so they're due.
+  await admin.from("games").update({ sub_interval_seconds: 30, status: "in_progress" }).eq("id", game.id);
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  const ids = players.map((p) => p.id);
+  const lineup = { keeper: ids[0], lines: { def: ids.slice(1, 3), mid: ids.slice(3, 6), att: ids.slice(6, 7), field: [] }, bench: ids.slice(7) };
+  const t = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString();
+  await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup, sport: "soccer" }, created_at: t(41) },
+      { type: "quarter_start", metadata: { quarter: 1, sport: "soccer" }, created_at: t(40) },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  const swaps = async () =>
+    ((await admin.from("game_events").select("metadata, created_at").eq("game_id", game.id).eq("type", "swap").order("created_at")).data ??
+      []) as { metadata: { batch_left?: number } }[];
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  // Both bench kids are due on.
+  await expect(page.getByText(/^sub due — 2 swaps$/i)).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId("soccer-swap-pair-0").getByRole("button", { name: "Make swap" }).click();
+  await expect.poll(async () => (await swaps()).length).toBe(1);
+  // The swap says one of its batch is still to make…
+  expect((await swaps())[0].metadata.batch_left).toBe(1);
+  // …and the other stays due: the clock didn't restart.
+  await expect(page.getByText(/^sub due — 1 swap$/i)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/^suggested — 1 swap$/i)).toHaveCount(0);
+
+  // The last of the batch restarts the clock.
+  await page.getByText(/^sub due — 1 swap$/i).click();
+  await page.getByTestId("soccer-swap-pair-0").getByRole("button", { name: "Make swap" }).click();
+  await expect.poll(async () => (await swaps()).length).toBe(2);
+  expect((await swaps())[1].metadata.batch_left).toBeUndefined();
+  await expect(page.getByText(/^sub due —/i)).toHaveCount(0, { timeout: 15_000 });
 
   expect(errors).toEqual([]);
 });

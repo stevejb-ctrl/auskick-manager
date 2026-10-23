@@ -193,3 +193,89 @@ test("futsal U10: 5 a side on a court, a goal each way, a mid-half keeper swap, 
 
   expect(errors).toEqual([]);
 });
+
+// A kid whose "Plays as" is Wings only: futsal's default 2-2 has no
+// wings, and the picker put them up front (audit, 23 Oct 2026). The
+// picker now starts in the diamond (1-2-1), the kid on a wing, and the
+// half-time plan keeps the shape with no false "can't reach 50%" (subs
+// fly on during the half).
+test("futsal: a Wings-only kid starts the diamond on a wing; half-time breaks no rule", async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  const admin = createAdminClient();
+  const { data: su } = await admin.auth.admin.listUsers();
+  const ownerId = su.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, {
+    ownerId,
+    sport: "futsal",
+    ageGroup: "U10",
+    name: `FUT-WING-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 8 });
+  const wings = players[1];
+  // How we play's role sheet, "Plays as: Wings": never at the back or front.
+  await admin.from("player_position_prefs").insert([
+    { team_id: team.id, player_id: wings.id, line: "def", kind: "never" },
+    { team_id: team.id, player_id: wings.id, line: "att", kind: "never" },
+  ]);
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Gungahlin Geckos" });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  const lineup = async (): Promise<FutsalLineupMeta> => {
+    const { data } = await admin
+      .from("game_events")
+      .select("metadata, created_at")
+      .eq("game_id", game.id)
+      .eq("type", "lineup_set")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    return (data?.[0]?.metadata as { lineup: FutsalLineupMeta }).lineup;
+  };
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  await expect(page.getByRole("heading", { name: /under 10 starting lineup/i })).toBeVisible({ timeout: 15_000 });
+  const court = page.getByRole("region", { name: "On court" });
+  // The diamond: one at the back, two on the wings, one up front.
+  await expect(court.getByRole("group", { name: "Wings" }).locator("[data-testid^='player-tile-']")).toHaveCount(2);
+  await expect(court.getByRole("group", { name: "Back" }).locator("[data-testid^='player-tile-']")).toHaveCount(1);
+  await expect(court.getByRole("group", { name: "Front" }).locator("[data-testid^='player-tile-']")).toHaveCount(1);
+  const wingsOrBench = page
+    .getByRole("group", { name: "Wings" })
+    .getByTestId(`player-tile-${wings.id}`)
+    .or(page.getByRole("group", { name: "Bench" }).getByTestId(`player-tile-${wings.id}`));
+  await expect(wingsOrBench).toBeVisible();
+  await expect(court.getByRole("group", { name: "Front" }).getByTestId(`player-tile-${wings.id}`)).toHaveCount(0);
+
+  await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: /^start h1 now$/i }).click({ timeout: 10_000 });
+  await expect(page.getByRole("button", { name: /^clock — h1, running$/i })).toBeVisible({ timeout: 15_000 });
+  const h1 = await lineup();
+  expect(h1.lines.mid).toHaveLength(2);
+  expect(h1.lines.def.concat(h1.lines.att)).not.toContain(wings.id);
+
+  // Ten minutes in, end the half: the three on the bench have played
+  // nothing, and the plan sits some starters out.
+  const { data: sofar } = await admin.from("game_events").select("id, created_at").eq("game_id", game.id);
+  for (const e of sofar ?? []) {
+    await admin
+      .from("game_events")
+      .update({ created_at: new Date(Date.parse(e.created_at as string) - 10 * 60_000).toISOString() })
+      .eq("id", e.id);
+  }
+  await page.reload();
+  await waitForHydration(page);
+  await page.getByRole("button", { name: /^clock — h1, running$/i }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: /^end h1 now$/i }).click();
+  await page.getByRole("button", { name: /^end\s*h\s*1$/i }).click();
+  await expect(page.getByRole("heading", { name: /^2nd half lineup$/i })).toBeVisible({ timeout: 15_000 });
+  // Flying subs bring a bench kid on during the half: no "can't reach
+  // 50% now", and Start doesn't ask to break a rule.
+  await expect(page.getByTestId("break-broken-rule").filter({ hasText: /can't reach/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^start 2nd half/i })).not.toContainText(/rule/);
+  await expect(page.getByRole("group", { name: "Wings" }).locator("[data-testid^='player-tile-']")).toHaveCount(2);
+
+  expect(errors).toEqual([]);
+});

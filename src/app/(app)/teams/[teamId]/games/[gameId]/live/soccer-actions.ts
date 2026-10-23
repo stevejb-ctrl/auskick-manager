@@ -360,6 +360,8 @@ const unitOrUndefined = (v: unknown): SoccerUnit | undefined =>
 // A sub: the kid coming on takes the place of the kid going off, in goal
 // or in their line. `line` names the spot when the kid going off has
 // already left (an injury or a loan landed first) or the spot is empty.
+// `batch_left`: made from a due batch one swap at a time, how many of the
+// batch are still to make (lib/live/subAnchor holds the sub clock till 0).
 export async function recordSoccerSwap(
   auth: LiveAuth,
   gameId: string,
@@ -369,10 +371,15 @@ export async function recordSoccerSwap(
     line?: SoccerUnit;
     quarter: number;
     elapsed_ms: number;
+    batch_left?: number;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {
   const line = unitOrUndefined(input.line);
+  const batchLeft =
+    typeof input.batch_left === "number" && Number.isInteger(input.batch_left) && input.batch_left > 0
+      ? input.batch_left
+      : undefined;
   return insertEvent(
     auth,
     gameId,
@@ -385,6 +392,7 @@ export async function recordSoccerSwap(
         ...(line ? { line } : {}),
         quarter: input.quarter,
         elapsed_ms: input.elapsed_ms,
+        ...(batchLeft ? { batch_left: batchLeft } : {}),
       },
     },
     idempotencyKey,

@@ -53,10 +53,26 @@ export interface SoccerSub {
 const seasonTotal = (season: SoccerSeasonBalance | undefined, pid: string) =>
   Object.values(season?.time[pid] ?? {}).reduce((s, ms) => s + ms, 0);
 
-/** The age group's shape at a size: the team's pick, else the default. */
-function shapeFor(ag: SoccerAgeGroupConfig, size: number, formationId: string | null | undefined): SoccerFormation {
+/**
+ * The age group's shape at a size: the team's pick, else the first (the
+ * default first) with a line every kid here plays. Futsal's 2-2 has no
+ * wings, so a "Plays as: Wings" kid was put up front (audit, 23 Oct
+ * 2026); the diamond has wings. Every kid, not just the starters: rolling
+ * subs bring a kid on only for a line they play. Nothing fits: the default.
+ */
+function shapeFor(
+  ag: SoccerAgeGroupConfig,
+  size: number,
+  formationId: string | null | undefined,
+  fit?: { players: readonly string[]; prefs?: SoccerKeeperPrefs },
+): SoccerFormation {
   const shapes = soccerFormations(ag, size);
-  return shapes.find((f) => f.id === formationId) ?? shapes[0];
+  const picked = shapes.find((f) => f.id === formationId);
+  if (picked) return picked;
+  const fits = (f: SoccerFormation) =>
+    !f.keeper ||
+    (fit?.players ?? []).every((pid) => SOCCER_OUTFIELD_LINES.some((l) => f.lines[l] > 0 && playsLine(fit?.prefs, pid, l)));
+  return shapes.find(fits) ?? shapes[0];
 }
 
 /** Keeper strategy in force: none at 4 a side, else the team's or the age group's. */
@@ -160,15 +176,17 @@ export interface SoccerLineupSuggestion {
 }
 
 /**
- * The kick-off lineup. The keeper by the team's strategy (season keeper
- * minutes); the kids with the most season minutes start on the bench
- * (everyone gets the same this game either way); lines by season debt.
+ * The kick-off lineup, in the team's shape or, with none picked, the
+ * first that fits every kid's "Plays as". The keeper by the team's
+ * strategy (season keeper minutes); the kids with the most season
+ * minutes start on the bench (everyone gets the same this game either
+ * way); lines by season debt.
  * Fewer kids than the size: everyone plays, in the shape for that many.
  */
 export function suggestSoccerLineup(input: SuggestSoccerLineupInput): SoccerLineupSuggestion {
   const { ageGroup: ag, players, prefs, season } = input;
   const onCount = Math.min(input.onFieldSize, players.length);
-  const formation = shapeFor(ag, onCount, input.formationId);
+  const formation = shapeFor(ag, onCount, input.formationId, { players, prefs });
   const keeper = formation.keeper
     ? pickSoccerKeeper({
         strategy: keeperStrategyFor(ag, input.keeperStrategy),

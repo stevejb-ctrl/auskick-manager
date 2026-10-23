@@ -81,6 +81,32 @@ describe("rule check (RuleCheckBar)", () => {
     expect(items[1]).toMatchObject({ status: "fail", text: "Mia and Ava won't get to every line this game" });
   });
 
+  it("counts the time rolling subs can still give a kid who starts on the bench", () => {
+    // Two halves. Ava and Sam sat out the first. On the bench for the
+    // second they can still play all of it on flying subs: 50%.
+    const H = 20 * 60_000;
+    const halves = {
+      ...base,
+      periodMs: H,
+      periodCount: 2,
+      periodWord: "half",
+      onField: { mia: "back" },
+      bench: ["ava", "sam"],
+      playedThisGame: { mia: { back: H }, ava: {}, sam: {} },
+      benchedLastPeriod: [],
+      period: 2,
+      rules: [],
+    };
+    // Subs only at the break: neither can get there from the bench.
+    expect(checkRules(halves)[0]).toMatchObject({ status: "fail", text: "Ava and Sam can't reach 50% now" });
+    // Rolling subs: the whole half is still there.
+    const rolling = checkRules({ ...halves, benchReachMs: H });
+    expect(rolling[0]).toMatchObject({ status: "ok", text: "Everyone can play at least 50%" });
+    // Sub windows from 5 minutes in leave 15 of the 40: short of 60%.
+    const short = checkRules({ ...halves, minGameTimePct: 60, benchReachMs: H * 0.75 });
+    expect(short[0]).toMatchObject({ status: "fail", text: "Ava and Sam can't reach 60% now" });
+  });
+
   it("nudges the biggest season gaps", () => {
     const items = checkRules({
       ...base,

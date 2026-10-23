@@ -196,6 +196,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           positions={(positionRows ?? []) as HowWePlayPosition[]}
           players={(squadRows ?? []).map((p) => ({ id: p.id as string, name: p.full_name as string }))}
           isAdmin={isAdmin}
+          trackScoring={team.track_scoring ?? false}
         />
         {/* Rugby league §6 (two unbroken quarters at U6–U9, one half at
             U10–U12) has no switch: it's the laws, a locked rule in How we

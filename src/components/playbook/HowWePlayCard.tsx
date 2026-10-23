@@ -86,6 +86,8 @@ interface HowWePlayCardProps {
   isAdmin: boolean;
   /** Wizard step 2: no season to reset yet. */
   inWizard?: boolean;
+  /** The team keeps score: a "no scores are kept" law isn't theirs. */
+  trackScoring?: boolean;
 }
 
 /**
@@ -106,6 +108,7 @@ export function HowWePlayCard({
   row: initialRow,
   isAdmin,
   inWizard = false,
+  trackScoring = false,
 }: HowWePlayCardProps) {
   const router = useRouter();
   const [row, setRow] = useState<HowWePlayRow>(
@@ -251,7 +254,7 @@ export function HowWePlayCard({
       )}
 
       <RulesEditor
-        locked={lockedRules(resolved)}
+        locked={lockedRules(resolved, { trackScoring })}
         catalogue={ruleCatalogue(resolved)}
         words={words}
         players={players}
