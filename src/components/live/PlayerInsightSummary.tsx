@@ -33,7 +33,9 @@ export function PlayerInsightSummary({ input }: PlayerInsightSummaryProps) {
         <div className="flex items-baseline justify-between">
           <span className={SECTION_LABEL}>This game</span>
           <span className="text-xs text-ink-dim">
-            {vm.msSinceLastSub === null ? (
+            {vm.onBench ? (
+              "On the bench"
+            ) : vm.msSinceLastSub === null ? (
               "Not on yet"
             ) : (
               <>

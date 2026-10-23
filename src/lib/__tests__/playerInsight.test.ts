@@ -147,6 +147,29 @@ describe("buildPlayerInsight — in-game totals + msSinceLastSub (PLAYERVIEW-01 
     );
     expect(vm.msSinceLastSub).toBe(0);
   });
+
+  // UX audit 23 Oct 2026: a netball kid benched at the break kept an "On"
+  // time that ticked on ("On 10:18" after 10:00 played).
+  it("a kid on the bench has no On time, and says so", () => {
+    const vm = buildPlayerInsight(
+      baseInput({ lastSubbedOnMs: 0, nowAbsMs: 618_000, onField: false }),
+    );
+    expect(vm.msSinceLastSub).toBeNull();
+    expect(vm.onBench).toBe(true);
+  });
+
+  it("a kid on the field keeps their On time; onField omitted is as before", () => {
+    expect(buildPlayerInsight(baseInput({ lastSubbedOnMs: 0, nowAbsMs: 60_000, onField: true })).msSinceLastSub).toBe(60_000);
+    const legacy = buildPlayerInsight(baseInput({ lastSubbedOnMs: 0, nowAbsMs: 60_000 }));
+    expect(legacy.msSinceLastSub).toBe(60_000);
+    expect(legacy.onBench).toBe(false);
+  });
+
+  it("a bench kid who never played is 'not on yet', not 'on the bench'", () => {
+    const vm = buildPlayerInsight(baseInput({ lastSubbedOnMs: null, nowAbsMs: 60_000, onField: false }));
+    expect(vm.msSinceLastSub).toBeNull();
+    expect(vm.onBench).toBe(false);
+  });
 });
 
 describe("buildPlayerInsight — per-period breakdown (PLAYERVIEW-01 / D-05)", () => {

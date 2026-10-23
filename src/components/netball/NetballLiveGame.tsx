@@ -1244,6 +1244,17 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         zoneMs: byPeriod[q],
       }))
       .filter((p) => Object.values(p.zoneMs).some((v) => v > 0));
+    // On court now (mid-quarter subs included)? A kid on the bench has no
+    // On time (UX audit 23 Oct 2026: "On 10:18" kept ticking after they
+    // went off). A kid who came on mid-quarter has been on since that
+    // sub, which the replay won't know until the break saves it.
+    const onField = Object.values(onCourt.positions).some((ids) => ids.includes(pid));
+    let lastSubbedOnMs = replayState.lastSubbedOnMs[pid] ?? null;
+    if (liveOverlayMs > 0) {
+      const ons = midQuarterSubs.filter((s) => s.inPlayerId === pid);
+      const cameOn = ons[ons.length - 1];
+      if (cameOn) lastSubbedOnMs = completedQuarterMs + cameOn.atMs;
+    }
     return {
       zones: insightZones,
       inGameZoneMs,
@@ -1251,8 +1262,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       seasonZoneMs: seasonZoneCounts[pid] ?? {},
       // Netball's season is counted in quarters.
       seasonPeriod: 1,
-      lastSubbedOnMs: replayState.lastSubbedOnMs[pid] ?? null,
+      lastSubbedOnMs,
       nowAbsMs,
+      onField,
     };
   };
 
