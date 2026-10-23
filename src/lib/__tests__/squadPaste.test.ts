@@ -27,11 +27,30 @@ describe("parseSquadPaste", () => {
     ]);
   });
 
-  it("keeps numbers as part of the name when the sport has no jerseys", () => {
+  it("keeps a bare trailing number when the sport has no jerseys (it may tell two Mias apart)", () => {
     const { players } = parseSquadPaste("Mia 2\nZoe", { withJersey: false });
     expect(players).toEqual([
       { full_name: "Mia 2", jersey_number: null },
       { full_name: "Zoe", jersey_number: null },
     ]);
+  });
+
+  // UX audit 23 Oct 2026: a netball paste kept "Sienna Brooks #1".
+  it("leaves jersey numbers off the names when the sport has no jerseys, and counts them", () => {
+    const { players, numbersLeftOff, errors } = parseSquadPaste(
+      ["Sienna Brooks #1", "2 Ava Smith", "#3. Cara Lee", "Dev Patel, 4", "Eli\t5", "Finn"].join("\n"),
+      { withJersey: false },
+    );
+    expect(errors).toEqual([]);
+    expect(players.map((p) => p.full_name)).toEqual(["Sienna Brooks", "Ava Smith", "Cara Lee", "Dev Patel", "Eli", "Finn"]);
+    expect(players.every((p) => p.jersey_number === null)).toBe(true);
+    expect(numbersLeftOff).toBe(5);
+  });
+
+  it("doesn't check numbers it leaves off", () => {
+    // Two kids both "#1" in a list from two clubs: no jerseys, no clash.
+    const { players, errors } = parseSquadPaste("Ava #1\nBen #1\nCal #140", { withJersey: false });
+    expect(errors).toEqual([]);
+    expect(players.map((p) => p.full_name)).toEqual(["Ava", "Ben", "Cal"]);
   });
 });

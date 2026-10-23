@@ -86,6 +86,11 @@ export function BulkAddPlayers({ teamId, withJersey, room }: BulkAddPlayersProps
           </span>
         </p>
       )}
+      {parsed.numbersLeftOff > 0 && (
+        <p className="text-xs text-ink-mute">
+          Numbers left off: this sport has no jersey numbers.
+        </p>
+      )}
       {parsed.errors.length > 0 && (
         <ul className="space-y-0.5 text-xs text-warn">
           {parsed.errors.map((e) => (
