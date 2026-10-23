@@ -172,7 +172,10 @@ export function LockModal({
   const squadLabel = Math.round(squadLoanMins);
 
   return (
-    <Modal size="xs" labelledBy="lock-modal-title" onClose={onClose}>
+    // Scrolls when the actions outgrow a short phone: basketball's list
+    // (sit out, fouls, fouled out, move, keep on, injured, lend) ran
+    // Cancel off an iPhone's screen with no way to reach it.
+    <Modal size="xs" labelledBy="lock-modal-title" onClose={onClose} className="overflow-y-auto">
         <p className="mb-1 text-center font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
           Player actions
         </p>
