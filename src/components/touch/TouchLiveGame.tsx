@@ -918,6 +918,7 @@ export function TouchLiveGame({
 
       {clockMenuOpen && (
         <ClockMenu
+          sport={sport}
           periodAbbr={`${periodLetter}${base.currentPeriod}`}
           running={running}
           onPause={() => setPause((p) => togglePeriodPause(p, Date.now()))}
@@ -936,7 +937,8 @@ export function TouchLiveGame({
             void endPeriodAt(periodMs);
           }}
           onCancel={() => setEndConfirmOpen(false)}
-          playersLabel="On-field"
+          sport={sport}
+          clock={atHooter ? "hooter" : running ? "running" : "paused"}
           periodLabel={periodLabel}
         />
       )}

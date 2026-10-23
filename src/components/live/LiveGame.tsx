@@ -2023,6 +2023,7 @@ export function LiveGame({
           SwapConfirmDialog so the visual language stays consistent. */}
       {clockMenuOpen && (
         <ClockMenu
+          sport="afl"
           periodAbbr={`Q${currentQuarter}`}
           running={running}
           onPause={handlePause}
@@ -2037,6 +2038,8 @@ export function LiveGame({
       {showManualEndConfirm && (
         <ManualEndQuarterConfirm
           quarter={currentQuarter}
+          sport="afl"
+          clock={running ? "running" : "paused"}
           onConfirm={() => {
             setShowManualEndConfirm(false);
             handleEndQuarter({ creditFullQuarter: true });
