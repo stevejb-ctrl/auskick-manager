@@ -645,7 +645,7 @@ test("NETBALL-08: long-press on a court player opens the shared player actions (
   // Mid-quarter subs are off for this team: no Switch.
   await expect(actions.getByRole("button", { name: /switch player/i })).toHaveCount(0);
   // No emoji pills (🔄 🔒 🏥 🤝 …).
-  await expect(actions).not.toContainText(/\p{Extended_Pictographic}/u);
+  await expect(actions).not.toContainText(new RegExp("\\p{Extended_Pictographic}", "u"));
 });
 
 test("NETBALL-08: marking a court player injured prompts replacement and writes injury event", async ({
