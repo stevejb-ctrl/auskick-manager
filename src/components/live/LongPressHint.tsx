@@ -151,8 +151,11 @@ export function LongPressHint({ enabled = true }: { enabled?: boolean }) {
                 a short examples list so the lock case still
                 surfaces. */}
             {/* Tap reaches every action since UX plan 1.6 (Player
-                actions in the dock); the hint now sells the shortcut. */}
-            <span>Shortcut: long-press a player for actions (keep on, injured, lend…)</span>
+                actions in the dock); the hint now sells the shortcut.
+                Every sport shows it, so it names only actions every
+                sport's sheet has: rugby has no "keep on" (ten-sport UX
+                audit, 23 Oct 2026). */}
+            <span>Shortcut: long-press a player for actions (switch, injured, lend…)</span>
             <button
               type="button"
               onClick={handleGotIt}
