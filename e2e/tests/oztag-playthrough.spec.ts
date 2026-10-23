@@ -10,8 +10,14 @@
 //      scores 1; the opponent's chips are +T and +2 (girl), on one row
 //      beside ours at 390 px; "Not sure who — a girl's try" counts 2
 //      with no scorer, and undo takes it back.
+// And AFL's live chrome (UX audit 23 Oct 2026, "Drift from AFL"): the
+// long-press sheet knows a kid's lane and the season's lent minutes, in
+// the lineup and in play; the scorer sheet asks "Who scored?" and keeps
+// the try on a stray tap; the undo strip says what was scored; and a
+// try, its undo and a sub show before a slow save lands.
 
-import { test, expect, type Locator } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
@@ -33,6 +39,44 @@ async function ownerIdOf() {
 const laneOf = (lu: TouchLineupMeta, id: string) =>
   (["middle", "link", "wing", "field"] as const).find((l) => lu.lines[l].includes(id)) ?? null;
 
+/** Last week's finished game, where each of these kids was lent for `mins` minutes. */
+async function lentLastWeek(admin: SupabaseClient, opts: { teamId: string; ownerId: string; playerIds: string[]; mins: number }) {
+  const before = await makeGame(admin, {
+    teamId: opts.teamId,
+    ownerId: opts.ownerId,
+    scheduledAt: new Date(Date.now() - 7 * 86400_000).toISOString(),
+  });
+  const at = (s: number) => new Date(Date.now() - 7 * 86400_000 + s * 1000).toISOString();
+  const lent = opts.playerIds.flatMap((id, k) => [
+    { type: "player_loan", player_id: id, metadata: { loaned: true, quarter: 1, elapsed_ms: 0, sport: "oztag" }, created_at: at(10 + k) },
+    {
+      type: "player_loan",
+      player_id: id,
+      metadata: { loaned: false, quarter: 1, elapsed_ms: opts.mins * 60_000, sport: "oztag" },
+      created_at: at(100 + k),
+    },
+  ]);
+  const { error } = await admin.from("game_events").insert(
+    [
+      { type: "quarter_start", metadata: { quarter: 1, sport: "oztag" }, created_at: at(1) },
+      ...lent,
+      { type: "game_finalised", metadata: { quarter: 2, elapsed_ms: 900_000, sport: "oztag" }, created_at: at(200) },
+    ].map((e) => ({ ...e, game_id: before.id, created_by: opts.ownerId })),
+  );
+  if (error) throw new Error(`seed earlier game: ${error.message}`);
+  await admin.from("games").update({ status: "completed" }).eq("id", before.id);
+}
+
+/** A kid's long-press sheet knows they're on the field and their lent minutes; then it closes. */
+async function expectLongPressSheet(page: Page, playerId: string, lentMins: number) {
+  await page.getByTestId(`player-tile-${playerId}`).click({ delay: 600 });
+  const sheet = page.getByRole("dialog");
+  await expect(sheet.getByRole("button", { name: /switch player/i })).toContainText(/swap places, or a bench player to sub off/i);
+  await expect(sheet.getByRole("button", { name: /lend to opposition/i })).toContainText(`Season total: ${lentMins}m`);
+  await sheet.getByRole("button", { name: /^cancel$/i }).click();
+  await expect(sheet).toHaveCount(0);
+}
+
 test("oztag U10 single-gender: lanes 2-4-2, no Girl/Boy, lanes rotate at half-time, a lane move", async ({ page }) => {
   test.setTimeout(240_000);
   const errors: string[] = [];
@@ -48,6 +92,8 @@ test("oztag U10 single-gender: lanes 2-4-2, no Girl/Boy, lanes rotate at half-ti
   // Oztag's ★ is Minutes only; this team rotates through touch's lanes.
   await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "rotate-positions" });
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 12 });
+  // Every kid was lent for 6 minutes last week: the long-press sheets say so.
+  await lentLastWeek(admin, { teamId: team.id, ownerId, playerIds: players.map((p) => p.id), mins: 6 });
   const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Lake Macquarie Lightning" });
   expect(game.on_field_size).toBe(8);
   await admin.from("game_availability").insert(
@@ -76,8 +122,14 @@ test("oztag U10 single-gender: lanes 2-4-2, no Girl/Boy, lanes rotate at half-ti
   await expect(field.getByRole("group", { name: "Wings" }).locator("[data-testid^='player-tile-']")).toHaveCount(2);
   await expect(page.getByRole("group", { name: "Bench" }).locator("[data-testid^='player-tile-']")).toHaveCount(4);
   await expect(page.getByText(/evened separately/i)).toHaveCount(0);
+  // The lineup's long-press sheet, as in play: the kid's lane, the season's lent minutes.
+  const wingTile = field.getByRole("group", { name: "Wings" }).locator("[data-testid^='player-tile-']").first();
+  const wingId = ((await wingTile.getAttribute("data-testid")) ?? "").slice("player-tile-".length);
+  await expectLongPressSheet(page, wingId, 6);
 
   await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
+  // The start waits for Oztag's own cue, as its break does.
+  await expect(page.getByRole("dialog").filter({ hasText: /when the whistle goes/i })).toBeVisible({ timeout: 10_000 });
   await page.getByRole("button", { name: /^start h1 now$/i }).click({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: /^clock — h1, running$/i })).toBeVisible({ timeout: 15_000 });
   const h1 = await lineup();
@@ -105,8 +157,9 @@ test("oztag U10 single-gender: lanes 2-4-2, no Girl/Boy, lanes rotate at half-ti
   expect(again.length).toBeGreaterThan(0);
   for (const id of again) expect(laneOf(h2, id), "a new lane for the second half").not.toBe(laneOf(h1, id));
 
-  // Mid-half: a middle moves to the wings.
+  // Mid-half: a middle moves to the wings. First, their long-press sheet.
   const middle = h2.lines.middle[0];
+  await expectLongPressSheet(page, middle, 6);
   await page.getByTestId(`player-tile-${middle}`).click({ timeout: 10_000 });
   await page.getByRole("button", { name: /player actions/i }).click({ timeout: 5_000 });
   await page.getByTestId("touch-move-wing").click({ timeout: 5_000 });
@@ -179,6 +232,9 @@ test("oztag U10 mixed: a girl's try scores 2, a boy's 1, the opponent's +T and +
   const girl = on.find((id) => groupOf.get(id) === "girl")!;
   await page.getByTestId(`player-tile-${girl}`).click({ timeout: 10_000 });
   await page.getByTestId("touch-dock-try").click({ timeout: 5_000 });
+  // The undo strip says what was recorded: a girl's try, and whose.
+  const girlName = players.find((p) => p.id === girl)!.full_name;
+  await expect(page.getByTestId("undo-strip")).toContainText(`${teamName} girl's try — ${girlName}`);
   await expect.poll(() => count("girls_try")).toBe(1);
   const { data: gt } = await admin.from("game_events").select("player_id, metadata").eq("game_id", game.id).eq("type", "girls_try").single();
   expect(gt?.player_id).toBe(girl);
@@ -211,9 +267,15 @@ test("oztag U10 mixed: a girl's try scores 2, a boy's 1, the opponent's +T and +
   await theirGirls.click({ timeout: 5_000 });
   await expect.poll(() => count("opponent_girls_try")).toBe(1);
 
-  // Not sure who scored, but it was a girl: 2 with no scorer.
+  // Not sure who scored, but it was a girl: 2 with no scorer. The sheet
+  // asks "Who scored?" under what was scored, and a stray tap on its
+  // backdrop doesn't lose the try.
   await page.getByRole("button", { name: `Add a try, ${teamName}` }).click({ timeout: 5_000 });
-  const sheet = page.getByRole("dialog");
+  const sheet = page.getByRole("dialog", { name: "Who scored?" });
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toContainText(/^Try/);
+  await page.mouse.click(8, 8);
+  await expect(sheet).toBeVisible();
   await sheet.getByRole("button", { name: /not sure who — a girl's try/i }).click({ timeout: 5_000 });
   await expect.poll(() => count("girls_try")).toBe(2);
   const { data: unnamed } = await admin
@@ -246,4 +308,89 @@ test("oztag U10 mixed: a girl's try scores 2, a boy's 1, the opponent's +T and +
   await expect(page.getByRole("button", { name: "Add a girl's try, 2 points, Charlestown Chargers" })).toBeVisible();
 
   expect(errors).toEqual([]);
+});
+
+// Every write but a try used to wait for its save, then refresh the
+// page: on a ground's patchy signal a sub took seconds to show (UX audit
+// 23 Oct 2026, "Drift from AFL"). Touch now writes as soccer's family does.
+test("oztag: a try, its undo and a sub show before the server saves; Game settings sits in the row", async ({ page }) => {
+  test.setTimeout(120_000);
+  const { admin, ownerId } = await ownerIdOf();
+  const team = await makeTeam(admin, {
+    ownerId,
+    sport: "oztag",
+    ageGroup: "U10",
+    name: `OZT-OPTIM-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  });
+  await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 12 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Charlestown Chargers" });
+  const ids = players.map((p) => p.id);
+  const { error } = await admin.from("games").update({ sub_interval_seconds: 600, status: "in_progress" }).eq("id", game.id);
+  if (error) throw new Error(error.message);
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  const lineup = { lines: { middle: ids.slice(0, 2), link: ids.slice(2, 6), wing: ids.slice(6, 8), field: [] }, bench: ids.slice(8) };
+  await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup, sport: "oztag" } },
+      { type: "quarter_start", metadata: { quarter: 1, sport: "oztag" } },
+    ].map((e, i) => ({ ...e, game_id: game.id, created_by: ownerId, created_at: new Date(Date.now() - (10 - i) * 1000).toISOString() })),
+  );
+  await page.addInitScript(() => window.localStorage.setItem("siren-longpress-seen-v1", "true"));
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  await expect(page.getByRole("button", { name: /^clock — h1, running$/i })).toBeVisible({ timeout: 15_000 });
+
+  // Every save takes 4 s.
+  await page.route(`**/games/${game.id}/live`, async (route) => {
+    if (route.request().method() === "POST") await new Promise((r) => setTimeout(r, 4000));
+    await route.continue();
+  });
+
+  const theirs = page.getByTestId("scorebug-team-name").last().locator("xpath=following-sibling::p[1]");
+  await page.getByRole("button", { name: "Add a try, Charlestown Chargers" }).click();
+  await expect(theirs).toHaveText("1", { timeout: 1_500 });
+  const strip = page.getByTestId("undo-strip");
+  await expect(strip).toContainText("Charlestown Chargers try", { timeout: 1_500 });
+  await strip.getByRole("button", { name: "Undo" }).click();
+  await expect(theirs).toHaveText("0", { timeout: 1_500 });
+
+  // A bench kid on for a wing: AFL's confirm, then it shows at once.
+  const [benchKid, wing] = [players[8], players[6]];
+  await page.getByTestId(`player-tile-${benchKid.id}`).click();
+  await page.getByTestId(`player-tile-${wing.id}`).click();
+  const confirm = page.getByRole("dialog", { name: /manually sub/i });
+  await expect(confirm).toContainText(`${benchKid.full_name} (Bench) for ${wing.full_name} (Wings)`);
+  await confirm.getByRole("button", { name: "Confirm" }).click();
+  await expect(page.getByTestId("swap-toast")).toContainText(`${wing.full_name} → ${benchKid.full_name}`, { timeout: 1_500 });
+  const wings = page.getByRole("region", { name: "On field" }).getByRole("group", { name: "Wings" });
+  await expect(wings.getByTestId(`player-tile-${benchKid.id}`)).toBeVisible({ timeout: 1_500 });
+
+  // All three save, in the coach's order, and the screen still agrees.
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin.from("game_events").select("type").eq("game_id", game.id).order("created_at");
+        return (data ?? []).map((e) => e.type as string).filter((t) => ["opponent_try", "score_undo", "swap"].includes(t));
+      },
+      { timeout: 30_000 },
+    )
+    .toEqual(["opponent_try", "score_undo", "swap"]);
+  await page.unroute(`**/games/${game.id}/live`);
+  await page.reload();
+  await waitForHydration(page);
+  await expect(wings.getByTestId(`player-tile-${benchKid.id}`)).toBeVisible({ timeout: 15_000 });
+  await expect(theirs).toHaveText("0");
+
+  // Game settings: the sub interval mid-game, as AFL's.
+  await page.getByRole("button", { name: "Game settings", exact: true }).click();
+  const settings = page.getByRole("dialog").filter({ hasText: "Sub interval" });
+  await expect(settings).toBeVisible();
+  await settings.getByLabel("Sub interval").fill("5");
+  await settings.getByRole("button", { name: "Save" }).click();
+  await expect
+    .poll(async () => (await admin.from("games").select("sub_interval_seconds").eq("id", game.id).single()).data?.sub_interval_seconds)
+    .toBe(300);
 });

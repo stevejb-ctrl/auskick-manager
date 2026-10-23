@@ -12,8 +12,12 @@
 //   3. A try (5) and its conversion (2) with no rotation, a penalty
 //      goal (3) and a drop goal (3) for us, a drop goal for them.
 //   4. The score bug reads union's points and words (13 to 3, DG).
-//   5. End H1, start H2, end it, finish: game_finalised, completed.
+//   5. End H1, start H2, end it: full time drops the scorebug's chips
+//      and the undo strip for the review's team-named 44 pt buttons.
+//      Finish: game_finalised, completed.
 //   6. Every event carries the team's sport; stats read union's words.
+// Along the way, AFL's live chrome (UX audit 23 Oct 2026): the undo strip
+// says each score in union's words, and a tap-tap sub asks, then toasts.
 
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
@@ -40,8 +44,10 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
   });
   await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 17 });
+  const { data: teamRow } = await admin.from("teams").select("name").eq("id", team.id).single();
+  const teamName = teamRow!.name as string;
   // Sized from union U12: 15 on the field.
-  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Easts Juniors" });
   expect(game.on_field_size).toBe(15);
   await admin.from("game_availability").insert(
     players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
@@ -94,6 +100,9 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
   await page.getByTestId(`league-player-tile-${scorer}`).click({ timeout: 10_000 });
   await page.getByRole("button", { name: /^\+\s*try$/i }).click({ timeout: 5_000 });
   await expect.poll(() => count("try")).toBe(1);
+  const strip = page.getByTestId("undo-strip");
+  const nameOf = (id: string) => players.find((p) => p.id === id)!.full_name;
+  await expect(strip).toContainText(`${teamName} try — ${nameOf(scorer)}`);
   const conversion = page.getByRole("dialog", { name: /record conversion/i });
   await expect(conversion).toBeVisible({ timeout: 5_000 });
   await expect(conversion).not.toContainText(/rotation/i);
@@ -111,6 +120,18 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
   // A drop goal for them, from the score bug.
   await page.getByRole("button", { name: "Record opponent drop goal" }).click({ timeout: 5_000 });
   await expect.poll(() => count("opponent_field_goal")).toBe(1);
+  await expect(strip).toContainText("Easts Juniors drop goal");
+
+  // A tap-tap sub: a bench kid, then a back. AFL's confirm, then its toast.
+  const benchKid = players.find((p) => !onField.forwards.includes(p.id) && !onField.backs.includes(p.id))!;
+  const offKid = onField.backs[1];
+  await page.getByTestId(`league-player-tile-${benchKid.id}`).click({ timeout: 10_000 });
+  await page.getByTestId(`league-player-tile-${offKid}`).click({ timeout: 10_000 });
+  const confirm = page.getByRole("dialog", { name: /manually sub/i });
+  await expect(confirm).toContainText(`${benchKid.full_name} (Bench) for ${nameOf(offKid)} (Backs)`);
+  await confirm.getByRole("button", { name: "Confirm" }).click();
+  await expect(page.getByTestId("swap-toast")).toContainText(`${nameOf(offKid)} → ${benchKid.full_name}`);
+  await expect.poll(() => count("swap")).toBe(1);
 
   // ─── 4. Union's points and words ──────────────────────────────
   // 5 + 2 + 3 + 3 = 13 to 3.
@@ -129,6 +150,17 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
   await page.getByRole("button", { name: /^clock — h2, running$/i }).click({ timeout: 10_000 });
   await page.getByRole("button", { name: /^end h2 now$/i }).click();
   await page.getByRole("button", { name: /^end\s*h\s*2$/i }).click();
+  // Full time: the review's buttons name their team, in union's words.
+  await expect(page.getByRole("button", { name: /finish game/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("undo-strip")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Record opponent drop goal" })).toHaveCount(0);
+  for (const side of [teamName, "Easts Juniors"]) {
+    for (const what of ["a try", "a conversion", "a penalty goal", "a drop goal"]) {
+      const add = page.getByRole("button", { name: `Add ${what}, ${side}` });
+      await expect(add).toHaveCount(1);
+      expect((await add.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    }
+  }
   await page.getByRole("button", { name: /finish game/i }).click({ timeout: 10_000 });
   await expect.poll(() => count("game_finalised")).toBe(1);
   await expect
