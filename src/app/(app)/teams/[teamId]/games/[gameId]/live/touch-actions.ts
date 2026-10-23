@@ -38,6 +38,7 @@ import type { ActionResult, LiveAuth, MixedGroup } from "@/lib/types";
 import { normalizeTouchLineup, touchOnField, validateTouchLineup, type TouchLineup } from "@/lib/sports/touch/lineup";
 import { TOUCH_LINES, type MixedRule, type TouchAgeGroupConfig, type TouchLine } from "@/lib/sports/touch/types";
 import { TOUCH_SCORE_EVENTS } from "@/lib/sports/touch/replay";
+import { isGirlsTry, touchTryEventType } from "@/lib/sports/touch/scoreEvents";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
 import type { PlaybookSnapshot } from "@/lib/playbook/types";
@@ -456,12 +457,17 @@ export async function recordTouchScore(
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
   const { girlsTryDouble } = await touchTeam(w.teamId);
-  let girl = false;
-  if (girlsTryDouble) {
-    if (input.side === "theirs" || !input.player_id) girl = input.girl === true;
-    else girl = (await gameMixedGroups(w.supabase, w.teamId, gameId)).get(input.player_id) === "girl";
-  }
-  const type = input.side === "ours" ? (girl ? "girls_try" : "try") : girl ? "opponent_girls_try" : "opponent_try";
+  // The live screen decides the same way for its optimistic try (scoreEvents.ts).
+  const groups =
+    girlsTryDouble && input.side === "ours" && input.player_id ? await gameMixedGroups(w.supabase, w.teamId, gameId) : null;
+  const girl = isGirlsTry({
+    girlsTryDouble,
+    side: input.side,
+    playerId: input.player_id,
+    girl: input.girl,
+    groupOf: (id) => groups?.get(id),
+  });
+  const type = touchTryEventType(input.side, girl);
   const result = await insertEvent(
     auth,
     gameId,

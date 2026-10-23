@@ -114,6 +114,19 @@ export function rugbyScoreWords(sport: RugbySport): RugbyScoreWords {
   return { penaltyGoal: words("penalty_goal"), fieldGoal: words("field_goal") };
 }
 
+/**
+ * What the undo strip says was scored, in the sport's own words: "try",
+ * "conversion" (or "missed conversion": a miss is undone like a score),
+ * "penalty goal", union's "drop goal". Either side's event type.
+ */
+export function rugbyScoreWhat(sport: RugbySport, type: string, made = true): string {
+  const kind = type.replace(/^opponent_/, "");
+  if (kind === "try") return "try";
+  if (kind === "conversion" || kind === "conversion_attempt") return made ? "conversion" : "missed conversion";
+  const words = rugbyScoreWords(sport);
+  return (kind === "penalty_goal" ? words.penaltyGoal : words.fieldGoal).label.toLowerCase();
+}
+
 /** "2T · 1C · 1PG" — penalty and field (drop) goals only when there are some. */
 export function leagueScoreLine(s: LeagueScore, words: RugbyScoreWords): string {
   const parts = [`${s.tries}T`, `${s.conversions}C`];
