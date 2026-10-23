@@ -58,6 +58,8 @@ export function LateArrivalMenu({ candidates, onAdd, pending }: LateArrivalMenuP
             setOpen(false);
           }}
           onCancel={() => setOpen(false)}
+          // Nothing to lose: a stray tap just closes the menu.
+          dismissOnBackdrop
         />
       )}
     </>

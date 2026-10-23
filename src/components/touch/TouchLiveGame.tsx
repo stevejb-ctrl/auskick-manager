@@ -1049,7 +1049,7 @@ export function TouchLiveGame({
         <SwapConfirmDialog
           off={pendingSwap.off ?? ""}
           on={pendingSwap.on}
-          placeLabel={(() => {
+          spotName={(() => {
             const line = pendingSwap.line ?? (pendingSwap.off ? lineOf(pendingSwap.off) : null);
             return line && line !== "field" ? TOUCH_LINE_LABEL[line] : "the field";
           })()}

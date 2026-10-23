@@ -22,6 +22,7 @@ export function UndoStrip({ flashing, message, onUndo, disabled = false }: UndoS
       }`}
       role="status"
       aria-live="polite"
+      data-testid="undo-strip"
     >
       <span className={`text-xs ${flashing ? "text-warm/80" : "text-ink-dim"}`}>
         {flashing ? message : "Undo last score"}

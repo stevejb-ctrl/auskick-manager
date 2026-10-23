@@ -7,11 +7,14 @@
 //      goal and three on the bench, and names who starts in goal.
 //   2. Start H1 (two-step: the picker, then the whistle modal).
 //   3. A goal for us from the player's dock, one for them from the
-//      scorebug, and a rolling sub (bench tap, then field tap).
+//      scorebug (the undo strip says what each was), and a rolling sub
+//      (bench tap, then field tap, then AFL's confirm and toast).
 //   4. End H1. Half-time plans H2: under "Everyone has a turn" the
 //      keeper top changes hands and last half's keeper plays out.
-//   5. Start H2, end it, finish: game_finalised, the game completed,
-//      and the share text gives each kid's time in goal.
+//   5. Start H2, end it: at full time the scorebug's chips and the undo
+//      strip go (the review's labelled 44 px buttons fix a miscount).
+//      Finish: game_finalised, the game completed, the share text gives
+//      each kid's time in goal, and no late arrival is offered.
 //   6. Every event soccer's actions write carries the team's sport.
 
 import { test, expect } from "@playwright/test";
@@ -45,12 +48,17 @@ test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top change
   });
   // MiniRoos keeps no score by default; this spec scores to test goals.
   await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
-  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 10 });
+  // Ten here; an eleventh in the squad who could turn up late.
+  const squad = await makePlayers(admin, { teamId: team.id, ownerId, count: 11 });
+  const players = squad.slice(0, 10);
   const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Coogee Crabs" });
   expect(game.on_field_size).toBe(7);
   await admin.from("game_availability").insert(
     players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
   );
+  const nameOf = (id: string) => squad.find((p) => p.id === id)!.full_name;
+  const { data: teamRow } = await admin.from("teams").select("name").eq("id", team.id).single();
+  const teamName = teamRow!.name as string;
 
   const lineup = async (): Promise<SoccerLineupMeta> => {
     const { data } = await admin
@@ -91,16 +99,24 @@ test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top change
   const scorer = h1.lines.att[0] ?? outfield[0];
   await page.getByTestId(`player-tile-${scorer}`).click({ timeout: 10_000 });
   await page.getByRole("button", { name: /^\+\s*goal$/i }).click({ timeout: 5_000 });
+  // The undo strip says what was recorded, as AFL's does.
+  const strip = page.getByTestId("undo-strip");
+  await expect(strip).toContainText(`${teamName} goal — ${nameOf(scorer)}`);
   await expect.poll(() => count("goal")).toBe(1);
   const { data: goal } = await admin.from("game_events").select("player_id").eq("game_id", game.id).eq("type", "goal").single();
   expect(goal?.player_id).toBe(scorer);
   await page.getByRole("button", { name: "Add goal, Coogee Crabs" }).click({ timeout: 5_000 });
+  await expect(strip).toContainText("Coogee Crabs goal");
   await expect.poll(() => count("opponent_goal")).toBe(1);
+  // The kid who isn't here yet can be added late.
+  await expect(page.getByRole("button", { name: "+ Add late arrival" })).toBeVisible();
 
   const [benchKid] = h1.bench;
   const offKid = h1.lines.def[0];
   await page.getByTestId(`player-tile-${benchKid}`).click({ timeout: 10_000 });
   await page.getByTestId(`player-tile-${offKid}`).click({ timeout: 10_000 });
+  await page.getByRole("dialog", { name: /manually sub/i }).getByRole("button", { name: "Confirm" }).click({ timeout: 5_000 });
+  await expect(page.getByTestId("swap-toast")).toContainText(`${nameOf(offKid)} → ${nameOf(benchKid)}`);
   await expect.poll(() => count("swap")).toBe(1);
   const { data: swap } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "swap").single();
   expect(swap?.metadata).toMatchObject({ off_player_id: offKid, on_player_id: benchKid });
@@ -131,6 +147,15 @@ test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top change
   await page.getByRole("button", { name: /^clock — h2, running$/i }).click();
   await page.getByRole("button", { name: /^end h2 now$/i }).click();
   await page.getByRole("button", { name: /^end\s*h\s*2$/i }).click();
+  // Full time: the review fixes a miscount; the scorebug's chips and the
+  // undo strip are gone, and each side's button names its team.
+  await expect(page.getByRole("button", { name: /finish game/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("undo-strip")).toHaveCount(0);
+  for (const side of [teamName, "Coogee Crabs"]) {
+    const add = page.getByRole("button", { name: `Add goal, ${side}` });
+    await expect(add).toHaveCount(1);
+    expect((await add.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  }
   await page.getByRole("button", { name: /finish game/i }).click({ timeout: 10_000 });
   await expect.poll(() => count("game_finalised")).toBe(1);
   await expect
@@ -139,6 +164,8 @@ test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top change
   const summary = page.locator("#soccer-game-summary-text");
   await expect(summary).toContainText("Coogee Crabs", { timeout: 15_000 });
   await expect(summary).toContainText(/in goal/);
+  // The game's over: no one can arrive late now.
+  await expect(page.getByRole("button", { name: "+ Add late arrival" })).toHaveCount(0);
 
   // ─── 6. Soccer's events carry the team's sport ────────────────
   const { data: events } = await admin

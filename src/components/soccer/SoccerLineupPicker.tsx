@@ -62,6 +62,7 @@ import { SoccerField } from "./SoccerField";
 import { SoccerBench } from "./SoccerBench";
 import { KeeperHandoverCard } from "./KeeperHandoverCard";
 import { soccerKeeperNote, soccerSubModeNote } from "./soccerWords";
+import { squadLoanAverage } from "@/lib/live/liveChrome";
 
 /**
  * Where a kid brought off the bench goes: the middle line when it has a
@@ -96,6 +97,8 @@ interface SoccerLineupPickerProps {
   initialLoanedIds: string[];
   availabilityPanel?: React.ReactNode;
   availabilityHref?: string | null;
+  /** Lent minutes in the season's other games, for the long-press sheet. */
+  seasonLoanMinutes?: Record<string, number>;
 }
 
 export function SoccerLineupPicker({
@@ -113,6 +116,7 @@ export function SoccerLineupPicker({
   initialLoanedIds,
   availabilityPanel,
   availabilityHref,
+  seasonLoanMinutes = {},
 }: SoccerLineupPickerProps) {
   const router = useRouter();
   const pickerRootRef = useRef<HTMLDivElement>(null);
@@ -487,11 +491,13 @@ export function SoccerLineupPicker({
         <LockModal
           player={actionPlayer}
           currentLock={null}
-          currentZone={null}
+          // The kid's line for the Switch hint, and the season's lent
+          // minutes, as on the live screen.
+          currentLine={soccerUnitOf(lineup, actionPlayer.id) ? words[soccerUnitOf(lineup, actionPlayer.id)!].label : null}
           isInjured={false}
           isLoaned={loanedIds.has(actionPlayer.id)}
-          seasonLoanMins={0}
-          squadLoanMins={0}
+          seasonLoanMins={seasonLoanMinutes[actionPlayer.id] ?? 0}
+          squadLoanMins={squadLoanAverage(seasonLoanMinutes)}
           onUnlock={() => setActionPlayerId(null)}
           onSwitch={() => {
             setActionPlayerId(null);

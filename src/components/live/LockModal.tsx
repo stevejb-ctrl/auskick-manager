@@ -10,7 +10,14 @@ interface LockModalProps {
   /** Current lock state for this player. Null when locking isn't supported (e.g. RL). */
   currentLock: "field" | "zone" | null;
   /** The zone the player is currently in (or last played), used for zone-lock label. */
-  currentZone: Zone | null;
+  currentZone?: Zone | null;
+  /**
+   * The kid's line in the sport's own words ("Defence", "Guards") when
+   * they're on the field, for sports whose lines aren't AFL zones. Null
+   * or absent: on the bench. Gives an on-field kid the right Switch hint
+   * (UX audit 23 Oct 2026: soccer's and basketball's said "bring them on").
+   */
+  currentLine?: string | null;
   /** Whether this player is currently injured. */
   isInjured: boolean;
   /** Whether this player is currently lent to the opposition. */
@@ -130,7 +137,8 @@ function lockModalIntro(can: { lock: boolean; injure: boolean; lend: boolean }):
 export function LockModal({
   player,
   currentLock,
-  currentZone,
+  currentZone = null,
+  currentLine = null,
   isInjured,
   isLoaned,
   seasonLoanMins,
@@ -159,12 +167,15 @@ export function LockModal({
   onClose,
 }: LockModalProps) {
   const firstName = player.full_name.trim().split(/\s+/)[0];
-  const zoneLabel = currentZone ? ZONE_SHORT_LABELS[currentZone] : null;
+  const zoneLabel = currentZone ? ZONE_SHORT_LABELS[currentZone] : currentLine;
   const loanedLabel = Math.round(seasonLoanMins);
   const squadLabel = Math.round(squadLoanMins);
 
   return (
-    <Modal size="xs" labelledBy="lock-modal-title" onClose={onClose}>
+    // Scrolls when the actions outgrow a short phone: basketball's list
+    // (sit out, fouls, fouled out, move, keep on, injured, lend) ran
+    // Cancel off an iPhone's screen with no way to reach it.
+    <Modal size="xs" labelledBy="lock-modal-title" onClose={onClose} className="overflow-y-auto">
         <p className="mb-1 text-center font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
           Player actions
         </p>
@@ -292,7 +303,9 @@ export function LockModal({
                 <span className="mt-0.5 text-xs opacity-90">
                   {currentZone
                     ? "Tap a teammate to swap zones, or a bench player to sub off"
-                    : "Tap a field player to bring them on"}
+                    : currentLine
+                      ? "Tap a teammate to swap places, or a bench player to sub off"
+                      : "Tap a field player to bring them on"}
                 </span>
               </button>
               {/* Vest replacement — rugby league only. Sits below

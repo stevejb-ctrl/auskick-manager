@@ -30,9 +30,22 @@ interface Props {
   onCancel: () => void;
   /**
    * Optional title verb override. Defaults to "Fill". Useful for
-   * surfaces that want a more specific verb ("Place", "Assign").
+   * surfaces that want a more specific verb ("Place", "Assign"). The
+   * heading reads "{titleVerb} {slotLabel}".
    */
   titleVerb?: string;
+  /**
+   * The whole heading, in place of "{titleVerb} {slotLabel}" — a
+   * question reads better whole ("Who scored?").
+   */
+  title?: string;
+  /**
+   * The small label above the heading. Defaults to "Pick a player",
+   * true of every sheet. It used to repeat the title verb, which read
+   * "WHO SCORED THE" and "ADD" (UX audit 23 Oct 2026). The scorer
+   * sheets name what was scored ("Goal", "2 points").
+   */
+  eyebrow?: string;
   /**
    * Optional override for the small instruction line under the
    * heading. Defaults to "Pick a player to place in the {slotLabel}
@@ -49,14 +62,12 @@ interface Props {
   emptyMessage?: string;
   /**
    * Whether tapping the dimmed backdrop calls `onCancel`. Default
-   * `true` — matches the natural-feeling bottom-sheet behaviour
-   * for slot-filling flows. Set `false` when an accidental tap-
-   * outside would lose substantive state — e.g. the score-
-   * attribution picker on the live scorebug, where dismissing
-   * silently when the coach taps the next +G chip caused the
-   * goal-attribution to vanish without feedback (Stagehand
-   * exploration 2026-05-09). The X/Cancel button remains the
-   * only dismissal path in that mode.
+   * `false`: a stray tap outside must not lose what the sheet is for.
+   * The score-attribution picker lost the goal that way (Stagehand
+   * 2026-05-09 on AFL; again in hockey and basketball, whose sheets
+   * took the old default, UX audit 23 Oct 2026). Cancel is the way
+   * out. Pass `true` only where dismissing loses nothing — the
+   * late-arrival menu, the break's settings pickers, AFL's swap picker.
    */
   dismissOnBackdrop?: boolean;
   /**
@@ -89,9 +100,11 @@ export function SlotFillSheet({
   onPick,
   onCancel,
   titleVerb = "Fill",
+  title,
+  eyebrow = "Pick a player",
   subtitle,
   emptyMessage,
-  dismissOnBackdrop = true,
+  dismissOnBackdrop = false,
   extraOption,
   extraOptions = [],
 }: Props) {
@@ -113,7 +126,13 @@ export function SlotFillSheet({
       // P0-5 (2026-05-15): the backdrop fades in (350ms) so the
       // dim arrives gracefully rather than slamming on. The inner
       // sheet has its own entrance animation below.
-      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-ink/60 p-4 motion-safe:animate-fade-in"
+      //
+      // !m-0: the sheet renders in place (no portal), often inside a
+      // space-y-* stack, whose margin-top pushed the fixed backdrop
+      // 12px down. The top bar's back link showed through that strip,
+      // so a stray tap at the top left the live screen with the pick
+      // unmade (UX audit 23 Oct 2026, the scorer-sheet backdrop tests).
+      className="fixed inset-0 z-[60] !m-0 flex items-end sm:items-center justify-center bg-ink/60 p-4 motion-safe:animate-fade-in"
       role="dialog"
       aria-modal="true"
       aria-labelledby="slot-fill-title"
@@ -133,13 +152,13 @@ export function SlotFillSheet({
       >
         <div className="border-b border-hairline px-5 py-4">
           <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
-            {titleVerb}
+            {eyebrow}
           </p>
           <h2
             id="slot-fill-title"
             className="text-base font-semibold text-ink"
           >
-            {titleVerb} {slotLabel}
+            {title ?? `${titleVerb} ${slotLabel}`}
           </h2>
           <p className="mt-1 text-xs text-ink-mute">
             {subtitle ?? `Pick a player to place in the ${slotLabel} slot.`}

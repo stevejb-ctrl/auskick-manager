@@ -27,7 +27,13 @@
 //     (periodLabels), "H1" or "Q1".
 //
 // Every write goes through the shared write queue (registerLiveActions)
-// in the one game lane, so the event log keeps the coach's order.
+// in the one game lane, so the event log keeps the coach's order. The
+// in-game writes are optimistic (useOptimisticEvents): a goal, an undo or
+// a sub shows the moment it's tapped and the server's copy takes its
+// place, as AFL's store does. The shared live chrome (useLiveChrome) is
+// AFL's: the undo strip says what was recorded, a tap-tap sub asks first
+// and toasts, the long-press sheet knows the kid's line and lent minutes
+// (UX audit 23 Oct 2026, "Drift from AFL").
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -43,8 +49,9 @@ import { subDueBannerShows } from "@/components/live/SubDue";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { LockModal } from "@/components/live/LockModal";
-import { UndoStrip } from "@/components/live/UndoStrip";
 import { NextSubCard } from "@/components/live/NextSubCard";
+import { LiveGameSettingsButton } from "@/components/live/LiveGameSettingsButton";
+import { useLiveChrome } from "@/components/live/useLiveChrome";
 import {
   InjuryReplacementModal,
   type InjuryReplacementCandidate,
@@ -56,6 +63,8 @@ import {
   type LiveActionArgs,
   type LiveActionKind,
 } from "@/lib/live/registerLiveActions";
+import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
+import { liveEvents, optimisticUndo } from "@/lib/live/optimisticEvents";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
 import { hapticTap } from "@/lib/haptics";
 import {
@@ -71,6 +80,7 @@ import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import { periodLabels, type SoccerSport } from "@/lib/sports";
 import { soccerFormations } from "@/lib/sports/soccer";
 import { soccerFamilyRules } from "@/lib/sports/soccer/family";
+import { soccerLikelyScorers } from "@/lib/sports/soccer/scorers";
 import {
   normalizeSoccerLineup,
   soccerOnField,
@@ -121,7 +131,12 @@ interface SoccerLiveGameProps {
   keeperPrefs?: SoccerKeeperPrefs;
   isAdmin: boolean;
   exitHref: string;
+  /** Lent minutes in the season's other games, for the long-press sheet. */
+  seasonLoanMinutes?: Record<string, number>;
 }
+
+/** The soccer family's score events (an undo takes back the latest). */
+const SOCCER_SCORE_TYPES: ReadonlySet<string> = new Set(["goal", "opponent_goal"]);
 
 /** Line colours on the dark next-sub card, as the tiles colour them. */
 const CARD_LABEL_CLASS: Record<SoccerUnit, string> = {
@@ -176,12 +191,13 @@ export function SoccerLiveGame({
   subIntervalSeconds,
   clockMultiplier = 1,
   trackScoring,
-  events,
+  events: serverEvents,
   season,
   keeperStrategy,
   keeperPrefs,
   isAdmin,
   exitHref,
+  seasonLoanMinutes,
 }: SoccerLiveGameProps) {
   const router = useRouter();
   const opponentName = game.opponent || "Opponent";
@@ -200,6 +216,8 @@ export function SoccerLiveGame({
   const [subAckKey, setSubAckKey] = useState<string | null>(null);
   const liveRootRef = useRef<HTMLDivElement>(null);
   const periodMs = periodSeconds * 1000;
+  // The server's events, then the writes it hasn't returned yet.
+  const { events, write } = useOptimisticEvents(serverEvents, { gameId: game.id, onError: setError });
   // The sport's own words and keeper rules, and the age group's periods
   // ("half" and "H", or hockey's "quarter" and "Q").
   const rules = soccerFamilyRules(sport);
@@ -250,6 +268,16 @@ export function SoccerLiveGame({
     });
   }, [nowMs, base, pause, clockMultiplier]);
   const elapsedSecond = Math.floor(elapsedMs / 1000);
+
+  // AFL's live chrome: the undo strip's flash, the swap confirm and toast.
+  const chrome = useLiveChrome({
+    teamName,
+    opponentName,
+    playersById: playerById,
+    seasonLoanMinutes,
+    events,
+    openElapsedMs: isPeriodActive ? elapsedMs : null,
+  });
 
   // ── The game now: every kid's time so far, open stints credited ──
   const state: SoccerGameState = useMemo(
@@ -347,8 +375,16 @@ export function SoccerLiveGame({
   const kitUpKeeper = kitUpDue && kitUpKeeperId ? playerById.get(kitUpKeeperId) ?? null : null;
 
   // ── Writes ──────────────────────────────────────────────────
-  const at = () => ({ quarter: base.currentPeriod, elapsed_ms: elapsedMs });
+  // The clock as the write lands: a confirmed swap is stamped when the
+  // coach taps Confirm, not when the sheet opened (AFL reads its clock
+  // at confirm too).
+  const elapsedRef = useRef(elapsedMs);
+  elapsedRef.current = elapsedMs;
+  const at = () => ({ quarter: base.currentPeriod, elapsed_ms: elapsedRef.current });
 
+  // A period starting or ending changes the whole screen (the break is
+  // the server's plan), so it waits for the save, with a pending state.
+  // Every other write is optimistic (write, below).
   async function run<K extends LiveActionKind>(kind: K, args: LiveActionArgs<K>) {
     setPending(true);
     setError(null);
@@ -388,39 +424,24 @@ export function SoccerLiveGame({
   }, [elapsedMs, isPeriodActive, running, base.periodStartedAt, periodMs, endHalfAtClient]);
 
   function sub(offId: string | null, onId: string, line?: SoccerUnit) {
-    return run("recordSoccerSwap", [
-      auth,
-      game.id,
-      { off_player_id: offId, on_player_id: onId, ...(line ? { line } : {}), ...at() },
-    ]);
+    setError(null);
+    const input = { off_player_id: offId, on_player_id: onId, ...(line ? { line } : {}), ...at() };
+    write("recordSoccerSwap", [auth, game.id, input], liveEvents.swap(input));
   }
   function move(a: string, b: string | null, zoneB: SoccerUnit) {
     const zoneA = state.lineup ? soccerUnitOf(state.lineup, a) : null;
-    if (!zoneA) return Promise.resolve();
-    return run("recordSoccerMove", [
-      auth,
-      game.id,
-      { player_a_id: a, zone_a: zoneA, ...(b ? { player_b_id: b } : {}), zone_b: zoneB, ...at() },
-    ]);
+    if (!zoneA) return;
+    setError(null);
+    const input = { player_a_id: a, zone_a: zoneA, ...(b ? { player_b_id: b } : {}), zone_b: zoneB, ...at() };
+    write("recordSoccerMove", [auth, game.id, input], liveEvents.move(input));
   }
 
-  async function applyAllSubs() {
+  function applyAllSubs() {
     if (nextSubs.length === 0) return;
-    setPending(true);
-    const flushed = nextSubs.map(
-      (s) =>
-        enqueueLiveAction("recordSoccerSwap", [
-          auth,
-          game.id,
-          { off_player_id: s.off_player_id, on_player_id: s.on_player_id, line: s.line, ...at() },
-        ]).flushed,
-    );
-    await Promise.all(flushed).catch(() => {
-      // A failed op rolls back in the queue; just unfreeze the screen.
-    });
-    setPending(false);
+    for (const s of nextSubs) sub(s.off_player_id, s.on_player_id, s.line);
+    if (nextSubs.length === 1) chrome.swapped(nextSubs[0].off_player_id, nextSubs[0].on_player_id);
+    else chrome.showToast(`${nextSubs.length} subs made`);
     setSubAckKey(subDueKey);
-    router.refresh();
   }
 
   // ── Taps ────────────────────────────────────────────────────
@@ -444,8 +465,15 @@ export function SoccerLiveGame({
           setError(KEEPER_AT_BREAKS);
           return;
         }
-        if (from) void move(selectedId, null, unit);
-        else void sub(null, selectedId, unit);
+        const kid = selectedId;
+        if (from) {
+          // A move on the field, straight away (AFL's empty-zone move).
+          move(kid, null, unit);
+          chrome.showToast(`${chrome.firstName(kid)} → ${words[unit].label}`);
+        } else {
+          // A bench kid into an empty spot asks first, as AFL's does.
+          chrome.confirmSwap({ offId: null, onId: kid, spotName: words[unit].label, onConfirm: () => sub(null, kid, unit) });
+        }
         setSelectedId(null);
       } else {
         setFillUnit(unit);
@@ -467,51 +495,98 @@ export function SoccerLiveGame({
       setError(KEEPER_AT_BREAKS);
       return;
     }
-    if (aUnit && bUnit) void move(selectedId, pid, bUnit);
-    else if (aUnit && !bUnit) void sub(selectedId, pid);
-    else if (!aUnit && bUnit) void sub(pid, selectedId);
-    else setSelectedId(pid); // two bench kids: the second is the selection
+    const first = selectedId;
+    if (aUnit && bUnit) {
+      // Two on the field trade places, straight away (AFL's zone swap).
+      move(first, pid, bUnit);
+      chrome.showToast(`${chrome.firstName(first)} ⇄ ${chrome.firstName(pid)} — swapped`);
+    } else if (aUnit || bUnit) {
+      // A field kid and a bench kid: AFL's confirm, then the toast.
+      const off = aUnit ? first : pid;
+      const on = aUnit ? pid : first;
+      const spot = (aUnit ?? bUnit)!;
+      chrome.confirmSwap({ offId: off, onId: on, spotName: words[spot].label, onConfirm: () => sub(off, on) });
+    } else setSelectedId(pid); // two bench kids: the second is the selection
   }
 
   // ── Score ───────────────────────────────────────────────────
-  const canScore = isPeriodActive || isAtBreak || isAtFinal;
+  // Goals go up the moment they're tapped (optimistic), and the undo
+  // strip flashes what was recorded, as AFL's does. Only in play: at
+  // full time the review's own buttons fix a miscount.
+  const canScore = isPeriodActive;
   function teamGoal(scorerId: string | null) {
     if (!trackScoring) return;
     setSelectedId(null);
-    void run("recordSoccerGoal", [auth, game.id, scorerId, base.currentPeriod, elapsedMs]);
+    setError(null);
+    write(
+      "recordSoccerGoal",
+      [auth, game.id, scorerId, base.currentPeriod, elapsedRef.current],
+      liveEvents.score("goal", scorerId, at()),
+    );
+    void hapticTap("light");
+    chrome.scored({ side: "us", what: "goal", scorerId });
   }
-  const opponentGoal = () => void run("recordSoccerOpponentGoal", [auth, game.id, base.currentPeriod, elapsedMs]);
-  const undoGoal = () => void run("undoSoccerScore", [auth, game.id]);
+  const opponentGoal = () => {
+    setError(null);
+    write(
+      "recordSoccerOpponentGoal",
+      [auth, game.id, base.currentPeriod, elapsedRef.current],
+      liveEvents.score("opponent_goal", null, at()),
+    );
+    chrome.scored({ side: "them", what: "goal" });
+  };
+  const undoGoal = () => {
+    const undo = optimisticUndo(events, SOCCER_SCORE_TYPES);
+    if (!undo) return;
+    setError(null);
+    write("undoSoccerScore", [auth, game.id], undo);
+    chrome.undone();
+  };
 
   // ── Sideline: injuries, loans, late arrivals, holds ─────────
   const swappableBench = useMemo(
     () => (state.lineup?.bench ?? []).filter((id) => !injuredSet.has(id) && !loanedSet.has(id)),
     [state.lineup, injuredSet, loanedSet],
   );
+  // Nobody arrives at a game that's over (AFL's LiveGame filters the same).
   const lateArrivalCandidates = useMemo(() => {
+    if (isFinished) return [];
     const placed = new Set(state.lineup ? [...soccerOnField(state.lineup), ...state.lineup.bench] : []);
     return squad.filter((p) => !placed.has(p.id));
-  }, [squad, state.lineup]);
+  }, [squad, state.lineup, isFinished]);
 
-  async function markInjured(pid: string, injured: boolean) {
-    await run("markInjury", [auth, game.id, { player_id: pid, injured, ...at() }]);
+  function markInjured(pid: string, injured: boolean) {
+    setError(null);
+    const input = { player_id: pid, injured, ...at() };
+    write("markInjury", [auth, game.id, input], liveEvents.injury(input));
   }
   function startInjury(pid: string) {
     const unit = state.lineup ? soccerUnitOf(state.lineup, pid) : null;
     if (isPeriodActive && unit && swappableBench.length > 0) setInjury({ injuredId: pid, unit });
-    else void markInjured(pid, true);
+    else markInjured(pid, true);
   }
-  async function injuryReplace(injuredId: string, replacementId: string, unit: SoccerUnit) {
+  function injuryReplace(injuredId: string, replacementId: string, unit: SoccerUnit) {
     setInjury(null);
-    await markInjured(injuredId, true);
-    await sub(injuredId, replacementId, unit);
+    // In order, in the one game lane: the injury, then who comes on.
+    markInjured(injuredId, true);
+    sub(injuredId, replacementId, unit);
+    chrome.swapped(injuredId, replacementId);
   }
-  const setLoan = (pid: string, loaned: boolean) =>
-    void run("markLoan", [auth, game.id, { player_id: pid, loaned, ...at() }]);
-  const setHold = (pid: string, lock: { kind: "field" } | null) =>
-    void run("recordPlayerLock", [auth, game.id, { player_id: pid, lock, ...at() }]);
-  const addLateArrival = (pid: string) =>
-    void run("addLateArrival", [auth, game.id, { player_id: pid, ...at() }]);
+  const setLoan = (pid: string, loaned: boolean) => {
+    setError(null);
+    const input = { player_id: pid, loaned, ...at() };
+    write("markLoan", [auth, game.id, input], liveEvents.loan(input));
+  };
+  const setHold = (pid: string, lock: { kind: "field" } | null) => {
+    setError(null);
+    const input = { player_id: pid, lock, ...at() };
+    write("recordPlayerLock", [auth, game.id, input], liveEvents.lock(input));
+  };
+  const addLateArrival = (pid: string) => {
+    setError(null);
+    const input = { player_id: pid, ...at() };
+    write("addLateArrival", [auth, game.id, input], liveEvents.arrived(input));
+  };
 
   // ── Tile decorations ────────────────────────────────────────
   const lockModes = useMemo(() => {
@@ -593,6 +668,8 @@ export function SoccerLiveGame({
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
 
+      {isPeriodActive && chrome.toast}
+
       {kitUpKeeper && (
         <InlineAlert kind="warn" className="font-medium">
           <span data-testid="keeper-kit-up">
@@ -625,10 +702,12 @@ export function SoccerLiveGame({
           msUntilDue={subDue.msUntilDue}
           subIntervalMs={subDue.spanMs}
           due={subDue.due}
-          onApplyAll={() => void applyAllSubs()}
+          onApplyAll={applyAllSubs}
           onApplyOne={(i) => {
             const s = nextSubs[i];
-            if (s) void sub(s.off_player_id, s.on_player_id, s.line);
+            if (!s) return;
+            sub(s.off_player_id, s.on_player_id, s.line);
+            chrome.swapped(s.off_player_id, s.on_player_id);
           }}
           pending={pending}
           playerById={playerById}
@@ -749,6 +828,12 @@ export function SoccerLiveGame({
         finished={base.finalised}
         auth={auth}
         gameId={game.id}
+        // The sub interval mid-game, as AFL's (rolling subs only).
+        settings={
+          !isFinished && ageGroup.subMode.kind === "rolling" && subIntervalSeconds != null ? (
+            <LiveGameSettingsButton auth={auth} gameId={game.id} subIntervalSeconds={subIntervalSeconds} />
+          ) : null
+        }
       />
 
       {playerDockVisible && selectedPlayer && (
@@ -811,7 +896,8 @@ export function SoccerLiveGame({
               clockReadout={clockReadout}
               running={running}
               isPreGame={isPreKickoff}
-              isFinished={base.finalised}
+              // Full time reads FT from the last hooter, not "running".
+              isFinished={isFinished}
               atHooter={atHooter}
               breakName={breakName}
               trackScoring={trackScoring}
@@ -822,11 +908,12 @@ export function SoccerLiveGame({
               clockPulseKey={base.periodEnded ? `end-${base.currentPeriod}` : null}
             />
           }
-          undoStrip={
-            (state.teamScore.goals > 0 || state.opponentScore.goals > 0) && !base.finalised ? (
-              <UndoStrip flashing={false} message="" onUndo={undoGoal} disabled={pending} />
-            ) : undefined
-          }
+          // In play only: at full time the review's own Undo fixes a miscount.
+          undoStrip={chrome.undoStrip({
+            show: isPeriodActive && (state.teamScore.goals > 0 || state.opponentScore.goals > 0),
+            onUndo: undoGoal,
+            disabled: pending,
+          })}
         />
       )}
 
@@ -873,11 +960,24 @@ export function SoccerLiveGame({
       {scorerPickerOpen && (
         <SlotFillSheet
           slotLabel="goal"
-          titleVerb="Who scored the"
-          candidates={(state.lineup ? soccerOnField(state.lineup) : [])
-            .map((id) => playerById.get(id))
-            .filter((p): p is Player => Boolean(p))
-            .map((p) => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number }))}
+          eyebrow="Goal"
+          title="Who scored?"
+          subtitle="Pick who scored, or count it without a name."
+          // The likeliest scorers first: attack, then back to the keeper,
+          // then the bench (a kid just subbed off may have scored), as
+          // AFL's sheet lists its forwards first. Hurt and lent kids
+          // didn't score. A stray tap on the backdrop keeps the sheet
+          // (SlotFillSheet's default): the goal mustn't vanish.
+          candidates={(state.lineup ? soccerLikelyScorers(state.lineup) : [])
+            .filter(({ id }) => !injuredSet.has(id) && !loanedSet.has(id))
+            .map(({ id, unit }) => ({ p: playerById.get(id), unit }))
+            .filter((c): c is { p: Player; unit: SoccerUnit | null } => Boolean(c.p))
+            .map(({ p, unit }) => ({
+              id: p.id,
+              name: p.full_name,
+              jerseyNumber: p.jersey_number,
+              subLabel: unit ? words[unit].short || words[unit].label : "Bench",
+            }))}
           emptyMessage={`Nobody is on ${words.field.phrase}.`}
           extraOption={{
             label: "Not sure who",
@@ -899,11 +999,13 @@ export function SoccerLiveGame({
         <LockModal
           player={actionPlayer}
           currentLock={actionIsKeeper ? null : actionHeld}
-          currentZone={null}
+          // The kid's line (on the field) for the Switch hint, and their
+          // lent minutes, as AFL's sheet has.
+          currentLine={actionUnit ? words[actionUnit].label : null}
           isInjured={injuredSet.has(actionPlayer.id)}
           isLoaned={loanedSet.has(actionPlayer.id)}
-          seasonLoanMins={0}
-          squadLoanMins={0}
+          seasonLoanMins={chrome.loanMinutes(actionPlayer.id).seasonLoanMins}
+          squadLoanMins={chrome.loanMinutes(actionPlayer.id).squadLoanMins}
           onLockField={isPeriodActive && actionUnit && !actionIsKeeper ? () => {
             setActionPlayerId(null);
             setHold(actionPlayer.id, { kind: "field" });
@@ -916,7 +1018,7 @@ export function SoccerLiveGame({
           onToggleInjury={() => {
             const pid = actionPlayer.id;
             setActionPlayerId(null);
-            if (injuredSet.has(pid)) void markInjured(pid, false);
+            if (injuredSet.has(pid)) markInjured(pid, false);
             else startInjury(pid);
           }}
           onToggleLoan={() => {
@@ -965,8 +1067,9 @@ export function SoccerLiveGame({
             setKeeperPickerOpen(false);
             const lu = state.lineup!;
             if (!lu.keeper) return;
-            if (soccerUnitOf(lu, pid)) void move(lu.keeper, pid, soccerUnitOf(lu, pid)!);
-            else void sub(lu.keeper, pid, "gk");
+            if (soccerUnitOf(lu, pid)) move(lu.keeper, pid, soccerUnitOf(lu, pid)!);
+            else sub(lu.keeper, pid, "gk");
+            chrome.swapped(lu.keeper, pid);
           }}
           onCancel={() => setKeeperPickerOpen(false)}
         />
@@ -984,7 +1087,9 @@ export function SoccerLiveGame({
           onPick={(pid) => {
             const unit = fillUnit;
             setFillUnit(null);
-            void sub(null, pid, unit);
+            // A deliberate pick: straight on, with AFL's toast.
+            sub(null, pid, unit);
+            chrome.swapped(null, pid);
           }}
           onCancel={() => setFillUnit(null)}
         />
@@ -1004,15 +1109,17 @@ export function SoccerLiveGame({
               injuredPlayer={injured}
               spotLabel={words[injury.unit].label}
               candidates={candidates}
-              onPickReplacement={(rid) => void injuryReplace(injury.injuredId, rid, injury.unit)}
+              onPickReplacement={(rid) => injuryReplace(injury.injuredId, rid, injury.unit)}
               onSkipReplacement={() => {
                 setInjury(null);
-                void markInjured(injury.injuredId, true);
+                markInjured(injury.injuredId, true);
               }}
               onCancel={() => setInjury(null)}
             />
           );
         })()}
+
+      {chrome.overlays}
 
       <LongPressHint enabled={isPeriodActive && !selectedId} />
     </div>

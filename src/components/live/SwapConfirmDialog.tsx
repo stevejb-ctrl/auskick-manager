@@ -14,10 +14,10 @@ import { Modal } from "@/components/ui/Modal";
 interface Props {
   off: string; // field player going to bench; "" = empty slot
   on: string; // bench player coming on
-  /** AFL's zone; or `placeLabel` for a sport with its own places. */
+  /** AFL's zone. Sports whose spots aren't AFL zones pass spotName. */
   zone?: Zone;
-  /** Where the kid goes on, in the sport's words ("Wings", "the field"). */
-  placeLabel?: string;
+  /** The spot in the sport's own words ("Defence", "Guards"). */
+  spotName?: string;
   playersById: Map<string, Player>;
   /** The rule this sub breaks ("That puts 4 boys on: the mixed rule allows 3"). */
   ruleWarning?: string | null;
@@ -25,10 +25,10 @@ interface Props {
   onCancel: () => void;
 }
 
-export function SwapConfirmDialog({ off, on, zone, placeLabel, playersById, ruleWarning = null, onConfirm, onCancel }: Props) {
+export function SwapConfirmDialog({ off, on, zone, spotName, playersById, ruleWarning = null, onConfirm, onCancel }: Props) {
   const onName = playersById.get(on)?.full_name ?? "Player";
   const offName = off ? (playersById.get(off)?.full_name ?? "Player") : null;
-  const zoneName = placeLabel ?? (zone ? ZONE_LABELS[zone] : "the field");
+  const zoneName = spotName ?? (zone ? ZONE_LABELS[zone] : "the field");
 
   const message = offName
     ? `Manually sub ${onName} (Bench) for ${offName} (${zoneName})?`

@@ -126,6 +126,17 @@ test("hockey U9: 7 a side in halves, keepers change only at the break, with a ki
   expect(await count("swap")).toBe(0);
   expect((await lineup()).keeper).toBe(h1Keeper);
 
+  // ─── The live chrome, as AFL's ─────────────────────────────────
+  // An outfielder's actions know they're on the field (not "bring them on")…
+  const outfielder = [...h1.lines.def, ...h1.lines.mid, ...h1.lines.att][0];
+  await page.getByTestId(`player-tile-${outfielder}`).click({ timeout: 10_000 });
+  await page.getByRole("button", { name: /^player actions/i }).click({ timeout: 5_000 });
+  await expect(actions.getByRole("button", { name: /switch player/i })).toContainText(/bench player to sub off/i);
+  await actions.getByRole("button", { name: /^(close|cancel)$/i }).first().click();
+  await expect(actions).toHaveCount(0);
+  // …and Game settings (the sub interval) sits in the row.
+  await expect(page.getByRole("button", { name: "Game settings", exact: true })).toBeVisible();
+
   // ─── Two minutes before half-time: the next keeper kits up ────
   // Wind the half on to 18:30 of 20:00 (every event so far moves back).
   const { data: sofar } = await admin.from("game_events").select("id, created_at").eq("game_id", game.id);
@@ -182,11 +193,12 @@ test("hockey U13: 4 × 15 quarters, named keepers rotate at the breaks, an injur
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
 
+  const teamName = `HOC-U13-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const team = await makeTeam(admin, {
     ownerId,
     sport: "hockey",
     ageGroup: "U13",
-    name: `HOC-U13-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    name: teamName,
   });
   await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
@@ -237,6 +249,16 @@ test("hockey U13: 4 × 15 quarters, named keepers rotate at the breaks, an injur
     page.getByRole("region", { name: "On field" }).getByRole("group", { name: "Keeper" }).getByTestId(`player-tile-${benchKid}`),
   ).toBeVisible({ timeout: 15_000 });
 
+  // ─── A goal: the scorer sheet survives a stray tap (UX audit P1) ─
+  await page.getByRole("button", { name: `Add goal, ${teamName}` }).click({ timeout: 5_000 });
+  const scorerSheet = page.getByRole("dialog", { name: "Who scored?" });
+  await expect(scorerSheet).toBeVisible();
+  await page.mouse.click(8, 8);
+  await expect(scorerSheet).toBeVisible();
+  await scorerSheet.getByRole("button", { name: /not sure who/i }).click();
+  await expect(page.getByTestId("undo-strip")).toContainText(`${teamName} goal`);
+  await expect.poll(() => count("goal")).toBe(1);
+
   // ─── Half time (after Q2), then three-quarter time ────────────
   await endPeriod(page, "Q2");
   await expect(page.getByRole("heading", { name: /^q3 lineup$/i })).toBeVisible({ timeout: 15_000 });
@@ -248,8 +270,15 @@ test("hockey U13: 4 × 15 quarters, named keepers rotate at the breaks, an injur
   await startPeriod(page, "Q4");
   await endPeriod(page, "Q4");
 
-  // Full time: the score by quarter, then finish.
+  // Full time: the score by quarter, then finish. No live chips or undo
+  // strip; the review's buttons name their team and are thumb-sized.
   await expect(page.getByRole("columnheader", { name: "Quarter" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("undo-strip")).toHaveCount(0);
+  for (const side of [teamName, "Kingston Kites"]) {
+    const add = page.getByRole("button", { name: `Add goal, ${side}` });
+    await expect(add).toHaveCount(1);
+    expect((await add.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  }
   await page.getByRole("button", { name: /finish game/i }).click({ timeout: 10_000 });
   await expect.poll(() => count("game_finalised")).toBe(1);
   await expect(page.locator("#soccer-game-summary-text")).toContainText("🏑 Full time", { timeout: 15_000 });

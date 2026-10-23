@@ -3,15 +3,19 @@
 // ─── The soccer family's full time ───────────────────────────
 // SoccerFullTimeReview sits between the last period's end and
 // game_finalised, as AFL's FullTimeReview and league's do: the two
-// score boxes, the score by half (or quarter), inline score adjustments
-// (+ Goal for either side, undo the last), then "Finish game". With
-// scoring off (MiniRoos) it's just the finish. SoccerGameSummaryCard is the share
-// text afterwards, on the shared CopyableTextBlock.
+// score boxes, then the shared BreakScoreEditor — the score by half (or
+// quarter), a missed goal for either side on buttons that name their
+// team (the scorebug's 44 pt chip), and Undo — then "Finish game". The
+// live scorebug's chips and undo strip are gone by now (UX audit 23 Oct
+// 2026: two unlabelled "+ GOAL" by colour only, a 10px Undo). With
+// scoring off (MiniRoos) it's just the finish. SoccerGameSummaryCard is
+// the share text afterwards, on the shared CopyableTextBlock.
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { SFButton } from "@/components/sf";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { BreakScoreEditor } from "@/components/quarter-break/BreakScoreEditor";
 import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { hapticSiren } from "@/lib/haptics";
@@ -72,7 +76,6 @@ export function SoccerFullTimeReview({
   }
 
   const box = "rounded-md border border-hairline bg-surface-alt p-3";
-  const head = "font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute";
 
   return (
     <div className="rounded-md border border-hairline bg-surface p-4 shadow-card">
@@ -94,75 +97,30 @@ export function SoccerFullTimeReview({
             </div>
           </div>
 
-          <div className="mt-4 overflow-hidden rounded-md border border-hairline">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-surface-alt">
-                <tr>
-                  <th className={`px-3 py-1.5 ${head}`}>{periodWord.charAt(0).toUpperCase() + periodWord.slice(1)}</th>
-                  <th className={`px-2 py-1.5 text-right ${head}`}>{teamName}</th>
-                  <th className={`px-2 py-1.5 text-right ${head}`}>{opponentName}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-hairline">
-                {Array.from({ length: periodCount }).map((_, i) => {
-                  const row = state.scoreByPeriod[i + 1] ?? { ours: 0, theirs: 0 };
-                  return (
-                    <tr key={i}>
-                      <td className="px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
-                        {periodWord.charAt(0).toUpperCase()}
-                        {i + 1}
-                      </td>
-                      <td className="px-2 py-1.5 text-right font-bold tabular-nums text-ink">{row.ours}</td>
-                      <td className="px-2 py-1.5 text-right font-bold tabular-nums text-ink">{row.theirs}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="mt-4">
+            <BreakScoreEditor
+              teamName={teamName}
+              opponentName={opponentName}
+              teamPoints={state.teamScore.goals}
+              opponentPoints={state.opponentScore.goals}
+              scoreByPeriod={state.scoreByPeriod}
+              periodCount={periodCount}
+              currentPeriod={periodCount}
+              periodLetter={periodWord.charAt(0).toUpperCase()}
+              periodWord={periodWord}
+              teamChips={
+                onTeamGoal ? [{ key: "goal", text: "+G", label: `Add goal, ${teamName}`, onClick: onTeamGoal }] : []
+              }
+              opponentChips={
+                onOpponentGoal
+                  ? [{ key: "goal", text: "+G", label: `Add goal, ${opponentName}`, onClick: onOpponentGoal }]
+                  : []
+              }
+              missedNote={`Spotted a miscount? A goal you missed counts in ${periodWord.charAt(0).toUpperCase()}${periodCount}.`}
+              onUndo={onUndo ?? (() => {})}
+              undoDisabled={scorePending || !onUndo}
+            />
           </div>
-
-          {(onTeamGoal || onOpponentGoal || onUndo) && (
-            <section className="mt-3 rounded-md border border-hairline bg-surface-alt p-3">
-              <p className={head}>Score adjustments</p>
-              <p className="mt-0.5 text-[11px] text-ink-mute">Spotted a miscount? Add a missed goal, or undo the most recent one.</p>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                {onTeamGoal && (
-                  <button
-                    type="button"
-                    onClick={onTeamGoal}
-                    disabled={scorePending}
-                    className="rounded-sm bg-brand-600 px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
-                    aria-label={`Add goal, ${teamName}`}
-                  >
-                    + Goal
-                  </button>
-                )}
-                {onOpponentGoal && (
-                  <button
-                    type="button"
-                    onClick={onOpponentGoal}
-                    disabled={scorePending}
-                    className="rounded-sm bg-ink px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-warm transition-colors duration-fast ease-out-quart hover:bg-ink/85 disabled:opacity-60"
-                    aria-label={`Add goal, ${opponentName}`}
-                  >
-                    + Goal
-                  </button>
-                )}
-              </div>
-              {onUndo && (state.teamScore.goals > 0 || state.opponentScore.goals > 0) && (
-                <div className="mt-2 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={onUndo}
-                    disabled={scorePending}
-                    className="rounded-sm px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-micro text-warn underline-offset-2 transition-colors duration-fast ease-out-quart hover:bg-warn-soft hover:underline disabled:opacity-60"
-                  >
-                    ↶ Undo last goal
-                  </button>
-                </div>
-              )}
-            </section>
-          )}
         </>
       )}
 
