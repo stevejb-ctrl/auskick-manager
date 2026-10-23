@@ -10,7 +10,13 @@ interface LockModalProps {
   /** Current lock state for this player. Null when locking isn't supported (e.g. RL). */
   currentLock: "field" | "zone" | null;
   /** The zone the player is currently in (or last played), used for zone-lock label. */
-  currentZone: Zone | null;
+  currentZone?: Zone | null;
+  /**
+   * The sport's own line or spot the kid is in now ("Guards", "GS"), for
+   * sports whose spots aren't AFL zones: an on-field kid's Switch line
+   * then says to tap a teammate to swap places.
+   */
+  currentLine?: string | null;
   /** Whether this player is currently injured. */
   isInjured: boolean;
   /** Whether this player is currently lent to the opposition. */
@@ -166,7 +172,8 @@ function lockModalIntro(can: { switch: boolean; lock: boolean; injure: boolean; 
 export function LockModal({
   player,
   currentLock,
-  currentZone,
+  currentZone = null,
+  currentLine = null,
   isInjured,
   isLoaned,
   seasonLoanMins,
@@ -200,7 +207,7 @@ export function LockModal({
   onClose,
 }: LockModalProps) {
   const firstName = player.full_name.trim().split(/\s+/)[0];
-  const zoneLabel = zoneLabelProp ?? (currentZone ? ZONE_SHORT_LABELS[currentZone] : null);
+  const zoneLabel = zoneLabelProp ?? (currentZone ? ZONE_SHORT_LABELS[currentZone] : currentLine);
   const loanedLabel = seasonLoanMins === undefined ? null : Math.round(seasonLoanMins);
   const squadLabel = Math.round(squadLoanMins ?? 0);
   // An action that asks first: the sheet becomes its confirm.
@@ -226,7 +233,10 @@ export function LockModal({
   );
 
   return (
-    <Modal size="xs" labelledBy="lock-modal-title" onClose={onClose}>
+    // Scrolls when the actions outgrow the screen: on an iPhone 14,
+    // basketball's long list pushed Cancel off the bottom with no way to
+    // reach it (live-chrome contract, WebKit).
+    <Modal size="xs" labelledBy="lock-modal-title" onClose={onClose} className="overflow-y-auto">
         <p className="mb-1 text-center font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
           Player actions
         </p>
@@ -382,7 +392,9 @@ export function LockModal({
                     {switchHint ??
                       (currentZone
                         ? "Tap a teammate to swap zones, or a bench player to sub off"
-                        : "Tap a field player to bring them on")}
+                        : currentLine
+                          ? "Tap a teammate to swap places, or a bench player to sub off"
+                          : "Tap a field player to bring them on")}
                   </span>
                 </button>
               )}

@@ -89,6 +89,7 @@ import {
   formatMinSec,
 } from "@/lib/sports/netball/fairness";
 import { computePeriodClockMs } from "@/lib/live/periodClock";
+import { gameLoanMinutes, seasonLoanMinutes } from "@/lib/fairness";
 import {
   saveNetballLineupDraft,
   startNetballGame,
@@ -1177,6 +1178,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     }
     return out;
   }, [seasonEvents]);
+
+  // Loan minutes over completed games, for the Lend line in the player
+  // actions (AFL's: "Season total: 12m · squad avg 8m").
+  const seasonLoanMinsByPlayer = useMemo(() => seasonLoanMinutes(seasonEvents), [seasonEvents]);
 
   // Per-player, per-period, per-zone played ms (F3 / D-05). Same
   // credited ms as playerStats, split by period — reuses the SAME
@@ -2333,6 +2338,19 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         const short = positionId ? bibOf(positionId)?.shortLabel ?? positionId.toUpperCase() : null;
         // Short-squad blank-slot reshuffle (Steve 2026-05-23), with mid-
         // quarter subs on: one action per empty bib.
+        // Season loan minutes: completed games plus this game so far, an
+        // open loan counted to now (a closing quarter_end at the clock).
+        const thisGameLoans = gameLoanMinutes(
+          liveOverlayMs > 0
+            ? [
+                ...thisGameEvents,
+                { type: "quarter_end", metadata: { elapsed_ms: clockMs }, created_at: "9999" } as unknown as GameEvent,
+              ]
+            : thisGameEvents,
+        );
+        const seasonLoanMins = (seasonLoanMinsByPlayer[playerId] ?? 0) + (thisGameLoans[playerId] ?? 0);
+        const squadValues = Object.values(seasonLoanMinsByPlayer).filter((v) => v > 0);
+        const squadLoanMins = squadValues.length > 0 ? squadValues.reduce((a, b) => a + b, 0) / squadValues.length : 0;
         const emptyPositions =
           allowMidQuarterSubs && positionId && !isInjured && !isLoaned
             ? ageGroup.positions.filter((pid) => (onCourt.positions[pid]?.length ?? 0) === 0)
@@ -2342,6 +2360,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             player={actionsPlayer}
             currentLock={positionId && nextBreakLocks[positionId] === playerId ? "zone" : null}
             currentZone={null}
+            currentLine={short}
+            seasonLoanMins={seasonLoanMins}
+            squadLoanMins={squadLoanMins}
             zoneLabel={short ? `${short} next break` : undefined}
             lockZoneHint={short ? `Stays at ${short} when the next break's lineup is made` : undefined}
             lockedNote={short ? `Kept at ${short} for the next break.` : undefined}
