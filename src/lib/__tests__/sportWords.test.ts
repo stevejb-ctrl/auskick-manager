@@ -7,6 +7,8 @@
 // "Players on the field". Every word now comes from the sport's config;
 // these walk every sport and age group and fail on another sport's word.
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   ALL_SPORTS,
@@ -234,6 +236,41 @@ describe("rugby's walkthrough", () => {
         expect(text, `${id} ${ag.id}`).not.toMatch(/keep on|\block|move to forwards|positionless/i);
       }
     }
+  });
+});
+
+describe("rugby's and touch's start cues", () => {
+  // League's break said "when the siren goes" (AFL's word), and touch's
+  // break said "whistle goes" while its lineup and live screen said
+  // "referee starts play". Each screen now asks the sport's words.
+  const files = [
+    "src/components/league/LeagueBreak.tsx",
+    "src/components/league/LeagueLineupPicker.tsx",
+    "src/components/league/LeagueLiveGame.tsx",
+    "src/components/touch/TouchBreak.tsx",
+    "src/components/touch/TouchLineupPicker.tsx",
+    "src/components/touch/TouchLiveGame.tsx",
+  ];
+  for (const path of files) {
+    it(`${path} takes its start cue from the sport`, () => {
+      const source = readFileSync(join(process.cwd(), path), "utf8");
+      expect(source).not.toMatch(/\bcue(=|: )"/);
+      expect(source).not.toMatch(/siren goes|referee starts play/);
+    });
+  }
+
+  it("league's walkthrough promises the swap confirm the live screen asks", () => {
+    const steps = buildLeagueWalkthroughSteps({
+      sport: "rugby_league",
+      trackScoring: true,
+      periodLabel: "half",
+      vests: { fr: true, dh: true },
+      kickingAllowed: true,
+      trackZoneTime: false,
+    });
+    const subs = steps.find((s) => s.title === "Rolling subs")!;
+    expect(subs.body).toMatch(/confirm/i);
+    expect(readFileSync(join(process.cwd(), "src/components/league/LeagueLiveGame.tsx"), "utf8")).toMatch(/\.confirmSwap\(/);
   });
 });
 
