@@ -133,10 +133,12 @@ test.describe("soccer", () => {
     await expect(page.getByText(/\bH2\b/)).toHaveCount(0);
 
     // Repeat: last half's keeper in goal again breaks "everyone has a
-    // turn" (and the bench kids sitting out again breaks the 50% floor).
+    // turn". The three on the bench played nothing, but rolling subs can
+    // still bring them on for the whole half: 50%, no broken floor (audit,
+    // 23 Oct 2026: "can't reach 50% now" forced "Start anyway").
     await strategy(page, "Repeat").click();
-    await expect(page.getByTestId("break-broken-rule").filter({ hasText: "can't reach 50% now" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /^start 2nd half/i })).toContainText("2 rules");
+    await expect(page.getByRole("button", { name: /^start 2nd half/i })).toContainText("1 rule");
+    await expect(page.getByTestId("break-broken-rule").filter({ hasText: "can't reach" })).toHaveCount(0);
     const broken = page.getByTestId("break-broken-rule").filter({ hasText: "kept goal last half" });
     await expect(broken).toBeVisible();
     await expect(broken).toContainText("Rule: Everyone has a turn: one half in goal each");
@@ -144,9 +146,6 @@ test.describe("soccer", () => {
     await broken.getByRole("button", { name: "Fix" }).click();
     await expect(broken).toHaveCount(0);
     await expect(group(page, "Keeper").getByTestId(`player-tile-${k[0]}`)).toHaveCount(0);
-    // Three bench kids short of the floor: Fix brings them on, a swap each.
-    const floor = page.getByTestId("break-broken-rule").filter({ hasText: "can't reach 50% now" });
-    await floor.getByRole("button", { name: "Fix" }).click();
     await expect(page.getByTestId("break-broken-rule")).toHaveCount(0);
 
     await page.getByRole("button", { name: /^start 2nd half$/i }).click();
@@ -162,6 +161,58 @@ test.describe("soccer", () => {
         { timeout: 20_000 },
       )
       .toMatchObject({ started: true });
+  });
+});
+
+test.describe("hockey", () => {
+  // The kit-up heads-up ("Mia's in goal next half: start kitting up")
+  // names next half's keeper before the break. Every plan but Manual
+  // starts them in goal, and Fix puts them there before anyone else
+  // (audit, 23 Oct 2026: Repeat kept last half's keeper, Fix chose a kid
+  // who wasn't kitted up).
+  test("the kitted-up kid starts in goal in every plan, and Fix puts them back there", async ({ page }) => {
+    await quiet(page);
+    const admin = createAdminClient();
+    const ownerId = await ownerOf(admin);
+    const team = await makeTeam(admin, { ownerId, sport: "hockey", ageGroup: "U9", name: `PB-HOC-${Date.now() % 1e6}` });
+    const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 9 });
+    const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Wombats" });
+    const k = players.map((p) => p.id);
+    await available(admin, game.id, ownerId, k);
+    // 7 a side: keeper, 2-2-2, two on the bench.
+    const lineup = { keeper: k[0], lines: { def: k.slice(1, 3), mid: k.slice(3, 5), att: k.slice(5, 7), field: [] }, bench: k.slice(7) };
+    await seedBreak(admin, ownerId, game.id, "hockey", lineup, 20 * 60_000);
+    // The heads-up named k[3] before half-time (the live screen keeps it
+    // for the break in session storage).
+    await page.addInitScript(
+      ([key, id]) => {
+        try {
+          sessionStorage.setItem(key, id);
+        } catch {}
+      },
+      [`soccer-kitup:${game.id}:1`, k[3]],
+    );
+
+    await openBreak(page, team.id, game.id, /^2nd half lineup$/);
+    const keeper = group(page, "Keeper");
+    await expect(keeper.getByTestId(`player-tile-${k[3]}`)).toBeVisible({ timeout: 15_000 });
+    for (const plan of ["Repeat", "Rotate"]) {
+      await strategy(page, plan).click();
+      await expect(keeper.getByTestId(`player-tile-${k[3]}`)).toBeVisible();
+      await expect(keeper.getByTestId(`player-tile-${k[0]}`)).toHaveCount(0);
+    }
+
+    // Back on Repeat, the coach swaps last half's keeper back into goal:
+    // "kept goal last half". Fix puts the kitted-up kid back, not whoever
+    // comes first on the board.
+    await strategy(page, "Repeat").click();
+    await tile(page, k[0]).click();
+    await tile(page, k[3]).click();
+    await expect(keeper.getByTestId(`player-tile-${k[0]}`)).toBeVisible();
+    const broken = page.getByTestId("break-broken-rule").filter({ hasText: "kept goal last half" });
+    await broken.getByRole("button", { name: "Fix" }).click();
+    await expect(broken).toHaveCount(0);
+    await expect(keeper.getByTestId(`player-tile-${k[3]}`)).toBeVisible();
   });
 });
 
@@ -556,5 +607,49 @@ test.describe("AFL", () => {
     await waitForHydration(page);
     await expect(group(page, "Back").getByTestId(`player-tile-${ids[13]}`)).toBeVisible({ timeout: 20_000 });
     await expect(strategy(page, "Repeat")).toBeChecked();
+  });
+
+  // The break replaces the live view, which is often scrolled down the
+  // field. It opens at the top: the score and the strategy picker on
+  // screen (audit, 23 Oct 2026: it kept scrollY 179 and hid both).
+  test("the break opens at the top, from a scrolled live view", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await quiet(page);
+    const admin = createAdminClient();
+    const ownerId = await ownerOf(admin);
+    const team = await makeTeam(admin, { ownerId, sport: "afl", ageGroup: "U10", name: `PB-AFL-TOP-${Date.now() % 1e6}` });
+    await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+    const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+    const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Hawks" });
+    const ids = players.map((p) => p.id);
+    await available(admin, game.id, ownerId, ids);
+    const lineup = { back: ids.slice(0, 4), hback: [], mid: ids.slice(4, 8), hfwd: [], fwd: ids.slice(8, 12), bench: ids.slice(12) };
+    const at = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString();
+    await admin.from("game_events").insert(
+      [
+        { type: "lineup_set", metadata: { lineup, sport: "afl" }, created_at: at(61) },
+        { type: "quarter_start", metadata: { quarter: 1, sport: "afl" }, created_at: at(60) },
+      ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+    );
+    await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+    await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+    await waitForHydration(page);
+    const clockPill = page.getByRole("button", { name: /^clock — q1, running$/i });
+    await expect(clockPill).toBeVisible({ timeout: 20_000 });
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+
+    await clockPill.click();
+    await page.getByRole("button", { name: /^end q1 now$/i }).click();
+    await page.getByRole("button", { name: /^end\s*q\s*1$/i }).click();
+    const selectQ2 = page.getByRole("button", { name: /select team for q2/i });
+    const heading = page.getByRole("heading", { name: /^Q2 lineup$/ });
+    await expect(selectQ2.or(heading).first()).toBeVisible({ timeout: 15_000 });
+    if (await selectQ2.isVisible()) await selectQ2.click();
+    await expect(heading).toBeVisible({ timeout: 15_000 });
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+    await expect(page.getByRole("button", { name: /review and update scores/i })).toBeInViewport();
+    await expect(page.getByRole("radiogroup", { name: "How the next lineup is built" })).toBeInViewport();
   });
 });
