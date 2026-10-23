@@ -4,7 +4,7 @@
 // when the batch is done.
 
 import { describe, expect, it } from "vitest";
-import { resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
+import { openSubBatch, resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
 import type { GameEvent } from "@/lib/types";
 
 let seq = 0;
@@ -54,5 +54,35 @@ describe("resolveSubAnchorElapsed: a due batch, one swap at a time", () => {
   it("re-anchors on a swap that names no batch, as before", () => {
     const events = [ev("quarter_start", { quarter: 1 }), swap(4 * MIN, "a", "x")];
     expect(resolveSubAnchorElapsed(events, 1)).toBe(4 * MIN);
+  });
+});
+
+describe("openSubBatch: what's left of a due batch", () => {
+  // The live e2e (23 Oct 2026): with the clock held, the card suggested
+  // the kid just taken off straight back on as a second "due" swap. The
+  // card shows only the swaps the batch has left.
+  it("is the latest planned swap's batch_left while the batch is open", () => {
+    const events = [ev("quarter_start", { quarter: 1 }), swap(MIN, "a", "x", { batch_left: 2 }), swap(MIN + 5_000, "b", "y", { batch_left: 1 })];
+    expect(openSubBatch(events, 1)).toBe(1);
+  });
+
+  it("is 0 once the batch is done, a swap outside it is made, or none was open", () => {
+    const done = [ev("quarter_start", { quarter: 1 }), swap(MIN, "a", "x", { batch_left: 1 }), swap(MIN + 5_000, "b", "y")];
+    expect(openSubBatch(done, 1)).toBe(0);
+    expect(openSubBatch([ev("quarter_start", { quarter: 1 })], 1)).toBe(0);
+    expect(openSubBatch([], 0)).toBe(0);
+    // Last half's open batch doesn't carry into this one.
+    const lastHalf = [ev("quarter_start", { quarter: 1 }), swap(MIN, "a", "x", { batch_left: 1 }), ev("quarter_start", { quarter: 2 })];
+    expect(openSubBatch(lastHalf, 2)).toBe(0);
+  });
+
+  it("looks past a forced swap", () => {
+    const events = [
+      ev("quarter_start", { quarter: 1 }),
+      swap(MIN, "a", "x", { batch_left: 1 }),
+      ev("injury", { quarter: 1, elapsed_ms: MIN + 9_000, injured: true }, "c"),
+      swap(MIN + 9_000, "c", "z"),
+    ];
+    expect(openSubBatch(events, 1)).toBe(1);
   });
 });

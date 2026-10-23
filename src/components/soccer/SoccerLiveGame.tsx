@@ -64,7 +64,7 @@ import {
   RUNNING_CLOCK,
   type PeriodPause,
 } from "@/lib/live/periodClock";
-import { resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
+import { openSubBatch, resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { periodBreakName } from "@/lib/live/periodBreakName";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
@@ -295,11 +295,17 @@ export function SoccerLiveGame({
     anchorMs,
     elapsedMs,
   });
-  const nextSubs = useMemo(
-    () => (isPeriodActive ? suggestSoccerWindowBatch({ state, nowMs: absNowMs, prefs: keeperPrefs }) : []),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isPeriodActive, state, keeperPrefs],
+  // A due batch made one swap at a time: just the swaps it has left, not
+  // the kid just taken off straight back on (lib/live/subAnchor).
+  const batchLeft = useMemo(
+    () => (isPeriodActive ? openSubBatch(events, base.currentPeriod) : 0),
+    [events, base.currentPeriod, isPeriodActive],
   );
+  const nextSubs = useMemo(() => {
+    const batch = isPeriodActive ? suggestSoccerWindowBatch({ state, nowMs: absNowMs, prefs: keeperPrefs }) : [];
+    return batchLeft > 0 ? batch.slice(0, batchLeft) : batch;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPeriodActive, state, keeperPrefs, batchLeft]);
   const subDueKey = subDue.key === null ? null : `${base.currentPeriod}:${subDue.key}`;
   const subDueShowing = isPeriodActive && subDue.due && nextSubs.length > 0 && subAckKey !== subDueKey;
   useSubDueAudioUnlock();
