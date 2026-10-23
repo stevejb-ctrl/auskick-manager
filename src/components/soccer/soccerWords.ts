@@ -14,12 +14,18 @@ export function soccerKeeperNote(strategy: SoccerKeeperStrategy): string {
 /**
  * When subs happen, in a line ("3 sub windows a half, none in the last
  * 2 min"). `periodWord` is the age group's ("half", or hockey's
- * "quarter").
+ * "quarter"); `rolling` is the sport's name for subs on the run
+ * (`rules.rollingSubs.label`: futsal's "Flying subs").
  */
-export function soccerSubModeNote(mode: SoccerSubMode, subIntervalSeconds: number | null, periodWord: string): string {
+export function soccerSubModeNote(
+  mode: SoccerSubMode,
+  subIntervalSeconds: number | null,
+  periodWord: string,
+  rolling: string,
+): string {
   if (mode.kind === "windows") {
     const cutoff = Math.round(mode.cutoffSeconds / 60);
     return `${mode.perPeriod} sub windows a ${periodWord}${cutoff > 0 ? `, none in the last ${cutoff} min` : ""}`;
   }
-  return subIntervalSeconds ? `Rolling subs every ${Math.round((subIntervalSeconds / 60) * 10) / 10} min` : "Rolling subs";
+  return subIntervalSeconds ? `${rolling} every ${Math.round((subIntervalSeconds / 60) * 10) / 10} min` : rolling;
 }
