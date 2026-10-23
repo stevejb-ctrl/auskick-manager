@@ -14,8 +14,8 @@
 //
 // The actual mid-Q sub flow already exists in
 // `src/components/netball/NetballLiveGame.tsx` — `midQuarterSubs`
-// state machine + `NetballPlayerActions.onSwitch` + the
-// `PickReplacementSheet` for picking the bench player. This card
+// state machine + the player actions' Switch (LockModal) + the
+// shared InjuryReplacementModal for picking the bench player. This card
 // flips the team-level boolean that gates whether `onSwitch` is
 // wired through.
 //

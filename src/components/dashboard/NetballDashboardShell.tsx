@@ -19,7 +19,6 @@ import {
   MS_PER_MIN,
   NETBALL_ALL_POSITIONS,
   netballPositionLabel,
-  type NetballPosition,
 } from "@/lib/dashboard/netballAggregators";
 import type { AttendanceRow, Season } from "@/lib/dashboard/types";
 import { SeasonSelector } from "./SeasonSelector";
@@ -27,6 +26,7 @@ import { MinutesEquity } from "./MinutesEquity";
 import { AttendanceTable } from "./AttendanceTable";
 import { SeasonBalanceSection, type SeasonBalanceSectionProps } from "./SeasonBalanceGrid";
 import { EmptyState } from "./EmptyState";
+import { Metric, ZonePill } from "./PlayerStatsTable";
 
 interface Props {
   seasons: Season[];
@@ -161,18 +161,16 @@ export function NetballDashboardShell(props: Props) {
   );
 }
 
-// ─── Player statistics table ─────────────────────────────────
-// Per-player season summary: name, games, total mins, then a third-
-// % cell with the per-position share underneath it (so a coach can
-// see "Sam played 60% attack — 40% at GS, 20% at GA" without
-// switching tables). Goals total at the right.
+// ─── Player statistics ───────────────────────────────────────
+// One card per kid, as AFL's PlayerStatsTable (UX audit 23 Oct 2026:
+// the old table was 499px wide in a 330px card on a phone, with no
+// scroll cue): name and total minutes, games / average / % time / goals,
+// the three thirds as % of their own court time, then the bibs.
 //
-// Per-third % is sourced from the time-accurate playerThirdMs
-// (factors in mid-quarter subs). Per-position % is computed from
-// lineup-appearance counts, which is a quarter-granularity
-// approximation — fine for the dashboard read where the numbers
-// surface intent ("did Sam ever play GA?") rather than litigate
-// stopwatch precision.
+// Thirds and bibs share one source: time on court, mid-quarter subs
+// included (playerThirdMs and its split by bib), so a kid's bibs add up
+// to their thirds. The bibs used to count quarter starts, which missed a
+// replacement's stint.
 function NetballPlayerStatsTable({
   stats,
   hasData,
@@ -188,107 +186,50 @@ function NetballPlayerStatsTable({
       />
     );
   }
-  // Helper: render the position-share suffix beneath a third %.
-  // E.g. attack-third → "GS 40% · GA 20%". Skips zero-share
-  // positions so an empty third doesn't show a stack of "0%"s.
-  const positionShareLine = (
-    s: NetballPlayerSeasonStats,
-    third: "attack" | "centre" | "defence",
-  ) => {
-    const positionsInThird: NetballPosition[] =
-      third === "attack"
-        ? ["gs", "ga"]
-        : third === "centre"
-        ? ["wa", "c", "wd"]
-        : ["gd", "gk"];
-    const totalQuarters = NETBALL_ALL_POSITIONS.reduce(
-      (sum, p) => sum + (s.positionCounts[p] ?? 0),
-      0,
-    );
-    if (totalQuarters === 0) return null;
-    const parts = positionsInThird
-      .map((p) => {
-        const count = s.positionCounts[p] ?? 0;
-        if (count === 0) return null;
-        const pct = Math.round((count / totalQuarters) * 100);
-        return { label: netballPositionLabel(p), pct };
-      })
-      .filter((x): x is { label: string; pct: number } => x !== null);
-    if (parts.length === 0) return null;
-    return parts.map((p) => `${p.label} ${p.pct}%`).join(" · ");
-  };
+  const fmt = (ms: number) => Math.round(ms / MS_PER_MIN);
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-hairline">
-      <table className="w-full text-sm">
-        <thead className="bg-surface-alt">
-          <tr>
-            <th className="px-2 py-2 text-left text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
-              Player
-            </th>
-            <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
-              Games
-            </th>
-            <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
-              Mins
-            </th>
-            <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-micro text-zone-f">
-              Attack
-            </th>
-            <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-micro text-zone-c">
-              Centre
-            </th>
-            <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-micro text-zone-b">
-              Defence
-            </th>
-            <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
-              Goals
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-hairline bg-surface">
-          {stats.map((s) => {
-            const total = s.totalMs || 1;
-            const pct = (v: number) => Math.round((v / total) * 100);
-            const renderThirdCell = (
-              kind: "attack" | "centre" | "defence",
-              colour: string,
-            ) => {
-              const thirdMsValue = s.thirdMs[kind];
-              const breakdown = positionShareLine(s, kind);
-              return (
-                <td className={`px-2 py-2 text-right tabular-nums align-top ${colour}`}>
-                  <div>{pct(thirdMsValue)}%</div>
-                  {breakdown && (
-                    <div className="font-mono text-[10px] font-normal text-ink-mute">
-                      {breakdown}
-                    </div>
-                  )}
-                </td>
-              );
-            };
-            return (
-              <tr key={s.playerId}>
-                <td className="truncate px-2 py-2 font-medium text-ink align-top">
-                  {s.playerName}
-                </td>
-                <td className="px-2 py-2 text-right tabular-nums text-ink-dim align-top">
-                  {s.gamesPlayed}
-                </td>
-                <td className="px-2 py-2 text-right tabular-nums text-ink align-top">
-                  {Math.round(s.totalMs / MS_PER_MIN)}
-                </td>
-                {renderThirdCell("attack", "text-zone-f")}
-                {renderThirdCell("centre", "text-zone-c")}
-                {renderThirdCell("defence", "text-zone-b")}
-                <td className="px-2 py-2 text-right tabular-nums text-ink-dim align-top">
-                  {s.goals || ""}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="grid gap-2 sm:grid-cols-2">
+      {stats.map((s) => {
+        const onCourt = s.thirdMs.attack + s.thirdMs.centre + s.thirdMs.defence;
+        const pct = (ms: number) => (onCourt > 0 ? Math.round((ms / onCourt) * 100) : 0);
+        const bibs = NETBALL_ALL_POSITIONS.filter((p) => (s.positionMs[p] ?? 0) > 0).map(
+          (p) => `${netballPositionLabel(p)} ${pct(s.positionMs[p] ?? 0)}%`,
+        );
+        return (
+          <div
+            key={s.playerId}
+            data-testid={`player-stats-${s.playerId}`}
+            className="rounded-lg border border-hairline bg-surface p-3 shadow-card"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <p className="min-w-0 truncate font-semibold text-ink">{s.playerName}</p>
+              <div className="shrink-0 text-right">
+                <p className="text-xl font-bold leading-none tabular-nums text-brand-600">{fmt(s.totalMs)}</p>
+                <p className="mt-0.5 text-[10px] uppercase tracking-micro text-ink-mute">total min</p>
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-4 gap-2">
+              <Metric label="GP" value={s.gamesPlayed} />
+              <Metric label="Avg/G" value={`${fmt(s.avgMsPerGame)}m`} />
+              <Metric label="% Time" value={`${s.teamGameTimePct}%`} />
+              <Metric label="Goals" value={s.goals} accent={s.goals > 0 ? "brand" : undefined} />
+            </div>
+
+            {/* Thirds, attack → defence, in the court's colours. */}
+            <div className="mt-2 flex items-center gap-1.5 text-[11px] font-medium">
+              <ZonePill abbr="Att" pct={pct(s.thirdMs.attack)} tone="f" />
+              <ZonePill abbr="Cen" pct={pct(s.thirdMs.centre)} tone="c" />
+              <ZonePill abbr="Def" pct={pct(s.thirdMs.defence)} tone="b" />
+            </div>
+
+            {bibs.length > 0 && (
+              <p className="mt-2 font-mono text-[11px] text-ink-mute">{bibs.join(" · ")}</p>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

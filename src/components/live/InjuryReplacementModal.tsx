@@ -32,15 +32,18 @@ interface InjuryReplacementModalProps {
   onCancel: () => void;
   /**
    * Why the kid is coming off, for the words: an injury (the default),
-   * a foul-out or a sit-out (basketball). The flow is the same.
+   * a foul-out or a sit-out (basketball), a loan or a mid-quarter
+   * switch (netball). The flow is the same.
    */
-  reason?: "injured" | "fouled_out" | "sitting_out";
+  reason?: "injured" | "fouled_out" | "sitting_out" | "lent" | "subbed";
 }
 
 const REASON_WORDS = {
   injured: { eyebrow: (n: string) => `Marking ${n} injured`, skip: "Mark injured without replacement" },
   fouled_out: { eyebrow: (n: string) => `${n} has fouled out`, skip: "Play one short" },
   sitting_out: { eyebrow: (n: string) => `${n} sits out`, skip: "Play one short" },
+  lent: { eyebrow: (n: string) => `Lending ${n} to the opposition`, skip: "Lend without replacement" },
+  subbed: { eyebrow: (n: string) => `Taking ${n} off`, skip: "Take off without a replacement" },
 } as const;
 
 function formatMinSec(ms: number): string {

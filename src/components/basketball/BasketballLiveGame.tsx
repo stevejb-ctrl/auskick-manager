@@ -1111,6 +1111,39 @@ export function BasketballLiveGame({
               ? `Fouled out — ${ageGroup.foulOutAt} fouls. Out for the rest of the game, and skipped by the sub rotation.`
               : undefined
           }
+          outForGameActions={
+            // A mistaken fifth foul isn't final (UX audit 23 Oct 2026, P1):
+            // take it back and they're back in the game. A kid marked out
+            // by hand (fewer fouls) just comes back.
+            fouledOutSet.has(actionPlayer.id)
+              ? [
+                  (state.fouls[actionPlayer.id] ?? 0) >= ageGroup.foulOutAt
+                    ? {
+                        label: "Take back the last foul",
+                        hint: `Back to ${(state.fouls[actionPlayer.id] ?? 0) - 1} of ${ageGroup.foulOutAt}, and back in the game`,
+                        testId: "basketball-undo-foul-out",
+                        onClick: () => {
+                          const pid = actionPlayer.id;
+                          setActionPlayerId(null);
+                          // The optimistic writers, in order in the game lane: the
+                          // foul comes off, then the kid is back in the game.
+                          writeFoul(pid, true);
+                          markInjured(pid, false);
+                        },
+                      }
+                    : {
+                        label: "Not fouled out",
+                        hint: "Back in the game",
+                        testId: "basketball-undo-foul-out",
+                        onClick: () => {
+                          const pid = actionPlayer.id;
+                          setActionPlayerId(null);
+                          markInjured(pid, false);
+                        },
+                      },
+                ]
+              : undefined
+          }
           onLockField={
             isPeriodActive && actionLine
               ? () => {
@@ -1226,6 +1259,8 @@ export function BasketballLiveGame({
                     label: "Fouled out",
                     hint: "Out for the rest of the game",
                     testId: "basketball-foul-out",
+                    // One tap was final; it asks first (UX audit 23 Oct 2026).
+                    confirm: `${actionPlayer.full_name.trim().split(/\s+/)[0]} is out for the rest of the game.`,
                     onClick: () => {
                       const pid = actionPlayer.id;
                       setActionPlayerId(null);

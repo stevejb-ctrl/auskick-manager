@@ -173,7 +173,7 @@ test("basketball U12: guards and forwards, baskets each way, a foul-out, a sit-o
     .single();
   expect(foulOut?.player_id).toBe(fouler);
   expect(foulOut?.metadata).toMatchObject({ injured: true, reason: "fouled_out" });
-  await expect(page.getByTestId(`player-tile-${fouler}`)).toContainText(/foul out/i);
+  await expect(page.getByTestId(`player-tile-${fouler}`).getByLabel("Fouled out")).toHaveText("OUT");
   await expect(court.locator("[data-testid^='player-tile-']")).toHaveCount(5);
 
   // ─── 5. A sit-out: off for 5 minutes, someone on ───────────────

@@ -39,7 +39,7 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { auditKotaraKoalas, KOTARA_KOALAS_TEAM_ID } from "../helpers/seed-audit";
-import { openGameSettings } from "../helpers/break";
+import { openGameSettings, pickBreakStrategy, startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -601,4 +601,56 @@ test("the netball break shows a broken rule inline, and an empty bib is one", as
     .click();
   await expect(page.getByTestId("break-broken-rule").first()).toContainText("1 position is empty");
   await expect(page.getByRole("button", { name: /^start q2/i })).toContainText("rule");
+});
+
+// UX audit 23 Oct 2026 (P1): Repeat built the next quarter from last
+// quarter's lineup as it stood, so a kid who arrived late during Q1 was
+// on neither the court nor the bench and started Q2 forgotten. Repeat
+// keeps last quarter's court and puts the late arrival on the bench.
+test("Repeat keeps a late arrival on the bench", async ({ page }) => {
+  const { team, game, admin, ownerId } = await setupQ1AutoEnded({});
+  const { data: late } = await admin
+    .from("players")
+    .insert({ team_id: team.id, full_name: "Zara Late", jersey_number: 10, is_active: true, created_by: ownerId })
+    .select("id")
+    .single();
+  const lateId = late!.id as string;
+  await admin.from("game_availability").insert({ game_id: game.id, player_id: lateId, status: "available" });
+  const { data: started } = await admin
+    .from("game_events")
+    .select("created_at")
+    .eq("game_id", game.id)
+    .eq("type", "quarter_start")
+    .single();
+  await admin.from("game_events").insert({
+    game_id: game.id,
+    type: "player_arrived",
+    player_id: lateId,
+    metadata: { quarter: 1, elapsed_ms: 60_000 },
+    created_by: ownerId,
+    created_at: new Date(new Date(started!.created_at as string).getTime() + 60_000).toISOString(),
+  });
+
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await enterQBreakView(page, admin, game.id);
+
+  await pickBreakStrategy(page, "Repeat");
+  await expect(page.getByRole("radio", { name: /^Repeat$/ })).toBeChecked();
+  const bench = page.getByRole("group", { name: "Bench", exact: true });
+  await expect(bench.getByTestId(`player-tile-${lateId}`)).toBeVisible({ timeout: 5_000 });
+
+  // And she's in the lineup Q2 starts with.
+  await startFromBreak(page, /^start q2$/i);
+  await expect
+    .poll(async () => {
+      const { data } = await admin
+        .from("game_events")
+        .select("metadata")
+        .eq("game_id", game.id)
+        .eq("type", "period_break_swap");
+      const lineup = (data?.[0]?.metadata as { lineup?: { bench: string[] } })?.lineup;
+      return lineup?.bench ?? null;
+    }, { timeout: 10_000 })
+    .toContain(lateId);
 });

@@ -44,6 +44,13 @@ export interface PlayerInsightInput {
   lastSubbedOnMs: number | null;
   /** Absolute game-elapsed ms now: completedPeriodMs + current-period elapsed. */
   nowAbsMs: number;
+  /**
+   * Whether the kid is on the field right now. `false` (on the bench)
+   * stops the "On" time: it measured time since they last came on, and
+   * kept ticking after they went off (UX audit 23 Oct 2026). Omitted =
+   * on the field, as before.
+   */
+  onField?: boolean;
 }
 
 export interface InGameZoneRow {
@@ -81,6 +88,8 @@ export interface PlayerInsight {
   inGameTotalMs: number;
   perPeriod: PerPeriodRow[];
   msSinceLastSub: number | null;
+  /** Played earlier and on the bench now ("On the bench", no On time). */
+  onBench: boolean;
   seasonZonePct: SeasonZoneRow[];
 }
 
@@ -116,9 +125,11 @@ export function buildPlayerInsight(input: PlayerInsightInput): PlayerInsight {
     };
   });
 
-  // D-06: clamp to 0; null passes straight through.
+  // D-06: clamp to 0; null passes straight through. A kid on the bench
+  // has no On time.
+  const onBench = input.onField === false && lastSubbedOnMs !== null;
   const msSinceLastSub =
-    lastSubbedOnMs === null ? null : Math.max(0, nowAbsMs - lastSubbedOnMs);
+    lastSubbedOnMs === null || onBench ? null : Math.max(0, nowAbsMs - lastSubbedOnMs);
 
   // D-04: percentages of the player's own season total. All-zero -> 0 (no NaN).
   const seasonTotal = zones.reduce((acc, z) => acc + (seasonZoneMs[z.id] ?? 0), 0);
@@ -142,6 +153,7 @@ export function buildPlayerInsight(input: PlayerInsightInput): PlayerInsight {
     inGameTotalMs,
     perPeriod: perPeriodOut,
     msSinceLastSub,
+    onBench,
     seasonZonePct,
   };
 }

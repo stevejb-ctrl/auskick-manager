@@ -2,6 +2,10 @@
 // kids one form at a time was the slowest part of setup). Accepts the
 // shapes coaches actually paste: "Ava Smith #3", "3 Ava Smith",
 // "Ava Smith, 3", "#3 Ava Smith", and spreadsheet rows split by tabs.
+// A sport with no jersey numbers (netball) reads the same shapes and
+// leaves the numbers off the names (UX audit 23 Oct 2026: "Sienna
+// Brooks #1"), except a bare trailing number ("Mia 2"), which may be how
+// the coach tells two Mias apart.
 
 export interface ParsedPlayer {
   full_name: string;
@@ -12,11 +16,13 @@ export interface SquadPasteResult {
   players: ParsedPlayer[];
   /** One message per line that couldn't be used, with its line number. */
   errors: string[];
+  /** Numbers left off the names (the sport has no jersey numbers). */
+  numbersLeftOff: number;
 }
 
 const NUM = /^#?(\d{1,3})$/;
 
-function splitNameAndNumber(line: string): { name: string; num: string | null } {
+function splitNameAndNumber(line: string): { name: string; num: string | null; bareTrailing?: boolean } {
   // Spreadsheet paste: columns split by tabs (or 2+ spaces).
   const cols = line.split(/\t| {2,}/).map((c) => c.trim()).filter(Boolean);
   if (cols.length > 1) {
@@ -26,8 +32,8 @@ function splitNameAndNumber(line: string): { name: string; num: string | null } 
   }
   let m = line.match(/^#?(\d{1,3})[\s.,:)-]+(.+)$/); // "3 Ava", "#3. Ava"
   if (m) return { name: m[2], num: m[1] };
-  m = line.match(/^(.+?)[\s,]+#?(\d{1,3})$/); // "Ava #3", "Ava, 3", "Ava 3"
-  if (m) return { name: m[1], num: m[2] };
+  m = line.match(/^(.+?)([\s,]+)(#?)(\d{1,3})$/); // "Ava #3", "Ava, 3", "Ava 3"
+  if (m) return { name: m[1], num: m[4], bareTrailing: m[3] === "" && !m[2].includes(",") };
   return { name: line, num: null };
 }
 
@@ -39,14 +45,21 @@ export function parseSquadPaste(
   const errors: string[] = [];
   const seenNames = new Set<string>();
   const seenJerseys = new Set<number>();
+  let numbersLeftOff = 0;
 
   text.split(/\r?\n/).forEach((raw, i) => {
     const line = raw.trim();
     if (!line) return;
     const lineNo = i + 1;
-    const { name: rawName, num } = opts.withJersey
-      ? splitNameAndNumber(line)
-      : { name: line, num: null };
+    const split = splitNameAndNumber(line);
+    let rawName = split.name;
+    let num = split.num;
+    if (!opts.withJersey) {
+      // No jerseys: "Mia 2" stays whole; any other number is left off.
+      if (num !== null && split.bareTrailing) rawName = line;
+      else if (num !== null) numbersLeftOff++;
+      num = null;
+    }
     const full_name = rawName.replace(/[\s,]+$/, "").replace(/\s+/g, " ").trim();
 
     if (!full_name) {
@@ -75,5 +88,5 @@ export function parseSquadPaste(
     players.push({ full_name, jersey_number });
   });
 
-  return { players, errors };
+  return { players, errors, numbersLeftOff };
 }
