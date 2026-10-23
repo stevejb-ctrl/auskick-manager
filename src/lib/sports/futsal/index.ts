@@ -191,5 +191,7 @@ export const futsalSport: SportConfig = {
   jerseyNumbers: true,
   teamSong: false,
   periodBreak: soccerFamilyPeriodBreak(FUTSAL_RULES),
+  words: { sportName: "futsal", surface: "court", startCue: "whistle goes", endCue: "whistle" },
+  surfaceArt: "futsal-court",
   validateLineup: (lineup, ageGroup, onFieldSize) => validateSoccerLineup(lineup, ageGroup, onFieldSize, FUTSAL_RULES),
 };

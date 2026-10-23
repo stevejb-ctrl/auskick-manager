@@ -275,5 +275,8 @@ export const soccerSport: SportConfig = {
   // Like rugby's, soccer's live screen plays no team song (the plan's call).
   teamSong: false,
   periodBreak: soccerFamilyPeriodBreak(SOCCER_RULES),
+  // Matches SOCCER_RULES.lineLabels.field (MiniRoos says "field").
+  words: { sportName: "football", surface: "field", startCue: "whistle goes", endCue: "whistle" },
+  surfaceArt: "soccer-pitch",
   validateLineup: (lineup, ageGroup, onFieldSize) => validateSoccerLineup(lineup, ageGroup, onFieldSize, SOCCER_RULES),
 };

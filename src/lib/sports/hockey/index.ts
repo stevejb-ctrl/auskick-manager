@@ -235,5 +235,7 @@ export const hockeySport: SportConfig = {
   jerseyNumbers: true,
   teamSong: false,
   periodBreak: soccerFamilyPeriodBreak(HOCKEY_RULES),
+  words: { sportName: "hockey", surface: "field", startCue: "whistle goes", endCue: "whistle" },
+  surfaceArt: "hockey-pitch",
   validateLineup: (lineup, ageGroup, onFieldSize) => validateSoccerLineup(lineup, ageGroup, onFieldSize, HOCKEY_RULES),
 };

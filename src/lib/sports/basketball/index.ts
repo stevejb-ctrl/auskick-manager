@@ -242,5 +242,8 @@ export const basketballSport: SportConfig = {
   // As soccer's and rugby's, basketball's live screen plays no team song.
   teamSong: false,
   periodBreak: basketballPeriodBreak,
+  // The jump ball starts a half; the buzzer ends it.
+  words: { sportName: "basketball", surface: "court", startCue: "ball goes up", endCue: "buzzer" },
+  surfaceArt: "basketball-court",
   validateLineup: validateBasketballLineup,
 };
