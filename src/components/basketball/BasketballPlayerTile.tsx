@@ -12,6 +12,7 @@
 import { memo, useEffect, useRef, useState } from "react";
 import type { Player } from "@/lib/types";
 import type { BasketballLine } from "@/lib/sports/basketball/types";
+import { BASKETBALL_LINE_ZONE } from "@/lib/sports/basketball";
 import type { BasketballLineMs } from "@/lib/sports/basketball/replay";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
@@ -30,21 +31,27 @@ export const BASKETBALL_LINE_LABEL: Record<BasketballLine, string> = {
   court: "Court",
 };
 
-// Guards take AFL's centre colour and forwards its forward colour, so the
-// palette reads the same across sports; the court (no positions) is ink.
+// Each line's colour is the one token the break uses too
+// (BASKETBALL_LINE_ZONE): guards AFL's centre colour, forwards its
+// forward colour. The court (no positions) prints in ink.
+const ZONE_CLASSES: Record<"zone1" | "zone2", { text: string; fill: string; strip: string }> = {
+  zone1: { text: "text-zone-f", fill: "bg-zone-f-fill", strip: "border-zone-f/40 bg-zone-f/15 text-zone-f" },
+  zone2: { text: "text-zone-c", fill: "bg-zone-c-fill", strip: "border-zone-c/40 bg-zone-c/15 text-zone-c" },
+};
+const zoneOf = (line: BasketballLine) => ZONE_CLASSES[BASKETBALL_LINE_ZONE[line] as "zone1" | "zone2"];
 const LINE_TEXT: Record<BasketballLine, string> = {
-  guard: "text-zone-c",
-  forward: "text-zone-f",
+  guard: zoneOf("guard").text,
+  forward: zoneOf("forward").text,
   court: "text-ink-dim",
 };
 const LINE_FILL: Record<BasketballLine, string> = {
-  guard: "bg-zone-c-fill",
-  forward: "bg-zone-f-fill",
-  court: "bg-zone-c-fill",
+  guard: zoneOf("guard").fill,
+  forward: zoneOf("forward").fill,
+  court: zoneOf("court").fill,
 };
 const LINE_STRIP: Record<BasketballLine, string> = {
-  guard: "border-zone-c/40 bg-zone-c/15 text-zone-c",
-  forward: "border-zone-f/40 bg-zone-f/15 text-zone-f",
+  guard: zoneOf("guard").strip,
+  forward: zoneOf("forward").strip,
   court: "border-brand-700 bg-brand-600 text-white",
 };
 
