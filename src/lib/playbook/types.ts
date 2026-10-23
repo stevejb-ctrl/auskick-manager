@@ -102,6 +102,11 @@ export interface PositionModel {
   layout?(list: Omit<PositionDef, "x" | "y">[]): PositionDef[];
   /** The sport's full name for a standard label ("CHB" → "Centre half back"). */
   positionName?(label: string): string;
+  /**
+   * Positions only kids picked for them play (union's front row: props
+   * and hooker), by key, label or name so a coach's own list keeps it.
+   */
+  restricted?(position: { key: string; label: string; name: string }): boolean;
 }
 
 /** The unit season balance evens out for a strategy (§7.5). */

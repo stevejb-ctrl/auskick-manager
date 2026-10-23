@@ -56,6 +56,8 @@ export interface RugbyPlaybookRules {
   namedPositions: StrategyDef;
   /** Its full name for a standard label ("HK" → "Hooker"), label otherwise. */
   positionName(label: string): string;
+  /** Positions only kids picked for them play (union's front row). */
+  restricted?(position: { key: string; label: string; name: string }): boolean;
 }
 
 /**
@@ -153,6 +155,7 @@ export function rugbyPlaybook(sport: RugbySport, rules: RugbyPlaybookRules): Spo
         canAddRemove: true,
         layout: layoutRugbyPositions,
         positionName: rules.positionName,
+        restricted: rules.restricted,
       };
     },
 
