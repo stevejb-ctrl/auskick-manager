@@ -61,6 +61,7 @@ export function replayGame(
   const playerLoanMs: Record<string, number> = {};
   const teamScoreByQtr: Record<number, { goals: number; behinds: number }> = {};
   const oppScoreByQtr: Record<number, { goals: number; behinds: number }> = {};
+  const quartersPlayed = new Set<number>();
   const lineupPeriods: LineupPeriod[] = [];
   const playerIds: string[] = [];
 
@@ -228,6 +229,7 @@ export function replayGame(
         closePeriod(qe);
         gameLengthMs += qe;
         quarterActive = false;
+        quartersPlayed.add(typeof meta.quarter === "number" ? meta.quarter : currentQuarter);
         break;
       }
 
@@ -427,6 +429,7 @@ export function replayGame(
     playerLoanMs,
     teamScoreByQtr,
     oppScoreByQtr,
+    quartersPlayed: Array.from(quartersPlayed).sort((a, b) => a - b),
     lineupPeriods,
     playerIds,
     gameLengthMs,

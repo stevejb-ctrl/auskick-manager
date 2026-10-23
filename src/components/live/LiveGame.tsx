@@ -2632,6 +2632,8 @@ export function LiveGame({
           opponentName={opponentName}
           trackScoring={trackScoring}
           playersById={playersById}
+          // Finishing refreshes the route, so the replay has every swap.
+          subCount={initialState.subCount}
           presentIds={[
             ...(["back", "hback", "mid", "hfwd", "fwd"] as Zone[]).flatMap((z) => lineup[z]),
             ...lineup.bench,

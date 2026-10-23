@@ -32,6 +32,7 @@ import { rolesFromPrefs } from "@/lib/playbook/roles";
 import { gridUnits } from "@/lib/playbook/seasonGrid";
 import { seasonTimeByUnit } from "@/lib/playbook/seasonTime";
 import { gameReport, type GameReport } from "@/lib/playbook/gameReport";
+import { awayMsByPeriod } from "@/lib/playbook/awayTime";
 import { rulesForSport, type RuleInstance } from "@/lib/playbook/rules";
 import type { ThirdLookup } from "@/lib/sports/netball/fairness";
 import type { Game, GameEvent, MixedGroup, Sport } from "@/lib/types";
@@ -234,10 +235,14 @@ export async function buildGameReport(
     if (typeof m.quarter === "number" && typeof m.elapsed_ms === "number") periodPlayedMs[m.quarter] = m.elapsed_ms;
   }
 
+  // Time each kid couldn't play: late, injured or fouled out, lent.
+  const away = awayMsByPeriod(events, (p) => periodPlayedMs[p] ?? periodSeconds * 1000, ageCfg.periodCount);
+
   return gameReport({
     byPeriod,
     present,
     periodPlayedMs,
+    away,
     lines,
     // A soccer-family sport's own words: soccer's "mid" is midfield, never
     // AFL's centre; futsal's is the wings.

@@ -4,7 +4,8 @@
 // then each kid's game time (with the lanes they played under the
 // position strategies), and the kids who were here but didn't get on.
 // Nothing here says who counts as a girl or a boy: a girl's try is
-// counted in the score, not named.
+// counted in the score, not named. Tries nobody was named for close the
+// list ("+1 try (no scorer)"), so it adds up to the score.
 
 import type { Player } from "@/lib/types";
 import { DIDNT_GET_ON, didntGetOn } from "@/lib/live/presentPlayers";
@@ -51,6 +52,8 @@ export function buildTouchSummary(input: TouchSummaryInput): string {
         const p = byId.get(id);
         return `${first(p)}${p?.jersey_number != null ? ` (#${p.jersey_number})` : ""}${n > 1 ? ` ${n}` : ""}`;
       });
+    const unnamed = state.teamScore.tries - Object.values(state.playerTries).reduce((s, n) => s + n, 0);
+    if (unnamed > 0) scorers.push(`+${unnamed} ${unnamed === 1 ? "try" : "tries"} (no scorer)`);
     if (scorers.length > 0) lines.push(`\n🏉 Tries: ${scorers.join(", ")}`);
   }
 
