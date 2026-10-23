@@ -263,7 +263,7 @@ test("soccer: the scorer sheet asks who scored, attack first, and a stray tap do
   // A stray tap on the dimmed backdrop: the sheet (and the goal) stay.
   await page.mouse.click(8, 8);
   await expect(sheet).toBeVisible();
-  await sheet.getByRole("button", { name: new RegExp(`^${striker.full_name}\b`) }).click();
+  await sheet.getByRole("button", { name: new RegExp(`^${striker.full_name}\\b`) }).click();
   await expect(page.getByTestId("undo-strip")).toContainText(`${teamName} goal — ${striker.full_name}`);
   await expect
     .poll(async () => (await eventsOf(admin, game.id)).filter((e) => e.type === "goal").map((e) => e.player_id))
