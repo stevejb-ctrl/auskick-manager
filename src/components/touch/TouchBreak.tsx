@@ -26,7 +26,8 @@ import { checkRules } from "@/lib/playbook/ruleCheck";
 import { buildBoard, placesOf, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
 import { rotateGroups } from "@/lib/live/break/rotateGroups";
-import { normalizeTouchLineup, touchLineOf, touchOnField, validateTouchLineup, type TouchLineup } from "@/lib/sports/touch/lineup";
+import { normalizeTouchLineup, touchLineOf, touchOnField, type TouchLineup } from "@/lib/sports/touch/lineup";
+import { touchLineupRuleItems } from "@/lib/sports/touch/ruleCheck";
 import { touchCanPlay, touchGameMs, type TouchGameState } from "@/lib/sports/touch/replay";
 import {
   suggestTouchBreakPlan,
@@ -37,7 +38,6 @@ import {
   type TouchSeasonBalance,
 } from "@/lib/sports/touch/suggest";
 import { benchOutInTouchLineup, placeInTouchLineup, swapInTouchLineup } from "@/lib/sports/touch/live";
-import { mixedRuleSummary } from "@/lib/sports/touch/mixed";
 import { TOUCH_LANES, type TouchAgeGroupConfig, type TouchLine, type TouchStrategy } from "@/lib/sports/touch/types";
 import type { Game, LiveAuth, Player } from "@/lib/types";
 import type { SportId } from "@/lib/sports/types";
@@ -288,22 +288,7 @@ export function TouchBreak({
       // Kids who can't play aren't held to the rules.
       const benched = benchOutInTouchLineup(l, sidelinedSet);
       const lu = { ...benched, bench: benched.bench.filter((id) => !sidelinedSet.has(id)) };
-      const items: RuleCheckItem[] = [];
-      const valid = validateTouchLineup(lu, ageGroup, sideSize, mixed ?? null);
-      valid.issues.forEach((issue, i) => {
-        const mixedIssue = /boys|girls|Girl or Boy/.test(issue.message);
-        items.push(
-          issue.kind === "error"
-            ? {
-                id: `lineup-${i}`,
-                status: "fail",
-                text: issue.message,
-                rule: mixedIssue && mixed ? mixedRuleSummary(mixed.rule) : "One place each, in the lanes the side plays",
-                ...(issue.playerId ? { playerIds: [issue.playerId] } : {}),
-              }
-            : { id: `lineup-${i}`, status: "warn", text: issue.message },
-        );
-      });
+      const items: RuleCheckItem[] = touchLineupRuleItems({ lineup: lu, ageGroup, size: sideSize, mixed });
       const onField: Record<string, string> = {};
       for (const g of GROUPS) for (const pid of lu.lines[g]) onField[pid] = g;
       const playedThisGame: Record<string, Record<string, number>> = {};

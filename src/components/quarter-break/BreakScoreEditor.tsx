@@ -13,6 +13,8 @@ import { SCORE_CHIP } from "@/components/live/scoreChip";
 export interface BreakScoreChip {
   key: string;
   text: string;
+  /** A small word under the text (Oztag's girl's try: "+2" over "girl"). */
+  sub?: string;
   /** Spoken label ("Add a try, Sharks"). */
   label: string;
   onClick: () => void;
@@ -83,8 +85,15 @@ export function BreakScoreEditor({
             <span className="min-w-0 truncate text-sm font-semibold text-ink">{name}</span>
             <span className="flex shrink-0 gap-1.5">
               {chips.map((c) => (
-                <button key={c.key} type="button" onClick={c.onClick} className={`${SCORE_CHIP} px-2`} aria-label={c.label}>
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={c.onClick}
+                  className={`${SCORE_CHIP} px-2${c.sub ? " flex-col !py-1 leading-none" : ""}`}
+                  aria-label={c.label}
+                >
                   {c.text}
+                  {c.sub && <span className="mt-0.5 text-[9px] font-semibold uppercase tracking-micro text-ink-dim">{c.sub}</span>}
                 </button>
               ))}
             </span>

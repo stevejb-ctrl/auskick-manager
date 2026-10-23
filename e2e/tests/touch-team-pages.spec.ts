@@ -48,6 +48,46 @@ test("touch: the wizard makes a mixed U11 team, every page opens, one period and
     .poll(async () => (await admin.from("teams").select("sport, track_scoring, period_count, mixed_max_boys, mixed_min_girls, mixed_min_boys").eq("id", teamId).single()).data)
     .toMatchObject({ sport: "touch", track_scoring: true, period_count: null, mixed_max_boys: 3, mixed_min_girls: 1, mixed_min_boys: 1 });
 
+  // Wizard step 3: the squad asks Girl or Boy, as Team basics promised
+  // (audit 23 Oct, P1: the wizard never asked), and All set says how
+  // many are marked.
+  await gotoStable(page, `/teams/${teamId}/setup?step=squad`);
+  await waitForHydration(page);
+  await expect(page.getByRole("heading", { name: "Add the squad" })).toBeVisible({ timeout: 15_000 });
+  await page.getByLabel("Player name").fill("Wizard Willa");
+  await page.getByRole("radiogroup", { name: "For the mixed rule, counts as" }).getByRole("radio", { name: "Girl" }).click();
+  await page.getByRole("button", { name: "Add player" }).click();
+  await expect
+    .poll(async () => (await admin.from("players").select("full_name, mixed_group").eq("team_id", teamId)).data)
+    .toEqual([{ full_name: "Wizard Willa", mixed_group: "girl" }]);
+  // Two more from a pasted list (no group yet): each row asks.
+  await admin.from("players").insert(
+    ["Wizard Rowan", "Wizard Sage"].map((full_name) => ({ team_id: teamId, full_name, is_active: true, created_by: ownerId })),
+  );
+  await gotoStable(page, `/teams/${teamId}/setup?step=squad`);
+  await waitForHydration(page);
+  await expect(page.getByRole("radiogroup", { name: "Wizard Rowan counts as" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("radiogroup", { name: "Wizard Willa counts as" }).getByRole("radio", { name: "Girl" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await gotoStable(page, `/teams/${teamId}/setup?step=done`);
+  await waitForHydration(page);
+  const nudge = page.getByTestId("setup-mixed-nudge");
+  await expect(nudge).toContainText("1 of 3 marked Girl or Boy", { timeout: 15_000 });
+  await nudge.getByRole("link", { name: /mark the squad/i }).click();
+  await page.waitForURL(/step=squad/, { timeout: 15_000 });
+  await waitForHydration(page);
+  await page.getByRole("radiogroup", { name: "Wizard Rowan counts as" }).getByRole("radio", { name: "Boy" }).click();
+  await page.getByRole("radiogroup", { name: "Wizard Sage counts as" }).getByRole("radio", { name: "Boy" }).click();
+  await expect
+    .poll(async () => ((await admin.from("players").select("mixed_group").eq("team_id", teamId)).data ?? []).filter((p) => p.mixed_group).length)
+    .toBe(3);
+  await gotoStable(page, `/teams/${teamId}/setup?step=done`);
+  await waitForHydration(page);
+  await expect(page.getByRole("heading", { name: /all set/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("setup-mixed-nudge")).toHaveCount(0);
+
   // Wizard step 2: How we play, with touch's rotations and laws.
   await gotoStable(page, `/teams/${teamId}/setup?step=config`);
   await waitForHydration(page);

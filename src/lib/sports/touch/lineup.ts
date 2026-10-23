@@ -87,16 +87,101 @@ export interface TouchMixedCheck {
   groupOf: (playerId: string) => MixedGroup | null | undefined;
 }
 
+/** Which rule a lineup issue is about: the lanes and places, or the mixed rule. */
+export type TouchIssueRule = "lanes" | "mixed";
+
+/** A lineup issue, tagged with the rule it breaks and a key that stays put as the lineup changes. */
+export interface TouchLineupIssue extends ValidationIssue {
+  /** "lanes-shape", "places-too-many", "mixed-max-boys", … */
+  code: string;
+  rule: TouchIssueRule;
+}
+
+/**
+ * A lineup's issues against the game's size (`size`), each tagged with
+ * the rule it breaks:
+ *   - lanes: kids either all in `field` (Minutes only) or all in lanes,
+ *     never both, and lanes in a shape the age group plays at that
+ *     count; no more on the field than the game plays (fewer is a
+ *     warning: a side can play short); nobody in two places;
+ *   - mixed (`mixed`): every kid on the field has a group, no more boys
+ *     than the cap, and at least the rule's girls and boys.
+ */
+export function touchLineupIssues(
+  lu: TouchLineup,
+  ag: TouchAgeGroupConfig,
+  size: number,
+  mixed?: TouchMixedCheck | null,
+): TouchLineupIssue[] {
+  const issues: TouchLineupIssue[] = [];
+  const lanes = (code: string, kind: ValidationIssue["kind"], message: string, playerId?: string) =>
+    issues.push({ kind, message, code, rule: "lanes", ...(playerId ? { playerId } : {}) });
+  const on = touchOnField(lu);
+
+  const inLanes = TOUCH_LANES.some((line) => lu.lines[line].length > 0);
+  if (lu.lines.field.length > 0 && inLanes) {
+    lanes("lanes-and-field", "error", "Kids play either in lanes or on the field, not both.");
+  } else if (inLanes) {
+    const shapes = ag.shapes[on.length] ?? [];
+    const fits = shapes.some((s) => TOUCH_LANES.every((line) => s.lines[line] === lu.lines[line].length));
+    if (shapes.length > 0 && !fits) {
+      lanes("lanes-shape", "error", `${on.length} a side plays ${shapes.map((s) => shapeWords(s.lines)).join(", or ")}.`);
+    }
+  }
+
+  if (on.length > size) {
+    lanes("places-too-many", "error", `Too many players on the field (${on.length}); this game plays ${size}.`);
+  } else if (on.length < size) {
+    lanes("places-short", "warn", `${on.length} on the field for a ${size}-a-side game: playing short.`);
+  }
+
+  const seen = new Map<string, string>();
+  const mark = (pid: string, where: string) => {
+    const before = seen.get(pid);
+    if (before) {
+      lanes(
+        `places-twice-${pid}`,
+        "error",
+        before === where ? `Player listed twice in ${where}.` : `Player is in both ${before} and ${where}.`,
+        pid,
+      );
+    }
+    seen.set(pid, where);
+  };
+  for (const line of TOUCH_LINES) for (const pid of lu.lines[line]) mark(pid, TOUCH_LINE_WORD[line]);
+  for (const pid of lu.bench) mark(pid, "the bench");
+
+  if (mixed) {
+    const { rule, groupOf } = mixed;
+    const broken = (code: string, message: string, playerId?: string) =>
+      issues.push({ kind: "error", message, code, rule: "mixed", ...(playerId ? { playerId } : {}) });
+    for (const pid of on) {
+      if (!groupOf(pid)) broken(`mixed-ungrouped-${pid}`, "Mark Girl or Boy for every player on a mixed team.", pid);
+    }
+    const count = countMixedGroups(on, groupOf);
+    if (count.boys > rule.maxBoys) {
+      broken("mixed-max-boys", `Too many boys on the field (${count.boys}); the mixed rule allows ${rule.maxBoys}.`);
+    }
+    if (count.girls < rule.minGirls) {
+      broken(
+        "mixed-min-girls",
+        `The mixed rule needs at least ${rule.minGirls} ${rule.minGirls === 1 ? "girl" : "girls"} on the field.`,
+      );
+    }
+    if (count.boys < rule.minBoys) {
+      broken(
+        "mixed-min-boys",
+        `The mixed rule needs at least ${rule.minBoys} ${rule.minBoys === 1 ? "boy" : "boys"} on the field.`,
+      );
+    }
+  }
+  return issues;
+}
+
 /**
  * Check a lineup against the game's size (`onFieldSize`, else the age
- * group's default):
- *   - kids either all in `field` (Minutes only) or all in lanes, never
- *     both, and lanes in a shape the age group plays at that count;
- *   - no more on the field than the game plays (fewer is a warning: a
- *     side can play short);
- *   - nobody in two places;
- *   - on a mixed team (`mixed`): every kid on the field has a group, no
- *     more boys than the cap, and at least the rule's girls and boys.
+ * group's default) and, on a mixed team, its rule: touchLineupIssues,
+ * as every sport's validator reports.
  */
 export function validateTouchLineup(
   lineup: unknown,
@@ -116,73 +201,6 @@ export function validateTouchLineup(
     return { ok: false, issues: [{ kind: "error", message: "Invalid lineup shape." }] };
   }
   const ag = touchRules(ageGroup);
-  const lu = normalizeTouchLineup(l);
-  const size = onFieldSize ?? ag.defaultOnFieldSize;
-  const issues: ValidationIssue[] = [];
-  const on = touchOnField(lu);
-
-  const inLanes = TOUCH_LANES.some((line) => lu.lines[line].length > 0);
-  if (lu.lines.field.length > 0 && inLanes) {
-    issues.push({ kind: "error", message: "Kids play either in lanes or on the field, not both." });
-  } else if (inLanes) {
-    const shapes = ag.shapes[on.length] ?? [];
-    const fits = shapes.some((s) => TOUCH_LANES.every((line) => s.lines[line] === lu.lines[line].length));
-    if (shapes.length > 0 && !fits) {
-      issues.push({
-        kind: "error",
-        message: `${on.length} a side plays ${shapes.map((s) => shapeWords(s.lines)).join(", or ")}.`,
-      });
-    }
-  }
-
-  if (on.length > size) {
-    issues.push({ kind: "error", message: `Too many players on the field (${on.length}); this game plays ${size}.` });
-  } else if (on.length < size) {
-    issues.push({ kind: "warn", message: `${on.length} on the field for a ${size}-a-side game: playing short.` });
-  }
-
-  const seen = new Map<string, string>();
-  const mark = (pid: string, where: string) => {
-    const before = seen.get(pid);
-    if (before) {
-      issues.push({
-        kind: "error",
-        message: before === where ? `Player listed twice in ${where}.` : `Player is in both ${before} and ${where}.`,
-        playerId: pid,
-      });
-    }
-    seen.set(pid, where);
-  };
-  for (const line of TOUCH_LINES) for (const pid of lu.lines[line]) mark(pid, TOUCH_LINE_WORD[line]);
-  for (const pid of lu.bench) mark(pid, "the bench");
-
-  if (mixed) {
-    const { rule, groupOf } = mixed;
-    for (const pid of on) {
-      if (!groupOf(pid)) {
-        issues.push({ kind: "error", message: "Mark Girl or Boy for every player on a mixed team.", playerId: pid });
-      }
-    }
-    const count = countMixedGroups(on, groupOf);
-    if (count.boys > rule.maxBoys) {
-      issues.push({
-        kind: "error",
-        message: `Too many boys on the field (${count.boys}); the mixed rule allows ${rule.maxBoys}.`,
-      });
-    }
-    if (count.girls < rule.minGirls) {
-      issues.push({
-        kind: "error",
-        message: `The mixed rule needs at least ${rule.minGirls} ${rule.minGirls === 1 ? "girl" : "girls"} on the field.`,
-      });
-    }
-    if (count.boys < rule.minBoys) {
-      issues.push({
-        kind: "error",
-        message: `The mixed rule needs at least ${rule.minBoys} ${rule.minBoys === 1 ? "boy" : "boys"} on the field.`,
-      });
-    }
-  }
-
+  const issues = touchLineupIssues(normalizeTouchLineup(l), ag, onFieldSize ?? ag.defaultOnFieldSize, mixed);
   return { ok: !issues.some((i) => i.kind === "error"), issues };
 }

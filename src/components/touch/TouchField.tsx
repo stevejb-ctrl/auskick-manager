@@ -44,6 +44,8 @@ interface TouchFieldProps {
   lockModes?: Record<string, "field" | "zone">;
   /** Tries each kid has scored; omitted when scoring is off. */
   triesByPlayer?: Record<string, number>;
+  /** Kids a swap with the selected kid would break a rule for, and why: their tiles dim. */
+  ruleNotes?: Record<string, string>;
 }
 
 const ORPHAN_WRAP = "col-span-2 mx-auto w-[calc(50%-0.25rem)]";
@@ -64,6 +66,7 @@ export function TouchField({
   injuredIds,
   lockModes,
   triesByPlayer,
+  ruleNotes,
 }: TouchFieldProps) {
   const injuredSet = new Set(injuredIds ?? []);
   const anySelected = selectedPlayerId !== null;
@@ -104,6 +107,7 @@ export function TouchField({
         lockMode={lockModes?.[pid] ?? null}
         score={triesByPlayer ? touchTryChip(triesByPlayer[pid]) : null}
         swapDue={swapDue}
+        ruleNote={ruleNotes?.[pid] ?? null}
       />
     );
   }

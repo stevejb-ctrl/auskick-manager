@@ -16,11 +16,15 @@
 //     after a turnover until the next touch, so the sub-due banner says
 //     to make the change next time you have the ball.
 //   - A mixed team's rule: suggestions keep the boys' cap (a boy comes on
-//     for a boy, a girl for a girl), a manual swap that breaks it warns,
-//     and short of girls the field shrinks ("You can field 4: 3 boys and
-//     1 girl"), recorded as roster_shrink.
+//     for a boy, a girl for a girl). A hand sub that would break it asks
+//     first (AFL's SwapConfirmDialog: "Swap anyway / Pick someone
+//     else"), and with a kid picked, the kids whose swap would break it
+//     dim. A side that breaks it anyway pins "4 boys on · rule 3" with a
+//     Fix under the top bar until it's fixed, and the suggestions fix
+//     the mix first. Short of girls the field shrinks ("You can field
+//     4: 3 boys and 1 girl"), recorded as roster_shrink.
 //   - Tries are 1; on an Oztag mixed team a girl's try is 2, and the
-//     opponent's chips are +1 and +2 (girl).
+//     opponent's chips are +T and +2 (girl).
 //
 // Every write goes through the shared write queue (registerLiveActions)
 // in the one game lane, so the event log keeps the coach's order. Who
@@ -44,6 +48,7 @@ import { LockModal } from "@/components/live/LockModal";
 import { UndoStrip } from "@/components/live/UndoStrip";
 import { NextSubCard } from "@/components/live/NextSubCard";
 import { InjuryReplacementModal, type InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
+import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { enqueueLiveAction, type LiveActionArgs, type LiveActionKind } from "@/lib/live/registerLiveActions";
@@ -61,13 +66,14 @@ import { replayTouchGame, touchCanPlay, touchGameMs, type TouchGameState } from 
 import {
   suggestTouchSubs,
   touchFieldPlan,
+  touchMixFixSubs,
   touchShapeFor,
   touchShapeIdOf,
   type TouchMixed,
   type TouchPrefs,
   type TouchSeasonBalance,
 } from "@/lib/sports/touch/suggest";
-import { mixedConstraints, mixedFieldMessage, mixedTags } from "@/lib/sports/touch/mixed";
+import { mixedConstraints, mixedFieldBreach, mixedFieldMessage, mixedTags } from "@/lib/sports/touch/mixed";
 import { TOUCH_LANES, TOUCH_LINES, type MixedRule, type TouchAgeGroupConfig, type TouchLine, type TouchStrategy } from "@/lib/sports/touch/types";
 import { TouchField } from "./TouchField";
 import { TouchBench } from "./TouchBench";
@@ -80,6 +86,7 @@ import {
   TOUCH_LINE_ONE,
   TOUCH_LINE_SHORT,
   TOUCH_SUB_DUE_HINT,
+  touchOpponentChips,
 } from "./touchWords";
 
 interface TouchLiveGameProps {
@@ -158,7 +165,15 @@ export function TouchLiveGame({
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [warning, setWarning] = useState<string | null>(null);
+  // A hand sub that would break the mixed rule, waiting on "Swap anyway".
+  const [pendingSwap, setPendingSwap] = useState<{
+    off: string | null;
+    on: string;
+    line?: TouchLine;
+    warning: string;
+    /** Picked again on "Pick someone else": the kid the coach tapped first. */
+    reselect: string;
+  } | null>(null);
   const [pending, setPending] = useState(false);
   const [clockMenuOpen, setClockMenuOpen] = useState(false);
   const [endConfirmOpen, setEndConfirmOpen] = useState(false);
@@ -339,21 +354,32 @@ export function TouchLiveGame({
     [auth, game.id, base.currentPeriod, router],
   );
 
-  /** The mixed rule's warning for a swap a coach makes by hand (a warning, not a block). */
+  /**
+   * How a swap the coach makes by hand would break the mixed rule ("That
+   * puts 4 boys on: the mixed rule allows 3"), or null when it keeps it
+   * (or takes a side already over the rule no further out).
+   */
   function capWarning(offId: string | null, onId: string): string | null {
     if (!mixed || !state.lineup) return null;
-    const counts = countTags(touchOnField(state.lineup), tags, constraints);
+    const on = touchOnField(state.lineup);
+    const counts = countTags(on, tags, constraints);
     if (keepsComposition(counts, offId, onId, tags, constraints)) return null;
-    const boys = counts.boy - (offId && tags(offId).includes("boy") ? 1 : 0) + (tags(onId).includes("boy") ? 1 : 0);
-    const girls = counts.girl - (offId && tags(offId).includes("girl") ? 1 : 0) + (tags(onId).includes("girl") ? 1 : 0);
-    if (boys > mixed.rule.maxBoys) return `That puts ${plural(boys, "boy", "boys")} on: the mixed rule allows ${mixed.rule.maxBoys}.`;
-    if (girls < mixed.rule.minGirls) return `That leaves ${plural(girls, "girl", "girls")} on: the mixed rule needs ${mixed.rule.minGirls}.`;
-    return `That leaves ${plural(boys, "boy", "boys")} on: the mixed rule needs ${mixed.rule.minBoys}.`;
+    const breach = mixedFieldBreach([...on.filter((id) => id !== offId), onId], mixed.rule, mixed.groupOf);
+    if (!breach) return null;
+    return breach.text.startsWith("No ") ? `That leaves no ${breach.text.slice(3)}` : `That puts ${breach.text}`;
   }
 
   function sub(offId: string | null, onId: string, line?: TouchLine) {
-    setWarning(capWarning(offId, onId));
     return run("recordTouchSwap", [auth, game.id, { off_player_id: offId, on_player_id: onId, ...(line ? { line } : {}), ...at() }]);
+  }
+  /** A sub the coach makes by hand: one that would break the mixed rule asks first. */
+  function handSub(offId: string | null, onId: string, line: TouchLine | undefined, reselect: string) {
+    const warning = capWarning(offId, onId);
+    if (warning) {
+      setPendingSwap({ off: offId, on: onId, line, warning, reselect });
+      return;
+    }
+    void sub(offId, onId, line);
   }
   function move(a: string, b: string | null, zoneB: TouchLine) {
     const zoneA = state.lineup ? touchLineOf(state.lineup, a) : null;
@@ -396,7 +422,7 @@ export function TouchLiveGame({
       if (selectedId) {
         const from = lineOf(selectedId);
         if (from) void move(selectedId, null, line);
-        else if (canComeOn(selectedId)) void sub(null, selectedId, line);
+        else if (canComeOn(selectedId)) handSub(null, selectedId, line, selectedId);
         setSelectedId(null);
       } else {
         setFillLine(line);
@@ -415,8 +441,8 @@ export function TouchLiveGame({
     const bLine = lineOf(pid);
     setSelectedId(null);
     if (aLine && bLine) void move(selectedId, pid, bLine);
-    else if (aLine && !bLine && canComeOn(pid)) void sub(selectedId, pid);
-    else if (!aLine && bLine && canComeOn(selectedId)) void sub(pid, selectedId);
+    else if (aLine && !bLine && canComeOn(pid)) handSub(selectedId, pid, undefined, selectedId);
+    else if (!aLine && bLine && canComeOn(selectedId)) handSub(pid, selectedId, undefined, selectedId);
     else setSelectedId(pid); // two bench kids: the second is the selection
   }
 
@@ -489,6 +515,40 @@ export function TouchLiveGame({
     [mixed, state.lineup, tags, constraints],
   );
 
+  // A side that breaks the mixed rule (a hand sub the coach swapped
+  // anyway): pinned under the top bar until it's fixed, with the subs
+  // that fix it (the suggestions lead with the same ones).
+  const breach = useMemo(
+    () => (mixed && state.lineup && isPeriodActive ? mixedFieldBreach(touchOnField(state.lineup), mixed.rule, mixed.groupOf) : null),
+    [mixed, state.lineup, isPeriodActive],
+  );
+  const fixSubs = useMemo(
+    () => (breach ? touchMixFixSubs({ state, nowMs: absNowMs, strategy, prefs, season, mixed }) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [breach, state.lineup, state.injuredIds, state.loanedIds, strategy, prefs, season, mixed],
+  );
+  async function applyFix() {
+    if (fixSubs.length === 0) return;
+    setPending(true);
+    setError(null);
+    const flushed = fixSubs.map(
+      (s) =>
+        enqueueLiveAction("recordTouchSwap", [
+          auth,
+          game.id,
+          { off_player_id: s.off_player_id, on_player_id: s.on_player_id, line: s.line, ...at() },
+        ]).flushed,
+    );
+    await Promise.all(flushed).catch((e: unknown) => {
+      setError(e instanceof Error ? e.message : "That didn't save. Try again.");
+    });
+    setPending(false);
+    router.refresh();
+  }
+  const fixLabel = fixSubs
+    .map((s) => `${playerById.get(s.on_player_id)?.full_name ?? "a player"} on for ${playerById.get(s.off_player_id)?.full_name ?? "a player"}`)
+    .join(", ");
+
   async function markInjured(pid: string, injured: boolean) {
     await run("markInjury", [auth, game.id, { player_id: pid, injured, ...at() }]);
   }
@@ -531,6 +591,26 @@ export function TouchLiveGame({
   }
   const selectedPlayer = selectedId ? (playerById.get(selectedId) ?? null) : null;
   const selectedOnField = selectedId !== null && lineOf(selectedId) !== null;
+  // With a kid picked, the kids a swap with them would break the mixed
+  // rule for (the bench for a field kid, the field for a bench kid) dim
+  // and say why. They can still be tapped: the swap asks first.
+  const ruleNotes = useMemo(() => {
+    const out: Record<string, string> = {};
+    if (!mixed || !lineup || !selectedId || !isPeriodActive) return out;
+    if (selectedOnField) {
+      for (const b of lineup.bench) {
+        const w = canComeOn(b) ? capWarning(selectedId, b) : null;
+        if (w) out[b] = w;
+      }
+    } else if (canComeOn(selectedId)) {
+      for (const f of touchOnField(lineup)) {
+        const w = capWarning(f, selectedId);
+        if (w) out[f] = w;
+      }
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mixed, lineup, selectedId, selectedOnField, isPeriodActive, state.injuredIds, state.loanedIds]);
   const remainingMs = Math.max(0, periodMs - elapsedMs);
   const clockReadout = `${Math.floor(remainingMs / 60_000)}:${Math.floor((remainingMs % 60_000) / 1000)
     .toString()
@@ -625,14 +705,13 @@ export function TouchLiveGame({
                         periodLetter={periodLetter}
                         periodWord={periodWord}
                         teamChips={[{ key: "try", text: "+T", label: `Add a try, ${teamName}`, onClick: () => setPickingScorer(true) }]}
-                        opponentChips={
-                          girlsTryDouble
-                            ? [
-                                { key: "try", text: "+1", label: `Add a try, ${opponentName}`, onClick: () => opponentScore(false) },
-                                { key: "girls", text: "+2 (girl)", label: `Add a girl's try, ${opponentName}`, onClick: () => opponentScore(true) },
-                              ]
-                            : [{ key: "try", text: "+T", label: `Add a try, ${opponentName}`, onClick: () => opponentScore(false) }]
-                        }
+                        opponentChips={touchOpponentChips(girlsTryDouble, opponentName).map((c) => ({
+                          key: c.key,
+                          text: c.text,
+                          sub: c.sub,
+                          label: c.label,
+                          onClick: () => opponentScore(c.girl),
+                        }))}
                         missedNote={`A try you missed counts in ${periodLetter}${base.currentPeriod}.`}
                         onUndo={undoScore}
                         undoDisabled={pending}
@@ -659,23 +738,44 @@ export function TouchLiveGame({
         // The sub card is the alert while it has pairs (SubDue.tsx); the
         // banner speaks only for a due sub with nothing to suggest.
         banner={
-          isPeriodActive && subDueBannerShows(subDue.due, nextSubs.length) && subAckKey !== subDueKey ? (
-            <SubDueBanner hint={TOUCH_SUB_DUE_HINT} onAcknowledge={() => setSubAckKey(subDueKey)} />
-          ) : null
+          <>
+            {isPeriodActive && subDueBannerShows(subDue.due, nextSubs.length) && subAckKey !== subDueKey ? (
+              <SubDueBanner hint={TOUCH_SUB_DUE_HINT} onAcknowledge={() => setSubAckKey(subDueKey)} />
+            ) : null}
+            {/* Pinned while the side breaks the mixed rule, as the sub-due
+                strip is: it stays on screen as the coach scrolls. */}
+            {breach && (
+              <div
+                role="status"
+                data-testid="touch-mixed-breach"
+                className="mx-auto flex max-w-4xl items-center gap-3 border-t border-hairline bg-danger/10 px-3 py-1.5"
+              >
+                <span className="shrink-0 rounded-xs bg-danger px-1.5 font-mono text-[10px] font-bold uppercase leading-4 tracking-micro text-white">
+                  Mixed rule
+                </span>
+                <p className="min-w-0 flex-1 text-sm text-ink">
+                  <strong className="font-semibold">{breach.short}</strong>
+                  {fixSubs.length === 0 && <span className="text-ink-dim"> — nobody on the bench can fix it</span>}
+                </p>
+                {fixSubs.length > 0 && (
+                  <SFButton
+                    size="md"
+                    variant="ghost"
+                    onClick={() => void applyFix()}
+                    disabled={pending}
+                    aria-label={`Fix: ${fixLabel}`}
+                    className="shrink-0"
+                  >
+                    Fix
+                  </SFButton>
+                )}
+              </div>
+            )}
+          </>
         }
       />
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
-      {warning && (
-        <InlineAlert kind="warn">
-          <span className="flex items-start justify-between gap-2">
-            <span>{warning}</span>
-            <button type="button" onClick={() => setWarning(null)} className="shrink-0 underline">
-              OK
-            </button>
-          </span>
-        </InlineAlert>
-      )}
       {shortBanner}
 
       {isPreStart && state.lineup && (
@@ -753,6 +853,7 @@ export function TouchLiveGame({
             injuredIds={state.injuredIds}
             lockModes={lockModes}
             triesByPlayer={trackScoring ? playerTries : undefined}
+            ruleNotes={ruleNotes}
           />
           <TouchBench
             bench={lineup.bench}
@@ -769,6 +870,7 @@ export function TouchLiveGame({
             loanedIds={state.loanedIds}
             lockModes={lockModes}
             triesByPlayer={trackScoring ? playerTries : undefined}
+            ruleNotes={ruleNotes}
           />
         </>
       )}
@@ -942,6 +1044,30 @@ export function TouchLiveGame({
       )}
 
       {scorerSheet}
+
+      {pendingSwap && (
+        <SwapConfirmDialog
+          off={pendingSwap.off ?? ""}
+          on={pendingSwap.on}
+          placeLabel={(() => {
+            const line = pendingSwap.line ?? (pendingSwap.off ? lineOf(pendingSwap.off) : null);
+            return line && line !== "field" ? TOUCH_LINE_LABEL[line] : "the field";
+          })()}
+          playersById={playerById}
+          ruleWarning={pendingSwap.warning}
+          onConfirm={() => {
+            const { off, on, line } = pendingSwap;
+            setPendingSwap(null);
+            void sub(off, on, line);
+          }}
+          onCancel={() => {
+            // Pick someone else: the kid tapped first stays picked.
+            const { reselect } = pendingSwap;
+            setPendingSwap(null);
+            setSelectedId(reselect);
+          }}
+        />
+      )}
 
       {actionPlayer && (
         <LockModal
