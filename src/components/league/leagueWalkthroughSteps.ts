@@ -45,14 +45,12 @@ export function buildLeagueWalkthroughSteps(opts: {
   /** Whether this team has track_zone_time on. When false, the F/C/B
    *  bar isn't visible so the walkthrough skips that step. */
   trackZoneTime: boolean;
-  /** Whether this team / game has the §6 unbroken-period rule on. */
-  enforceUnbrokenPeriods: boolean;
   // The age group's law knobs; an omitted one is off.
   /** Penalty and field goals score (AgeGroupConfig.goalsFromPlay; league U13+). */
   goalsFromPlay?: boolean;
   /** The goal-kick and kickoff rotations apply (AgeGroupConfig.kickRotations; league U6–U12). */
   kickRotations?: boolean;
-  /** The §6 unbroken-period law applies (AgeGroupConfig.unbrokenPeriods; league U6–U12). */
+  /** The §6 unbroken-period law applies (AgeGroupConfig.unbrokenPeriods; league U6–U12). Always enforced. */
   unbrokenPeriods?: boolean;
 }): WalkthroughStep[] {
   const abbr = opts.periodLabel.charAt(0).toUpperCase();
@@ -145,13 +143,13 @@ export function buildLeagueWalkthroughSteps(opts: {
     );
   }
 
-  if (opts.enforceUnbrokenPeriods && opts.unbrokenPeriods) {
+  if (opts.unbrokenPeriods) {
     steps.push({
       emoji: "📏",
       title: "Unbroken-period rule",
       body: `Junior League §6 requires each player to play an unbroken ${
         periodWord === "half" ? "half" : "two quarters"
-      } each game — no subs during that period. The rotation planner respects this and avoids breaking a player's unbroken run. Turn it off in Team or Game settings if your league plays casually.`,
+      } each game — no subs during that period. The sub card never takes a player off when this is their last chance at it, and the live screen names who must stay on.`,
     });
   }
 

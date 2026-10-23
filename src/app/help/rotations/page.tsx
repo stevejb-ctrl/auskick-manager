@@ -491,11 +491,11 @@ export default function RotationsPage() {
           <strong className="text-ink">two unbroken quarters</strong>{" "}
           (U6–U9) or <strong className="text-ink">one unbroken half</strong>{" "}
           (U10–U12). &quot;Unbroken&quot; means on the field continuously
-          from period kickoff to hooter — no swaps off. It&apos;s off by
-          default: turn on <strong className="text-ink">Enforce unbroken
-          periods</strong> under Team › How we play, or for one game in Game
-          settings. When it&apos;s on, the suggested starting lineup puts
-          first any player who missed out in earlier games. The Stats tab
+          from period kickoff to hooter — no swaps off. Siren always keeps
+          it: the sub card never takes off a player who needs this period
+          for it, the live screen names who must stay on or start the next
+          period, and the suggested starting lineup puts first any player
+          who missed out in earlier games. The Stats tab
           shows how many games each player met the rule and lists any
           shortfalls, so you can plan next week&apos;s rotations accordingly.
         </p>

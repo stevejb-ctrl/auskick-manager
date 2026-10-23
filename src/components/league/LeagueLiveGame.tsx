@@ -60,6 +60,7 @@ import { LeagueField } from "./LeagueField";
 import { LeagueBenchStrip } from "./LeagueBenchStrip";
 import { LeagueScoreBug } from "./LeagueScoreBug";
 import { LeagueNextSubCard } from "./LeagueNextSubCard";
+import { UnbrokenPeriodWarning } from "./UnbrokenPeriodWarning";
 import { LeagueScorerPicker } from "./LeagueScorerPicker";
 import { LeagueFullTimeReview } from "./LeagueFullTimeReview";
 import { LeagueGameSummaryCard } from "./LeagueGameSummaryCard";
@@ -80,6 +81,8 @@ import {
   playerZoneMsOnField,
   rugbyScoreWords,
   suggestLeagueSubs,
+  unbrokenPeriodsRequired,
+  type LeagueSubLaws,
 } from "@/lib/sports/rugby_league/fairness";
 import { getSportConfig, type RugbySport } from "@/lib/sports/registry";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
@@ -97,7 +100,12 @@ import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Game, GameEvent, LeagueLineup, LiveAuth, Player } from "@/lib/types";
 import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
 
-import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_league/engine";
+import {
+  assignLeaguePositionLabels,
+  assignLeaguePositions,
+  restrictedMisfits,
+  withLeagueSlots,
+} from "@/lib/sports/rugby_league/engine";
 import { linePositionOrder } from "@/lib/sports/rugby/fieldPositions";
 import { Modal } from "@/components/ui/Modal";
 import { UndoStrip } from "@/components/live/UndoStrip";
@@ -122,12 +130,6 @@ interface LeagueLiveGameProps {
   clockMultiplier?: number;
   /** Team-level scoring toggle (sport-agnostic). U6/U7 default off; U8+ default on. */
   trackScoring: boolean;
-  /**
-   * Whether the §6 unbroken-period rule is enforced for this game.
-   * Stored on games.enforce_unbroken_periods; the team default lives
-   * on teams.enforce_unbroken_periods. Both start false (off).
-   */
-  enforceUnbrokenPeriods: boolean;
   /**
    * Whether the AFL-style F/C/B time bar renders on every player
    * tile (centre = time wearing FR or DH vest). Stored on
@@ -177,7 +179,6 @@ export function LeagueLiveGame({
   subIntervalSeconds,
   clockMultiplier = 1,
   trackScoring,
-  enforceUnbrokenPeriods,
   trackZoneTime,
   state,
   thisGameEvents,
@@ -393,6 +394,14 @@ export function LeagueLiveGame({
   // Named positions mid-period: the slot each kid holds (a sub takes
   // over the replaced kid's), so a sub never re-deals the field.
   const heldSlots = useMemo(() => leagueSlotsNow(thisGameEvents), [thisGameEvents]);
+  // Named positions: the spot each kid on holds, as the tiles show it.
+  const liveSlots = useMemo(
+    () =>
+      lineup && leaguePlaybook?.positions?.length
+        ? assignLeaguePositions({ forwards: lineup.forwards, backs: lineup.backs }, leaguePlaybook, heldSlots)
+        : {},
+    [lineup, leaguePlaybook, heldSlots],
+  );
 
   // ── Derived lineups ───────────────────────────────────────────
   // `forwardPlayers` and `backPlayers` map the position-aware buckets
@@ -685,6 +694,20 @@ export function LeagueLiveGame({
     () => new Map(squad.map((p) => [p.id, null])),
     [squad],
   );
+  // The rules a rolling sub keeps: §6 where the grade plays it, the How
+  // we play floor (Siren's 50% by default, as the break checks it), and a
+  // sub interval's gap before a swap crosses lines (UX audit, 23 Oct 2026).
+  const subLaws = useMemo<LeagueSubLaws>(
+    () => ({
+      periodCount: ageGroup.periodCount,
+      periodMs: periodSeconds * 1000,
+      // §6 always, where the grade plays it (a locked Must on How we play).
+      requiredUnbroken: unbrokenPeriodsRequired(ageGroup),
+      minGameTimePct: leaguePlaybook?.minGameTimePct ?? 50,
+      crossLineGapMs: subIntervalMs ?? undefined,
+    }),
+    [ageGroup, periodSeconds, leaguePlaybook, subIntervalMs],
+  );
   const nextSubSuggestions = useMemo(() => {
     if (state.currentQuarter < 1 || state.quarterEnded || state.finalised) {
       return [];
@@ -702,6 +725,7 @@ export function LeagueLiveGame({
       elapsedMs,
       chipByPlayerId,
       leaguePlaybook,
+      subLaws,
     );
   }, [
     thisGameEvents,
@@ -714,6 +738,7 @@ export function LeagueLiveGame({
     elapsedMs,
     chipByPlayerId,
     leaguePlaybook,
+    subLaws,
   ]);
 
   // ── Plan-NEXT-period (F2 / ROTPLAN-02) ───────────────────────
@@ -890,7 +915,6 @@ export function LeagueLiveGame({
         kickRotations: ageGroup.kickRotations === true,
         unbrokenPeriods: ageGroup.unbrokenPeriods === true,
         trackZoneTime,
-        enforceUnbrokenPeriods,
       }),
     [
       sport,
@@ -902,7 +926,6 @@ export function LeagueLiveGame({
       ageGroup.kickRotations,
       ageGroup.unbrokenPeriods,
       trackZoneTime,
-      enforceUnbrokenPeriods,
     ],
   );
 
@@ -1611,7 +1634,6 @@ export function LeagueLiveGame({
           injured={injuredSet}
           loaned={loanedSet}
           msByPlayer={totalMsByPlayer}
-          enforceUnbrokenPeriods={enforceUnbrokenPeriods}
           leaguePlaybook={leaguePlaybook}
           chipModes={chipModes}
           isAdmin={isAdmin}
@@ -1702,6 +1724,25 @@ export function LeagueLiveGame({
           </SFButton>
         </div>
       )}
+
+      {/* A front-row spot (union) held by a kid not picked for it — a
+          sub, a replacement or a late arrival put them there. The sub
+          card never does; a coach's own swap can (UX audit, 23 Oct
+          2026). */}
+      {isPeriodActive &&
+        restrictedMisfits(liveSlots, leaguePlaybook)
+          .filter((m) => !injuredSet.has(m.playerId) && !loanedSet.has(m.playerId))
+          .map((m) => (
+            <div
+              key={m.key}
+              role="status"
+              data-testid="front-row-warning"
+              className="rounded-md border border-warn/40 bg-warn-soft/60 px-3 py-2 text-xs text-warn"
+            >
+              {squad.find((p) => p.id === m.playerId)?.full_name ?? "A player"} is at {m.label} but isn&apos;t picked to
+              play there.
+            </div>
+          ))}
 
       {/* Next-sub indicator — mirrors AFL's SwapCard. Renders the
           full bench rotation (one swap per bench player) with
@@ -1861,6 +1902,18 @@ export function LeagueLiveGame({
             onPlayerLongPress={handlePlayerLongPress}
             disabled={pending}
           />
+          {/* §6: who must stay on, who must start the next period. */}
+          {isPeriodActive && (
+            <UnbrokenPeriodWarning
+              sport={sport}
+              players={[...fieldPlayers, ...benchPlayers]}
+              events={thisGameEvents}
+              ageGroup={ageGroup}
+              currentQuarter={state.currentQuarter}
+              currentElapsedMs={elapsedMs}
+              sidelined={new Set([...Array.from(injuredSet), ...Array.from(loanedSet)])}
+            />
+          )}
         </>
         );
       })()}
@@ -2016,9 +2069,8 @@ export function LeagueLiveGame({
               minOnFieldSize={ageGroup.minOnFieldSize}
               maxOnFieldSize={ageGroup.maxOnFieldSize}
               onFieldPlayers={fieldPlayers}
-              enforceUnbrokenPeriods={enforceUnbrokenPeriods}
               unbrokenRule={
-                (ageGroup.minUnbrokenPeriods ?? 0) > 0
+                unbrokenPeriodsRequired(ageGroup) > 0
                   ? `${ageGroup.minUnbrokenPeriods} unbroken ${ageGroup.minUnbrokenPeriods === 1 ? periodLabel : periodLabelPlural}`
                   : null
               }

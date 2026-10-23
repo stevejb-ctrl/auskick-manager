@@ -86,7 +86,6 @@ describe("a union team reads only union", () => {
         kickRotations: ag.kickRotations === true,
         unbrokenPeriods: ag.unbrokenPeriods === true,
         trackZoneTime: true,
-        enforceUnbrokenPeriods: true,
       });
       const text = words(steps);
       expect(text, ag.id).not.toMatch(LEAGUE_WORDS);
@@ -158,7 +157,6 @@ describe("no other sport reads union", () => {
         kickRotations: ag.kickRotations === true,
         unbrokenPeriods: ag.unbrokenPeriods === true,
         trackZoneTime: true,
-        enforceUnbrokenPeriods: true,
       });
       expect(words(steps), ag.id).not.toMatch(UNION_WORDS);
     }

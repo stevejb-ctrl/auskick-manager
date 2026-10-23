@@ -72,6 +72,11 @@ export interface PeriodBreakProps {
   scores?: Readonly<Record<string, { text: string; label: string }>>;
   /** Small notes per kid (fouls, a vest). */
   tags?: Readonly<Record<string, string[]>>;
+  /**
+   * Named positions (rugby): each kid's position label, shown as the
+   * tile's tag in the zone's colour, as a netball bib is.
+   */
+  positions?: Readonly<Record<string, string>>;
   /** Kids who can't play, and why: "Injured", "Lent", "Fouled out". */
   sidelined: Readonly<Record<string, string>>;
   onSwap: (a: BoardSlot, b: BoardSlot) => void;
@@ -195,10 +200,11 @@ export function PeriodBreak(props: PeriodBreakProps) {
     const prev = previous[id] ?? BENCH;
     const ms = gameMs[id] ?? 0;
     const jersey = config.showJumperNumbers && p?.jerseyNumber != null && p.jerseyNumber !== "" ? `#${p.jerseyNumber}` : "";
+    const bib = slot.label ?? (slot.zone !== BENCH ? props.positions?.[id] : undefined);
     return {
       playerId: id,
-      tag: slot.label ?? jersey,
-      tagIsBib: !!slot.label,
+      tag: bib ?? jersey,
+      tagIsBib: !!bib,
       zoneColor: color,
       name: p?.name ?? "Player",
       score: props.scores?.[id],
