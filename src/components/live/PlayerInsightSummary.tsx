@@ -3,7 +3,7 @@
 // F3 (Phase 12) — SHARED, sport-agnostic long-press player summary.
 //
 // Consumed verbatim by AFL (LockModal), rugby league (LockModal) and
-// netball (NetballPlayerActions) via the host's `insight` slot. It owns
+// netball (LockModal too) via the host's `insight` slot. It owns
 // presentation only; the numbers come from the pure `buildPlayerInsight`
 // view-model so all three sports render identical chrome (reuse-before-fork).
 //
