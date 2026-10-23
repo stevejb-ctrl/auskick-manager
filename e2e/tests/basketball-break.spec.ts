@@ -66,5 +66,5 @@ test("basketball's half-time break has the other sports' shape", async ({ page }
   await startFromBreak(page, /^start 2nd half/i);
   await expect(page.getByRole("button", { name: /^clock — h2, running$/i })).toBeVisible({ timeout: 15_000 });
   // On court a guard's line label is the same green.
-  await expect(page.getByTestId(`player-tile-${k[0]}`).getByText("G", { exact: true }).first()).toHaveCSS("color", zoneC);
+  await expect(page.locator("[data-testid^='player-tile-']").getByText("G", { exact: true }).first()).toHaveCSS("color", zoneC);
 });

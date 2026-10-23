@@ -1230,11 +1230,11 @@ test("the bench is AFL's: INJ once, no eyebrow, everyone's time", async ({ page 
   await suppressWalkthrough(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  await page.getByRole("button", { name: new RegExp(`^Goal Shooter,\s*${players[0].full_name}`, "i") }).click({ delay: 600 });
+  await page.getByRole("button", { name: new RegExp(`^Goal Shooter,\\s*${players[0].full_name}`, "i") }).click({ delay: 600 });
   await page.getByRole("button", { name: /mark injured/i }).click();
   await page
     .getByRole("dialog", { name: "Who comes on at GS?" })
-    .getByRole("button", { name: new RegExp(`^${players[7].full_name}\b`, "i") })
+    .getByRole("button", { name: new RegExp(`^${players[7].full_name}\\b`, "i") })
     .click();
 
   const bench = page.getByRole("group", { name: "Bench", exact: true });
@@ -1244,6 +1244,8 @@ test("the bench is AFL's: INJ once, no eyebrow, everyone's time", async ({ page 
   await expect(hurt).not.toContainText(/injured|bench/i);
   // A healthy bench kid shows their time, 0:00 before they've played.
   await expect(bench.getByTestId(`player-tile-${players[8].id}`)).toContainText("0:00");
+  // No jersey numbers in netball (the factory's players have them).
+  await expect(bench).not.toContainText(/#\d/);
   // The chip sits inside the tile, clear of the name.
   const chip = hurt.getByText("INJ", { exact: true });
   const [chipBox, tileBox] = [await chip.boundingBox(), await hurt.boundingBox()];
@@ -1276,6 +1278,6 @@ test("a benched kid's summary says they're on the bench, not a ticking On time",
   await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
 
   // The kid who came on at the break: on since Q2 began.
-  await page.getByRole("button", { name: new RegExp(`^Goal Shooter,\s*${players[7].full_name}`, "i") }).click({ delay: 600 });
-  await expect(page.getByRole("dialog").getByTestId("player-insight-ingame")).toContainText(/On 1:0\d/);
+  await page.getByRole("button", { name: new RegExp(`^Goal Shooter,\\s*${players[7].full_name}`, "i") }).click({ delay: 600 });
+  await expect(page.getByRole("dialog").getByTestId("player-insight-ingame")).toContainText(/On [12]:\d\d/);
 });

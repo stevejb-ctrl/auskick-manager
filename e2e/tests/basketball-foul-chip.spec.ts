@@ -170,10 +170,12 @@ test("marking a kid fouled out by hand asks first", async ({ page }) => {
 // UX audit 23 Oct 2026: "2P" read like a position. Points say so.
 test("a scorer's tile says points, not 2P", async ({ page }) => {
   const { admin, team, game, k, lineup, ev } = await seedFoulGame("BBL-PTS");
-  await admin.from("game_events").insert([ev("lineup_set", 0, { lineup }), ev("quarter_start", 0, {}), ev("two_pointer", 2, {}, k[2])]);
+  // The scorer is on the bench now: a court tile marked to come off
+  // shows OFF in place of the points.
+  await admin.from("game_events").insert([ev("lineup_set", 0, { lineup }), ev("quarter_start", 0, {}), ev("two_pointer", 2, {}, k[6])]);
   await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  await expect(page.getByTestId(`player-tile-${k[2]}`).getByLabel("2 points")).toHaveText("2 PTS", { timeout: 15_000 });
+  await expect(page.getByTestId(`player-tile-${k[6]}`).getByLabel("2 points")).toHaveText("2 PTS", { timeout: 15_000 });
 });

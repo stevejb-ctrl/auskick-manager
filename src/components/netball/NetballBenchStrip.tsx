@@ -61,7 +61,10 @@ export function NetballBenchStrip({ entries, playerStats, playerGoals, onTileLon
           return (
             <LinePlayerTile
               key={player.id}
-              player={player}
+              // Netball has no jersey numbers on tiles (the bib is the
+              // position); a squad carried over from another sport may
+              // still have them.
+              player={player.jersey_number == null ? player : { ...player, jersey_number: null }}
               line={null}
               styles={NETBALL_THIRD_STYLES}
               barOrder={NETBALL_BAR_ORDER}
