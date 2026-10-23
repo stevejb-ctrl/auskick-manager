@@ -126,7 +126,13 @@ export function SlotFillSheet({
       // P0-5 (2026-05-15): the backdrop fades in (350ms) so the
       // dim arrives gracefully rather than slamming on. The inner
       // sheet has its own entrance animation below.
-      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-ink/60 p-4 motion-safe:animate-fade-in"
+      //
+      // !m-0: the sheet renders in place (no portal), often inside a
+      // space-y-* stack, whose margin-top pushed the fixed backdrop
+      // 12px down. The top bar's back link showed through that strip,
+      // so a stray tap at the top left the live screen with the pick
+      // unmade (UX audit 23 Oct 2026, the scorer-sheet backdrop tests).
+      className="fixed inset-0 z-[60] !m-0 flex items-end sm:items-center justify-center bg-ink/60 p-4 motion-safe:animate-fade-in"
       role="dialog"
       aria-modal="true"
       aria-labelledby="slot-fill-title"
