@@ -605,7 +605,7 @@ test("NETBALL-03: scorebug + GS chip update after a goal without manual refresh"
 
 // ─── NETBALL-08: long-press, replacement, late-arrival ────
 
-test("NETBALL-08: long-press on a court player opens NetballPlayerActions modal", async ({
+test("NETBALL-08: long-press on a court player opens the shared player actions (LockModal)", async ({
   page,
 }) => {
   const { team, game, players, admin, ownerId } = await setupNetballTeam({ trackScoring: true });
@@ -631,20 +631,21 @@ test("NETBALL-08: long-press on a court player opens NetballPlayerActions modal"
     })
     .click({ delay: 600 });
 
-  // NetballPlayerActions modal: role="dialog" with
-  // aria-labelledby="netball-actions-title" (the player name +
-  // position label). The three primary actions ("Mark injured",
-  // "Lend to opposition", "Keep at GS next break") are in the modal.
-  await expect(page.getByRole("dialog")).toBeVisible({ timeout: 5_000 });
-  await expect(
-    page.getByRole("button", { name: /mark injured/i }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: /lend to opposition/i }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: /keep in .* next break/i }),
-  ).toBeVisible();
+  // UX audit 23 Oct 2026: netball's actions sheet was a copy of
+  // LockModal (emoji pills, no lines under the actions, Mark injured
+  // amber). It's the shared LockModal now, as AFL's: the kid's name as
+  // the title, each action with its line underneath, Mark injured red.
+  const actions = page.getByRole("dialog", { name: players[0].full_name });
+  await expect(actions).toBeVisible({ timeout: 5_000 });
+  const injure = actions.getByRole("button", { name: /mark injured/i });
+  await expect(injure).toContainText("Moves to the bench and skips the sub rotation");
+  await expect(injure).toHaveCSS("background-color", "rgb(180, 57, 58)");
+  await expect(actions.getByRole("button", { name: /lend to opposition/i })).toBeVisible();
+  await expect(actions.getByRole("button", { name: /keep in gs next break/i })).toBeVisible();
+  // Mid-quarter subs are off for this team: no Switch.
+  await expect(actions.getByRole("button", { name: /switch player/i })).toHaveCount(0);
+  // No emoji pills (🔄 🔒 🏥 🤝 …).
+  await expect(actions).not.toContainText(/\p{Extended_Pictographic}/u);
 });
 
 test("NETBALL-08: marking a court player injured prompts replacement and writes injury event", async ({
@@ -670,30 +671,23 @@ test("NETBALL-08: marking a court player injured prompts replacement and writes 
     .click({ delay: 600 });
   await page.getByRole("button", { name: /mark injured/i }).click();
 
-  // PickReplacementSheet renders role="dialog" with
-  // aria-labelledby="replace-title" ("<vacating> → GS"). Bench
-  // candidates (players[7], players[8]) are listed within the
-  // dialog. Scope candidate-button lookups to the dialog so they
-  // don't accidentally target the bench-strip tile underneath.
-  const replaceDialog = page.getByRole("dialog");
+  // UX audit 23 Oct 2026: the shared InjuryReplacementModal, as AFL's.
+  // The old sheet's "Amelia → Wing Attack" read as if she was moving;
+  // this one asks who comes on at the bib and suggests the kid with
+  // the least court time. Bench candidates (players[7], players[8])
+  // are listed in it.
+  const replaceDialog = page.getByRole("dialog", { name: "Who comes on at GS?" });
   await expect(replaceDialog).toBeVisible({ timeout: 5_000 });
-  // Header copy includes the vacating player + the position label
-  // ("Goal Shooter" — PickReplacementSheet.tsx:41 uses pos.label).
-  // Format: "${vacatingPlayerName} → Goal Shooter".
-  await expect(
-    replaceDialog.getByText(
-      new RegExp(`${players[0].full_name}.*Goal Shooter|→\\s*Goal Shooter`, "i"),
-    ),
-  ).toBeVisible();
+  await expect(replaceDialog).toContainText(`Marking ${players[0].full_name} injured`);
+  await expect(replaceDialog.getByRole("button").first()).toContainText("Suggested");
 
-  // Pick the first bench player. The candidate buttons in
-  // PickReplacementSheet render the player's full_name as their
-  // accessible text (no aria-label), so getByRole('button', name)
-  // matches via accessible-text.
   const benchPlayer = players[7];
   await replaceDialog
-    .getByRole("button", { name: new RegExp(`^${benchPlayer.full_name}$`, "i") })
+    .getByRole("button", { name: new RegExp(`^${benchPlayer.full_name}\\b`, "i") })
     .click({ timeout: 5_000 });
+  await expect(
+    page.getByRole("button", { name: new RegExp(`^Goal Shooter,\\s*${benchPlayer.full_name}`, "i") }),
+  ).toBeVisible();
 
   // injury event landed (markInjury server action writes
   // type='injury' with metadata.injured=true).
@@ -754,13 +748,15 @@ test("NETBALL-08: long-press → Switch swaps a court player for a bench player 
   ).toBeVisible({ timeout: 5_000 });
   await page.getByRole("button", { name: /switch player/i }).click();
 
-  // PickReplacementSheet opens — same dialog as the injury flow.
-  const replaceDialog = page.getByRole("dialog");
+  // The shared replacement picker opens — the injury flow's, in a
+  // Switch's words.
+  const replaceDialog = page.getByRole("dialog", { name: "Who comes on at GS?" });
   await expect(replaceDialog).toBeVisible({ timeout: 5_000 });
+  await expect(replaceDialog).toContainText(`Taking ${players[0].full_name} off`);
   // Pick the first bench player.
   const benchPlayer = players[7];
   await replaceDialog
-    .getByRole("button", { name: new RegExp(`^${benchPlayer.full_name}$`, "i") })
+    .getByRole("button", { name: new RegExp(`^${benchPlayer.full_name}\\b`, "i") })
     .click({ timeout: 5_000 });
 
   // The GS court tile should now show the replacement (Brendan
@@ -1081,14 +1077,14 @@ test("a mid-quarter replacement survives a reload, and a cancelled one leaves no
   await token("Goal Shooter", players[0].full_name).click({ delay: 600 });
   await page.getByRole("button", { name: /mark injured/i }).click();
   const replaceDialog = page.getByRole("dialog");
-  await replaceDialog.getByRole("button", { name: new RegExp(`^${players[7].full_name}$`, "i") }).click();
+  await replaceDialog.getByRole("button", { name: new RegExp(`^${players[7].full_name}\\b`, "i") }).click();
   await expect(token("Goal Shooter", players[7].full_name)).toBeVisible();
 
-  // GA lent, and the replacement picker cancelled: GA stays empty.
+  // GA lent without a replacement: GA stays empty.
   await token("Goal Attack", players[1].full_name).click({ delay: 600 });
   await page.getByRole("button", { name: /lend to opposition|^lend/i }).click();
   await expect(replaceDialog).toBeVisible();
-  await replaceDialog.getByRole("button", { name: /cancel|skip|not now/i }).first().click();
+  await replaceDialog.getByRole("button", { name: "Lend without replacement" }).click();
   await expect(token("Goal Attack", players[1].full_name)).toHaveCount(0);
   await expect.poll(async () => {
     const { data } = await admin.from("game_events").select("id").eq("game_id", game.id).eq("type", "player_loan");
@@ -1123,7 +1119,7 @@ test("a Q4 replacement is saved when the game is finished", async ({ page }) => 
   const gs = (name: string) => page.getByRole("button", { name: new RegExp(`^Goal Shooter,\\s*${name}`, "i") });
   await gs(players[0].full_name).click({ delay: 600 });
   await page.getByRole("button", { name: /mark injured/i }).click();
-  await page.getByRole("dialog").getByRole("button", { name: new RegExp(`^${players[7].full_name}$`, "i") }).click();
+  await page.getByRole("dialog").getByRole("button", { name: new RegExp(`^${players[7].full_name}\\b`, "i") }).click();
   await expect(gs(players[7].full_name)).toBeVisible();
 
   // Q4's hooter (10 min at 20× ≈ 30s), then finish.
@@ -1158,12 +1154,12 @@ test("sideline story: lend GA, GS hurt, then the lent kid comes back on at the b
   // Q1: lend GA; a bench kid comes on.
   await token("Goal Attack", ga.full_name).click({ delay: 600 });
   await page.getByRole("button", { name: /lend to opposition|^lend/i }).click();
-  await replaceDialog.getByRole("button", { name: new RegExp(`^${bench1.full_name}$`, "i") }).click();
+  await replaceDialog.getByRole("button", { name: new RegExp(`^${bench1.full_name}\\b`, "i") }).click();
   await expect(token("Goal Attack", bench1.full_name)).toBeVisible();
   // Then GS is hurt; the last bench kid comes on.
   await token("Goal Shooter", gs.full_name).click({ delay: 600 });
   await page.getByRole("button", { name: /mark injured/i }).click();
-  await replaceDialog.getByRole("button", { name: new RegExp(`^${bench2.full_name}$`, "i") }).click();
+  await replaceDialog.getByRole("button", { name: new RegExp(`^${bench2.full_name}\\b`, "i") }).click();
   await expect(token("Goal Shooter", bench2.full_name)).toBeVisible();
 
   // The hooter → the break.
@@ -1221,4 +1217,65 @@ test("sideline story: lend GA, GS hurt, then the lent kid comes back on at the b
   expect(total(gs.id)).toBe(gsOff);
   expect(total(bench2.id)).toBe(600_000 - bench2On);
   expect(total(players[2].id)).toBe(600_000);
+});
+
+// UX audit 23 Oct 2026: the bench strip drew its INJ chip over the
+// "INJURED" label ("INJ NJURED"), put a "BENCH" eyebrow on every tile
+// and showed no time on a healthy bench kid. It's AFL's bench now: a
+// "Bench (n)" card of tiles in a four-column grid, a status chip in the
+// tile's top row, and every kid's time.
+test("the bench is AFL's: INJ once, no eyebrow, everyone's time", async ({ page }) => {
+  const { team, game, players, admin, ownerId } = await setupNetballTeam({ trackScoring: true });
+  await seedQ1InProgress({ admin, gameId: game.id, ownerId, playerIds: players.map((p) => p.id) });
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  await page.getByRole("button", { name: new RegExp(`^Goal Shooter,\s*${players[0].full_name}`, "i") }).click({ delay: 600 });
+  await page.getByRole("button", { name: /mark injured/i }).click();
+  await page
+    .getByRole("dialog", { name: "Who comes on at GS?" })
+    .getByRole("button", { name: new RegExp(`^${players[7].full_name}\b`, "i") })
+    .click();
+
+  const bench = page.getByRole("group", { name: "Bench", exact: true });
+  await expect(bench).toContainText("Bench (2)");
+  const hurt = bench.getByTestId(`player-tile-${players[0].id}`);
+  await expect(hurt).toContainText("INJ", { timeout: 10_000 });
+  await expect(hurt).not.toContainText(/injured|bench/i);
+  // A healthy bench kid shows their time, 0:00 before they've played.
+  await expect(bench.getByTestId(`player-tile-${players[8].id}`)).toContainText("0:00");
+  // The chip sits inside the tile, clear of the name.
+  const chip = hurt.getByText("INJ", { exact: true });
+  const [chipBox, tileBox] = [await chip.boundingBox(), await hurt.boundingBox()];
+  expect(chipBox!.x + chipBox!.width).toBeLessThanOrEqual(tileBox!.x + tileBox!.width);
+  // A grid, not a sideways scroll.
+  expect(await bench.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+});
+
+// UX audit 23 Oct 2026: a kid benched at the break kept an "On" time
+// ticking in their player summary ("On 10:18" after 10:00 played).
+test("a benched kid's summary says they're on the bench, not a ticking On time", async ({ page }) => {
+  const { team, game, players, admin, ownerId } = await setupNetballTeam({ trackScoring: true });
+  // Q1 ten minutes ago; Q2 started a minute ago with players[0] benched.
+  await seedQ1InProgress({ admin, gameId: game.id, ownerId, playerIds: players.map((p) => p.id), quarterStartOffsetSec: 1000 });
+  const ids = players.map((p) => p.id);
+  const q2 = { positions: { ...Object.fromEntries(NETBALL_LINEUP_KEYS.map((k, i) => [k, [ids[i]]])), gs: [ids[7]] }, bench: [ids[0], ids[8]] };
+  const ago = (s: number) => new Date(Date.now() - s * 1000).toISOString();
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 600_000 }, created_by: ownerId, created_at: ago(390) },
+    { game_id: game.id, type: "period_break_swap", metadata: { lineup: q2, midQuarterSubs: [] }, created_by: ownerId, created_at: ago(120) },
+    { game_id: game.id, type: "quarter_start", metadata: { quarter: 2 }, created_by: ownerId, created_at: ago(60) },
+  ]);
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  await page.getByRole("group", { name: "Bench", exact: true }).getByTestId(`player-tile-${ids[0]}`).click({ timeout: 15_000 });
+  const thisGame = page.getByRole("dialog").getByTestId("player-insight-ingame");
+  await expect(thisGame).toContainText("On the bench");
+  await expect(thisGame).not.toContainText(/On \d/);
+  await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+
+  // The kid who came on at the break: on since Q2 began.
+  await page.getByRole("button", { name: new RegExp(`^Goal Shooter,\s*${players[7].full_name}`, "i") }).click({ delay: 600 });
+  await expect(page.getByRole("dialog").getByTestId("player-insight-ingame")).toContainText(/On 1:0\d/);
 });
