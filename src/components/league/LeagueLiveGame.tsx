@@ -100,7 +100,12 @@ import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Game, GameEvent, LeagueLineup, LiveAuth, Player } from "@/lib/types";
 import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
 
-import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_league/engine";
+import {
+  assignLeaguePositionLabels,
+  assignLeaguePositions,
+  restrictedMisfits,
+  withLeagueSlots,
+} from "@/lib/sports/rugby_league/engine";
 import { linePositionOrder } from "@/lib/sports/rugby/fieldPositions";
 import { Modal } from "@/components/ui/Modal";
 import { UndoStrip } from "@/components/live/UndoStrip";
@@ -389,6 +394,14 @@ export function LeagueLiveGame({
   // Named positions mid-period: the slot each kid holds (a sub takes
   // over the replaced kid's), so a sub never re-deals the field.
   const heldSlots = useMemo(() => leagueSlotsNow(thisGameEvents), [thisGameEvents]);
+  // Named positions: the spot each kid on holds, as the tiles show it.
+  const liveSlots = useMemo(
+    () =>
+      lineup && leaguePlaybook?.positions?.length
+        ? assignLeaguePositions({ forwards: lineup.forwards, backs: lineup.backs }, leaguePlaybook, heldSlots)
+        : {},
+    [lineup, leaguePlaybook, heldSlots],
+  );
 
   // ── Derived lineups ───────────────────────────────────────────
   // `forwardPlayers` and `backPlayers` map the position-aware buckets
@@ -1711,6 +1724,25 @@ export function LeagueLiveGame({
           </SFButton>
         </div>
       )}
+
+      {/* A front-row spot (union) held by a kid not picked for it — a
+          sub, a replacement or a late arrival put them there. The sub
+          card never does; a coach's own swap can (UX audit, 23 Oct
+          2026). */}
+      {isPeriodActive &&
+        restrictedMisfits(liveSlots, leaguePlaybook)
+          .filter((m) => !injuredSet.has(m.playerId) && !loanedSet.has(m.playerId))
+          .map((m) => (
+            <div
+              key={m.key}
+              role="status"
+              data-testid="front-row-warning"
+              className="rounded-md border border-warn/40 bg-warn-soft/60 px-3 py-2 text-xs text-warn"
+            >
+              {squad.find((p) => p.id === m.playerId)?.full_name ?? "A player"} is at {m.label} but isn&apos;t picked to
+              play there.
+            </div>
+          ))}
 
       {/* Next-sub indicator — mirrors AFL's SwapCard. Renders the
           full bench rotation (one swap per bench player) with

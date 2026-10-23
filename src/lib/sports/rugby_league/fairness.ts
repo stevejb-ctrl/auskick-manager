@@ -30,6 +30,8 @@
 
 import {
   assignLeagueLines,
+  canPlayPosition,
+  restrictedKeysInForce,
   lastVestWearer,
   leagueLineScores,
   nextInOrder,
@@ -2410,6 +2412,8 @@ export interface LeagueSubSuggestion {
   on: { playerId: string; msOnBench: number };
   /** Zone the off-player vacated — the on-player joins this zone. */
   zone: LeagueZone;
+  /** Named positions: the slot the on-player takes over ("HK2"). */
+  position?: { key: string; label: string };
 }
 
 /**
@@ -2573,8 +2577,7 @@ export function suggestLeagueSubs(
   );
 
   // Field candidates per zone — longest-on-field first within each
-  // zone. We mutate cursors as we consume players from each zone
-  // bucket so each suggestion picks a fresh off-target.
+  // zone; each suggestion takes a fresh off-target.
   const fieldByZone: Record<LeagueZone, string[]> = {
     forward: [],
     back: [],
@@ -2588,13 +2591,33 @@ export function suggestLeagueSubs(
   for (const z of ["forward", "back"] as LeagueZone[]) {
     fieldByZone[z].sort((a, b) => msAt(b) - msAt(a));
   }
-  const cursor: Record<LeagueZone, number> = { forward: 0, back: 0 };
+
+  // Named positions: a sub takes the slot of the kid they replace, so
+  // pairs go by position (UX audit, 23 Oct 2026: "Make all swaps" put a
+  // late arrival at loosehead and a winger at hooker). A bench kid may
+  // replace only a kid whose slot they can play (never-plays out; a
+  // restricted spot in force, union's front row, only if picked for it).
+  const positions = playbook?.positions?.length ? playbook.positions : null;
+  const heldSlot = positions ? leagueSlotsNow(events) : {};
+  const inForce = positions ? restrictedKeysInForce(playbook) : new Set<string>();
+  const canTake = (benchId: string, offId: string) => {
+    const slot = heldSlot[offId];
+    return !slot || canPlayPosition(playbook, benchId, slot, inForce);
+  };
+  // How well the bench kid fits the off kid's slot: home, also, other.
+  const fit = (benchId: string, offId: string) => {
+    const slot = heldSlot[offId];
+    const role = playbook?.positionRoles?.[benchId];
+    if (!slot || !role) return 2;
+    return role.home === slot ? 0 : role.also.includes(slot) ? 1 : 2;
+  };
 
   const swaps: LeagueSubSuggestion[] = [];
   const usedOff = new Set<string>();
   const usedOn = new Set<string>();
-  // The longest-on kid still free in a line, without taking them.
-  const nextUnused = (z: LeagueZone) => fieldByZone[z].slice(cursor[z]).find((id) => !usedOff.has(id));
+  // The kids a bench kid could replace in a line, longest-on first.
+  const pool = (z: LeagueZone, benchId: string) =>
+    fieldByZone[z].filter((id) => !usedOff.has(id) && canTake(benchId, id));
 
   for (const benchId of benchSorted) {
     if (usedOn.has(benchId)) continue;
@@ -2626,24 +2649,24 @@ export function suggestLeagueSubs(
     // the backs had played twenty).
     if (zoneOrder.length === 2) {
       const [mine, other] = zoneOrder;
-      const a = nextUnused(mine);
-      const b = nextUnused(other);
+      const a = pool(mine, benchId)[0];
+      const b = pool(other, benchId)[0];
       const gap = noPreference ? 0 : laws?.crossLineGapMs;
       if (b && gap !== undefined && (!a || msAt(b) - msAt(a) > gap)) zoneOrder = [other, mine];
     }
     let pickedOff: string | null = null;
     let pickedZone: LeagueZone | null = null;
     for (const z of zoneOrder) {
-      while (cursor[z] < fieldByZone[z].length) {
-        const candidate = fieldByZone[z][cursor[z]];
-        cursor[z]++;
-        if (!usedOff.has(candidate)) {
-          pickedOff = candidate;
-          pickedZone = z;
-          break;
-        }
-      }
-      if (pickedOff) break;
+      const options = pool(z, benchId);
+      if (options.length === 0) continue;
+      // Named positions: among kids on about as long as the longest (a
+      // sub interval), the one in the bench kid's own position.
+      const close = positions
+        ? options.filter((id) => msAt(options[0]) - msAt(id) <= (laws?.crossLineGapMs ?? 0))
+        : [options[0]];
+      pickedOff = [...close].sort((a, b) => fit(benchId, a) - fit(benchId, b) || msAt(b) - msAt(a))[0];
+      pickedZone = z;
+      break;
     }
     if (!pickedOff || !pickedZone) {
       // With roles, this kid may just have no line open — try the next.
@@ -2652,10 +2675,13 @@ export function suggestLeagueSubs(
     }
     usedOff.add(pickedOff);
     usedOn.add(benchId);
+    const slot = heldSlot[pickedOff];
+    const label = slot ? positions?.find((p) => p.key === slot)?.label : undefined;
     swaps.push({
       off: { playerId: pickedOff, msOnField: msAt(pickedOff) },
       on: { playerId: benchId, msOnBench: msAt(benchId) },
       zone: pickedZone,
+      ...(slot && label ? { position: { key: slot, label } } : {}),
     });
   }
   return swaps;

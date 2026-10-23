@@ -2,7 +2,9 @@
 
 // ─── LeagueNextSubCard ───────────────────────────────────────
 // League and union's upcoming rotation: the shared NextSubCard (AFL
-// SwapCard's shape) with each pair labelled forward or back.
+// SwapCard's shape) with each pair labelled forward or back, or by the
+// spot the kid coming on takes with named positions ("HK2 Tevita →
+// Leo"; UX audit, 23 Oct 2026).
 
 import type { Player } from "@/lib/types";
 import { NextSubCard } from "@/components/live/NextSubCard";
@@ -11,6 +13,8 @@ interface LeagueSwap {
   off: { playerId: string; msOnField: number };
   on: { playerId: string; msOnBench: number };
   zone: "forward" | "back";
+  /** Named positions: the slot the kid coming on takes over. */
+  position?: { key: string; label: string };
 }
 
 interface LeagueNextSubCardProps {
@@ -56,7 +60,7 @@ export function LeagueNextSubCard({
       pairs={suggestions.map((s) => ({
         offId: s.off.playerId,
         onId: s.on.playerId,
-        label: ZONE_LABEL[s.zone],
+        label: s.position?.label ?? ZONE_LABEL[s.zone],
         labelClass: ZONE_COLOR[s.zone],
       }))}
       msUntilDue={msUntilDue}
