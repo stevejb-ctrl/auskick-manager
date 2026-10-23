@@ -110,6 +110,7 @@ test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top change
   // ─── 4. End H1; half-time hands the keeper top on ─────────────
   // From a scrolled live view: the break still opens at the top (audit,
   // 23 Oct 2026: it kept the live view's offset, the score off-screen).
+  await page.setViewportSize({ width: 412, height: 640 });
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   await page.getByRole("button", { name: /^clock — h1, running$/i }).click();
