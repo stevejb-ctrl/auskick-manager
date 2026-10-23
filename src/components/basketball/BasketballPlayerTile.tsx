@@ -7,7 +7,8 @@
 // (G / F, or PG … C) and #number with any status chip, row 2 the name,
 // row 3 the time bar (time at guard and forward) and the time. What's
 // basketball's own: the foul chip (nF, amber two and one short of
-// fouling out), FOUL OUT, and a sit-out's countdown.
+// fouling out; none at no fouls), OUT for a foul-out, points as "n PTS",
+// and a sit-out's countdown.
 
 import { memo, useEffect, useRef, useState } from "react";
 import type { Player } from "@/lib/types";
@@ -250,68 +251,75 @@ function BasketballPlayerTileImpl({
                 #{player.jersey_number}
               </span>
             )}
-            <span className="flex-1" />
-            {handover && !isOff && (
-              <span key={handover.key} aria-hidden className="motion-safe:animate-chip-out motion-reduce:animate-chip-out">
-                <span className="flex h-4 w-4 items-center justify-center rounded-xs bg-brand-600 motion-safe:animate-chip-pop motion-reduce:animate-xfade-in">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden>
-                    <path d="M5 12l5 5L20 7" stroke="#FFFFFF" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+            {/* The chips, most important first. Row-reverse lays them out
+                from the right, and a chip that doesn't fit wraps onto a
+                hidden second line whole, so a narrow bench tile shows OUT
+                rather than "FOU" (UX audit 23 Oct 2026); points go first. */}
+            <span className="flex h-4 min-w-0 flex-1 flex-row-reverse flex-wrap content-start items-center gap-x-1.5 overflow-hidden">
+              {handover && !isOff && (
+                <span key={handover.key} aria-hidden className="motion-safe:animate-chip-out motion-reduce:animate-chip-out">
+                  <span className="flex h-4 w-4 items-center justify-center rounded-xs bg-brand-600 motion-safe:animate-chip-pop motion-reduce:animate-xfade-in">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <path d="M5 12l5 5L20 7" stroke="#FFFFFF" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </span>
+                </span>
+              )}
+              {isOff && (
+                <span className={`${CHIP} bg-due tracking-[0.08em] text-white`} aria-label={`Coming off next, pair ${swap.pair}`}>
+                  OFF {swap.pair}
+                </span>
+              )}
+              {fouledOut ? (
+                <span className={`${CHIP} bg-danger tracking-micro text-white`} aria-label="Fouled out">
+                  OUT
+                </span>
+              ) : injured ? (
+                <span className={`${CHIP} bg-danger tracking-micro text-white`} aria-label="Injured">
+                  INJ
+                </span>
+              ) : null}
+              {loaned && !injured && !fouledOut && (
+                <span className={`${CHIP} bg-warn tracking-micro text-white`} aria-label="Lent to opposition">
+                  LENT
+                </span>
+              )}
+              {sittingOut && !injured && !fouledOut && (
+                <span className={`${CHIP} nums bg-warn tracking-micro text-white`} aria-label={`Sitting out, ${formatMinSec(sitOutMsLeft!)} left`}>
+                  SIT {formatMinSec(sitOutMsLeft!)}
+                </span>
+              )}
+              {/* No chip at no fouls: a "0F" on every tile was clutter. */}
+              {fouls !== null && foulCount > 0 && !fouledOut && (
+                <span
+                  data-testid={`fouls-${player.id}`}
+                  className={`${CHIP} nums ${foulTone}`}
+                  aria-label={`${foulCount} ${foulCount === 1 ? "foul" : "fouls"}`}
+                >
+                  {foulCount}F
+                </span>
+              )}
+              {lockMode && !away && (
+                <span
+                  className={`${CHIP} text-white ${lockMode === "field" ? "bg-brand-600" : "bg-warn"}`}
+                  aria-label={lockMode === "field" ? "Kept on" : "Line locked"}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-2.5 w-2.5" aria-hidden>
+                    <path
+                      fillRule="evenodd"
+                      d="M12 1.5a5.25 5.25 0 0 0-5.25 5.25v3a3 3 0 0 0-3 3v6.75a3 3 0 0 0 3 3h10.5a3 3 0 0 0 3-3v-6.75a3 3 0 0 0-3-3v-3c0-2.9-2.35-5.25-5.25-5.25Zm3.75 8.25v-3a3.75 3.75 0 1 0-7.5 0v3h7.5Z"
+                      clipRule="evenodd"
+                    />
                   </svg>
                 </span>
-              </span>
-            )}
-            {isOff && (
-              <span className={`${CHIP} bg-due tracking-[0.08em] text-white`} aria-label={`Coming off next, pair ${swap.pair}`}>
-                OFF {swap.pair}
-              </span>
-            )}
-            {hasPoints && !isOff && (
-              <span className={`${CHIP} nums bg-ink text-warm`} aria-label={`${points} ${points === 1 ? "point" : "points"}`}>
-                {points}P
-              </span>
-            )}
-            {fouls !== null && !fouledOut && (
-              <span
-                data-testid={`fouls-${player.id}`}
-                className={`${CHIP} nums ${foulTone}`}
-                aria-label={`${foulCount} ${foulCount === 1 ? "foul" : "fouls"}`}
-              >
-                {foulCount}F
-              </span>
-            )}
-            {fouledOut ? (
-              <span className={`${CHIP} bg-danger tracking-micro text-white`} aria-label="Fouled out">
-                FOUL OUT
-              </span>
-            ) : injured ? (
-              <span className={`${CHIP} bg-danger tracking-micro text-white`} aria-label="Injured">
-                INJ
-              </span>
-            ) : null}
-            {loaned && !injured && !fouledOut && (
-              <span className={`${CHIP} bg-warn tracking-micro text-white`} aria-label="Lent to opposition">
-                LENT
-              </span>
-            )}
-            {sittingOut && !injured && !fouledOut && (
-              <span className={`${CHIP} nums bg-warn tracking-micro text-white`} aria-label={`Sitting out, ${formatMinSec(sitOutMsLeft!)} left`}>
-                SIT {formatMinSec(sitOutMsLeft!)}
-              </span>
-            )}
-            {lockMode && !away && (
-              <span
-                className={`${CHIP} text-white ${lockMode === "field" ? "bg-brand-600" : "bg-warn"}`}
-                aria-label={lockMode === "field" ? "Kept on" : "Line locked"}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-2.5 w-2.5" aria-hidden>
-                  <path
-                    fillRule="evenodd"
-                    d="M12 1.5a5.25 5.25 0 0 0-5.25 5.25v3a3 3 0 0 0-3 3v6.75a3 3 0 0 0 3 3h10.5a3 3 0 0 0 3-3v-6.75a3 3 0 0 0-3-3v-3c0-2.9-2.35-5.25-5.25-5.25Zm3.75 8.25v-3a3.75 3.75 0 1 0-7.5 0v3h7.5Z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </span>
-            )}
+              )}
+              {/* Points say so: "2P" read like a position. */}
+              {hasPoints && !isOff && (
+                <span className={`${CHIP} nums bg-ink text-warm`} aria-label={`${points} ${points === 1 ? "point" : "points"}`}>
+                  {points} PTS
+                </span>
+              )}
+            </span>
           </span>
 
           {/* Row 2 · the name (rolling on a handover). */}
