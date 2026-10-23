@@ -118,3 +118,81 @@ export function optimisticUndo(events: GameEvent[], scoreTypes: ReadonlySet<stri
     },
   };
 }
+
+type At = { quarter: number; elapsed_ms: number };
+
+/**
+ * The events the live actions insert, built the same way for the
+ * screen (each mirrors its server action's insert: live/actions.ts for
+ * the sideline, soccer-actions.ts and basketball-actions.ts for swaps,
+ * moves and scores). The server adds `sport` to metadata; the replays
+ * don't read it.
+ */
+export const liveEvents = {
+  /** recordSoccerSwap / recordBasketballSwap. */
+  swap(input: { off_player_id: string | null; on_player_id: string; line?: string } & At): OptimisticEventInput {
+    return {
+      type: "swap",
+      player_id: input.on_player_id,
+      metadata: {
+        off_player_id: input.off_player_id,
+        on_player_id: input.on_player_id,
+        ...(input.line ? { line: input.line } : {}),
+        quarter: input.quarter,
+        elapsed_ms: input.elapsed_ms,
+      },
+    };
+  },
+  /** recordSoccerMove / recordBasketballMove. */
+  move(input: { player_a_id: string; zone_a: string; player_b_id?: string | null; zone_b: string } & At): OptimisticEventInput {
+    return {
+      type: "field_zone_swap",
+      player_id: input.player_a_id,
+      metadata: {
+        player_a_id: input.player_a_id,
+        zone_a: input.zone_a,
+        ...(input.player_b_id ? { player_b_id: input.player_b_id } : {}),
+        zone_b: input.zone_b,
+        quarter: input.quarter,
+        elapsed_ms: input.elapsed_ms,
+      },
+    };
+  },
+  /** A score of any type (recordSoccerGoal, recordBasketballScore, …). */
+  score(type: string, playerId: string | null, at: At): OptimisticEventInput {
+    return { type, player_id: playerId, metadata: { quarter: at.quarter, elapsed_ms: at.elapsed_ms } };
+  },
+  /** markInjury (a foul-out is an injury with reason "fouled_out"). */
+  injury(input: { player_id: string; injured: boolean; reason?: string } & At): OptimisticEventInput {
+    return {
+      type: "injury",
+      player_id: input.player_id,
+      metadata: {
+        injured: input.injured,
+        quarter: input.quarter,
+        elapsed_ms: input.elapsed_ms,
+        ...(input.reason ? { reason: input.reason } : {}),
+      },
+    };
+  },
+  /** markLoan. */
+  loan(input: { player_id: string; loaned: boolean } & At): OptimisticEventInput {
+    return {
+      type: "player_loan",
+      player_id: input.player_id,
+      metadata: { loaned: input.loaned, quarter: input.quarter, elapsed_ms: input.elapsed_ms },
+    };
+  },
+  /** recordPlayerLock. */
+  lock(input: { player_id: string; lock: unknown } & At): OptimisticEventInput {
+    return {
+      type: "player_lock",
+      player_id: input.player_id,
+      metadata: { lock: input.lock, quarter: input.quarter, elapsed_ms: input.elapsed_ms },
+    };
+  },
+  /** addLateArrival. */
+  arrived(input: { player_id: string } & At): OptimisticEventInput {
+    return { type: "player_arrived", player_id: input.player_id, metadata: { quarter: input.quarter, elapsed_ms: input.elapsed_ms } };
+  },
+};
