@@ -130,6 +130,11 @@ export interface SoccerFamilyRules {
   /** The team may play halves or quarters (teams.period_count). */
   halvesOrQuarters: boolean;
   /**
+   * What the sport calls subs on the run ("Rolling subs"; futsal's
+   * "Flying subs") and how they work, for the lineup's sub settings.
+   */
+  rollingSubs: { label: string; note: string };
+  /**
    * A lines warning: at these ages, with at least `count` outfield kids,
    * kids should play in at least `count` lines.
    */
