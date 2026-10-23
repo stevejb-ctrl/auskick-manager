@@ -364,6 +364,8 @@ export default async function LivePage({ params }: LivePageProps) {
       weight: howWePlay.balance === "off" ? 0 : seasonBalanceWeight(sport, howWePlay.balance),
       periodMs: periodSecondsS * 1000,
     };
+    // Lent minutes in the season's other games, for the long-press sheet.
+    const seasonLoanMinsS = seasonLoanMinutes(seasonEvents as GameEvent[]);
 
     if (!events.some((e) => e.type === "lineup_set")) {
       const { data: draftRow } = await supabase
@@ -422,6 +424,7 @@ export default async function LivePage({ params }: LivePageProps) {
               season={season}
               keeperStrategy={howWePlay.keeperStrategy}
               keeperPrefs={howWePlay.prefs}
+              seasonLoanMinutes={seasonLoanMinsS}
               initialDraft={initialDraft}
               initialLoanedIds={initialLoanedIds}
               availabilityPanel={soccerAvailabilityPanel}
@@ -448,6 +451,7 @@ export default async function LivePage({ params }: LivePageProps) {
           season={season}
           keeperStrategy={howWePlay.keeperStrategy}
           keeperPrefs={howWePlay.prefs}
+          seasonLoanMinutes={seasonLoanMinsS}
           isAdmin={isAdmin}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
         />
@@ -502,6 +506,8 @@ export default async function LivePage({ params }: LivePageProps) {
       weight: howWePlay.balance === "off" ? 0 : seasonBalanceWeight(sport, howWePlay.balance),
       periodMs: periodSecondsB * 1000,
     };
+    // Lent minutes in the season's other games, for the long-press sheet.
+    const seasonLoanMinsB = seasonLoanMinutes(seasonEvents as GameEvent[]);
 
     if (!events.some((e) => e.type === "lineup_set")) {
       const { data: draftRow } = await supabase
@@ -559,6 +565,7 @@ export default async function LivePage({ params }: LivePageProps) {
               strategy={howWePlay.strategy}
               prefs={howWePlay.prefs}
               season={season}
+              seasonLoanMinutes={seasonLoanMinsB}
               initialDraft={initialDraft}
               initialLoanedIds={initialLoanedIds}
               availabilityPanel={basketballAvailabilityPanel}
@@ -586,6 +593,7 @@ export default async function LivePage({ params }: LivePageProps) {
           strategy={howWePlay.strategy}
           prefs={howWePlay.prefs}
           season={season}
+          seasonLoanMinutes={seasonLoanMinsB}
           isAdmin={isAdmin}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
         />

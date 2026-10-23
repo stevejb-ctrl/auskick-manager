@@ -199,6 +199,8 @@ export default async function RunPage({ params }: RunPageProps) {
       weight: howWePlay.balance === "off" ? 0 : seasonBalanceWeight(sport, howWePlay.balance),
       periodMs: periodSecondsS * 1000,
     };
+    // Lent minutes in the season's other games, for the long-press sheet.
+    const seasonLoanMinsS = seasonLoanMinutes((seasonRaw ?? []) as GameEvent[]);
 
     if (!hasStarted) {
       const { data: draftRow } = await admin
@@ -243,6 +245,7 @@ export default async function RunPage({ params }: RunPageProps) {
               season={season}
               keeperStrategy={howWePlay.keeperStrategy}
               keeperPrefs={howWePlay.prefs}
+              seasonLoanMinutes={seasonLoanMinsS}
               initialDraft={
                 draftRow
                   ? {
@@ -278,6 +281,7 @@ export default async function RunPage({ params }: RunPageProps) {
           season={season}
           keeperStrategy={howWePlay.keeperStrategy}
           keeperPrefs={howWePlay.prefs}
+          seasonLoanMinutes={seasonLoanMinsS}
           // A runner token can run the whole game, as in the other sports.
           isAdmin
           exitHref={`/run/${params.token}`}
@@ -331,6 +335,8 @@ export default async function RunPage({ params }: RunPageProps) {
       weight: howWePlay.balance === "off" ? 0 : seasonBalanceWeight(sport, howWePlay.balance),
       periodMs: periodSecondsB * 1000,
     };
+    // Lent minutes in the season's other games, for the long-press sheet.
+    const seasonLoanMinsB = seasonLoanMinutes((seasonRaw ?? []) as GameEvent[]);
 
     if (!hasStarted) {
       const { data: draftRow } = await admin
@@ -374,6 +380,7 @@ export default async function RunPage({ params }: RunPageProps) {
               strategy={howWePlay.strategy}
               prefs={howWePlay.prefs}
               season={season}
+              seasonLoanMinutes={seasonLoanMinsB}
               initialDraft={
                 draftRow
                   ? {
@@ -410,6 +417,7 @@ export default async function RunPage({ params }: RunPageProps) {
           strategy={howWePlay.strategy}
           prefs={howWePlay.prefs}
           season={season}
+          seasonLoanMinutes={seasonLoanMinsB}
           // A runner token can run the whole game, as in the other sports.
           isAdmin
           exitHref={`/run/${params.token}`}
