@@ -33,6 +33,7 @@ import { withLeagueSlots, type LeaguePlaybookInput } from "@/lib/sports/rugby_le
 import {
   playerZoneMsOnField,
   unbrokenPeriodLiveStatus,
+  unbrokenPeriodsRequired,
   type LeagueGameState,
 } from "@/lib/sports/rugby_league/fairness";
 import { currentVests } from "@/lib/sports/rugby_league/vests";
@@ -65,7 +66,6 @@ interface Props {
   loaned: ReadonlySet<string>;
   /** Game time so far, ms. */
   msByPlayer: Record<string, number>;
-  enforceUnbrokenPeriods: boolean;
   leaguePlaybook?: LeaguePlaybookInput;
   chipModes?: Partial<Record<ChipKey, ChipMode>>;
   isAdmin: boolean;
@@ -87,7 +87,6 @@ export function LeagueBreak({
   injured,
   loaned,
   msByPlayer,
-  enforceUnbrokenPeriods,
   leaguePlaybook,
   chipModes,
   isAdmin,
@@ -316,11 +315,12 @@ export function LeagueBreak({
 
   const names = useMemo(() => Object.fromEntries(squad.map((p) => [p.id, p.full_name])), [squad]);
   const unbroken = useMemo(() => {
-    const required = ageGroup.minUnbrokenPeriods ?? 0;
-    if (!enforceUnbrokenPeriods || !ageGroup.unbrokenPeriods || required <= 0) return undefined;
+    // §6 wherever the grade plays it (no switch: it's the laws).
+    const required = unbrokenPeriodsRequired(ageGroup);
+    if (required <= 0) return undefined;
     const status = unbrokenPeriodLiveStatus(events, required);
     return { required, done: Object.fromEntries(Object.entries(status).map(([pid, s]) => [pid, s.unbrokenPeriods.length])) };
-  }, [enforceUnbrokenPeriods, ageGroup, events]);
+  }, [ageGroup, events]);
   const issues = useMemo(
     () =>
       breakIssues({

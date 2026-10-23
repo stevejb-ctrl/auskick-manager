@@ -54,6 +54,7 @@ import {
   seasonVestCountsByPlayer,
   suggestLeagueLineup,
   suggestVestRotation,
+  unbrokenPeriodsRequired,
 } from "@/lib/sports/rugby_league/fairness";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type {
@@ -110,13 +111,6 @@ interface LeagueLineupPickerProps {
   maxOnFieldSize: number;
   initialDraft?: { lineup: LeagueLineup; updated_at: string } | null;
   availabilityHref?: string | null;
-  /**
-   * Junior League §6 (unbroken periods) is opt-in per team / game
-   * (enforce_unbroken_periods). When off, the suggester and the sub
-   * interval ignore the age group's minUnbrokenPeriods (UX plan H7 —
-   * the flag used to be stored but never read here).
-   */
-  enforceUnbrokenPeriods?: boolean;
   /** First-visit tour offer (LeagueWalkthroughOffer), shown under the breadcrumb. */
   walkthroughOffer?: React.ReactNode;
   /** Game-day "Who's here" panel, shown under the breadcrumb. */
@@ -168,7 +162,6 @@ export function LeagueLineupPicker({
   maxOnFieldSize,
   initialDraft,
   availabilityHref,
-  enforceUnbrokenPeriods = false,
   walkthroughOffer,
   availabilityPanel,
   gamePlan,
@@ -236,9 +229,8 @@ export function LeagueLineupPicker({
     () => seasonVestCountsByPlayer(seasonEvents),
     [seasonEvents],
   );
-  const requiredUnbroken = enforceUnbrokenPeriods
-    ? (ageGroup.minUnbrokenPeriods ?? 0)
-    : 0;
+  // §6 wherever the grade plays it: the laws, with no switch.
+  const requiredUnbroken = unbrokenPeriodsRequired(ageGroup);
 
   // ── Initial suggestion ──────────────────────────────────────
   const initialSuggestion = useMemo(

@@ -6,6 +6,11 @@
 // both only reachable for him this half. The suggester now leaves such
 // kids on, and Lachlan (who leans forward) crosses to a back who's been
 // on since kickoff instead of pulling a forward five minutes on.
+//
+// §6 is the laws: it used to sit behind "Enforce unbroken periods",
+// off by default, while How we play showed it as a locked Must. It now
+// has no switch, and the live screen says who must stay on
+// (UnbrokenPeriodWarning, which was never mounted).
 
 import { test, expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -97,4 +102,23 @@ test("league H2: the sub card never takes off a kid who sat out H1", async ({ pa
   const lachlanPair = page.locator("[data-testid^='league-swap-pair-']").filter({ hasText: new RegExp(`→[A-Z]{0,3}${nameOf(lachlan)}`) });
   await expect(lachlanPair).toHaveCount(1);
   await expect(lachlanPair).toContainText(/^BACK/);
+
+  // The live screen says why: §6 keeps them on to the hooter.
+  const warning = page.getByTestId("unbroken-period-warning");
+  await expect(warning).toContainText("§6: everyone plays 1 unbroken half");
+  await expect(warning.getByTestId("unbroken-stay")).toContainText(nameOf(tyler));
+  await expect(warning.getByTestId("unbroken-stay")).toContainText(nameOf(archie));
+});
+
+test("league game settings state §6 with no switch to turn it off", async ({ page }) => {
+  const admin = createAdminClient();
+  const { team, game } = await leagueGameInH2(admin, "RL-SUB-SETTINGS");
+  await skipWalkthroughs(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  await page.getByRole("button", { name: /^game settings$/i }).click({ timeout: 15_000 });
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText(/§6: each player must play 1 unbroken half./)).toBeVisible({ timeout: 10_000 });
+  await expect(dialog.getByText(/enforce unbroken periods/i)).toHaveCount(0);
+  await expect(dialog.getByRole("switch", { name: /unbroken/i })).toHaveCount(0);
 });

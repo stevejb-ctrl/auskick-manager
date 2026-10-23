@@ -836,8 +836,9 @@ export function unbrokenPeriodCompliance(
  * PROVISIONALLY but doesn't count toward `compliant` until
  * `quarter_end` lands).
  *
- * Used by `UnbrokenPeriodWarning` to flag at-risk players
- * BEFORE the hooter, giving the coach a chance to leave them on.
+ * Read by `unbrokenPeriodNeeds` (the live warning and the sub card)
+ * to flag kids BEFORE the hooter, giving the coach a chance to leave
+ * them on.
  */
 export interface UnbrokenPeriodLiveStatus extends UnbrokenPeriodCompliance {
   /**

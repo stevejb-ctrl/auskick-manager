@@ -6,7 +6,7 @@
 // "Restart game". Matches AFL's `LiveGameSettingsButton` in both
 // visual style (SFButton ghost) and modal shape.
 //
-// Four knobs in the modal:
+// Three knobs in the modal, and the grade's §6 rule stated:
 //
 //   1. Sub interval — drives the LeagueNextSubCard cadence.
 //
@@ -15,10 +15,9 @@
 //      off?" picker (ShrinkPickerModal) which writes a
 //      `roster_shrink` event and updates games.on_field_size.
 //
-//   3. Enforce unbroken periods — per-game override for the
-//      Junior League §6 rule. Writes games.enforce_unbroken_periods.
-//      Greyed out with a help chip for age groups that don't apply
-//      the rule (U6/U7 no-score games where §6 isn't relevant).
+//   3. Junior League §6 — stated, not switched: it's the laws, a
+//      locked rule in How we play (UX audit, 23 Oct 2026: it was a
+//      per-game toggle that started off). Absent past U12.
 //
 //   4. Track forward / back time — toggles the AFL-style F/C/B
 //      stacked time bar on every LeaguePlayerTile. "Centre" maps
@@ -37,7 +36,6 @@ import { Toggle } from "@/components/ui/Toggle";
 import {
   setLeagueSubInterval,
   setLeagueOnFieldSizeMidGame,
-  setLeagueEnforceUnbrokenPeriods,
   setLeagueTrackZoneTime,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/league-actions";
 import type { LiveAuth, Player } from "@/lib/types";
@@ -55,8 +53,6 @@ interface LeagueGameSettingsButtonProps {
   maxOnFieldSize: number;
   /** Currently on-field players (forwards + backs) — for the shrink picker. */
   onFieldPlayers: Player[];
-  /** Whether §6 unbroken-period enforcement is currently on. */
-  enforceUnbrokenPeriods: boolean;
   /**
    * The grade's §6 rule in its own words ("2 unbroken quarters"), or
    * null where there's none (U13+ international laws).
@@ -83,7 +79,6 @@ export function LeagueGameSettingsButton({
   minOnFieldSize,
   maxOnFieldSize,
   onFieldPlayers,
-  enforceUnbrokenPeriods,
   unbrokenRule,
   trackZoneTime,
   centreVest,
@@ -114,7 +109,6 @@ export function LeagueGameSettingsButton({
           minOnFieldSize={minOnFieldSize}
           maxOnFieldSize={maxOnFieldSize}
           onFieldPlayers={onFieldPlayers}
-          enforceUnbrokenPeriods={enforceUnbrokenPeriods}
           unbrokenRule={unbrokenRule}
           trackZoneTime={trackZoneTime}
           centreVest={centreVest}
@@ -144,7 +138,6 @@ function LeagueGameSettingsModal({
   minOnFieldSize,
   maxOnFieldSize,
   onFieldPlayers,
-  enforceUnbrokenPeriods,
   unbrokenRule,
   trackZoneTime,
   centreVest,
@@ -155,7 +148,6 @@ function LeagueGameSettingsModal({
   const router = useRouter();
   const [draftSeconds, setDraftSeconds] = useState(subIntervalSeconds);
   const [sizeInput, setSizeInput] = useState<string>(String(currentOnFieldSize));
-  const [draftEnforce, setDraftEnforce] = useState(enforceUnbrokenPeriods);
   const [draftTrackZone, setDraftTrackZone] = useState(trackZoneTime);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -193,7 +185,6 @@ function LeagueGameSettingsModal({
       startTransition(async () => {
         try {
           await maybeUpdateSubInterval();
-          await maybeUpdateEnforce();
           await maybeUpdateTrackZone();
           setShrinkPickerSize(currentOnFieldSize - newSize);
         } catch (e) {
@@ -203,11 +194,10 @@ function LeagueGameSettingsModal({
       return;
     }
 
-    // Grow / no-op + sub interval + toggles — bundle all four.
+    // Grow / no-op + sub interval + the zone-time toggle, bundled.
     startTransition(async () => {
       try {
         await maybeUpdateSubInterval();
-        await maybeUpdateEnforce();
         await maybeUpdateTrackZone();
         if (newSize !== currentOnFieldSize) {
           const res = await setLeagueOnFieldSizeMidGame(auth, gameId, {
@@ -229,12 +219,6 @@ function LeagueGameSettingsModal({
   async function maybeUpdateSubInterval(): Promise<void> {
     if (draftSeconds === subIntervalSeconds) return;
     const res = await setLeagueSubInterval(auth, gameId, draftSeconds);
-    if (!res.success) throw new Error(res.error);
-  }
-
-  async function maybeUpdateEnforce(): Promise<void> {
-    if (draftEnforce === enforceUnbrokenPeriods) return;
-    const res = await setLeagueEnforceUnbrokenPeriods(auth, gameId, draftEnforce);
     if (!res.success) throw new Error(res.error);
   }
 
@@ -341,25 +325,15 @@ function LeagueGameSettingsModal({
           </div>
         </div>
 
-        {/* Enforce unbroken periods (junior laws only) */}
+        {/* The grade's §6 rule (junior laws only): stated, always kept. */}
         {unbrokenRule && (
-        <div className="flex items-center justify-between gap-3 rounded-md border border-hairline bg-surface-alt px-3 py-2.5">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold text-ink">
-              Enforce unbroken periods
-            </p>
+          <div className="rounded-md border border-hairline bg-surface-alt px-3 py-2.5">
+            <p className="text-xs font-semibold text-ink">Unbroken periods</p>
             <p className="text-[11px] text-ink-mute">
-              §6: each player must play {unbrokenRule}. Off = rule
-              ignored when planning rotations.
+              §6: each player must play {unbrokenRule}. Siren keeps it: a
+              kid who needs this one stays on.
             </p>
           </div>
-          <Toggle
-            checked={draftEnforce}
-            onChange={setDraftEnforce}
-            disabled={pending}
-            label="Enforce unbroken periods"
-          />
-        </div>
         )}
 
         {/* Track forward and back time */}

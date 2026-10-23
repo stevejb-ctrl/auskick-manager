@@ -123,9 +123,9 @@ export function rugbyPlaybook(sport: RugbySport, rules: RugbyPlaybookRules): Spo
       return {
         zonesEnforced: { default: false, overridable: false },
         minGameTimePct: { default: 50, overridable: true, band: [0, 100], locked: false },
-        // The laws' count. The team's on/off switch (enforce_unbroken_periods)
-        // is the control: the planner and live screen read the age group's
-        // count, so an override here would show a rule nothing enforces.
+        // The laws' count, not overridable: the planner, the break and the
+        // live screen all keep the age group's own (unbrokenPeriodsRequired),
+        // so an override here would show a rule nothing enforces.
         minUnbrokenPeriods: {
           default: cfg.minUnbrokenPeriods ?? 0,
           overridable: false,

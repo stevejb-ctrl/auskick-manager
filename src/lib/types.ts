@@ -270,12 +270,10 @@ export interface Game {
   share_token: string;
   on_field_size: number;
   /**
-   * Junior Rugby League §6 opt-in. When true, the sub-rotation
-   * planner enforces the "each player must complete an unbroken
-   * quarter/half" rule. False = rule ignored (default for casual
-   * comps). Editable per-game via Game Settings; team-level
-   * default lives on `teams.enforce_unbroken_periods`.
-   * Optional: column added in migration 0046; defaults to false.
+   * The old Junior Rugby League §6 switch (migration 0046). No longer
+   * read: §6 applies wherever the grade plays it, with no switch (UX
+   * audit, 23 Oct 2026 — How we play shows it as a locked Must, but the
+   * switch started off, so nothing kept it).
    */
   enforce_unbroken_periods?: boolean;
   /**

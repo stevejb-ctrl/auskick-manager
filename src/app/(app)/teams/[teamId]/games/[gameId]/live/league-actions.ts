@@ -1021,29 +1021,6 @@ export async function assignLeagueVest(
   );
 }
 
-// ─── Mid-game enforce_unbroken_periods toggle ────────────────
-// Per-game override for the Junior League §6 unbroken-period rule.
-// Updates games.enforce_unbroken_periods for THIS game only. The
-// team-level default lives on teams.enforce_unbroken_periods and
-// is updated via setEnforceUnbrokenPeriods in games/actions.ts.
-export async function setLeagueEnforceUnbrokenPeriods(
-  auth: LiveAuth,
-  gameId: string,
-  enabled: boolean,
-): Promise<ActionResult> {
-  const writer = await resolveWriter(auth, gameId);
-  if (writer.error) return { success: false, error: writer.error };
-  const { error: updateError } = await writer.supabase
-    .from("games")
-    .update({ enforce_unbroken_periods: enabled })
-    .eq("id", gameId);
-  if (updateError) {
-    return { success: false, error: updateError.message };
-  }
-  revalidatePath(`/teams/${writer.teamId}/games/${gameId}/live`);
-  return { success: true };
-}
-
 // ─── Mid-game track_zone_time toggle ─────────────────────────
 // Per-game override for the AFL-style F/C/B time bar on every
 // LeaguePlayerTile (centre = time wearing FR or DH vest). Updates

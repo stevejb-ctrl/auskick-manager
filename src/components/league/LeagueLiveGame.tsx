@@ -60,6 +60,7 @@ import { LeagueField } from "./LeagueField";
 import { LeagueBenchStrip } from "./LeagueBenchStrip";
 import { LeagueScoreBug } from "./LeagueScoreBug";
 import { LeagueNextSubCard } from "./LeagueNextSubCard";
+import { UnbrokenPeriodWarning } from "./UnbrokenPeriodWarning";
 import { LeagueScorerPicker } from "./LeagueScorerPicker";
 import { LeagueFullTimeReview } from "./LeagueFullTimeReview";
 import { LeagueGameSummaryCard } from "./LeagueGameSummaryCard";
@@ -125,12 +126,6 @@ interface LeagueLiveGameProps {
   /** Team-level scoring toggle (sport-agnostic). U6/U7 default off; U8+ default on. */
   trackScoring: boolean;
   /**
-   * Whether the §6 unbroken-period rule is enforced for this game.
-   * Stored on games.enforce_unbroken_periods; the team default lives
-   * on teams.enforce_unbroken_periods. Both start false (off).
-   */
-  enforceUnbrokenPeriods: boolean;
-  /**
    * Whether the AFL-style F/C/B time bar renders on every player
    * tile (centre = time wearing FR or DH vest). Stored on
    * games.track_zone_time; team default on teams.track_zone_time.
@@ -179,7 +174,6 @@ export function LeagueLiveGame({
   subIntervalSeconds,
   clockMultiplier = 1,
   trackScoring,
-  enforceUnbrokenPeriods,
   trackZoneTime,
   state,
   thisGameEvents,
@@ -1627,7 +1621,6 @@ export function LeagueLiveGame({
           injured={injuredSet}
           loaned={loanedSet}
           msByPlayer={totalMsByPlayer}
-          enforceUnbrokenPeriods={enforceUnbrokenPeriods}
           leaguePlaybook={leaguePlaybook}
           chipModes={chipModes}
           isAdmin={isAdmin}
@@ -1876,6 +1869,18 @@ export function LeagueLiveGame({
             onPlayerLongPress={handlePlayerLongPress}
             disabled={pending}
           />
+          {/* §6: who must stay on, who must start the next period. */}
+          {isPeriodActive && (
+            <UnbrokenPeriodWarning
+              sport={sport}
+              players={[...fieldPlayers, ...benchPlayers]}
+              events={thisGameEvents}
+              ageGroup={ageGroup}
+              currentQuarter={state.currentQuarter}
+              currentElapsedMs={elapsedMs}
+              sidelined={new Set([...Array.from(injuredSet), ...Array.from(loanedSet)])}
+            />
+          )}
         </>
         );
       })()}
@@ -2031,9 +2036,8 @@ export function LeagueLiveGame({
               minOnFieldSize={ageGroup.minOnFieldSize}
               maxOnFieldSize={ageGroup.maxOnFieldSize}
               onFieldPlayers={fieldPlayers}
-              enforceUnbrokenPeriods={enforceUnbrokenPeriods}
               unbrokenRule={
-                (ageGroup.minUnbrokenPeriods ?? 0) > 0
+                unbrokenPeriodsRequired(ageGroup) > 0
                   ? `${ageGroup.minUnbrokenPeriods} unbroken ${ageGroup.minUnbrokenPeriods === 1 ? periodLabel : periodLabelPlural}`
                   : null
               }
