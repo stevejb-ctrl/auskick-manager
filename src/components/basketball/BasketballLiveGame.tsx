@@ -375,7 +375,12 @@ export function BasketballLiveGame({
   }, [subDueShowing]);
 
   // ── Writes ──────────────────────────────────────────────────
-  const at = () => ({ quarter: base.currentPeriod, elapsed_ms: elapsedMs });
+  // The clock as the write lands: a confirmed swap is stamped when the
+  // coach taps Confirm, not when the sheet opened (AFL reads its clock
+  // at confirm too).
+  const elapsedRef = useRef(elapsedMs);
+  elapsedRef.current = elapsedMs;
+  const at = () => ({ quarter: base.currentPeriod, elapsed_ms: elapsedRef.current });
 
   // A period starting or ending changes the whole screen (the break is
   // the server's plan), so it waits for the save, with a pending state.
@@ -492,7 +497,7 @@ export function BasketballLiveGame({
     setError(null);
     write(
       "recordBasketballScore",
-      [auth, game.id, { side, points, player_id: playerId, quarter: base.currentPeriod, elapsed_ms: elapsedMs }],
+      [auth, game.id, { side, points, player_id: playerId, ...at() }],
       liveEvents.score(basketballScoreEventType(side, points), side === "ours" ? playerId : null, at()),
     );
     chrome.scored({ side: side === "ours" ? "us" : "them", what: basketballPointsWords(points), scorerId: playerId });

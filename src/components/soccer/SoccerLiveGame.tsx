@@ -375,7 +375,12 @@ export function SoccerLiveGame({
   const kitUpKeeper = kitUpDue && kitUpKeeperId ? playerById.get(kitUpKeeperId) ?? null : null;
 
   // ── Writes ──────────────────────────────────────────────────
-  const at = () => ({ quarter: base.currentPeriod, elapsed_ms: elapsedMs });
+  // The clock as the write lands: a confirmed swap is stamped when the
+  // coach taps Confirm, not when the sheet opened (AFL reads its clock
+  // at confirm too).
+  const elapsedRef = useRef(elapsedMs);
+  elapsedRef.current = elapsedMs;
+  const at = () => ({ quarter: base.currentPeriod, elapsed_ms: elapsedRef.current });
 
   // A period starting or ending changes the whole screen (the break is
   // the server's plan), so it waits for the save, with a pending state.
@@ -515,7 +520,7 @@ export function SoccerLiveGame({
     setError(null);
     write(
       "recordSoccerGoal",
-      [auth, game.id, scorerId, base.currentPeriod, elapsedMs],
+      [auth, game.id, scorerId, base.currentPeriod, elapsedRef.current],
       liveEvents.score("goal", scorerId, at()),
     );
     void hapticTap("light");
@@ -525,7 +530,7 @@ export function SoccerLiveGame({
     setError(null);
     write(
       "recordSoccerOpponentGoal",
-      [auth, game.id, base.currentPeriod, elapsedMs],
+      [auth, game.id, base.currentPeriod, elapsedRef.current],
       liveEvents.score("opponent_goal", null, at()),
     );
     chrome.scored({ side: "them", what: "goal" });
