@@ -161,8 +161,10 @@ test("soccer: Swap keeper puts a field player in goal, and the keeper takes thei
     timeout: 15_000,
   });
   await expect(field.getByRole("group", { name: "Midfield" }).getByTestId(`player-tile-${keeper.id}`)).toBeVisible();
-  const evs = await eventsOf(admin, game.id);
-  expect(evs.filter((e) => e.type === "field_zone_swap")).toHaveLength(1);
+  // The screen shows the swap before it saves (optimistic): wait for the row.
+  await expect
+    .poll(async () => (await eventsOf(admin, game.id)).filter((e) => e.type === "field_zone_swap").length)
+    .toBe(1);
 });
 
 test("soccer at half-time: a kid who turns up after the plan is edited still plays the second half", async ({ page }) => {
