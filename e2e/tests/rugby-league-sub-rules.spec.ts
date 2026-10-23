@@ -90,16 +90,20 @@ test("league H2: the sub card never takes off a kid who sat out H1", async ({ pa
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
 
-  // The card's summary: "Off→On · Off→On".
-  const summary = page.locator("button[aria-expanded]").filter({ hasText: "→" }).first();
-  await expect(summary).toContainText(`→${nameOf(lachlan)}`, { timeout: 15_000 });
-  await expect(summary).not.toContainText(`${nameOf(tyler)}→`);
-  await expect(summary).not.toContainText(`${nameOf(archie)}→`);
+  // The sub card's pairs (open when the sub is due, else tap it open).
+  const pairs = page.locator("[data-testid^='league-swap-pair-']");
+  const header = page.locator("button[aria-expanded='false']").filter({ hasText: "→" });
+  await expect(pairs.first().or(header)).toBeVisible({ timeout: 15_000 });
+  if (await header.isVisible()) await header.click();
+  await expect(pairs.first()).toBeVisible();
+  // A row reads "<label><initials><off>→<initials><on>".
+  const offIs = (pid: string) => pairs.filter({ hasText: new RegExp(`^(FWD|BACK)[A-Z]{0,3}${nameOf(pid)}→`) });
+  await expect(offIs(tyler)).toHaveCount(0);
+  await expect(offIs(archie)).toHaveCount(0);
 
   // Lachlan leans forward, but the forwards free to come off have been on
   // five minutes: he crosses to a back who's played since kickoff.
-  await summary.click();
-  const lachlanPair = page.locator("[data-testid^='league-swap-pair-']").filter({ hasText: new RegExp(`→[A-Z]{0,3}${nameOf(lachlan)}`) });
+  const lachlanPair = pairs.filter({ hasText: new RegExp(`→[A-Z]{0,3}${nameOf(lachlan)}`) });
   await expect(lachlanPair).toHaveCount(1);
   await expect(lachlanPair).toContainText(/^BACK/);
 

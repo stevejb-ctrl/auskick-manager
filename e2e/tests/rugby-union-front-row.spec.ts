@@ -147,10 +147,11 @@ test("union live subs: pairs go by position, never an unpicked kid into the fron
   await skipWalkthroughs(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  const summary = page.locator("button[aria-expanded]").filter({ hasText: "→" }).first();
-  await expect(summary).toBeVisible({ timeout: 15_000 });
-  await summary.click();
+  // The sub card's pairs (open when the sub is due, else tap it open).
   const pairs = page.locator("[data-testid^='league-swap-pair-']");
+  const header = page.locator("button[aria-expanded='false']").filter({ hasText: "→" });
+  await expect(pairs.first().or(header)).toBeVisible({ timeout: 15_000 });
+  if (await header.isVisible()) await header.click();
   await expect(pairs).toHaveCount(2);
   // Leo takes the left wing's spot, and the pair says so.
   const leo = pairs.filter({ hasText: new RegExp(`→[A-Z]{0,3}${first(ids[16])}`) });
