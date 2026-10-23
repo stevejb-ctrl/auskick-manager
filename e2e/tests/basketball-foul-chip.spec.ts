@@ -129,13 +129,22 @@ test("a mistaken fifth foul can be taken back, and the kid is back in the game",
   // The foul is undone and the foul-out lifted: 4F, no OUT, back in play.
   await expect(page.getByTestId(`fouls-${k[5]}`)).toHaveText("4F", { timeout: 15_000 });
   await expect(tile.getByLabel("Fouled out")).toHaveCount(0);
-  const { data: lifts } = await admin
-    .from("game_events")
-    .select("metadata")
-    .eq("game_id", game.id)
-    .eq("type", "injury")
-    .eq("player_id", k[5]);
-  expect((lifts ?? []).some((e) => (e.metadata as { injured?: boolean }).injured === false)).toBe(true);
+  // The take-back is optimistic (live-chrome): the screen moves first and
+  // the save lands a moment later, so wait for the lift to reach the DB.
+  await expect
+    .poll(
+      async () => {
+        const { data: lifts } = await admin
+          .from("game_events")
+          .select("metadata")
+          .eq("game_id", game.id)
+          .eq("type", "injury")
+          .eq("player_id", k[5]);
+        return (lifts ?? []).some((e) => (e.metadata as { injured?: boolean }).injured === false);
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(true);
 });
 
 // UX audit 23 Oct 2026: "Fouled out" from the long-press was one tap with
