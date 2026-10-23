@@ -8,16 +8,19 @@ import { Modal } from "@/components/ui/Modal";
 interface Props {
   off: string; // field player going to bench; "" = empty slot
   on: string; // bench player coming on
-  zone: Zone;
+  /** AFL's zone. Sports whose spots aren't AFL zones pass spotName. */
+  zone?: Zone;
+  /** The spot in the sport's own words ("Defence", "Guards"). */
+  spotName?: string;
   playersById: Map<string, Player>;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
-export function SwapConfirmDialog({ off, on, zone, playersById, onConfirm, onCancel }: Props) {
+export function SwapConfirmDialog({ off, on, zone, spotName, playersById, onConfirm, onCancel }: Props) {
   const onName = playersById.get(on)?.full_name ?? "Player";
   const offName = off ? (playersById.get(off)?.full_name ?? "Player") : null;
-  const zoneName = ZONE_LABELS[zone];
+  const zoneName = spotName ?? (zone ? ZONE_LABELS[zone] : "the field");
 
   const message = offName
     ? `Manually sub ${onName} (Bench) for ${offName} (${zoneName})?`
