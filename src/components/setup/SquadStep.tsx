@@ -5,6 +5,7 @@ import { BulkAddPlayers } from "@/components/squad/BulkAddPlayers";
 import { PlayerRow } from "@/components/squad/PlayerRow";
 import { getSportConfig } from "@/lib/sports";
 import type { AgeGroupConfig } from "@/lib/sports/types";
+import { squadSizeHint } from "@/lib/sports/words";
 import type { Player, Sport } from "@/lib/types";
 import type { PlayerRole, RoleModel } from "@/lib/playbook/roles";
 
@@ -43,8 +44,7 @@ export function SquadStep({
         <p className="text-sm text-ink-dim">
           Add the regulars you know are signed up. You can add more players
           anytime, and fill-ins can jump in on match day without joining the
-          permanent roster. 15–20 kids gives you plenty of cover for injuries
-          and missed Saturdays.
+          permanent roster. {squadSizeHint(ageGroup)}
         </p>
       </div>
 

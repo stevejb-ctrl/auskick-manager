@@ -14,9 +14,13 @@ import { setTeamOnFieldSize } from "@/app/(app)/teams/[teamId]/settings/actions"
 import { SFButton } from "@/components/sf";
 import { Label } from "@/components/ui/Label";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { playersOnSurfaceLabel } from "@/lib/sports/words";
+import type { SportId } from "@/lib/sports/types";
 
 interface Props {
   teamId: string;
+  /** The team's sport: "Players on the court" for netball, futsal and basketball. */
+  sport: SportId;
   /** The age group's default, fewest and most players on the field. */
   ageGroupDefault: number;
   min: number;
@@ -26,7 +30,7 @@ interface Props {
   isAdmin?: boolean;
 }
 
-export function OnFieldSizeInput({ teamId, ageGroupDefault, min, max, initialSize, isAdmin = true }: Props) {
+export function OnFieldSizeInput({ teamId, sport, ageGroupDefault, min, max, initialSize, isAdmin = true }: Props) {
   const [size, setSize] = useState<number>(initialSize ?? ageGroupDefault);
   const [usingOverride, setUsingOverride] = useState<boolean>(initialSize !== null);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +59,7 @@ export function OnFieldSizeInput({ teamId, ageGroupDefault, min, max, initialSiz
     <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-[10rem] flex-1">
-          <Label htmlFor={`on-field-size-${teamId}`}>Players on the field</Label>
+          <Label htmlFor={`on-field-size-${teamId}`}>{playersOnSurfaceLabel(sport)}</Label>
           <select
             id={`on-field-size-${teamId}`}
             value={size}

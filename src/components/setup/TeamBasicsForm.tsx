@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/Label";
 import { getSportConfig, isTouch, periodLabels } from "@/lib/sports";
 import { Toggle } from "@/components/ui/Toggle";
 import { mixedRuleSummary } from "@/lib/sports/touch/mixed";
+import { playersOnSurfaceLabel } from "@/lib/sports/words";
 import type { TouchAgeGroupConfig } from "@/lib/sports/touch/types";
 import { PERIOD_MINUTES_MAX, teamOnFieldSize } from "@/lib/games/newGameDefaults";
 import type { AgeGroupConfig } from "@/lib/sports/types";
@@ -305,7 +306,7 @@ export function TeamBasicsForm({
       <div className="space-y-2">
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <Label htmlFor="team-on-field">Players on the field</Label>
+            <Label htmlFor="team-on-field">{playersOnSurfaceLabel(sport)}</Label>
             <select
               id="team-on-field"
               value={players}
