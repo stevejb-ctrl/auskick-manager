@@ -57,8 +57,10 @@ export function netballWeights(strategy: string | undefined) {
       // Home bib, then backups; nothing pulls a kid elsewhere.
       return { unplayedThird: 0, unplayedBib: 0, samePosition: 0, sameThirdAsLast: 0, teammate: 0, home: 300_000, also: 150_000 };
     default:
-      // By thirds — today's engine.
-      return { unplayedThird: 100_000, unplayedBib: 0, samePosition: -50_000, sameThirdAsLast: -10_000, teammate: -150_000, home: 0, also: 0 };
+      // By thirds. A third a kid hasn't played this game outranks keeping
+      // last quarter's partners apart (Steve, 23 Oct 2026): two partners
+      // already in it (-40k) still leave a new third ahead (+100k).
+      return { unplayedThird: 100_000, unplayedBib: 0, samePosition: -50_000, sameThirdAsLast: -10_000, teammate: -20_000, home: 0, also: 0 };
   }
 }
 
