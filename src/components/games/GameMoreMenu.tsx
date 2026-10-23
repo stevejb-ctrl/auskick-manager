@@ -8,6 +8,7 @@ import { ResetGameDialog } from "@/components/games/ResetGameButton";
 import { DeleteGameDialog } from "@/components/games/DeleteGameDialog";
 import { GameDayLinkDialog } from "@/components/games/GameDayLinkDialog";
 import { EditGameDialog } from "@/components/games/EditGameDialog";
+import { restartGameHint } from "@/lib/sports/words";
 
 interface GameMoreMenuProps {
   teamId: string;
@@ -29,6 +30,8 @@ interface GameMoreMenuProps {
   };
   canRestart: boolean;
   canDelete: boolean;
+  /** The team's period word: Restart wipes "every half" in a halves game. */
+  periodLabel: "quarter" | "half" | "period";
 }
 
 type Dialog = "link" | "edit" | "restart" | "delete" | null;
@@ -46,6 +49,7 @@ export function GameMoreMenu({
   edit,
   canRestart,
   canDelete,
+  periodLabel,
 }: GameMoreMenuProps) {
   const router = useRouter();
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -80,7 +84,7 @@ export function GameMoreMenu({
     actions.push({
       id: "restart",
       label: "Restart game",
-      description: "Wipes every quarter, swap and score.",
+      description: restartGameHint(periodLabel),
       tone: "danger",
       onSelect: () => setDialog("restart"),
     });

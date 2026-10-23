@@ -11,7 +11,7 @@ import {
   SFIcon,
   StatusPill,
 } from "@/components/sf";
-import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isBasketball, isSoccer, isTouch, teamSport } from "@/lib/sports";
+import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isBasketball, isSoccer, isTouch, periodLabels, teamSport } from "@/lib/sports";
 import { teamMixedRule } from "@/lib/sports/touch/mixed";
 import { scorersFromEvents } from "@/lib/results";
 import { getSeasonEvents } from "@/lib/season";
@@ -31,6 +31,7 @@ import type { Game, GameEvent, MixedGroup, Sport } from "@/lib/types";
 import { BackLink } from "@/components/ui/BackLink";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { teamSportById } from "@/lib/sports/teamSportById";
+import { teamAgeGroup } from "@/lib/sports/teamAgeGroup";
 import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
 
 interface GameDetailPageProps {
@@ -127,6 +128,15 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
     sport,
     (team as { age_group?: string } | null)?.age_group,
   );
+  // The team's own halves, quarters or one period, for the game menu.
+  const periodLabel = periodLabels(
+    sport,
+    teamAgeGroup(
+      sport,
+      (team as { age_group?: string } | null)?.age_group,
+      (team as { period_count?: number | null } | null)?.period_count,
+    ),
+  ).label;
 
   const playerById = new Map(
     ((players ?? []) as { id: string; full_name: string; jersey_number: number }[]).map(
@@ -313,6 +323,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 shareToken={g.share_token}
                 canRestart={role === "admin"}
                 canDelete={role === "admin"}
+                periodLabel={periodLabel}
               />
             </div>
           )}
@@ -484,6 +495,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                   }
                   canRestart={role === "admin" && !isUp}
                   canDelete={role === "admin"}
+                  periodLabel={periodLabel}
                 />
                 </div>
               </div>
