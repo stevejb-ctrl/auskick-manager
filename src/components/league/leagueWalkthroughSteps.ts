@@ -55,17 +55,20 @@ export function buildLeagueWalkthroughSteps(opts: {
 }): WalkthroughStep[] {
   const abbr = opts.periodLabel.charAt(0).toUpperCase();
   const periodWord = opts.periodLabel === "half" ? "half" : "quarter";
+  // The sport's own start cue ("whistle goes"), never AFL's siren.
+  const { startCue } = getSportConfig(opts.sport).words;
+  const vested = opts.vests.fr || opts.vests.dh;
 
   const steps: WalkthroughStep[] = [
     {
       emoji: "⏱️",
       title: "Starting the game",
-      body: `Tap Start ${abbr}1 when the siren goes for kickoff. The clock counts down and ends the ${periodWord} automatically when it hits zero. Tap the clock pill to pause if there's a stoppage, then tap it again to resume.`,
+      body: `Tap Start ${abbr}1 when the ${startCue} for kickoff. The clock counts down and ends the ${periodWord} automatically when it hits zero. Tap the clock pill to pause if there's a stoppage, then tap it again to resume.`,
     },
     {
       emoji: "🏉",
       title: "Field & bench",
-      body: "The field splits into Forwards (top) and Backs (bottom). Anyone not on the field sits in the bench strip below. Junior rugby is positionless within each line — coaches can drag players to rebalance the forward/back ratio at any time.",
+      body: "The field splits into Forwards (top) and Backs (bottom). Anyone not on the field sits in the bench strip below. To move a player between the lines, tap them, then tap the player they swap with.",
     },
     {
       emoji: "🔁",
@@ -80,11 +83,14 @@ export function buildLeagueWalkthroughSteps(opts: {
     {
       emoji: "👇",
       title: "Long-press for player actions",
-      body: "Hold a player tile for half a second to open the actions sheet. From here you can Switch (enter swap mode), Move to Forwards / Backs, Mark injured (slot stays empty for a replacement), or Lend to opposition. One gesture, same options across field and bench.",
+      // Only the actions the rugby sheet has: no keep-on, no line move.
+      body: `Press and hold a player tile to open the actions sheet. From here you can Switch player${
+        vested ? ", Replace the vest wearer" : ""
+      }, Mark injured (slot stays empty for a replacement), or Lend to opposition. One gesture, same options across field and bench.`,
     },
   ];
 
-  if (opts.vests.fr || opts.vests.dh) {
+  if (vested) {
     steps.push({
       emoji: "🦺",
       title: opts.vests.dh ? "FR & DH vests" : "FR vest",
@@ -149,14 +155,14 @@ export function buildLeagueWalkthroughSteps(opts: {
       title: "Unbroken-period rule",
       body: `Junior League §6 requires each player to play an unbroken ${
         periodWord === "half" ? "half" : "two quarters"
-      } each game — no subs during that period. The sub card never takes a player off when this is their last chance at it, and the live screen names who must stay on.`,
+      } each game — no coming off during it. The sub card never takes a player off when this is their last chance at it, and the live screen names who must stay on.`,
     });
   }
 
   steps.push({
     emoji: "🏁",
     title: `Ending the ${periodWord} & full time`,
-    body: `When the clock hits zero the ${periodWord}-break view appears with the score and a "Start ${abbr}2" button — tap it, then confirm when the siren goes for the next ${periodWord}. After the final ${periodWord} the Full-Time review opens so you can fix any score errors before tapping Finish game, then the share card appears with a "Copy for group chat" button.`,
+    body: `When the clock hits zero the ${periodWord}-break view appears with the score and a "Start ${abbr}2" button — tap it, then confirm when the ${startCue} for the next ${periodWord}. After the final ${periodWord} the Full-Time review opens so you can fix any score errors before tapping Finish game, then the share card appears with a "Copy for group chat" button.`,
   });
 
   return steps;

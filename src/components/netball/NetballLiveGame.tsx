@@ -2067,6 +2067,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           field"). */}
       {clockMenuOpen && (
         <ClockMenu
+          sport="netball"
           periodAbbr={`Q${currentQuarter}`}
           running={!isPaused}
           onPause={toggleClock}
@@ -2079,7 +2080,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       {showManualEndConfirm && (
         <ManualEndQuarterConfirm
           quarter={currentQuarter}
-          playersLabel="On-court"
+          sport="netball"
+          clock={isPaused ? "paused" : "running"}
           onConfirm={() => {
             setShowManualEndConfirm(false);
             handleManualEndQuarter();

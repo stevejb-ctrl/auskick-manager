@@ -36,6 +36,8 @@ import {
 import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 
 import { aflRuleCheck, assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
+import { getSportConfig } from "@/lib/sports/registry";
+import { onSurfaceLabel } from "@/lib/sports/words";
 import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { useRoleSheet, type RoleSheetConfig } from "@/components/playbook/useRoleSheet";
@@ -1186,6 +1188,7 @@ export function LineupPicker({
       <LineupPickerFooter
         onFieldCount={onFieldCount}
         benchCount={benchCount}
+        onFieldLabel={onSurfaceLabel("afl")}
         onSavePlan={auth.kind === "team" ? handleSavePlan : undefined}
         savePending={savePending}
         savedAt={savedAt}
@@ -1207,6 +1210,7 @@ export function LineupPicker({
       {startModalOpen && (
         <StartQuarterModal
           quarter={1}
+          cue={getSportConfig("afl").words.startCue}
           loading={isPending}
           onStart={handleConfirmStart}
           onCancel={() => setStartModalOpen(false)}

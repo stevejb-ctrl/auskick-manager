@@ -1,55 +1,46 @@
 "use client";
 
 // ─── ManualEndQuarterConfirm ─────────────────────────────────
-// Shared "End {period} now?" destructive confirmation modal used
-// by all three sports. AFL + netball use the default "quarter"
-// label ("End Q3"); junior rugby league at U10+ runs halves
-// instead, so we read a `periodLabel` prop and render "End H2"
-// for those games.
+// Shared "End {period} now?" confirmation, used by every sport.
 //
-// The coach taps "End {Q|H} early" from the scorebug when the
-// game played on but the clock didn't (the canonical recovery
-// flow for "paused at the start, forgot to resume"). Confirming
-// credits all on-field/court players the full period time,
-// regardless of how much of it the wall clock actually saw.
-// That's destructive — the modal exists to make the coach pause
-// for a beat before committing.
+// The coach ends a period from the clock menu when the real game's
+// end beat the app's clock, or when the game played on while the clock
+// sat paused, or (basketball, touch) taps the clock at 0:00. Confirming
+// credits everyone on the field or court the whole period, however
+// much of it the clock saw, so the modal makes the coach pause for a
+// beat first.
 //
-// Sport-specific bits via props:
-//   - `playersLabel` flips "on-field" (AFL / RL) vs "on-court"
-//     (netball) in the explainer paragraph.
-//   - `periodLabel` flips "quarter" / "half". First letter
-//     uppercased becomes the abbreviation in the heading + button
-//     ("Q" or "H"). Defaults to "quarter" so existing AFL +
-//     netball callers don't need to change.
-//   - `quarter` interpolates into the heading + confirm button so
-//     the coach sees which period they're ending.
+// Every word comes from the sport (src/lib/sports/words.ts): its
+// surface ("everyone on the court"), its end cue ("when the whistle
+// beats the app's clock") and the period word, for the clock as it
+// stands. It used to say "even though the clock is paused" while the
+// clock ran, and started lowercase where a sport passed "on-field"
+// (ten-sport UX audit, 23 Oct 2026).
 //
 // Backdrop tap dismisses (non-destructive). Confirm runs the
 // caller's `onConfirm` then closes via `onCancel` (caller-owned —
 // keeps the state machine in the parent).
 
 import { Button } from "@/components/ui/Button";
-
 import { Modal } from "@/components/ui/Modal";
+import { getSportConfig } from "@/lib/sports/registry";
+import type { SportId } from "@/lib/sports/types";
+import { endPeriodEarlyCopy, type EndEarlyClock } from "@/lib/sports/words";
+
 interface ManualEndQuarterConfirmProps {
   /** Period number being ended, interpolated into the heading + button. */
   quarter: number;
-  /** Tapped on the destructive "End {abbr}{n}" button. */
+  /** Tapped on the "End {abbr}{n}" button. */
   onConfirm: () => void;
   /** Tapped on Cancel or the backdrop — closes the modal without side effects. */
   onCancel: () => void;
+  /** The team's sport: its surface and end cue word the explainer. */
+  sport: SportId;
+  /** Where the clock stands: running, paused, or at the hooter (0:00). */
+  clock: EndEarlyClock;
   /**
-   * The word for "currently playing" — AFL / RL uses "on-field"
-   * (the default), netball uses "on-court". Affects only the
-   * explainer paragraph copy.
-   */
-  playersLabel?: string;
-  /**
-   * Period word — "quarter" (default) or "half". RL U10+ runs
-   * halves; the modal uses the first uppercase letter as the
-   * abbreviation in the title + button ("Q" / "H"). AFL + netball
-   * leave this at the default.
+   * The age group's period word. Defaults to the sport's own (league
+   * U10+ and a team that picks halves or quarters pass theirs).
    */
   periodLabel?: "quarter" | "half" | "period";
 }
@@ -58,20 +49,22 @@ export function ManualEndQuarterConfirm({
   quarter,
   onConfirm,
   onCancel,
-  playersLabel = "On-field",
-  periodLabel = "quarter",
+  sport,
+  clock,
+  periodLabel,
 }: ManualEndQuarterConfirmProps) {
-  const abbr = periodLabel.charAt(0).toUpperCase();
+  const copy = endPeriodEarlyCopy({
+    sport,
+    periodLabel: periodLabel ?? getSportConfig(sport).periodLabel,
+    period: quarter,
+    clock,
+  });
   return (
-    <Modal label={`End ${abbr}${quarter} now?`} onClose={onCancel}>
+    <Modal label={copy.title} onClose={onCancel}>
         <p className="text-center text-sm font-semibold text-ink">
-          End {abbr}{quarter} now?
+          {copy.title}
         </p>
-        <p className="mt-2 text-center text-xs text-ink-mute">
-          {playersLabel} players will be credited the full {periodLabel}{" "}
-          time, even though the clock is paused. Use this when the game
-          played on but the clock didn&rsquo;t.
-        </p>
+        <p className="mt-2 text-center text-xs text-ink-mute">{copy.body}</p>
         <div className="mt-4 flex gap-2">
           {/* Primary (brand green), not danger — ending a quarter is a
               routine every-game action, and red implied something would
@@ -82,7 +75,7 @@ export function ManualEndQuarterConfirm({
             variant="primary"
             onClick={onConfirm}
           >
-            End {abbr}{quarter}
+            {copy.confirm}
           </Button>
           <Button
             className="flex-1"

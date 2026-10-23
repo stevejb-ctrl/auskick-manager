@@ -491,6 +491,7 @@ export function TouchLineupPicker({
       <LineupPickerFooter
         onFieldCount={fieldIds.length}
         benchCount={lineup.bench.length}
+        onFieldLabel="on field"
         onSavePlan={auth.kind === "team" ? () => void handleSavePlan() : undefined}
         savePending={savePending}
         savedAt={savedAt}

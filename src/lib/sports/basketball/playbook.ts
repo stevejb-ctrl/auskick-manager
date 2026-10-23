@@ -67,7 +67,7 @@ export function basketballPositionDefs(): PositionDef[] {
 const MINUTES: StrategyDef = {
   id: "minutes",
   label: "Equal minutes",
-  blurb: "Five on court, no positions: kids just play, and Siren evens out their minutes. Mark your ball handlers (home: Guards) and one stays on.",
+  blurb: "Five on court, no positions: kids just play, and Siren evens out their minutes. Mark your ball handlers (Main line: Guards, under Role) and one stays on.",
   fit: "Under 8 and Under 10",
   usesPositions: false,
   roleHome: "line",

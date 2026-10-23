@@ -2352,6 +2352,7 @@ export function LeagueLiveGame({
 
       {clockMenuOpen && (
         <ClockMenu
+          sport={sport}
           periodAbbr={`${periodLabel.charAt(0).toUpperCase()}${state.currentQuarter}`}
           running={running}
           onPause={toggleClock}
@@ -2381,7 +2382,8 @@ export function LeagueLiveGame({
             void endQuarterAtClient(periodSeconds * 1000);
           }}
           onCancel={() => setEndQConfirmOpen(false)}
-          playersLabel="on-field"
+          sport={sport}
+          clock={running ? "running" : "paused"}
           // U10–U12 plays halves; U6–U9 plays quarters. The picker's
           // age-group config carries the right label so the modal
           // reads "End H2" instead of "End Q2" at U10+.

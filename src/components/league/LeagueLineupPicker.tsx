@@ -75,7 +75,8 @@ import { keepOnIds } from "@/components/playbook/KeepOnMarker";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { pinLaterPeriods, withPinnedPeriods } from "@/lib/game-plan";
 import { SUB_MINUTES_MAX, SUB_MINUTES_MIN, subMinutesFrom } from "@/lib/live/subCadence";
-import { periodLabels, type RugbySport } from "@/lib/sports";
+import { getSportConfig, periodLabels, type RugbySport } from "@/lib/sports";
+import { onSurfaceLabel } from "@/lib/sports/words";
 import { rugbyForwards } from "@/lib/sports/rugby/lines";
 // Sub-minute formula from the previous picker — kept inline so the
 // spike doesn't fan-out into shared modules until we know it
@@ -1440,6 +1441,7 @@ export function LeagueLineupPicker({
       <LineupPickerFooter
         onFieldCount={fieldIds.length}
         benchCount={benchIds.length}
+        onFieldLabel={onSurfaceLabel(sport)}
         onSavePlan={
           auth.kind === "team" ? () => void handleSavePlan() : undefined
         }
@@ -1498,6 +1500,7 @@ export function LeagueLineupPicker({
         <StartQuarterModal
           quarter={1}
           periodLabel={periodLabels(sport, ageGroup).label}
+          cue={getSportConfig(sport).words.startCue}
           loading={isPending}
           onStart={handleConfirmStart}
           onCancel={() => setStartModalOpen(false)}

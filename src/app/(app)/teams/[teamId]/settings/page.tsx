@@ -252,6 +252,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           // period-length card beside it is keyed on the age too.)
           key={`on-field:${ageGroupCfg.id}`}
           teamId={params.teamId}
+          sport={sport}
           ageGroupDefault={ageGroupCfg.defaultOnFieldSize}
           min={ageGroupCfg.minOnFieldSize}
           max={ageGroupCfg.maxOnFieldSize}

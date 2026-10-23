@@ -1069,6 +1069,7 @@ export function BasketballLiveGame({
 
       {clockMenuOpen && (
         <ClockMenu
+          sport="basketball"
           periodAbbr={`${periodLetter}${base.currentPeriod}`}
           running={running}
           onPause={() => setPause((p) => togglePeriodPause(p, Date.now()))}
@@ -1088,7 +1089,8 @@ export function BasketballLiveGame({
             void endPeriodAt(periodMs);
           }}
           onCancel={() => setEndConfirmOpen(false)}
-          playersLabel="on-court"
+          sport="basketball"
+          clock={atHooter ? "hooter" : running ? "running" : "paused"}
           periodLabel={periodWord}
         />
       )}

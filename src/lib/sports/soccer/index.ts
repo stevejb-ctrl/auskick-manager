@@ -183,6 +183,7 @@ export const SOCCER_RULES: SoccerFamilyRules = {
   keeperKitUpSeconds: null,
   keeperGear: "Keeper top",
   halvesOrQuarters: false,
+  rollingSubs: { label: "Rolling subs", note: "any time, as often as you like" },
   minLines: {
     ages: ["U12", "U13"],
     count: 3,
@@ -207,7 +208,7 @@ export const SOCCER_RULES: SoccerFamilyRules = {
       fit: "MiniRoos (Under 8 to Under 11)",
     },
     keepers: {
-      blurb: "You name your keepers (home: Keeper) and they share goal. Everyone else rotates through the lines.",
+      blurb: "You mark your keepers (Keen keeper, under Role) and they share goal. Everyone else rotates through the lines.",
       fit: "Under 12 and up",
     },
     minutes: {
@@ -274,5 +275,8 @@ export const soccerSport: SportConfig = {
   // Like rugby's, soccer's live screen plays no team song (the plan's call).
   teamSong: false,
   periodBreak: soccerFamilyPeriodBreak(SOCCER_RULES),
+  // Matches SOCCER_RULES.lineLabels.field (MiniRoos says "field").
+  words: { sportName: "football", surface: "field", startCue: "whistle goes", endCue: "whistle" },
+  surfaceArt: "soccer-pitch",
   validateLineup: (lineup, ageGroup, onFieldSize) => validateSoccerLineup(lineup, ageGroup, onFieldSize, SOCCER_RULES),
 };

@@ -43,13 +43,13 @@ export function LoginScreen() {
       {/* Form column */}
       <div className="flex flex-col px-5 pb-9 pt-5 md:flex-[0_0_52%] md:min-h-screen md:px-14 md:py-10">
         {/* Brand row — hidden on mobile (the band carries it
-            instead). Caption is brand-aware (Steve 2026-05-17):
-            AFL → "Junior AFL team management", netball → "Junior
-            Netball team management". */}
+            instead). Caption is brand-aware (Steve 2026-05-17): the
+            main brand → "Junior sport team management", netball →
+            "Junior netball team management". */}
         <div className="hidden items-center gap-2.5 md:flex">
           <SirenWordmark size="sm" />
           <span className="border-l border-hairline pl-2.5 text-xs text-ink-dim">
-            Junior {brand.shortName} team management
+            {brand.brand.audience} team management
           </span>
         </div>
 

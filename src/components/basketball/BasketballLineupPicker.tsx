@@ -419,6 +419,7 @@ export function BasketballLineupPicker({
       <LineupPickerFooter
         onFieldCount={courtIds.length}
         benchCount={lineup.bench.length}
+        onFieldLabel="on court"
         onSavePlan={auth.kind === "team" ? () => void handleSavePlan() : undefined}
         savePending={savePending}
         savedAt={savedAt}
