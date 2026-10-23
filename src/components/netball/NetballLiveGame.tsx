@@ -1830,7 +1830,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             view (Steve 2026-05-13) — the post-game summary doesn't
             need stale on-court positions, just the scoreboard +
             shareable recap. The pb on this wrapper clears the
-            sticky "Finish game" CTA below. */}
+            sticky "Done" CTA below. */}
         <NetballGameSummaryCard
           teamName={teamName}
           opponentName={game.opponent}
@@ -1842,8 +1842,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           trackScoring={trackScoring}
           presentIds={presentPlayerIds(thisGameEvents)}
         />
-        {/* Sticky-bottom "Finish game" CTA — locks to the viewport
-            so the user has a big, unmissable exit. Team-auth coach
+        {/* Sticky-bottom "Done" CTA — locks to the viewport
+            so the user has a big, unmissable exit. It said "Finish
+            game" after the game had finished; AFL says "Done" (UX
+            audit 23 Oct 2026). Team-auth coach
             goes to /dashboard. Token-auth parent-runner gets a
             "you can close this tab" success card instead — they
             don't have a /dashboard, sending them there hits the
@@ -1853,7 +1855,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
             <div className="mx-auto max-w-4xl">
               <SFButton href="/dashboard" variant="accent" size="lg" full>
-                Finish game
+                Done
               </SFButton>
             </div>
           </div>
