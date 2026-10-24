@@ -56,10 +56,11 @@ test("league: the live screen's clock menu and restart say nothing AFL", async (
   await expect(menu).not.toContainText(/siren/i);
 
   // The end-early confirm fits a running clock: no "even though the
-  // clock is paused".
+  // clock is paused". It says how much was played and credits that
+  // (round 3, 24 Oct 2026).
   await menu.getByRole("button", { name: /^end h1 now/i }).click();
   const endEarly = page.getByRole("dialog", { name: /^end h1 now\?$/i });
-  await expect(endEarly).toContainText(/The clock is still running, and everyone on the field/);
+  await expect(endEarly).toContainText(/The clock is running: \d+:\d{2} of the \d+:\d{2} half played\. Ending now credits everyone on the field/);
   await expect(endEarly).not.toContainText(/paused|siren/i);
   await endEarly.getByRole("button", { name: /^cancel$/i }).click();
   await expect(endEarly).toHaveCount(0);
