@@ -7,6 +7,7 @@
 
 import type { Player } from "@/lib/types";
 import { DIDNT_GET_ON, didntGetOn } from "@/lib/live/presentPlayers";
+import { byJerseyThenName } from "@/lib/share/neutralOrder";
 import { soccerGameMs, type SoccerGameState } from "@/lib/sports/soccer/replay";
 
 function fmtMs(ms: number): string {
@@ -54,19 +55,19 @@ export function buildSoccerSummary(input: SoccerSummaryInput): string {
 
   const played = Object.keys(state.ms)
     .map((id) => ({ id, ms: soccerGameMs(state, id), gk: state.ms[id]?.gk ?? 0 }))
-    .filter((r) => r.ms >= 1000)
-    .sort((a, b) => b.ms - a.ms);
+    .filter((r) => r.ms >= 1000);
   const rows = played.map(({ id, ms, gk }) => {
     const p = byId.get(id);
-    return `${jersey(p)}${first(p)} — ${fmtMs(ms)}${gk >= 1000 ? ` (in goal ${fmtMs(gk)})` : ""}`;
+    return { id, text: `${jersey(p)}${first(p)} — ${fmtMs(ms)}${gk >= 1000 ? ` (in goal ${fmtMs(gk)})` : ""}` };
   });
   for (const id of didntGetOn(presentIds, played.map((r) => r.id))) {
     const p = byId.get(id);
-    if (p) rows.push(`${jersey(p)}${first(p)} — ${DIDNT_GET_ON}`);
+    if (p) rows.push({ id, text: `${jersey(p)}${first(p)} — ${DIDNT_GET_ON}` });
   }
   if (rows.length > 0) {
     lines.push(`\n⏱ Game time`);
-    lines.push(...rows);
+    // By number, never by minutes: this goes to every parent.
+    lines.push(...rows.sort(byJerseyThenName((r) => byId.get(r.id))).map((r) => r.text));
   }
   return lines.join("\n");
 }

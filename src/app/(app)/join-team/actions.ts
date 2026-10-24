@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { sendPushNotification } from "@/lib/notifications/sendPushNotification";
 import { ROLE_LABEL } from "@/lib/roles";
+import { cleanDisplayName, hasDisplayName } from "@/lib/members/displayName";
 import type { ActionResult } from "@/lib/types";
 
 /**
@@ -43,11 +44,15 @@ function normaliseJoinCode(input: string): string | null {
  * Always inserts as `parent`. The team admin can upgrade them from
  * the members list in team settings.
  *
+ * `name` is asked for when the person's profile has none (email
+ * sign-ups have a blank name), so the coach can tell who joined.
+ *
  * Returns `teamId` on success so the caller can redirect straight
  * to /teams/{id}/games.
  */
 export async function joinTeamByCode(
   rawCode: string,
+  name?: string,
 ): Promise<ActionResult & { teamId?: string; alreadyMember?: boolean }> {
   const supabase = createClient();
   const {
@@ -94,6 +99,18 @@ export async function joinTeamByCode(
     return { success: true, teamId: team.id, alreadyMember: true };
   }
 
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("full_name")
+    .eq("id", user.id)
+    .maybeSingle();
+  let newName: string | null = null;
+  if (!hasDisplayName(profile?.full_name)) {
+    const cleaned = cleanDisplayName(name ?? "");
+    if (!cleaned.ok) return { success: false, error: cleaned.error };
+    newName = cleaned.name;
+  }
+
   const { error: insertError } = await admin.from("team_memberships").insert({
     team_id: team.id,
     user_id: user.id,
@@ -106,6 +123,10 @@ export async function joinTeamByCode(
     return { success: false, error: insertError.message };
   }
 
+  if (newName) {
+    await admin.from("profiles").update({ full_name: newName }).eq("id", user.id);
+  }
+
   // Best-effort push to the team admins so the manager sees someone
   // landed via the code (no email — the admin gave the code out
   // themselves, this isn't a spammable invite path). Errors swallowed
@@ -115,11 +136,7 @@ export async function joinTeamByCode(
     .select("user_id")
     .eq("team_id", team.id)
     .eq("role", "admin");
-  const accepterName =
-    (await admin.from("profiles").select("full_name").eq("id", user.id).maybeSingle())
-      .data?.full_name?.trim() ||
-    user.email ||
-    "Someone";
+  const accepterName = newName || profile?.full_name?.trim() || user.email || "Someone";
   await Promise.all(
     (admins ?? []).map((a) =>
       sendPushNotification({

@@ -19,6 +19,7 @@ import { SurfaceMotif } from "@/components/brand/SurfaceMotif";
 import { PLAYHQ_TENANT } from "@/lib/playhq";
 import { teamSportById } from "@/lib/sports/teamSportById";
 import { notFound } from "next/navigation";
+import { emptyHeroCopy } from "@/lib/teamHome/emptyHero";
 
 interface TeamDashboardProps {
   params: { teamId: string };
@@ -29,7 +30,9 @@ interface TeamDashboardProps {
  *
  *   1. Finish-setup banner (admins on empty squads only)
  *   2. Hero — live game, else the next game; on game day its primary
- *      goes straight to the game-day screen ("Start game day")
+ *      goes straight to the game-day screen ("Start game day"). With
+ *      nothing upcoming, the coach's one "add a game" button (parents
+ *      and managers can't add games, so they get none)
  *   3. To-dos — setup gaps the coach can close in one tap
  *   4. Last result + season snapshot (record across final games)
  *   5. More upcoming
@@ -147,21 +150,14 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
   const [featuredGame, ...moreGames] = nextGames;
 
   // To-dos: setup gaps the coach can close in one tap (admins only).
+  // Adding a game isn't one: the empty hero carries that button, once.
   const todos: { id: string; label: string; detail: string; href: string }[] = [];
-  if (isAdmin && playerCount > 0 && upcomingCount === 0) {
-    todos.push({
-      id: "add-game",
-      label: "Add your next game",
-      detail: PLAYHQ_TENANT[sport] ? "Import the fixture from PlayHQ or add one by hand." : "Add it from your fixture.",
-      href: `/teams/${params.teamId}/games`,
-    });
-  }
   if (isAdmin && (memberCount ?? 0) <= 1) {
     todos.push({
       id: "invite",
       label: "Invite a manager",
       detail: "Someone to run the game when you can't be on the sideline.",
-      href: `/teams/${params.teamId}/settings`,
+      href: `/teams/${params.teamId}/settings?invite=1#people`,
     });
   }
 
@@ -181,7 +177,12 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
           surfaceArt={getSportConfig(sport).surfaceArt}
         />
       ) : (
-        <EmptyHero teamId={params.teamId} />
+        <EmptyHero
+          teamId={params.teamId}
+          canAddGames={isAdmin}
+          hasPlayed={finals.length > 0}
+          playHq={!!PLAYHQ_TENANT[sport]}
+        />
       )}
 
       {todos.length > 0 && <TodoList todos={todos} />}
@@ -228,19 +229,6 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
         </section>
       )}
 
-      {!liveGame && !featuredGame && upcomingCount === 0 && isAdmin && (
-        <SFCard>
-          <Eyebrow>Get started</Eyebrow>
-          <p className="mt-2 text-sm text-ink-dim">
-            Add a game to start tracking availability and lineups.
-          </p>
-          <div className="mt-3">
-            <SFButton href={`/teams/${params.teamId}/games`} variant="primary" size="sm">
-              Add a game
-            </SFButton>
-          </div>
-        </SFCard>
-      )}
     </div>
   );
 }
@@ -504,24 +492,41 @@ function NextUpHero({
   );
 }
 
-// ─── Empty state (admin, no upcoming) ────────────────────────────────────────
+// ─── Empty state (no upcoming) ───────────────────────────────────────────────
 
-function EmptyHero({ teamId }: { teamId: string }) {
+function EmptyHero({
+  teamId,
+  canAddGames,
+  hasPlayed,
+  playHq,
+}: {
+  teamId: string;
+  /** Only the coach adds games: everyone else gets no button. */
+  canAddGames: boolean;
+  /** A game's been played: it's the next one, never the first. */
+  hasPlayed: boolean;
+  /** The sport's fixture can come from PlayHQ. */
+  playHq: boolean;
+}) {
+  const copy = emptyHeroCopy({ canAddGames, hasPlayed });
   return (
     <SFCard className="text-center">
-      <Eyebrow>No upcoming games</Eyebrow>
+      <Eyebrow>{copy.title}</Eyebrow>
       <p className="mt-2 text-sm text-ink-dim">
-        Add your first game to start tracking availability and lineups.
+        {copy.body}
+        {copy.cta && playHq && " Import the fixture from PlayHQ or add one by hand."}
       </p>
-      <div className="mt-4">
-        <SFButton
-          href={`/teams/${teamId}/games`}
-          variant="primary"
-          iconAfter={<SFIcon.chevronRight color="currentColor" />}
-        >
-          Add a game
-        </SFButton>
-      </div>
+      {copy.cta && (
+        <div className="mt-4">
+          <SFButton
+            href={`/teams/${teamId}/games`}
+            variant="primary"
+            iconAfter={<SFIcon.chevronRight color="currentColor" />}
+          >
+            {copy.cta}
+          </SFButton>
+        </div>
+      )}
     </SFCard>
   );
 }

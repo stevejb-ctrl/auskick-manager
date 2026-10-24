@@ -1,8 +1,12 @@
+import { Suspense } from "react";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { TeamNav } from "@/components/team/TeamNav";
 import { TeamBottomBar } from "@/components/team/TeamBottomBar";
+import { JoinedNotice } from "@/components/team/JoinedNotice";
+import { SFButton, SFCard } from "@/components/sf";
 
 interface TeamLayoutProps {
   children: React.ReactNode;
@@ -42,15 +46,50 @@ export default async function TeamLayout({ children, params }: TeamLayoutProps) 
       .maybeSingle(),
   ]);
 
-  if (!team || !membership) {
+  if (!team) {
     notFound();
+  }
+
+  // Someone who was removed, or left, used to get a bare "Not found"
+  // mid-action. Say what happened instead (without naming the team to
+  // someone who isn't on it).
+  if (!membership) {
+    return <NotOnTeam />;
   }
 
   return (
     <div className="space-y-6">
       <TeamNav teamId={params.teamId} teamName={team.name} role={membership.role} />
+      <Suspense fallback={null}>
+        <JoinedNotice teamName={team.name} />
+      </Suspense>
       {children}
       <TeamBottomBar teamId={params.teamId} role={membership.role} />
+    </div>
+  );
+}
+
+function NotOnTeam() {
+  return (
+    <div className="mx-auto max-w-md py-8">
+      <SFCard>
+        <h1 className="text-xl font-bold tracking-tightest text-ink">You&rsquo;re not on this team</h1>
+        <p className="mt-2 text-sm leading-relaxed text-ink-dim">
+          If you left it, or the coach removed you, you no longer have access. To
+          come back, ask the coach for a new invite, or join with the team code.
+        </p>
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <SFButton href="/dashboard?list=1" variant="primary">
+            My teams
+          </SFButton>
+          <Link
+            href="/join-team"
+            className="inline-flex items-center justify-center rounded-md border border-hairline px-4 py-2 text-sm font-medium text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+          >
+            Join with a code
+          </Link>
+        </div>
+      </SFCard>
     </div>
   );
 }

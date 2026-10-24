@@ -382,6 +382,7 @@ function makeGame(id: string): Game {
     status: "completed",
     sub_interval_seconds: 300,
     share_token: id,
+    availability_token: "avail-token",
     on_field_size: 12,
     quarter_length_seconds: null,
     clock_multiplier: 1,
@@ -450,7 +451,7 @@ describe("computeAttendance — null jersey", () => {
     const player = makePlayer("p1", null);
     const game = makeGame("g1");
     const availability: GameAvailability[] = [
-      { id: "a1", game_id: "g1", player_id: "p1", status: "available", updated_by: null, updated_at: new Date().toISOString() },
+      { id: "a1", game_id: "g1", player_id: "p1", status: "available", updated_by: null, updated_at: new Date().toISOString(), replied_at: null },
     ];
     const snap = replayGame("g1", buildSingleQtrEvents());
     const rows = computeAttendance([player], [game], availability, [snap]);
@@ -468,7 +469,7 @@ describe("computeAttendance — attendance = games actually played (Steve 2026-0
   const players = [makePlayer("p1", 1), makePlayer("ghost", 99)];
   // "ghost" is marked available but never appears in a lineup.
   const availability: GameAvailability[] = [
-    { id: "a1", game_id: "g1", player_id: "ghost", status: "available", updated_by: null, updated_at: new Date().toISOString() },
+    { id: "a1", game_id: "g1", player_id: "ghost", status: "available", updated_by: null, updated_at: new Date().toISOString(), replied_at: null },
   ];
   const rows = computeAttendance(players, [game], availability, [snap]);
   const rowOf = (id: string) => rows.find((r) => r.playerId === id);

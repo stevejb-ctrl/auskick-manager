@@ -9,6 +9,7 @@
 
 import type { Player } from "@/lib/types";
 import { DIDNT_GET_ON, didntGetOn } from "@/lib/live/presentPlayers";
+import { byJerseyThenName } from "@/lib/share/neutralOrder";
 import { touchGameMs, type TouchGameState } from "@/lib/sports/touch/replay";
 import { TOUCH_LANES } from "@/lib/sports/touch/types";
 
@@ -59,21 +60,21 @@ export function buildTouchSummary(input: TouchSummaryInput): string {
 
   const played = Object.keys(state.ms)
     .map((id) => ({ id, ms: touchGameMs(state, id) }))
-    .filter((r) => r.ms >= 1000)
-    .sort((a, b) => b.ms - a.ms);
+    .filter((r) => r.ms >= 1000);
   const rows = played.map(({ id, ms }) => {
     const p = byId.get(id);
     const lanes = TOUCH_LANES.filter((l) => (state.ms[id]?.[l] ?? 0) >= 1000);
     const split = lanes.length > 1 ? ` (${lanes.map((l) => `${LANE_LETTER[l as keyof typeof LANE_LETTER]} ${fmtMs(state.ms[id]![l]!)}`).join(", ")})` : "";
-    return `${jersey(p)}${first(p)} — ${fmtMs(ms)}${split}`;
+    return { id, text: `${jersey(p)}${first(p)} — ${fmtMs(ms)}${split}` };
   });
   for (const id of didntGetOn(presentIds, played.map((r) => r.id))) {
     const p = byId.get(id);
-    if (p) rows.push(`${jersey(p)}${first(p)} — ${DIDNT_GET_ON}`);
+    if (p) rows.push({ id, text: `${jersey(p)}${first(p)} — ${DIDNT_GET_ON}` });
   }
   if (rows.length > 0) {
     lines.push(`\n⏱ Game time`);
-    lines.push(...rows);
+    // By number, never by minutes: this goes to every parent.
+    lines.push(...rows.sort(byJerseyThenName((r) => byId.get(r.id))).map((r) => r.text));
   }
   return lines.join("\n");
 }

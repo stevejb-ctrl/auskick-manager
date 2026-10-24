@@ -281,7 +281,7 @@ export function HowWePlayCard({
       {error && <InlineAlert>{error}</InlineAlert>}
       <p className="min-h-[1rem] px-1 text-xs text-ink-mute" aria-live="polite">
         {!isAdmin
-          ? "Only a coach can change how the team plays."
+          ? "Only the coach can change how the team plays."
           : isPending
             ? "Saving…"
             : savedAt

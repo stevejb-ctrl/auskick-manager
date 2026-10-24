@@ -203,8 +203,11 @@ test("the team's only coach can't leave it", async ({ page }) => {
   await page.goto(`/teams/${team.id}/settings`);
   await waitForHydration(page);
   await page.getByRole("button", { name: /^leave team$/i }).click();
-  await page.getByRole("button", { name: /yes, leave the team/i }).click();
-  await expect(page.getByText(/only coach/i)).toBeVisible();
+  // Told up front, with no "Yes, leave the team" to tap and be refused
+  // (round 2 usability, 24 Oct 2026).
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText(/only coach/i)).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /yes, leave the team/i })).toHaveCount(0);
   const { data } = await admin
     .from("team_memberships")
     .select("user_id")

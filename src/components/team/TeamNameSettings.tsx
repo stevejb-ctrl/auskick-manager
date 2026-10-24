@@ -80,7 +80,7 @@ export function TeamNameSettings({ teamId, currentName, isAdmin }: TeamNameSetti
         </p>
       )}
       {!isAdmin && (
-        <p className="mt-2 text-xs text-ink-mute">Only admins can rename the team.</p>
+        <p className="mt-2 text-xs text-ink-mute">Only the coach can rename the team.</p>
       )}
     </section>
   );

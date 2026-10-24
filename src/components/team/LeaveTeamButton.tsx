@@ -13,18 +13,26 @@ interface LeaveTeamButtonProps {
   size?: "sm" | "md";
   /** Name the team in the accessible label (lists with several buttons). */
   labelWithTeam?: boolean;
+  /**
+   * The team's only coach: the confirm says up front that they can't
+   * leave, and how to, instead of offering "Yes, leave the team" and
+   * refusing it afterwards.
+   */
+  soleCoach?: boolean;
 }
 
 /**
  * Leave a team, with a confirm. Used in Team › Danger zone and on the
  * account page's team list — parents have no Team tab, so the account
- * page is where they leave.
+ * page is where they leave. Afterwards the dashboard (or welcome)
+ * says "You left …" (LeftTeamNotice).
  */
 export function LeaveTeamButton({
   teamId,
   teamName,
   size = "md",
   labelWithTeam = false,
+  soleCoach = false,
 }: LeaveTeamButtonProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -40,7 +48,7 @@ export function LeaveTeamButton({
         return;
       }
       setOpen(false);
-      router.push("/dashboard?list=1");
+      router.push(`/dashboard?list=1&left=${encodeURIComponent(teamName)}`);
       router.refresh();
     });
   }
@@ -63,18 +71,28 @@ export function LeaveTeamButton({
           }
         >
           <h2 className="text-center text-lg font-bold text-danger">Leave {teamName}?</h2>
-          <p className="mt-2 text-sm text-ink-dim">
-            You&apos;ll lose access until a coach invites you back.
-          </p>
+          {soleCoach ? (
+            <p className="mt-2 text-sm text-ink-dim">
+              You&apos;re the team&apos;s only coach, so you can&apos;t leave yet. Make
+              someone else a coach in Team › People first, or delete the team.
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-ink-dim">
+              You&apos;ll lose access until the coach invites you back, or you join
+              again with the team code.
+            </p>
+          )}
           {error && (
             <InlineAlert className="mt-3">
               {error}
             </InlineAlert>
           )}
           <div className="mt-5 flex flex-col gap-2">
-            <SFButton variant="alarm" size="md" loading={isPending} onClick={leave}>
-              Yes, leave the team
-            </SFButton>
+            {!soleCoach && (
+              <SFButton variant="alarm" size="md" loading={isPending} onClick={leave}>
+                Yes, leave the team
+              </SFButton>
+            )}
             <SFButton
               variant="ghost"
               size="sm"
@@ -84,7 +102,7 @@ export function LeaveTeamButton({
               }}
               disabled={isPending}
             >
-              Cancel
+              {soleCoach ? "Close" : "Cancel"}
             </SFButton>
           </div>
         </Modal>

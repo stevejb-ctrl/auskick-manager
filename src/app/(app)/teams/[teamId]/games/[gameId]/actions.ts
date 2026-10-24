@@ -136,6 +136,10 @@ export async function setAvailabilityMany(
   // verified server-side above, so the admin escape is safe.
   const writer = membership ? supabase : createAdminClient();
   const now = new Date().toISOString();
+  // A Parent member's answer counts as a reply, as one through the
+  // game's availability link does (migration 0072): the coach's list
+  // says who's replied.
+  const isParent = membership?.role === "parent";
   const { error } = await writer.from("game_availability").upsert(
     playerIds.map((playerId) => ({
       game_id: gameId,
@@ -143,6 +147,7 @@ export async function setAvailabilityMany(
       status,
       updated_by: userId,
       updated_at: now,
+      ...(isParent ? { replied_at: now } : {}),
     })),
     { onConflict: "game_id,player_id" }
   );
