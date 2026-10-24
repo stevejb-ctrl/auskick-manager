@@ -115,7 +115,7 @@ test("pasting a list adds the whole squad at once", async ({ page }) => {
   await page
     .getByLabel(/paste your squad/i)
     .fill("Ava Smith #3\n7 Ben Jones\nCara Lee, 12");
-  await expect(page.getByText(/3 players:/i)).toBeVisible();
+  await expect(page.getByTestId("paste-preview").getByRole("checkbox", { checked: true })).toHaveCount(3);
   await page.getByRole("button", { name: /^add 3 players$/i }).click();
   await expect(page.getByRole("status").filter({ hasText: /added 3 players/i })).toBeVisible({
     timeout: 10_000,

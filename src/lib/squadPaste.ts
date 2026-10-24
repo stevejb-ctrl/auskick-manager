@@ -30,11 +30,54 @@ export interface SquadPasteResult {
    * other refused it).
    */
   warnings: string[];
+  /**
+   * Lines that aren't a kid: a group-chat message's greeting, headings,
+   * links, emoji and sign-off (round 3 edge testing, 24 Oct 2026: they
+   * became "players", and a phone number became jersey #678).
+   */
+  skipped: SkippedLine[];
   /** Numbers left off the names (the sport has no jersey numbers). */
   numbersLeftOff: number;
 }
 
+export interface SkippedLine {
+  line: number;
+  text: string;
+  /** "a heading", "a link", "a phone number", "no name", "a greeting", "too many words". */
+  why: string;
+}
+
 const NUM = /^#?(\d{1,3})$/;
+
+// Built at runtime: the project's TS target predates the `u` flag.
+const LETTER = new RegExp("\\p{L}", "u");
+const NOT_LETTER = new RegExp("[^\\p{L}\\s']", "gu");
+
+/** Whole lines a group-chat message carries that are never a kid. */
+const CHAT_WORDS = new Set([
+  "hi", "hello", "hey", "hiya", "g'day", "hi all", "hi everyone", "hey all", "hello all",
+  "thanks", "thank you", "thanks all", "thanks everyone", "ta", "cheers", "regards", "kind regards",
+  "see you", "see you saturday", "see you sunday", "go team",
+  "team", "squad", "players", "list", "the team", "our team",
+  "forwards", "backs", "mids", "midfield", "defence", "attack", "reserves", "subs", "bench",
+  "coach", "coaches", "manager", "managers",
+]);
+
+/** Why a pasted line isn't a kid, or null when it may be one. */
+function junkReason(line: string): string | null {
+  if (!LETTER.test(line)) return "no name";
+  if (/https?:\/\/|www\./i.test(line)) return "a link";
+  if (/:\s*$/.test(line)) return "a heading";
+  if ((line.match(/\d/g) ?? []).length >= 8) return "a phone number";
+  const words = line.replace(NOT_LETTER, " ").trim().toLocaleLowerCase().split(/\s+/);
+  const bare = words.join(" ");
+  // "Thanks 🙏", "Cheers", "Reserves"; or "Hi all, …" ("Hi Nguyen" is a kid).
+  if (CHAT_WORDS.has(bare) || (/^(hi|hey|hello|g'day)\b/.test(bare) && words.length > 1 && /[,!]/.test(line))) {
+    return "a greeting";
+  }
+  if (words.length > 5) return "too many words";
+  return null;
+}
 
 function splitNameAndNumber(line: string): { name: string; num: string | null; bareTrailing?: boolean } {
   // Spreadsheet paste: columns split by tabs (or 2+ spaces).
@@ -58,6 +101,7 @@ export function parseSquadPaste(
   const players: ParsedPlayer[] = [];
   const errors: string[] = [];
   const warnings: string[] = [];
+  const skipped: SkippedLine[] = [];
   const seenNames = new Set<string>();
   const seenJerseys = new Set<number>();
   const squad = opts.squad ?? [];
@@ -68,6 +112,11 @@ export function parseSquadPaste(
     const line = raw.trim();
     if (!line) return;
     const lineNo = i + 1;
+    const why = junkReason(line);
+    if (why) {
+      skipped.push({ line: lineNo, text: line, why });
+      return;
+    }
     const split = splitNameAndNumber(line);
     let rawName = split.name;
     let num = split.num;
@@ -110,7 +159,7 @@ export function parseSquadPaste(
     players.push({ full_name, jersey_number });
   });
 
-  return { players, errors, warnings, numbersLeftOff };
+  return { players, errors, warnings, skipped, numbersLeftOff };
 }
 
 /** A name to compare: case and spacing don't count. */

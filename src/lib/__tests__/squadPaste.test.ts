@@ -84,6 +84,45 @@ describe("parseSquadPaste", () => {
     expect(numbersLeftOff).toBe(5);
   });
 
+  // Round 3 (24 Oct 2026): a coach's group-chat message became 33 kids,
+  // greetings, headings, emoji and a URL among them, and the phone
+  // number in the sign-off read as jersey #678.
+  it("skips a group-chat message's greetings, headings, links, emoji and phone numbers", () => {
+    const message = [
+      "Hi all, here is the U12 list for Saturday!",
+      "",
+      "Forwards:",
+      "Ava Smith #3",
+      "Ben Jones 7",
+      "Backs:",
+      "Cara Lee",
+      "Reserves",
+      "Dev Patel",
+      "...",
+      "---",
+      "12345",
+      "👍",
+      "Thanks 🙏",
+      "https://example.com/fixture",
+      "See www.club.com.au for the draw",
+      "Cheers",
+      "— Coach Dave 0412 345 678",
+    ].join("\n");
+    const { players, errors, skipped } = parseSquadPaste(message);
+    expect(players.map((p) => p.full_name)).toEqual(["Ava Smith", "Ben Jones", "Cara Lee", "Dev Patel"]);
+    expect(errors).toEqual([]);
+    expect(skipped.map((s) => s.line)).toEqual([1, 3, 6, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
+    expect(skipped.find((s) => s.line === 18)?.why).toBe("a phone number");
+    expect(skipped.find((s) => s.line === 15)?.why).toBe("a link");
+    expect(skipped.find((s) => s.line === 3)?.why).toBe("a heading");
+  });
+
+  it("keeps real names that look a bit like words", () => {
+    const { players, skipped } = parseSquadPaste("Hope Thanks\nBench Mark\nNoah Cheers-Brown #4\nO'Neil\nZoë Ng");
+    expect(skipped).toEqual([]);
+    expect(players.map((p) => p.full_name)).toEqual(["Hope Thanks", "Bench Mark", "Noah Cheers-Brown", "O'Neil", "Zoë Ng"]);
+  });
+
   it("doesn't check numbers it leaves off", () => {
     // Two kids both "#1" in a list from two clubs: no jerseys, no clash.
     const { players, errors } = parseSquadPaste("Ava #1\nBen #1\nCal #140", { withJersey: false });

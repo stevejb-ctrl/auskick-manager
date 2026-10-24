@@ -22,8 +22,12 @@ test("a netball paste leaves the jersey numbers off the names", async ({ page })
   await page.getByRole("button", { name: "Paste a list" }).click({ timeout: 15_000 });
   await page.getByLabel(/paste your squad/i).fill("Sienna Brooks #1\n2 Ava Smith\nMia Chen, 7");
 
-  const preview = page.getByText(/^3 players:/);
-  await expect(preview).toContainText("Sienna Brooks, Ava Smith, Mia Chen");
+  // The preview lists each kid with a tick (round 3, 24 Oct 2026).
+  const preview = page.getByTestId("paste-preview");
+  await expect(preview.getByRole("checkbox")).toHaveCount(3);
+  await expect(preview).toContainText("Sienna Brooks");
+  await expect(preview).toContainText("Ava Smith");
+  await expect(preview).toContainText("Mia Chen");
   await expect(preview).not.toContainText("#");
   await expect(page.getByText(/numbers left off/i)).toBeVisible();
 
