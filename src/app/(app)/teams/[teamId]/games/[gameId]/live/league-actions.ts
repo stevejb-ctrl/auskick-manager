@@ -501,6 +501,8 @@ export async function finaliseLeagueGame(
   auth: LiveAuth,
   gameId: string,
   elapsedMs: number,
+  /** The same for every retry of one Finish, so a retry can't finalise twice. */
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
@@ -510,9 +512,13 @@ export async function finaliseLeagueGame(
   const { ageCfg } = await rugbyTeamOf(w);
   const finalQuarter = ageCfg.periodCount;
 
-  const finalise = await insertEvent(auth, gameId, "game_finalised", {
-    metadata: { quarter: finalQuarter, elapsed_ms: elapsedMs },
-  });
+  const finalise = await insertEvent(
+    auth,
+    gameId,
+    "game_finalised",
+    { metadata: { quarter: finalQuarter, elapsed_ms: elapsedMs } },
+    idempotencyKey,
+  );
   if (!finalise.success) return finalise;
 
   const { error: updateError } = await w.supabase

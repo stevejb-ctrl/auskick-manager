@@ -235,7 +235,7 @@ export function clearActionHandlers(): void {
 // covers ancient WebViews; should never actually fire on Capacitor 8
 // or Node 18+.
 
-function uuid(): string {
+export function uuid(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
   }

@@ -321,14 +321,24 @@ export async function endTouchPeriod(
 // ─── finaliseTouchGame ───────────────────────────────────────
 // game_finalised, then the game is completed and its season time rolled
 // up (stats and season balance).
-export async function finaliseTouchGame(auth: LiveAuth, gameId: string, elapsedMs: number): Promise<ActionResult> {
+export async function finaliseTouchGame(
+  auth: LiveAuth,
+  gameId: string,
+  elapsedMs: number,
+  /** The same for every retry of one Finish, so a retry can't finalise twice. */
+  idempotencyKey?: string,
+): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
   const { ageCfg } = await touchTeam(w.teamId);
 
-  const finalise = await insertEvent(auth, gameId, "game_finalised", {
-    metadata: { quarter: ageCfg.periodCount, elapsed_ms: elapsedMs },
-  });
+  const finalise = await insertEvent(
+    auth,
+    gameId,
+    "game_finalised",
+    { metadata: { quarter: ageCfg.periodCount, elapsed_ms: elapsedMs } },
+    idempotencyKey,
+  );
   if (!finalise.success) return finalise;
 
   const { error: updateError } = await w.supabase.from("games").update({ status: "completed" }).eq("id", gameId);

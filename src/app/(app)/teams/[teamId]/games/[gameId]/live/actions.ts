@@ -583,10 +583,16 @@ export async function finaliseGame(
   auth: LiveAuth,
   gameId: string,
   elapsedMs: number,
+  /** The same for every retry of one Finish, so a retry can't finalise twice. */
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
-  const finalise = await insertEvent(auth, gameId, "game_finalised", {
-    metadata: { quarter: 4, elapsed_ms: elapsedMs },
-  });
+  const finalise = await insertEvent(
+    auth,
+    gameId,
+    "game_finalised",
+    { metadata: { quarter: 4, elapsed_ms: elapsedMs } },
+    idempotencyKey,
+  );
   if (!finalise.success) return finalise;
 
   const w = await resolveWriter(auth, gameId);
