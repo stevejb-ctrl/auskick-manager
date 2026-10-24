@@ -9,7 +9,7 @@ import {
   suggestTouchBreakPlan,
   suggestTouchLineup,
   suggestTouchSubs,
-  touchMixFixSubs,
+  touchMixFix,
   touchShapeFor,
   type TouchMixed,
   type TouchSeasonBalance,
@@ -138,22 +138,22 @@ describe("suggestTouchSubs", () => {
     expect(after.girls).toBeGreaterThanOrEqual(1);
   });
 
-  it("touchMixFixSubs: just the fix, and nothing once the side keeps the rule", () => {
+  it("touchMixFix: just the fix, and nothing once the side keeps the rule", () => {
     const g = game();
     g.lineup(FIELD);
     g.start(1);
     g.swap("a", "h", 2);
     const over = replayTouchGame(g.events, { nowMs: 3 * MIN });
-    expect(touchMixFixSubs({ state: over, nowMs: 3 * MIN, strategy: "minutes", mixed })).toEqual([
+    expect(touchMixFix({ state: over, nowMs: 3 * MIN, strategy: "minutes", mixed }).subs).toEqual([
       { off_player_id: "d", on_player_id: "g", line: "field" },
     ]);
     const g2 = game();
     g2.lineup(FIELD);
     g2.start(1);
     const fine = replayTouchGame(g2.events, { nowMs: 3 * MIN });
-    expect(touchMixFixSubs({ state: fine, nowMs: 3 * MIN, strategy: "minutes", mixed })).toEqual([]);
+    expect(touchMixFix({ state: fine, nowMs: 3 * MIN, strategy: "minutes", mixed }).subs).toEqual([]);
     // A team that isn't mixed has no rule to fix.
-    expect(touchMixFixSubs({ state: over, nowMs: 3 * MIN, strategy: "minutes" })).toEqual([]);
+    expect(touchMixFix({ state: over, nowMs: 3 * MIN, strategy: "minutes" }).subs).toEqual([]);
   });
 
   it("keeps a held kid on, and a lane hold in its lane", () => {
