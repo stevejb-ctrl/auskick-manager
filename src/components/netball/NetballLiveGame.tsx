@@ -39,6 +39,7 @@ import { hapticTap, hapticSiren } from "@/lib/haptics";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
 import { RunnerAllDone } from "@/components/games/RunnerAllDone";
+import { noteLiveResult } from "@/lib/live/liveSync";
 import { WalkthroughOffer } from "@/components/live/WalkthroughOffer";
 import { ClockMenu } from "@/components/live/ClockMenu";
 
@@ -1742,7 +1743,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                 // actually wanted. Falls back to defaultOnFieldSize
                 // when the dropdown wasn't touched (or wasn't shown
                 // in this picker configuration).
-                await startNetballGame(
+                const result = await startNetballGame(
                   auth,
                   game.id,
                   lineup,
@@ -1750,6 +1751,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                   quarterOverrideSeconds,
                   /* startQuarterToo */ true,
                 );
+                // Refused because another phone already started: say so
+                // over the page as it refreshes into the game.
+                noteLiveResult(result);
                 resolve();
               });
             })

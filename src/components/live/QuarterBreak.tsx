@@ -49,6 +49,7 @@ import { aflRuleCheck, type AflPlaybookInput } from "@/lib/sports/afl/engine";
 import { PeriodBreak, type BreakPlayer, type BreakStrategy } from "@/components/quarter-break/PeriodBreak";
 import { buildBoard, placesOf, swapInStaged, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
+import { noteLiveResult } from "@/lib/live/liveSync";
 
 // Players who came on shortly before the quarter break — keep them in their
 // zone rather than moving them again immediately.
@@ -671,6 +672,8 @@ export function QuarterBreak({
     startTransition(async () => {
       if (!lineupsEqual(lineup, full)) {
         const r = await recordLineupSet(auth, gameId, full);
+        // Refused because another phone already started it: say so.
+        noteLiveResult(r);
         if (!r.success) {
           setError(r.error);
           return;
@@ -678,6 +681,7 @@ export function QuarterBreak({
         setLineup(full);
       }
       const result = await startQuarterAction(auth, gameId, nextQuarter);
+      noteLiveResult(result);
       if (!result.success) {
         setError(result.error);
         return;
