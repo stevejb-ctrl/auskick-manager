@@ -688,7 +688,9 @@ export type Database = {
 // proper type narrowing on `.data`. Defaults to `unknown` for the bulk
 // of actions that just signal success/failure.
 // `rejected`: refused under a game rule, so the write queue drops the op
-// instead of retrying it (see writeQueue's ActionResult).
+// instead of retrying it (see writeQueue's ActionResult). `stale`: refused
+// because another phone has moved the game on (lib/live/liveWriteGuard.ts);
+// the screen says so and shows the game as it stands.
 export type ActionResult<T = unknown> =
   | { success: true; data?: T }
-  | { success: false; error: string; rejected?: true };
+  | { success: false; error: string; rejected?: true; stale?: true };
