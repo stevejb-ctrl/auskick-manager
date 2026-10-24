@@ -530,7 +530,13 @@ export function LiveGame({
     // is initialState changing — that's already in the dep array.
     const fullStoreState = useLiveGame.getState();
     const storeQuarter = fullStoreState.currentQuarter;
-    const storeAheadOfServer = storeQuarter > initialState.currentQuarter;
+    // Ahead because this phone started a quarter the server hasn't got
+    // yet (Start is queued, and with no signal it waits): not a restart.
+    // A refresh landing first would otherwise put the break back.
+    const startQueued = useWriteQueue
+      .getState()
+      .queue.some((op) => op.kind === "startQuarter" && op.args[1] === gameId);
+    const storeAheadOfServer = storeQuarter > initialState.currentQuarter && !startQueued;
     // Phase 5c: after a force-quit, the persist middleware
     // rehydrates `activeGameId` (plus a few in-memory-only fields
     // like lockedIds) but NOT the server-replayable bits — lineup
