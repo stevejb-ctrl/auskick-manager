@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { defaultTrackScoring, getSportConfig, teamSport } from "@/lib/sports";
 import type { ActionResult, Sport } from "@/lib/types";
 import { storedOnFieldSize, storedPeriodSeconds } from "@/lib/games/newGameDefaults";
+import { pinPlayedPeriodLength } from "@/lib/games/pinPlayedPeriodLength";
 import type { TeamGameShape } from "@/app/(app)/dashboard/actions";
 
 /**
@@ -83,6 +84,13 @@ export async function updateTeamBasics(
   }
   if (team.age_group !== ageGroup) {
     update.track_scoring = defaultTrackScoring(sport, ageGroup);
+  }
+
+  // Past games keep the length they were played with (UX round 2).
+  try {
+    await pinPlayedPeriodLength(supabase, teamId);
+  } catch (e) {
+    return { success: false, error: (e as Error).message };
   }
 
   const { error: updateError } = await supabase.from("teams").update(update).eq("id", teamId);

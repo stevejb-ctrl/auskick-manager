@@ -8,7 +8,8 @@ import { soccerFamilyAgeGroup, soccerFamilyRules } from "@/lib/sports/soccer/fam
 import { mixedRuleColumns } from "@/lib/sports/touch/mixed";
 import type { MixedRule } from "@/lib/sports/touch/types";
 import type { ActionResult, Sport } from "@/lib/types";
-import { storedOnFieldSize } from "@/lib/games/newGameDefaults";
+import { storedOnFieldSize, teamOnFieldSize } from "@/lib/games/newGameDefaults";
+import { pinPlayedPeriodLength } from "@/lib/games/pinPlayedPeriodLength";
 
 const BUCKET = "team-songs";
 const MAX_BYTES = 20 * 1024 * 1024; // 20 MB
@@ -277,6 +278,13 @@ export async function setTeamAgeGroup(
     return { success: false, error: `Invalid age group "${ageGroup}" for ${cfg.name}.` };
   }
 
+  // Past games keep the length they were played with (UX round 2).
+  try {
+    await pinPlayedPeriodLength(supabase, teamId);
+  } catch (e) {
+    return { success: false, error: (e as Error).message };
+  }
+
   const { error: updateError } = await supabase
     .from("teams")
     .update({
@@ -406,6 +414,13 @@ export async function setTeamPeriodCount(teamId: string, count: 1 | 2 | 4 | null
     own = soccerFamilyAgeGroup(sport, (team as { age_group?: string | null }).age_group ?? null).periodCount;
   } else {
     return { success: false, error: "Only basketball, hockey, touch and Oztag teams choose their periods." };
+  }
+
+  // Past games keep the length they were played with (UX round 2).
+  try {
+    await pinPlayedPeriodLength(supabase, teamId);
+  } catch (e) {
+    return { success: false, error: (e as Error).message };
   }
 
   const { error: updateError } = await supabase

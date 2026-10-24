@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
 import { newGameDefaults, PERIOD_MINUTES_MAX } from "@/lib/games/newGameDefaults";
+import { pinPlayedPeriodLength } from "@/lib/games/pinPlayedPeriodLength";
 import type { ActionResult } from "@/lib/types";
 
 async function getAuthedAdmin(teamId: string) {
@@ -138,7 +139,8 @@ export async function setTrackScoring(
  * Per-team override for quarter duration (in seconds). Pass `null` to
  * clear the override and fall back to the age-group default. The form
  * validates sane ranges (1–60 min: union's U17–U18 halves run 35); the
- * DB column has no CHECK.
+ * DB column has no CHECK. Games not yet started take the new length;
+ * games already played keep theirs (pinPlayedPeriodLength).
  */
 export async function setQuarterLengthSeconds(
   teamId: string,
@@ -154,6 +156,13 @@ export async function setQuarterLengthSeconds(
         error: `Period length must be a whole number of minutes between 1 and ${PERIOD_MINUTES_MAX}.`,
       };
     }
+  }
+
+  // Past games keep the length they were played with (UX round 2).
+  try {
+    await pinPlayedPeriodLength(supabase, teamId);
+  } catch (e) {
+    return { success: false, error: (e as Error).message };
   }
 
   const { error: updateError } = await supabase
