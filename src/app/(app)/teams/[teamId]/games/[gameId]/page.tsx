@@ -212,9 +212,12 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
       ? Object.fromEntries(summarySquad.map((p) => [p.id, p.mixed_group ?? null]))
       : undefined;
 
-  // How we played (UX plan 4.4): rules kept and season balance, every sport.
+  // How we played (UX plan 4.4): rules kept and season balance, every
+  // sport. The coach's and managers' only: it names the kids who played
+  // under a fair share, and a parent shouldn't read that about someone
+  // else's child (round 2 usability, 24 Oct 2026).
   const howWePlayed =
-    isFinal && summaryEvents
+    isFinal && summaryEvents && canManageMatch
       ? await buildGameReport(
           supabase,
           {
