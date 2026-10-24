@@ -42,6 +42,11 @@ export interface SoccerSeasonAggregate {
 export function aggregateSoccerSeason(
   games: readonly { id: string }[],
   eventsByGame: ReadonlyMap<string, GameEvent[]> | Readonly<Record<string, GameEvent[]>>,
+  /**
+   * Whether a game kept score (lib/results scoresKept). A game that didn't
+   * counts as played, but not as a result: no draw, no goals against.
+   */
+  keptScore: (gameId: string) => boolean = () => true,
 ): SoccerSeasonAggregate {
   const eventsOf = (id: string): GameEvent[] =>
     (eventsByGame instanceof Map ? eventsByGame.get(id) : (eventsByGame as Record<string, GameEvent[]>)[id]) ?? [];
@@ -54,13 +59,14 @@ export function aggregateSoccerSeason(
     const state = replaySoccerGame(eventsOf(game.id));
     const t = out.totals;
     t.games++;
-    t.goalsFor += state.teamScore.goals;
-    t.goalsAgainst += state.opponentScore.goals;
-    if (state.teamScore.goals > state.opponentScore.goals) t.wins++;
-    else if (state.teamScore.goals < state.opponentScore.goals) t.losses++;
-    else t.draws++;
-
-    out.noScorer.goals += state.teamScore.goals - Object.values(state.playerGoals).reduce((s, n) => s + n, 0);
+    if (keptScore(game.id)) {
+      t.goalsFor += state.teamScore.goals;
+      t.goalsAgainst += state.opponentScore.goals;
+      if (state.teamScore.goals > state.opponentScore.goals) t.wins++;
+      else if (state.teamScore.goals < state.opponentScore.goals) t.losses++;
+      else t.draws++;
+      out.noScorer.goals += state.teamScore.goals - Object.values(state.playerGoals).reduce((s, n) => s + n, 0);
+    }
 
     const ids = new Set([...presentPlayerIds(eventsOf(game.id)), ...Object.keys(state.ms), ...Object.keys(state.playerGoals)]);
     ids.forEach((pid) => {

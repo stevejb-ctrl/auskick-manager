@@ -150,6 +150,28 @@ export function unnamedScoreFromEvents(sport: Sport, events: GameEvent[]): { det
   return null;
 }
 
+/**
+ * Whether a game kept score: its own record (games.playbook_snapshot's
+ * trackScoring, taken at kick-off and kept current if the switch moves
+ * mid-game), not the team's switch today. A season mixing scored and
+ * unscored games had every past result follow the switch: an unscored
+ * hockey game read "0 drew with 0" once scoring went back on, and AFL's
+ * Head-to-head counted it as a draw (UX round 3, 24 Oct 2026). A game
+ * played before that record kept score if it has a score, else goes by
+ * the team's switch.
+ */
+export function scoresKept(
+  sport: Sport,
+  game: { playbook_snapshot?: unknown },
+  teamTrackScoring: boolean,
+  events: GameEvent[],
+): boolean {
+  const recorded = (game.playbook_snapshot as { trackScoring?: unknown } | null | undefined)?.trackScoring;
+  if (typeof recorded === "boolean") return recorded;
+  const score = scoreFromEvents(sport, events);
+  return score.us + score.them > 0 || teamTrackScoring;
+}
+
 export function outcomeOf(score: GameScore): Outcome {
   if (score.us > score.them) return "W";
   if (score.us < score.them) return "L";

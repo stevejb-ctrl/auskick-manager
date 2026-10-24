@@ -132,6 +132,20 @@ export async function setTrackScoring(
     .from("teams")
     .update({ track_scoring: enabled })
     .eq("id", teamId);
+  // A game on now goes with the switch: its record says whether it kept
+  // score, so a later change never rewrites its result (UX round 3).
+  if (!updateError) {
+    const { data: live } = await supabase
+      .from("games")
+      .select("id, playbook_snapshot")
+      .eq("team_id", teamId)
+      .eq("status", "in_progress");
+    for (const g of live ?? []) {
+      const snapshot = g.playbook_snapshot as Record<string, unknown> | null;
+      if (!snapshot) continue;
+      await supabase.from("games").update({ playbook_snapshot: { ...snapshot, trackScoring: enabled } }).eq("id", g.id);
+    }
+  }
 
   if (updateError) return { success: false, error: updateError.message };
 

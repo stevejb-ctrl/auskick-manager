@@ -325,7 +325,9 @@ export function computePositionFit(snapshots: GameSnapshot[]): PositionFitRow[] 
 
 export function computeHeadToHead(
   seasonGames: Game[],
-  snapshots: GameSnapshot[]
+  snapshots: GameSnapshot[],
+  /** Whether a game kept score: one that didn't isn't a result (no draw). */
+  keptScore: (gameId: string) => boolean = () => true,
 ): HeadToHeadRecord[] {
   const snapMap = new Map(snapshots.map((s) => [s.gameId, s]));
 
@@ -344,6 +346,7 @@ export function computeHeadToHead(
   >();
 
   for (const game of seasonGames) {
+    if (!keptScore(game.id)) continue;
     const snap = snapMap.get(game.id);
     const opponent = game.opponent;
 

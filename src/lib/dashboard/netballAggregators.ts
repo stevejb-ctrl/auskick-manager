@@ -373,12 +373,14 @@ export function computeNetballChemistry(
 export function computeNetballHeadToHead(
   games: Game[],
   snapshots: NetballGameSnapshot[],
+  /** Whether a game kept score: one that didn't isn't a result (no draw). */
+  keptScore: (gameId: string) => boolean = () => true,
 ): NetballHeadToHeadRecord[] {
   const byId = new Map(snapshots.map((s) => [s.gameId, s]));
   const byOpp = new Map<string, NetballHeadToHeadRecord>();
   for (const game of games) {
     const snap = byId.get(game.id);
-    if (!snap) continue;
+    if (!snap || !keptScore(game.id)) continue;
     const opp = game.opponent;
     let row = byOpp.get(opp);
     if (!row) {

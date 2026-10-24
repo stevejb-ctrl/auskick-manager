@@ -41,6 +41,11 @@ export interface TouchSeasonAggregate {
 export function aggregateTouchSeason(
   games: readonly { id: string }[],
   eventsByGame: ReadonlyMap<string, GameEvent[]> | Readonly<Record<string, GameEvent[]>>,
+  /**
+   * Whether a game kept score (lib/results scoresKept). A game that didn't
+   * counts as played, but not as a result: no draw, no goals against.
+   */
+  keptScore: (gameId: string) => boolean = () => true,
 ): TouchSeasonAggregate {
   const eventsOf = (id: string): GameEvent[] =>
     (eventsByGame instanceof Map ? eventsByGame.get(id) : (eventsByGame as Record<string, GameEvent[]>)[id]) ?? [];
@@ -53,15 +58,16 @@ export function aggregateTouchSeason(
     const state = replayTouchGame(eventsOf(game.id));
     const t = out.totals;
     t.games++;
-    t.pointsFor += state.teamScore.points;
-    t.pointsAgainst += state.opponentScore.points;
-    if (state.teamScore.points > state.opponentScore.points) t.wins++;
-    else if (state.teamScore.points < state.opponentScore.points) t.losses++;
-    else t.draws++;
-
-    const sum = (byKid: Record<string, number>) => Object.values(byKid).reduce((s, n) => s + n, 0);
-    out.noScorer.tries += state.teamScore.tries - sum(state.playerTries);
-    out.noScorer.points += state.teamScore.points - sum(state.playerPoints);
+    if (keptScore(game.id)) {
+      t.pointsFor += state.teamScore.points;
+      t.pointsAgainst += state.opponentScore.points;
+      if (state.teamScore.points > state.opponentScore.points) t.wins++;
+      else if (state.teamScore.points < state.opponentScore.points) t.losses++;
+      else t.draws++;
+      const sum = (byKid: Record<string, number>) => Object.values(byKid).reduce((s, n) => s + n, 0);
+      out.noScorer.tries += state.teamScore.tries - sum(state.playerTries);
+      out.noScorer.points += state.teamScore.points - sum(state.playerPoints);
+    }
 
     const ids = new Set([...presentPlayerIds(eventsOf(game.id)), ...Object.keys(state.ms), ...Object.keys(state.playerTries)]);
     ids.forEach((pid) => {
