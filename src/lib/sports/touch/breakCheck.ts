@@ -3,8 +3,13 @@
 // Oztag lineup: the lineup's own rules (the lane shape, nobody twice, a
 // mixed team's rule: touch/ruleCheck), then the shared 50% game-time
 // floor over the lanes, or the one Field under Minutes only. Kids who
-// can't play (injured, lent) aren't held to them.
+// can't play (injured, lent) aren't held to them. Subs roll on at any
+// time, so a kid who starts the half on the bench can still play all of
+// it, and a late arrival is held to the time they could play (lib/live/
+// break/floor; round 2 usability, 24 Oct 2026: Suggested benched two
+// kids on 9:08 of 30 and then said they "can't reach 50% now").
 
+import { benchReachMs } from "@/lib/live/break/floor";
 import { checkRules, type RuleCheckItem } from "@/lib/playbook/ruleCheck";
 import { benchOutInTouchLineup } from "@/lib/sports/touch/live";
 import type { TouchLineup } from "@/lib/sports/touch/lineup";
@@ -33,6 +38,8 @@ export interface TouchBreakCheckInput {
   period: number;
   periodMs: number;
   names: Record<string, string>;
+  /** ms each kid couldn't play so far (awayMsSoFar). */
+  awayMs?: Readonly<Record<string, number>>;
 }
 
 export function touchBreakCheck(c: TouchBreakCheckInput): RuleCheckItem[] {
@@ -60,6 +67,8 @@ export function touchBreakCheck(c: TouchBreakCheckInput): RuleCheckItem[] {
       period: c.period,
       periodCount: c.ageGroup.periodCount,
       periodMs: c.periodMs,
+      benchReachMs: benchReachMs(c.periodMs, 0),
+      awayMs: c.awayMs,
       periodWord: "half",
       lineWord: "lane",
       minGameTimePct: 50,

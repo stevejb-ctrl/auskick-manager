@@ -25,6 +25,7 @@ import { getSportConfig } from "@/lib/sports/registry";
 import type { RuleCheckItem } from "@/lib/playbook/ruleCheck";
 import { buildBoard, placesOf, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
+import { awayMsSoFar } from "@/lib/live/break/floor";
 import { rotateGroups } from "@/lib/live/break/rotateGroups";
 import { normalizeTouchLineup, touchLineOf, touchOnField, type TouchLineup } from "@/lib/sports/touch/lineup";
 import { touchBreakCheck } from "@/lib/sports/touch/breakCheck";
@@ -39,7 +40,7 @@ import {
 } from "@/lib/sports/touch/suggest";
 import { benchOutInTouchLineup, placeInTouchLineup, swapInTouchLineup } from "@/lib/sports/touch/live";
 import { TOUCH_LANES, type TouchAgeGroupConfig, type TouchLine, type TouchStrategy } from "@/lib/sports/touch/types";
-import type { Game, LiveAuth, Player } from "@/lib/types";
+import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import type { SportId } from "@/lib/sports/types";
 
 const GROUPS = ["middle", "link", "wing", "field"] as const;
@@ -70,6 +71,8 @@ interface Props {
   ageGroup: TouchAgeGroupConfig;
   /** The game at the break (no open stints). */
   state: TouchGameState;
+  /** The game's events: who arrived late, was hurt or lent, and when. */
+  events: GameEvent[];
   periodMs: number;
   strategy: TouchStrategy;
   prefs?: TouchPrefs;
@@ -90,6 +93,7 @@ export function TouchBreak({
   squad,
   ageGroup,
   state,
+  events,
   periodMs,
   strategy: playStrategy,
   prefs,
@@ -280,6 +284,8 @@ export function TouchBreak({
   const previous = useMemo(() => (previousLineup ? placesOf(stagedOf(previousLineup)) : {}), [previousLineup]);
 
   const names = useMemo(() => Object.fromEntries(squad.map((p) => [p.id, p.full_name])), [squad]);
+  // Time a kid couldn't play (late, hurt, lent) is off their game.
+  const awayMs = useMemo(() => awayMsSoFar(events, () => periodMs, state.currentPeriod), [events, periodMs, state.currentPeriod]);
   const issues = useMemo(() => {
     // The lineup's own rules (the lane shape, nobody twice, the mixed
     // rule), then the shared 50% game-time floor (touch/breakCheck).
@@ -295,6 +301,7 @@ export function TouchBreak({
         period: nextPeriod,
         periodMs,
         names,
+        awayMs,
       });
     return breakIssues({
       lineup: draft,
@@ -306,7 +313,7 @@ export function TouchBreak({
       emptySpots: false,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, sidelinedSet, ageGroup, sideSize, mixed, state, shape, names, nextPeriod, periodMs, config.zones]);
+  }, [draft, sidelinedSet, ageGroup, sideSize, mixed, state, shape, names, nextPeriod, periodMs, awayMs, config.zones]);
 
   const asBreakPlayer = (p: Player): BreakPlayer => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number });
   const players = useMemo(() => new Map(squad.map((p) => [p.id, asBreakPlayer(p)])), [squad]);

@@ -3,8 +3,13 @@
 // lineup. Basketball's engine acts on no catalogue rule yet, so the
 // check is the shared 50% game-time floor, over guards and forwards or
 // the one Court zone under Equal minutes. Kids who can't play (fouled
-// out, injured, lent) aren't held to it.
+// out, injured, lent) aren't held to it. Subs roll on at any time, so a
+// kid who starts the period on the bench can still play all of it, and
+// a late arrival is held to the time they could play (lib/live/break/
+// floor; round 2 usability, 24 Oct 2026: both made Suggested fail its
+// own floor and the coach "Start anyway").
 
+import { benchReachMs } from "@/lib/live/break/floor";
 import { checkRules, type RuleCheckItem } from "@/lib/playbook/ruleCheck";
 import { benchOutInBasketballLineup } from "@/lib/sports/basketball/live";
 import type { BasketballLineup } from "@/lib/sports/basketball/lineup";
@@ -27,6 +32,8 @@ export interface BasketballBreakCheckInput {
   periodCount: number;
   periodMs: number;
   names: Record<string, string>;
+  /** ms each kid couldn't play so far (awayMsSoFar). */
+  awayMs?: Readonly<Record<string, number>>;
 }
 
 export function basketballBreakCheck(c: BasketballBreakCheckInput): RuleCheckItem[] {
@@ -52,6 +59,8 @@ export function basketballBreakCheck(c: BasketballBreakCheckInput): RuleCheckIte
     period: c.period,
     periodCount: c.periodCount,
     periodMs: c.periodMs,
+    benchReachMs: benchReachMs(c.periodMs, 0),
+    awayMs: c.awayMs,
     periodWord: c.periodCount === 4 ? "quarter" : "half",
     lineWord: "line",
     minGameTimePct: 50,

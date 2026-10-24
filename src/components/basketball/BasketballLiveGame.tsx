@@ -697,6 +697,7 @@ export function BasketballLiveGame({
           squad={squad}
           ageGroup={ageGroup}
           state={base}
+          events={events}
           periodMs={periodMs}
           strategy={strategy}
           prefs={prefs}

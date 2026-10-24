@@ -15,6 +15,7 @@
 //     field. The suggester already does it; a coach's edit can undo it.
 //   - A kid marked "not in goal" isn't put there.
 
+import { benchReachMs as reachFrom } from "@/lib/live/break/floor";
 import { checkRules, type RuleCheckItem } from "@/lib/playbook/ruleCheck";
 import { soccerUnitOf, validateSoccerLineup, type SoccerLineup } from "@/lib/sports/soccer/lineup";
 import type { SoccerGameState } from "@/lib/sports/soccer/replay";
@@ -71,8 +72,7 @@ export function soccerBreakCheck(c: SoccerBreakCheckInput): RuleCheckItem[] {
   }
   const lastLineup = c.state.lineup;
   const mode = c.ageGroup.subMode;
-  const firstWindow = mode.kind === "windows" ? soccerSubWindowsMs(mode, c.periodMs)[0] : 0;
-  const benchReachMs = firstWindow === undefined ? 0 : c.periodMs - firstWindow;
+  const benchReachMs = reachFrom(c.periodMs, mode.kind === "windows" ? (soccerSubWindowsMs(mode, c.periodMs)[0] ?? null) : 0);
   items.push(
     ...checkRules({
       onField,

@@ -21,6 +21,7 @@ import { PeriodBreak, type BreakPlayer, type BreakStrategy } from "@/components/
 import { breakConfigFor } from "@/lib/sports/break";
 import { buildBoard, placesOf, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
+import { awayMsSoFar } from "@/lib/live/break/floor";
 import { rotateGroups } from "@/lib/live/break/rotateGroups";
 import { BASKETBALL_POSITION_DEFS } from "@/lib/sports/basketball";
 import { basketballBreakCheck } from "@/lib/sports/basketball/breakCheck";
@@ -39,7 +40,7 @@ import {
 } from "@/lib/sports/basketball/suggest";
 import { benchOutInBasketballLineup, placeInBasketballLineup, swapInBasketballLineup } from "@/lib/sports/basketball/live";
 import type { BasketballAgeGroupConfig, BasketballLine, BasketballStrategy } from "@/lib/sports/basketball/types";
-import type { Game, LiveAuth, Player } from "@/lib/types";
+import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 
 const GROUPS = ["forward", "guard", "court"] as const;
 const POSITION_TAG = Object.fromEntries(BASKETBALL_POSITION_DEFS.map((p) => [p.key, p.label])) as Record<string, string>;
@@ -75,6 +76,8 @@ interface Props {
   ageGroup: BasketballAgeGroupConfig;
   /** The game at the break (no open stints). */
   state: BasketballGameState;
+  /** The game's events: who arrived late, was hurt or lent, and when. */
+  events: GameEvent[];
   periodMs: number;
   strategy: BasketballStrategy;
   prefs?: BasketballPrefs;
@@ -93,6 +96,7 @@ export function BasketballBreak({
   squad,
   ageGroup,
   state,
+  events,
   periodMs,
   strategy: playStrategy,
   prefs,
@@ -277,6 +281,8 @@ export function BasketballBreak({
   const previous = useMemo(() => (previousLineup ? placesOf(stagedOf(previousLineup)) : {}), [previousLineup]);
 
   const names = useMemo(() => Object.fromEntries(squad.map((p) => [p.id, p.full_name])), [squad]);
+  // Time a kid couldn't play (late, hurt, lent) is off their game.
+  const awayMs = useMemo(() => awayMsSoFar(events, () => periodMs, state.currentPeriod), [events, periodMs, state.currentPeriod]);
   const issues = useMemo(() => {
     // Basketball's engine acts on no catalogue rule yet: the check is the
     // 50% game-time floor (basketball/breakCheck).
@@ -290,6 +296,7 @@ export function BasketballBreak({
         periodCount: ageGroup.periodCount,
         periodMs,
         names,
+        awayMs,
       });
     return breakIssues({
       lineup: draft,
@@ -299,7 +306,7 @@ export function BasketballBreak({
       sidelined: sidelinedSet,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, sidelinedSet, state, shape, names, nextPeriod, ageGroup.periodCount, periodMs, config.zones]);
+  }, [draft, sidelinedSet, state, shape, names, nextPeriod, ageGroup.periodCount, periodMs, awayMs, config.zones]);
 
   const asBreakPlayer = (p: Player): BreakPlayer => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number });
   const players = useMemo(() => new Map(squad.map((p) => [p.id, asBreakPlayer(p)])), [squad]);

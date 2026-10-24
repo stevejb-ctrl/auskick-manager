@@ -702,6 +702,7 @@ export function TouchLiveGame({
           squad={squad}
           ageGroup={ageGroup}
           state={base}
+          events={events}
           periodMs={periodMs}
           strategy={strategy}
           prefs={prefs}
