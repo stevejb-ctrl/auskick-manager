@@ -35,9 +35,11 @@ import type { Sport, TeamRole } from "@/lib/types";
 
 interface SettingsPageProps {
   params: { teamId: string };
+  /** ?invite=1: "Invite a manager" opens People's invite form. */
+  searchParams?: { invite?: string };
 }
 
-export default async function SettingsPage({ params }: SettingsPageProps) {
+export default async function SettingsPage({ params, searchParams }: SettingsPageProps) {
   const supabase = createClient();
 
   const {
@@ -104,7 +106,8 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
     .map((m) => ({
       user_id: m.user_id,
       role: m.role,
-      full_name: m.profiles?.full_name ?? null,
+      // Email sign-ups have a blank name; the row falls back to the email.
+      full_name: m.profiles?.full_name?.trim() || null,
       email: m.profiles?.email ?? null,
       isSelf: !!user && m.user_id === user.id,
     }))
@@ -225,13 +228,14 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         )}
       </SettingsSection>
 
-      <SettingsSection title="People">
+      <SettingsSection title="People" anchor="people">
         <TeamMembersSettings
           teamId={params.teamId}
           isAdmin={isAdmin}
           members={members}
           invites={invites}
           joinCode={joinCode}
+          openInvite={searchParams?.invite === "1"}
         />
       </SettingsSection>
 

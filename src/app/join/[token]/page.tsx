@@ -4,6 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { AcceptInviteButton } from "./AcceptInviteButton";
 import { ROLE_LABEL, ROLE_SUMMARY } from "@/lib/roles";
+import { INVITE_UNAVAILABLE, inviteState } from "@/lib/invites/inviteState";
+import { hasDisplayName } from "@/lib/members/displayName";
 import type { TeamInvite } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -25,12 +27,6 @@ export default async function JoinPage({ params }: JoinPageProps) {
   if (!invite) return <InviteShell>{renderBadState("This invite link isn't valid.")}</InviteShell>;
   const inv = invite as TeamInvite;
 
-  if (inv.revoked_at)
-    return <InviteShell>{renderBadState("This invite has been revoked.")}</InviteShell>;
-
-  if (new Date(inv.expires_at) < new Date())
-    return <InviteShell>{renderBadState("This invite has expired.")}</InviteShell>;
-
   const { data: team } = await admin
     .from("teams")
     .select("id, name")
@@ -44,34 +40,15 @@ export default async function JoinPage({ params }: JoinPageProps) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    const nextPath = `/join/${params.token}`;
-    return (
-      <InviteShell>
-        <InviteHeader teamName={teamName} role={inv.role} />
-        <p className="text-sm text-ink-dim">
-          Sign in or create an account to join this team.
-        </p>
-        {/* Unified email-first auth — /login serves both new and
-            returning users via Supabase signInWithOtp, so a single
-            CTA covers both cases. */}
-        <Link
-          href={`/login?next=${encodeURIComponent(nextPath)}`}
-          className="inline-flex w-full items-center justify-center rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
-        >
-          Continue with email
-        </Link>
-      </InviteShell>
-    );
-  }
-
-  // Already a member?
-  const { data: existing } = await admin
-    .from("team_memberships")
-    .select("role")
-    .eq("team_id", inv.team_id)
-    .eq("user_id", user.id)
-    .maybeSingle();
+  // Already a member? (Whatever the invite's state: they're in.)
+  const { data: existing } = user
+    ? await admin
+        .from("team_memberships")
+        .select("role")
+        .eq("team_id", inv.team_id)
+        .eq("user_id", user.id)
+        .maybeSingle()
+    : { data: null };
 
   if (existing) {
     return (
@@ -90,10 +67,45 @@ export default async function JoinPage({ params }: JoinPageProps) {
     );
   }
 
+  // Used, cancelled or expired: say so before any button. An invite is
+  // one person's, once (lib/invites/inviteState).
+  const state = inviteState(inv);
+  if (state !== "open") {
+    return <InviteShell>{renderBadState(INVITE_UNAVAILABLE[state], !!user)}</InviteShell>;
+  }
+
+  if (!user) {
+    const nextPath = `/join/${params.token}`;
+    return (
+      <InviteShell>
+        <InviteHeader teamName={teamName} role={inv.role} />
+        <p className="text-sm text-ink-dim">
+          Sign in or create an account to join this team. This link is just
+          for you: once you&rsquo;ve joined, it stops working.
+        </p>
+        {/* Unified email-first auth — /login serves both new and
+            returning users via Supabase signInWithOtp, so a single
+            CTA covers both cases. */}
+        <Link
+          href={`/login?next=${encodeURIComponent(nextPath)}`}
+          className="inline-flex w-full items-center justify-center rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
+        >
+          Continue with email
+        </Link>
+      </InviteShell>
+    );
+  }
+
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("full_name")
+    .eq("id", user.id)
+    .maybeSingle();
+
   return (
     <InviteShell>
       <InviteHeader teamName={teamName} role={inv.role} />
-      <AcceptInviteButton token={params.token} />
+      <AcceptInviteButton token={params.token} needsName={!hasDisplayName(profile?.full_name)} />
     </InviteShell>
   );
 }
@@ -128,7 +140,7 @@ function InviteHeader({
   );
 }
 
-function renderBadState(message: string) {
+function renderBadState(message: string, signedIn = true) {
   return (
     <div className="space-y-3">
       <p className="text-xs font-bold uppercase tracking-micro text-ink-mute">
@@ -136,10 +148,10 @@ function renderBadState(message: string) {
       </p>
       <p className="text-sm text-ink">{message}</p>
       <Link
-        href="/dashboard"
+        href={signedIn ? "/dashboard" : "/"}
         className="inline-flex items-center text-sm font-medium text-brand-700 transition-colors duration-fast ease-out-quart hover:text-brand-800"
       >
-        Go to dashboard →
+        {signedIn ? "Go to dashboard →" : "Siren home →"}
       </Link>
     </div>
   );
