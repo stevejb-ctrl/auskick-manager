@@ -2,11 +2,15 @@
 // UX audit, 23 Oct 2026 (league P1): season balance dropped every
 // minute played in a vest. A kid in the FR vest for a whole half showed
 // Fwds 0 / Backs 0: the rugby line time put vest time in "centre", a
-// key no line reads. The First Receiver now counts as a back and the
-// Dummy Half as a forward — the vest spots' lines on the field
-// (LeagueField: the FR spot is a back's, the DH spot a forward's).
-// Stored rollups from before the fix (with a "centre" row) are
-// rebuilt from the game's events.
+// key no line reads. Stored rollups from before the fix (with a
+// "centre" row) are rebuilt from the game's events.
+//
+// Round 2 usability, 24 Oct 2026 (league P2): that fix filed the First
+// Receiver as a back and the Dummy Half as a forward whatever line the
+// kid stood in, while the field (arrangeLeagueField) draws each vest
+// wearer in their own line. Jayden wore FR all of H1 in the forwards and
+// the stats said Fwds 0 / Backs 20. Vest time now counts in the line the
+// lineup has the kid in, as the field shows it.
 
 import { describe, expect, it } from "vitest";
 import type { GameEvent, GameEventType } from "@/lib/types";
@@ -41,15 +45,15 @@ function game(gameId = "g1"): GameEvent[] {
 }
 
 describe("rugby line time with vests", () => {
-  it("credits the FR vest to the backs and the DH vest to the forwards", () => {
+  it("credits a vest's time to the line the kid is in: FR in the forwards, DH in the backs", () => {
     const lines = gameTimeByUnit("rugby_league", game(), "line");
-    expect(lines.F1).toEqual({ backs: 20 * MIN });
-    expect(lines.B1).toEqual({ forwards: 20 * MIN });
+    expect(lines.F1).toEqual({ forwards: 20 * MIN });
+    expect(lines.B1).toEqual({ backs: 20 * MIN });
     expect(lines.F2).toEqual({ forwards: 20 * MIN });
     expect(lines.B2).toEqual({ backs: 20 * MIN });
   });
 
-  it("a vest handed on mid-half splits the time at the hand-off", () => {
+  it("a vest handed on mid-half doesn't move anyone's line time", () => {
     const events = [
       ...game().slice(0, 4),
       // F2 takes the FR vest from F1 at 8:00 (a replacement).
@@ -57,13 +61,13 @@ describe("rugby line time with vests", () => {
       ev("quarter_end", { quarter: 1, elapsed_ms: 20 * MIN }),
     ];
     const lines = gameTimeByUnit("rugby_league", events, "line");
-    expect(lines.F1).toEqual({ backs: 8 * MIN, forwards: 12 * MIN });
-    expect(lines.F2).toEqual({ forwards: 8 * MIN, backs: 12 * MIN });
+    expect(lines.F1).toEqual({ forwards: 20 * MIN });
+    expect(lines.F2).toEqual({ forwards: 20 * MIN });
   });
 
   it("season balance sums it game by game; nothing lands in an unread key", () => {
     const season = seasonTimeByUnit("rugby_league", [...game("g1"), ...game("g2")], "line");
-    expect(season.F1).toEqual({ backs: 40 * MIN });
+    expect(season.F1).toEqual({ forwards: 40 * MIN });
     for (const byLine of Object.values(season)) expect(Object.keys(byLine).every((k) => k === "forwards" || k === "backs")).toBe(true);
   });
 

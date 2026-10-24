@@ -7,9 +7,10 @@
 //     wore the vests. The field now lays its spots out from the
 //     lineup's own lines.
 //   - Season balance lost all vest time: a kid who wore FR or DH for a
-//     half showed 0 in both lines on the stats page. The First Receiver
-//     counts as a back and the Dummy Half as a forward, the vest spots'
-//     own lines on the field.
+//     half showed 0 in both lines on the stats page. Vest time counts in
+//     the line the kid stood in, where the field draws them (round 2
+//     usability, 24 Oct 2026: it went to the vest's nominal line, FR a
+//     back and DH a forward, which the field contradicted).
 
 import { test, expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -74,7 +75,7 @@ test("league U10: with both vests on forwards, every back stands in the backs", 
   for (const pid of forwards.slice(2)) await expect(inLine("forwards", pid), `forward ${pid}`).toHaveCount(1);
 });
 
-test("league stats: a half in the FR vest counts as backs, a half in the DH vest as forwards", async ({ page }) => {
+test("league stats: a half in a vest counts in the line the kid stood in", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await ownerOf(admin);
   const team = await makeTeam(admin, { ownerId, sport: "rugby_league", ageGroup: "U10", name: `RL-VESTTIME ${Date.now()}` });
@@ -120,10 +121,10 @@ test("league stats: a half in the FR vest counts as backs, a half in the DH vest
   await expect(table.getByRole("columnheader")).toHaveText(["Player", /fwds/i, /backs/i]);
   const cells = (pid: string) =>
     table.getByRole("row", { name: new RegExp(`^${players.find((p) => p.id === pid)!.full_name}\\b`) }).getByRole("cell");
-  // The FR wearer (a forward): the half counts with the backs.
-  await expect(cells(fr)).toHaveText([/^0/, /^20/]);
-  // The DH wearer (a back): the half counts with the forwards.
-  await expect(cells(dh)).toHaveText([/^20/, /^0/]);
+  // The FR wearer (a forward): the half counts with the forwards.
+  await expect(cells(fr)).toHaveText([/^20/, /^0/]);
+  // The DH wearer (a back): the half counts with the backs.
+  await expect(cells(dh)).toHaveText([/^0/, /^20/]);
   // The stale rollup was rebuilt from the events: no centre row left.
   await expect
     .poll(async () => {

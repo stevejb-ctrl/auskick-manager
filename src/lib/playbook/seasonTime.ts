@@ -146,11 +146,12 @@ export function gameTimeByUnit(
     return out;
   }
   if (!isRugby(sport)) return noSportBranch(sport, "gameTimeByUnit");
-  // Rugby: forwards / backs, a vest's time in its spot's line — the
-  // First Receiver a back, the Dummy Half a forward (audit, 23 Oct
-  // 2026: it went to a "centre" no line reads, so a kid in a vest all
-  // game had no season time). Named positions come from the slots
-  // recorded on each lineup (chunk 5.7).
+  // Rugby: forwards / backs, a vest's time in the line the kid stood in,
+  // as the field draws them (audit, 23 Oct 2026: it went to a "centre"
+  // no line reads, so a kid in a vest all game had no season time; round
+  // 2, 24 Oct: then to the vest's nominal line, which the field
+  // contradicted). Named positions come from the slots recorded on each
+  // lineup (chunk 5.7).
   if (unit === "position") {
     for (const [pid, byKey] of Object.entries(playerSlotMsOnField(events))) {
       for (const [key, ms] of Object.entries(byKey)) add(out, pid, key, ms);
