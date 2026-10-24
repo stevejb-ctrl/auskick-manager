@@ -39,12 +39,11 @@ test.beforeEach(async ({ page }) => {
  * A game in its first period with 30 s subs (the database's least) on
  * a 6× clock, so a sub falls due within 5 s of arriving.
  *
- * Union counts from the period start, so its sub is already due. AFL's
- * countdown sits on a grid from the period start, and a fresh mount
- * floors onto it (subIntervalStartFloor), so its next sub is up to one
- * interval away and never already due. At 1× that was up to 30 s, and
- * from 40 s in it fell due at 60 s, 20 s after setup: the AFL tests'
- * 20 s waits only caught it when the page took a while to load.
+ * Every sport counts from the last planned sub, or the period start, so
+ * the sub is already due. (AFL's used to floor the clock onto the
+ * interval grid on mount, so its next sub was up to one interval away,
+ * and the AFL tests' 20 s waits only caught it when the page took a
+ * while to load. It reads the events' anchor now: round 2, 24 Oct 2026.)
  */
 async function subDueGame(sport: "afl" | "rugby_union" | "basketball" | "soccer", secondsIn = 10) {
   const admin = createAdminClient();
