@@ -10,6 +10,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ActionResult, LiveAuth } from "@/lib/types";
 import { periodStateOf, periodWriteVerdict, type PeriodVerdict, type PeriodWord, type PeriodWrite } from "@/lib/live/periodGuard";
 
+export { periodWordOf } from "@/lib/live/periodGuard";
+
 const PERIOD_EVENT_TYPES = ["lineup_set", "quarter_start", "quarter_end", "game_finalised"];
 
 /**
@@ -45,11 +47,6 @@ export function revalidateLivePage(auth: LiveAuth, teamId: string, gameId: strin
 export function staleRefusal(auth: LiveAuth, teamId: string, gameId: string, message: string): ActionResult {
   revalidateLivePage(auth, teamId, gameId);
   return { success: false, error: message, rejected: true, stale: true };
-}
-
-/** A period word from an age group's (or sport's) own label. */
-export function periodWordOf(label: string | null | undefined, fallback: PeriodWord = "quarter"): PeriodWord {
-  return label === "half" || label === "period" || label === "quarter" ? label : fallback;
 }
 
 /** The game's scores and undos in the order they landed, for undoTarget. */

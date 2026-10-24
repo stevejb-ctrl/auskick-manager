@@ -38,6 +38,7 @@ import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
 import { hapticTap, hapticSiren } from "@/lib/haptics";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
+import { RunnerAllDone } from "@/components/games/RunnerAllDone";
 import { WalkthroughOffer } from "@/components/live/WalkthroughOffer";
 import { ClockMenu } from "@/components/live/ClockMenu";
 
@@ -1707,15 +1708,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           roleSheet={roleSheet}
           teamAllowMidQuarterSubs={teamAllowMidQuarterSubs}
           gameAllowMidQuarterSubs={gameAllowMidQuarterSubs}
-          // "Back to availability" breadcrumb — only meaningful for
-          // the team-auth path (game detail page exists). Token-auth
-          // (share runner) doesn't have a netball flow yet, so the
-          // link is hidden in that case.
-          // The game-day panel replaces the "Update availability" link.
+          // "Update availability": the coach's game page, or the runner's
+          // who's-here list (UX round 2: a runner couldn't mark a no-show).
+          // The game-day panel replaces the link for the coach.
           availabilityHref={
-            auth.kind === "team" && !availabilityPanel
-              ? `/teams/${auth.teamId}/games/${game.id}/availability`
-              : undefined
+            auth.kind === "token"
+              ? `/run/${auth.token}?step=availability`
+              : !availabilityPanel
+                ? `/teams/${auth.teamId}/games/${game.id}/availability`
+                : undefined
           }
           availabilityPanel={availabilityPanel}
           gamePlan={gamePlan}
@@ -1833,13 +1834,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         )}
         {auth.kind === "token" && (
           <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
-            <div className="mx-auto max-w-4xl text-center">
-              <p className="text-sm font-semibold text-ink">
-                All done — thanks for running today&apos;s game!
-              </p>
-              <p className="mt-0.5 text-xs text-ink-dim">
-                Everything&apos;s saved. You can close this tab.
-              </p>
+            <div className="mx-auto max-w-4xl">
+              <RunnerAllDone />
             </div>
           </div>
         )}

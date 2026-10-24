@@ -14,6 +14,11 @@
 
 export type PeriodWord = "quarter" | "half" | "period";
 
+/** A period word from an age group's (or sport's) own label. */
+export function periodWordOf(label: string | null | undefined, fallback: PeriodWord = "quarter"): PeriodWord {
+  return label === "half" || label === "period" || label === "quarter" ? label : fallback;
+}
+
 /** A period's short name, as the Start buttons say it: Q2, H1, P3. */
 export function periodShort(word: PeriodWord, period: number): string {
   const letter = word === "half" ? "H" : word === "period" ? "P" : "Q";
