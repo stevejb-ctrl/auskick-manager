@@ -41,6 +41,13 @@ interface PendingSwap {
   /** The spot in the sport's words ("Defence", "Guards"). */
   spotName: string;
   onConfirm: () => void;
+  /**
+   * The rule this sub breaks (touch's boys' cap), on the same confirm:
+   * its buttons then read "Swap anyway" and "Pick someone else".
+   */
+  ruleWarning?: string | null;
+  /** After Cancel ("Pick someone else": the kid tapped first stays picked). */
+  onCancel?: () => void;
 }
 
 export interface LiveChrome {
@@ -148,13 +155,18 @@ export function useLiveChrome(opts: {
         on={pendingSwap.onId}
         spotName={pendingSwap.spotName}
         playersById={playersById}
+        ruleWarning={pendingSwap.ruleWarning ?? null}
         onConfirm={() => {
           const swap = pendingSwap;
           setPendingSwap(null);
           swap.onConfirm();
           swapped(swap.offId, swap.onId);
         }}
-        onCancel={() => setPendingSwap(null)}
+        onCancel={() => {
+          const swap = pendingSwap;
+          setPendingSwap(null);
+          swap.onCancel?.();
+        }}
       />
     ) : null,
     firstName,
