@@ -71,7 +71,8 @@ export interface TouchMixed {
 
 /** A suggested sub: the shape of the `swap` event it becomes. */
 export interface TouchSub {
-  off_player_id: string;
+  /** Null: into an empty place, nobody off. */
+  off_player_id: string | null;
   on_player_id: string;
   line: TouchLine;
 }
@@ -300,6 +301,11 @@ export interface SuggestTouchSubsInput {
    * or omitted = none.
    */
   restMs?: number;
+  /**
+   * Places in each lane on the field now (the live screen's): any left
+   * empty (a kid hurt with nobody on) are filled first.
+   */
+  spots?: Partial<Record<TouchLine, number>>;
   /** At most this many subs in one batch; omitted = as many as even time. */
   maxSubs?: number;
 }
@@ -339,6 +345,7 @@ function touchRollingInput(input: SuggestTouchSubsInput, lu: TouchLineup): Rolli
     justOn: (p) => guard && nowMs - (state.lastSubbedOnMs[p] ?? 0) < minStint,
     justOff: (p) => guard && state.lastSubbedOffMs[p] !== undefined && nowMs - state.lastSubbedOffMs[p] < minStint,
     resting: (p) => (input.restMs ?? 0) > 0 && state.lastSubbedOffMs[p] !== undefined && nowMs - state.lastSubbedOffMs[p] < (input.restMs ?? 0),
+    open: TOUCH_LINES.flatMap((l) => Array.from({ length: Math.max(0, (input.spots?.[l] ?? 0) - lu.lines[l].length) }, () => l)),
     maxSubs: input.maxSubs,
   };
 }
@@ -402,7 +409,9 @@ export function suggestTouchSubs(input: SuggestTouchSubsInput): TouchSub[] {
     const score = laneScore(strategy, prefs, season, (pid, lane) => state.ms[pid]?.[lane] ?? 0, periodMs);
     const pools = Array.from(new Set(subs.slice(fixCount).map((s) => poolOf(s.on))));
     for (const pool of pools) {
-      const idx = subs.map((s, i) => (i >= fixCount && poolOf(s.on) === pool && !laneHold(s.on) ? i : -1)).filter((i) => i >= 0);
+      const idx = subs
+        .map((s, i) => (i >= fixCount && s.off !== null && poolOf(s.on) === pool && !laneHold(s.on) ? i : -1))
+        .filter((i) => i >= 0);
       if (idx.length < 2) continue;
       const ons = idx.map((i) => subs[i].on);
       const lanes = idx.map((i) => subs[i].line);

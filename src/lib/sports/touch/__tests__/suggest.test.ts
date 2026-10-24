@@ -115,7 +115,7 @@ describe("suggestTouchSubs", () => {
     g.start(1);
     const state = replayTouchGame(g.events, { nowMs: 5 * MIN });
     const subs = suggestTouchSubs({ state, nowMs: 5 * MIN, strategy: "minutes", mixed });
-    for (const s of subs) expect(groupOf(s.on_player_id)).toBe(groupOf(s.off_player_id));
+    for (const s of subs) expect(groupOf(s.on_player_id)).toBe(groupOf(s.off_player_id!));
     expect(subs.map((s) => s.on_player_id)).toEqual(["g", "h", "i", "j"]);
   });
 

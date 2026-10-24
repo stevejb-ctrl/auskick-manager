@@ -31,6 +31,7 @@ import {
   type SoccerKeeperStrategy,
   type SoccerLine,
   type SoccerSubMode,
+  type SoccerUnit,
 } from "@/lib/sports/soccer/types";
 
 /** Season balance, as How we play sets it. */
@@ -45,9 +46,11 @@ export interface SoccerSeasonBalance {
 
 /** A suggested sub: the shape of the `swap` event it becomes. */
 export interface SoccerSub {
-  off_player_id: string;
+  /** Null: into an empty spot (the goal, or one on the field), nobody off. */
+  off_player_id: string | null;
   on_player_id: string;
-  line: SoccerLine;
+  /** The line the kid comes on in; "gk" only to fill an empty goal. */
+  line: SoccerUnit;
 }
 
 const seasonTotal = (season: SoccerSeasonBalance | undefined, pid: string) =>
@@ -229,6 +232,11 @@ export interface SuggestSoccerSubInput {
   restMs?: number;
   /** The kids' roles: a kid comes on only for a line they play. */
   prefs?: SoccerKeeperPrefs;
+  /**
+   * The shape on the field now (the live screen's): whether it plays a
+   * keeper, and the places in each line. Any left empty are filled first.
+   */
+  spots?: { keeper: boolean; lines: Partial<Record<SoccerLine, number>> };
 }
 
 /** Who may come on, who may go off, and how long each has played. */
@@ -307,7 +315,11 @@ export function soccerSubWindowsMs(mode: SoccerSubMode, periodMs: number, clockM
 }
 
 /**
- * A sub window's batch: the bench, least time first, on for the outfield
+ * A sub window's batch: empty spots first, nobody off (round 3 edge
+ * cases, 24 Oct 2026: hockey's keeper was hurt with nobody to replace
+ * them, and the card offered only outfield swaps with the goal empty) —
+ * the goal before the field, a keen keeper first, never a kid marked
+ * "not in goal". Then the bench, least time first, on for the outfield
  * kids with the most, while each sub evens their time. Windows are the
  * only time to sub, so no stint guard.
  */
@@ -317,7 +329,28 @@ export function suggestSoccerWindowBatch(input: Omit<SuggestSoccerSubInput, "min
   const { lu, bench, field, game, zoneHold } = pools;
   const used = new Set<string>();
   const subs: SoccerSub[] = [];
+  const filled = new Set<string>();
+  if (input.spots?.keeper && !lu.keeper) {
+    const keen = (p: string) => (input.prefs?.keenKeepers?.includes(p) || input.prefs?.namedKeepers?.includes(p) ? 0 : 1);
+    const keeper = sortBy(
+      bench.filter((p) => !zoneHold(p) && !input.prefs?.notInGoal?.includes(p)),
+      (p) => [keen(p), game(p)],
+    )[0];
+    if (keeper) {
+      filled.add(keeper);
+      subs.push({ off_player_id: null, on_player_id: keeper, line: "gk" });
+    }
+  }
+  for (const line of SOCCER_LINES) {
+    for (let open = (input.spots?.lines[line] ?? 0) - lu.lines[line].length; open > 0; open--) {
+      const on = bench.find((p) => !filled.has(p) && (!zoneHold(p) || zoneHold(p) === line) && (line === "field" || playsLine(input.prefs, p, line)));
+      if (!on) break;
+      filled.add(on);
+      subs.push({ off_player_id: null, on_player_id: on, line });
+    }
+  }
   for (const on of bench) {
+    if (filled.has(on)) continue;
     const only = zoneHold(on);
     const off = field.find((p) => !used.has(p) && (!only || soccerUnitOf(lu, p) === only) && takesPlace(lu, input.prefs, on, p));
     if (!off || !(game(on) < game(off))) continue;

@@ -4,10 +4,12 @@
 // League and union's upcoming rotation: the shared NextSubCard (AFL
 // SwapCard's shape) with each pair labelled forward or back, or by the
 // spot the kid coming on takes with named positions ("HK2 Tevita →
-// Leo"; UX audit, 23 Oct 2026).
+// Leo"; UX audit, 23 Oct 2026). Empty spots on a short side come first,
+// a bench kid on with nobody off (round 3 edge cases, 24 Oct 2026).
 
 import type { Player } from "@/lib/types";
 import { NextSubCard } from "@/components/live/NextSubCard";
+import type { RugbyFill } from "@/lib/sports/rugby/fills";
 
 interface LeagueSwap {
   off: { playerId: string; msOnField: number };
@@ -20,6 +22,10 @@ interface LeagueSwap {
 interface LeagueNextSubCardProps {
   /** Ordered list of suggested swaps — longest-on-bench first. */
   suggestions: LeagueSwap[];
+  /** Empty spots to fill first, nobody off. */
+  fills?: RugbyFill[];
+  /** Fill one empty spot. */
+  onApplyFill?: (fill: RugbyFill) => void;
   /** ms remaining until the next sub-due moment. Null when timer not running. */
   msUntilDue: number | null;
   /** Full sub interval ms — sizes the progress ring. */
@@ -47,6 +53,8 @@ const ZONE_COLOR: Record<"forward" | "back", string> = {
 
 export function LeagueNextSubCard({
   suggestions,
+  fills = [],
+  onApplyFill,
   msUntilDue,
   subIntervalMs,
   due,
@@ -57,17 +65,24 @@ export function LeagueNextSubCard({
 }: LeagueNextSubCardProps) {
   return (
     <NextSubCard
-      pairs={suggestions.map((s) => ({
-        offId: s.off.playerId,
-        onId: s.on.playerId,
-        label: s.position?.label ?? ZONE_LABEL[s.zone],
-        labelClass: ZONE_COLOR[s.zone],
-      }))}
+      pairs={[
+        ...fills.map((f) => ({ offId: null, onId: f.playerId, label: ZONE_LABEL[f.zone], labelClass: ZONE_COLOR[f.zone] })),
+        ...suggestions.map((s) => ({
+          offId: s.off.playerId,
+          onId: s.on.playerId,
+          label: s.position?.label ?? ZONE_LABEL[s.zone],
+          labelClass: ZONE_COLOR[s.zone],
+        })),
+      ]}
       msUntilDue={msUntilDue}
       subIntervalMs={subIntervalMs}
       due={due}
       onApplyAll={onApplyAll}
-      onApplyOne={onApplyOne ? (i) => onApplyOne(suggestions[i]) : undefined}
+      onApplyOne={
+        onApplyOne
+          ? (i) => (i < fills.length ? onApplyFill?.(fills[i]) : onApplyOne(suggestions[i - fills.length]))
+          : undefined
+      }
       pending={pending}
       playerById={playerById}
       pairTestIdPrefix="league-swap-pair"

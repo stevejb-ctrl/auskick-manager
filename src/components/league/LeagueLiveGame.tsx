@@ -122,6 +122,8 @@ import {
   withLeagueSlots,
 } from "@/lib/sports/rugby_league/engine";
 import { linePositionOrder } from "@/lib/sports/rugby/fieldPositions";
+import { rugbyFills, type RugbyFill } from "@/lib/sports/rugby/fills";
+import { rugbyForwards } from "@/lib/sports/rugby/lines";
 import { Modal } from "@/components/ui/Modal";
 import { periodLabels } from "@/lib/sports";
 import { seasonLoanMinutes } from "@/lib/fairness";
@@ -759,7 +761,20 @@ export function LeagueLiveGame({
     }),
     [ageGroup, periodSeconds, leaguePlaybook, subIntervalMs],
   );
-  const nextSubSuggestions = useMemo(() => {
+  // A short side with a kid on the bench who can play: the empty spots
+  // are the card's first suggestions, nobody off (rugby/fills; round 3
+  // edge cases, 24 Oct 2026).
+  const fillSuggestions = useMemo(() => {
+    if (state.currentQuarter < 1 || state.quarterEnded || state.finalised || !lineup) return [];
+    return rugbyFills({
+      lineup,
+      bench: swappableBench.map((p) => p.id),
+      onFieldSize: game.on_field_size,
+      forwards: rugbyForwards(ageGroup, game.on_field_size),
+      msByPlayer: totalMsByPlayer,
+    });
+  }, [state.currentQuarter, state.quarterEnded, state.finalised, lineup, swappableBench, game.on_field_size, ageGroup, totalMsByPlayer]);
+  const swapSuggestions = useMemo(() => {
     if (state.currentQuarter < 1 || state.quarterEnded || state.finalised) {
       return [];
     }
@@ -791,6 +806,11 @@ export function LeagueLiveGame({
     leaguePlaybook,
     subLaws,
   ]);
+  // A kid filling an empty spot isn't also swapped on.
+  const nextSubSuggestions = useMemo(() => {
+    const filling = new Set(fillSuggestions.map((f) => f.playerId));
+    return swapSuggestions.filter((s) => !filling.has(s.on.playerId));
+  }, [swapSuggestions, fillSuggestions]);
 
   // ── Plan-NEXT-period (F2 / ROTPLAN-02) ───────────────────────
   // RL has no separate break component — the q-break is an inline
@@ -1112,11 +1132,26 @@ export function LeagueLiveGame({
    * re-run the suggester between them — the snapshot the coach saw on
    * screen is what gets executed.
    */
+  /** Bench kids on into empty spots, nobody off: one lineup for them all. */
+  function fillSpots(fills: readonly RugbyFill[]) {
+    if (!lineup || fills.length === 0) return;
+    const on = new Set(fills.map((f) => f.playerId));
+    saveLineup({
+      forwards: [...lineup.forwards, ...fills.filter((f) => f.zone === "forward").map((f) => f.playerId)],
+      backs: [...lineup.backs, ...fills.filter((f) => f.zone === "back").map((f) => f.playerId)],
+      bench: lineup.bench.filter((id) => !on.has(id)),
+    });
+  }
+
   function handleApplyAllSubs() {
-    if (nextSubSuggestions.length === 0) return;
+    const made = fillSuggestions.length + nextSubSuggestions.length;
+    if (made === 0) return;
+    // The fills first (a whole lineup), then the swaps on top of it.
+    fillSpots(fillSuggestions);
     for (const swap of nextSubSuggestions) sub(swap.off.playerId, swap.on.playerId);
-    if (nextSubSuggestions.length === 1) chrome.swapped(nextSubSuggestions[0].off.playerId, nextSubSuggestions[0].on.playerId);
-    else chrome.showToast(`${nextSubSuggestions.length} subs made`);
+    if (made === 1 && fillSuggestions.length === 1) chrome.swapped(null, fillSuggestions[0].playerId);
+    else if (made === 1) chrome.swapped(nextSubSuggestions[0].off.playerId, nextSubSuggestions[0].on.playerId);
+    else chrome.showToast(`${made} subs made`);
     handleClearSelection();
   }
 
@@ -1602,7 +1637,7 @@ export function LeagueLiveGame({
         // has pairs (SubDue.tsx); the banner speaks only for a due sub
         // with nothing to suggest.
         banner={
-          subDueShowing && subDueBannerShows(true, isPeriodActive ? nextSubSuggestions.length : 0) ? (
+          subDueShowing && subDueBannerShows(true, isPeriodActive ? nextSubSuggestions.length + fillSuggestions.length : 0) ? (
             <SubDueBanner onAcknowledge={() => setSubAckedAtBaseMs(lastSwapOrPeriodElapsed)} />
           ) : null
         }
@@ -1656,9 +1691,15 @@ export function LeagueLiveGame({
       {/* Next-sub indicator — mirrors AFL's SwapCard. Renders the
           full bench rotation (one swap per bench player) with
           "Do all N swaps" so the whole bench cycles in one tap. */}
-      {isPeriodActive && nextSubSuggestions.length > 0 && (
+      {isPeriodActive && (nextSubSuggestions.length > 0 || fillSuggestions.length > 0) && (
         <LeagueNextSubCard
           suggestions={nextSubSuggestions}
+          fills={fillSuggestions}
+          onApplyFill={(fill) => {
+            fillSpots([fill]);
+            chrome.swapped(null, fill.playerId);
+            handleClearSelection();
+          }}
           msUntilDue={msUntilDue}
           subIntervalMs={subIntervalMs}
           due={subIsDue}

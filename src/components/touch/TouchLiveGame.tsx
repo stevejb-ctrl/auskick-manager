@@ -323,8 +323,9 @@ export function TouchLiveGame({
   const msUntilDue = subDue.msUntilDue;
   const nextSubs = useMemo(() => {
     if (!isPeriodActive) return [];
-    // A kid who goes off rests a sub interval before coming back on.
-    const opts = { strategy, prefs, season, mixed, restMs: (subIntervalSeconds ?? 0) * 1000 };
+    // A kid who goes off rests a sub interval before coming back on; an
+    // empty place (a kid hurt with nobody on) is filled first.
+    const opts = { strategy, prefs, season, mixed, restMs: (subIntervalSeconds ?? 0) * 1000, spots: lineCaps };
     const now = suggestTouchSubs({ state, nowMs: absNowMs, ...opts });
     if (now.length > 0 || msUntilDue === null || msUntilDue <= 0) return now;
     // Nothing evens time yet, so show the subs due at the next sub time,
@@ -334,7 +335,7 @@ export function TouchLiveGame({
     const ahead = replayTouchGame(events, { nowMs: aheadMs });
     return suggestTouchSubs({ state: ahead, nowMs: ahead.completedPeriodMs + aheadMs, ...opts });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPeriodActive, state, events, strategy, prefs, season, mixed, periodMs, subIntervalSeconds, msUntilDue !== null && msUntilDue <= 0, Math.floor((msUntilDue ?? 0) / 5000)]);
+  }, [isPeriodActive, state, events, strategy, prefs, season, mixed, periodMs, subIntervalSeconds, lineCaps, msUntilDue !== null && msUntilDue <= 0, Math.floor((msUntilDue ?? 0) / 5000)]);
   const subDueKey = subDue.key === null ? null : `${base.currentPeriod}:${subDue.key}`;
   const subDueShowing = isPeriodActive && subDue.due && nextSubs.length > 0 && subAckKey !== subDueKey;
   useSubDueAudioUnlock();
@@ -633,7 +634,7 @@ export function TouchLiveGame({
   const swapOns = new Map<string, { pair: number; line: TouchLine }>();
   if (!selectedId && isPeriodActive) {
     nextSubs.forEach((s, i) => {
-      swapOffs.set(s.off_player_id, i + 1);
+      if (s.off_player_id) swapOffs.set(s.off_player_id, i + 1);
       swapOns.set(s.on_player_id, { pair: i + 1, line: s.line });
     });
   }
