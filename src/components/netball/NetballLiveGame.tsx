@@ -63,6 +63,14 @@ const ManualEndQuarterConfirm = dynamic(
     ),
   { ssr: false },
 );
+// The pieces the game will need with no signal load once the screen is up,
+// while there's signal: a lazy chunk fetched at the siren with none
+// crashed the page to "Loading chunk … failed" (round-3 offline testing,
+// 24 Oct 2026). The bundle on first load stays as lean as before.
+const OFFLINE_CHUNKS = [
+  () => import("@/components/netball/NetballFullTimeReview"),
+  () => import("@/components/live/ManualEndQuarterConfirm"),
+];
 // F2 plan-ahead planner (ROTPLAN-02): the SAME shared GamePlanModal AFL
 // uses, opened on the NEXT period's tab during the final rotation
 // window so the coach can build the upcoming lineup before the break.
@@ -409,6 +417,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // The summary after Finish opens at the top: the final score and Copy
   // for group chat, not the review's scroll (round 2, 24 Oct 2026).
   useScrollToTopOnFinish(finalised);
+  useEffect(() => {
+    for (const load of OFFLINE_CHUNKS) void load().catch(() => {});
+  }, []);
   useEffect(() => {
     if (currentQuarter < 1 || quarterEnded || finalised || !quarterStartedAt) {
       return;

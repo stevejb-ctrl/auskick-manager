@@ -77,6 +77,17 @@ const ManualEndQuarterConfirm = dynamic(
     ),
   { ssr: false },
 );
+// The pieces the game will need with no signal load once the screen is up,
+// while there's signal: a lazy chunk fetched at the siren with none
+// crashed the page to "Loading chunk … failed" (round-3 offline testing,
+// 24 Oct 2026). The bundle on first load stays as lean as before.
+const OFFLINE_CHUNKS = [
+  () => import("@/components/live/QuarterEndModal"),
+  () => import("@/components/live/FullTimeReview"),
+  () => import("@/components/live/LockModal"),
+  () => import("@/components/live/InjuryReplacementModal"),
+  () => import("@/components/live/ManualEndQuarterConfirm"),
+];
 // Plan-ahead rotation (F1): the SAME shared planner used pre-game,
 // seeded mid-game from the live field. Lazy — only downloads when the
 // coach opens "Plan ahead".
@@ -1258,6 +1269,9 @@ export function LiveGame({
   // Unlock the sub-due beep's AudioContext on the first tap (shared
   // with league and union; see subDueBeep.ts).
   useSubDueAudioUnlock();
+  useEffect(() => {
+    for (const load of OFFLINE_CHUNKS) void load().catch(() => {});
+  }, []);
 
   // The summary after Finish opens at the top: the final score and Copy
   // for group chat, not the review's scroll (round 2, 24 Oct 2026).
