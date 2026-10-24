@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { AvailabilityList } from "@/components/games/AvailabilityList";
 import { ContinueToLineupButton } from "@/components/games/ContinueToLineupButton";
+import { AskAvailabilityButton } from "@/components/games/AskAvailabilityButton";
 import { Spinner } from "@/components/ui/Spinner";
 import { SFCard, SFIcon } from "@/components/sf";
 import type { Game, Sport } from "@/lib/types";
@@ -50,7 +51,7 @@ export default async function AvailabilityPage({
         : Promise.resolve({ data: null }),
       supabase
         .from("teams")
-        .select("sport")
+        .select("sport, name")
         .eq("id", params.teamId)
         .single(),
     ]);
@@ -92,9 +93,21 @@ export default async function AvailabilityPage({
           Mark availability
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-ink-dim">
-          Mark each player In or Out. You can change this any time
-          before the game starts, or add late arrivals once it&apos;s under way.
+          {canManageMatch
+            ? "Mark each player In or Out, or ask parents to. You can change this any time before the game starts, or add late arrivals once it's under way."
+            : "Tap In or Out for your child. You can change it any time before the game starts."}
         </p>
+        {canManageMatch && g.availability_token && (
+          <div className="mt-3">
+            <AskAvailabilityButton
+              teamName={(team as { name?: string } | null)?.name ?? "Us"}
+              opponent={g.opponent}
+              scheduledAt={g.scheduled_at}
+              token={g.availability_token}
+              className="w-full sm:w-auto"
+            />
+          </div>
+        )}
       </SFCard>
 
       <Suspense
@@ -110,6 +123,8 @@ export default async function AvailabilityPage({
           gameId={params.gameId}
           canMarkAvailability={canMarkAvailability}
           canManageMatch={canManageMatch}
+          canMarkAllIn={canManageMatch}
+          showReplies={canManageMatch}
           showJerseyNumber={getSportConfig(sport).jerseyNumbers}
         />
       </Suspense>

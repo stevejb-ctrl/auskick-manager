@@ -18,6 +18,7 @@ import { getSeasonEvents } from "@/lib/season";
 import { gamePlanPlaybooks } from "@/lib/playbook/planInputs";
 import { FinishedGameSummary } from "@/components/games/FinishedGameSummary";
 import { GamePlanButton } from "@/components/game-plan/GamePlanButton";
+import { AskAvailabilityButton } from "@/components/games/AskAvailabilityButton";
 import { HowWePlayedCard } from "@/components/playbook/HowWePlayedCard";
 import { buildGameReport } from "@/lib/playbook/gameReportServer";
 import type { Game, GameEvent, MixedGroup, Player, Sport } from "@/lib/types";
@@ -473,7 +474,34 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                   periodLabel={periodLabel}
                 />
                 </div>
+                {/* The game's availability link for the group chat
+                    (migration 0072): parents mark In or Out without an
+                    account. */}
+                {isUp && g.availability_token && (
+                  <AskAvailabilityButton
+                    teamName={teamName}
+                    opponent={g.opponent}
+                    scheduledAt={g.scheduled_at}
+                    token={g.availability_token}
+                    className="w-full sm:w-auto"
+                  />
+                )}
               </div>
+            </div>
+          )}
+          {/* A parent marks their child In or Out here too: the
+              Availability button used to be coaches' and managers' only,
+              so a parent who joined by code had no way in. */}
+          {!canRun && role === "parent" && isUp && (
+            <div className="border-t border-hairline bg-surface-alt px-5 py-4 sm:px-7">
+              <SFButton
+                href={`/teams/${params.teamId}/games/${params.gameId}/availability`}
+                variant="primary"
+                iconAfter={<SFIcon.chevronRight color="currentColor" />}
+                className="w-full sm:w-auto"
+              >
+                Availability
+              </SFButton>
             </div>
           )}
         </SFCard>

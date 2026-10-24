@@ -268,6 +268,12 @@ export interface Game {
   status: GameStatus;
   sub_interval_seconds: number;
   share_token: string;
+  /**
+   * The parent availability link's token (migration 0072):
+   * /availability/<token> marks a kid In or Out, nothing else. Not the
+   * game-day link (share_token), which runs the game.
+   */
+  availability_token: string;
   on_field_size: number;
   /**
    * The old Junior Rugby League §6 switch (migration 0046). No longer
@@ -311,6 +317,8 @@ export interface GameAvailability {
   status: AvailabilityStatus;
   updated_by: string | null;
   updated_at: string;
+  /** When a parent answered (the availability link, or a Parent member); migration 0072. */
+  replied_at: string | null;
 }
 
 export type Zone = "back" | "hback" | "mid" | "hfwd" | "fwd";
@@ -552,9 +560,10 @@ export type Database = {
       };
       games: {
         Row: Game;
-        Insert: Omit<Game, "id" | "created_at" | "updated_at" | "status"> & {
+        Insert: Omit<Game, "id" | "created_at" | "updated_at" | "status" | "availability_token"> & {
           id?: string;
           status?: GameStatus;
+          availability_token?: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -563,9 +572,10 @@ export type Database = {
       };
       game_availability: {
         Row: GameAvailability;
-        Insert: Omit<GameAvailability, "id" | "updated_at" | "status"> & {
+        Insert: Omit<GameAvailability, "id" | "updated_at" | "status" | "replied_at"> & {
           id?: string;
           status?: AvailabilityStatus;
+          replied_at?: string | null;
           updated_at?: string;
         };
         Update: Partial<Omit<GameAvailability, "id">>;
