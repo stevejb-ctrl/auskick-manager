@@ -312,6 +312,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 canRestart={role === "admin"}
                 canDelete={role === "admin"}
                 periodLabel={periodLabel}
+                live
               />
             </div>
           )}

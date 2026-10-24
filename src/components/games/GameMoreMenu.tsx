@@ -34,6 +34,8 @@ interface GameMoreMenuProps {
   canDelete: boolean;
   /** The team's period word: Restart wipes "every half" in a halves game. */
   periodLabel: "quarter" | "half" | "period";
+  /** The game is being played: Delete's confirm says so and waits for a tick. */
+  live?: boolean;
 }
 
 type Dialog = "link" | "edit" | "restart" | "delete" | null;
@@ -52,6 +54,7 @@ export function GameMoreMenu({
   canRestart,
   canDelete,
   periodLabel,
+  live = false,
 }: GameMoreMenuProps) {
   const router = useRouter();
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -95,7 +98,7 @@ export function GameMoreMenu({
     actions.push({
       id: "delete",
       label: "Delete game",
-      description: "Removes the game and its availability.",
+      description: live ? "It's being played right now. Removes it for everyone." : "Removes the game and its availability.",
       tone: "danger",
       onSelect: () => setDialog("delete"),
     });
@@ -126,7 +129,7 @@ export function GameMoreMenu({
       {dialog === "restart" && (
         <ResetGameDialog auth={{ kind: "team", teamId }} gameId={gameId} onClose={close} />
       )}
-      {dialog === "delete" && <DeleteGameDialog teamId={teamId} gameId={gameId} onClose={close} />}
+      {dialog === "delete" && <DeleteGameDialog teamId={teamId} gameId={gameId} onClose={close} live={live} />}
     </>
   );
 }
