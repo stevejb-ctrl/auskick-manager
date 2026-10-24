@@ -54,6 +54,9 @@ export function announceLiveNotice(text: string): void {
  * A server action's answer: when it was refused because another phone
  * had moved the game on, say so (the page is refreshing under it).
  */
-export function noteLiveResult(result: { success: boolean; error?: string; stale?: boolean | true }): void {
-  if (!result.success && result.stale && result.error) announceLiveNotice(result.error);
+export function noteLiveResult(
+  // A server action that redirects (a coach's kickoff) resolves to nothing.
+  result: { success: boolean; error?: string; stale?: boolean | true } | null | undefined,
+): void {
+  if (result && !result.success && result.stale && result.error) announceLiveNotice(result.error);
 }
