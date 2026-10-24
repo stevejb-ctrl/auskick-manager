@@ -16,9 +16,13 @@ import withPWAInit from "@ducanh2912/next-pwa";
 //   - aggressiveFrontEndNavCaching: also caches deeper-linked
 //     resources picked up during navigation (RSC payloads,
 //     code-split chunks).
-//   - reloadOnOnline: when the device flips back online we ask
-//     the page to reload so the SW can fetch fresh content. Slice
-//     5d's write queue has already drained by this point.
+//   - reloadOnOnline is OFF. It reloaded the page whenever the
+//     device came back online, and that reload could render before
+//     the write queue drained: AFL showed the lineup from before the
+//     offline taps for over a minute, and every open sheet was wiped
+//     (UX round 3, 24 Oct 2026). Live pages catch up through LiveSync
+//     instead (it checks the game when the signal returns); the
+//     /offline fallback reloads itself (ReloadWhenOnline).
 //   - fallbacks.document: failed page navigations land on a
 //     custom /offline route (slice 6c) instead of Chrome's
 //     default error page.
@@ -52,7 +56,7 @@ const withPWA = withPWAInit({
   register: true,
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: true,
-  reloadOnOnline: true,
+  reloadOnOnline: false,
   // skipWaiting+clientsClaim plus outdated-cache cleanup is the
   // recommended combo for an app that ships frequent deploys.
   // Without them the SW update flow takes two app launches to land,

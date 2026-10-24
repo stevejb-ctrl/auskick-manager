@@ -3,8 +3,8 @@
 // ─── LiveSync ────────────────────────────────────────────────
 // Keeps a live page in step with the other phone on the same game (the
 // coach's and a parent's game-day link): every few seconds while the page
-// is in view (and at once when it comes back into view, or a write is
-// refused), it asks the game's sync route for the game's stamp
+// is in view (and at once when the page mounts, comes back into view or
+// back online, or a write is refused), it asks the game's sync route for the game's stamp
 // (lib/live/liveSyncStamp.ts) and refreshes the page when the server's
 // differs from the one the page was rendered with. A refresh brings the
 // other phone's events in; each screen merges them as it does its own
@@ -73,6 +73,10 @@ export function LiveSync({ stamp, syncUrl }: { stamp: string | null; syncUrl: st
   }, [router, syncUrl]);
 
   useEffect(() => {
+    // At once: the page may be a stale copy (the service worker serves the
+    // cached HTML on a slow link) — round 3 saw the pre-kickoff screen of a
+    // game already under way.
+    void check();
     const id = window.setInterval(() => void check(), SYNC_INTERVAL_MS);
     const onBack = () => {
       if (document.visibilityState === "visible") void check();
