@@ -44,6 +44,7 @@ import { pinLaterPeriods, withPinnedPeriods } from "@/lib/game-plan";
 import { SUB_MINUTES_MAX, SUB_MINUTES_MIN, subMinutesFrom } from "@/lib/live/subCadence";
 import { squadLoanAverage } from "@/lib/live/liveChrome";
 import { useKeptSetting } from "@/components/lineup/useKeptSetting";
+import { noteLiveResult } from "@/lib/live/liveSync";
 // Rotations each player gets to sit on the bench over the whole game.
 // Bigger benches → more rotations per player (shorter stints each).
 function restsPerPlayer(benchSize: number): number {
@@ -692,6 +693,8 @@ export function LineupPicker({
         onFieldSize,
         true,
       );
+      // Refused because another phone already started: say so over the page.
+      noteLiveResult(result);
       if (result && !result.success) {
         setServerError(result.error);
         setStartModalOpen(false);

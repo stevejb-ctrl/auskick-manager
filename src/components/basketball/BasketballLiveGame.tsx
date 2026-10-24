@@ -54,7 +54,9 @@ import {
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
-import { liveEvents, optimisticUndo, type OptimisticEventInput } from "@/lib/live/optimisticEvents";
+import { liveEvents, type OptimisticEventInput } from "@/lib/live/optimisticEvents";
+import { UNDO_GONE_MESSAGE, UNDO_MISSING_MESSAGE, undoTap } from "@/lib/live/undoTarget";
+import { announceLiveNotice } from "@/lib/live/liveSync";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
 import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import { hapticTap } from "@/lib/haptics";
@@ -520,12 +522,12 @@ export function BasketballLiveGame({
   const canScore = isPeriodActive;
   function recordBasket(side: "ours" | "theirs", points: Points, playerId: string | null) {
     setError(null);
-    write(
+    const key = write(
       "recordBasketballScore",
       [auth, game.id, { side, points, player_id: playerId, ...at() }],
       liveEvents.score(basketballScoreEventType(side, points), side === "ours" ? playerId : null, at()),
     );
-    chrome.scored({ side: side === "ours" ? "us" : "them", what: basketballPointsWords(points), scorerId: playerId });
+    chrome.scored({ side: side === "ours" ? "us" : "them", what: basketballPointsWords(points), scorerId: playerId, key });
   }
   function teamScore(points: Points, scorerId: string | null) {
     if (!trackScoring) return;
@@ -536,11 +538,22 @@ export function BasketballLiveGame({
   const teamPoints = state.teamScore.points;
   const opponentPoints = state.opponentScore.points;
   const playerPoints = state.playerPoints;
+  // Takes back the basket the strip names (this phone's last), or with
+  // none named the latest on screen — never whatever the other phone
+  // scored since (UX round 2).
   const undoScore = () => {
-    const undo = optimisticUndo(events, BASKETBALL_SCORE_EVENT_TYPES);
-    if (!undo) return;
+    const tap = undoTap(events, BASKETBALL_SCORE_EVENT_TYPES, chrome.namedScoreKey);
+    // Its score was taken back on the other phone, or never saved (a tap
+    // offline that didn't get through): nothing to write, and never
+    // another score in its place.
+    if (tap.kind === "gone" || tap.kind === "missing") {
+      chrome.undone();
+      announceLiveNotice(tap.kind === "gone" ? UNDO_GONE_MESSAGE : UNDO_MISSING_MESSAGE);
+      return;
+    }
+    if (tap.kind !== "undo") return;
     setError(null);
-    write("undoBasketballScore", [auth, game.id], undo);
+    write("undoBasketballScore", [auth, game.id, tap.target], tap.optimistic);
     chrome.undone();
   };
 

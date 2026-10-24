@@ -7,7 +7,10 @@
 // sport's scorer sheet is (UX audit 23 Oct 2026): "Who scored?" under
 // what was scored ("Try · 4 points", union's "Drop goal · 3 points"),
 // and a stray tap on the backdrop keeps it (its default), so the score
-// isn't lost. League's own sheet used to close on one.
+// isn't lost. League's own sheet used to close on one. A try can be
+// counted without a name ("Not sure who", as touch's and AFL's sheets
+// offer): a parent running the game may not have seen who scored (UX
+// round 2, 24 Oct 2026).
 
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import type { Player } from "@/lib/types";
@@ -22,6 +25,8 @@ interface LeagueScorerPickerProps {
   /** Picked → orchestrator records the score for this player. */
   onPick: (playerId: string) => void;
   onCancel: () => void;
+  /** "Not sure who": count the try without a scorer (tries only). */
+  onNoScorer?: () => void;
   /** What was scored. Defaults to a try. */
   score?: "try" | "penalty_goal" | "field_goal";
 }
@@ -39,7 +44,8 @@ function scoreEyebrow(sport: RugbySport, score: "try" | "penalty_goal" | "field_
   return `${label} · ${n} ${n === 1 ? "point" : "points"}`;
 }
 
-export function LeagueScorerPicker({ sport, onFieldPlayers, onPick, onCancel, score = "try" }: LeagueScorerPickerProps) {
+export function LeagueScorerPicker({ sport, onFieldPlayers, onPick, onCancel, onNoScorer, score = "try" }: LeagueScorerPickerProps) {
+  const noScorer = score === "try" && onNoScorer ? onNoScorer : null;
   const words = rugbyScoreWords(sport);
   const what = score === "try" ? "try" : (score === "penalty_goal" ? words.penaltyGoal : words.fieldGoal).label.toLowerCase();
   return (
@@ -47,9 +53,16 @@ export function LeagueScorerPicker({ sport, onFieldPlayers, onPick, onCancel, sc
       slotLabel={what}
       eyebrow={scoreEyebrow(sport, score)}
       title="Who scored?"
-      subtitle={score === "try" ? "Pick the player who scored the try." : `Pick the player who kicked the ${what}.`}
+      subtitle={
+        score !== "try"
+          ? `Pick the player who kicked the ${what}.`
+          : noScorer
+            ? "Pick who scored, or count the try without a name."
+            : "Pick the player who scored the try."
+      }
       candidates={onFieldPlayers.map((p) => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number }))}
       emptyMessage="No players on the field."
+      extraOptions={noScorer ? [{ label: "Not sure who", subLabel: "Counts the try without a scorer", onSelect: noScorer }] : []}
       onPick={onPick}
       onCancel={onCancel}
     />

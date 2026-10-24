@@ -39,6 +39,8 @@ import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
 import { hapticTap, hapticSiren } from "@/lib/haptics";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
+import { RunnerAllDone } from "@/components/games/RunnerAllDone";
+import { noteLiveResult } from "@/lib/live/liveSync";
 import { WalkthroughOffer } from "@/components/live/WalkthroughOffer";
 import { ClockMenu } from "@/components/live/ClockMenu";
 
@@ -1070,20 +1072,21 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // goal is recorded a "[Team] goal — Player · Undo" chip appears for
   // 8 seconds (toast); after the toast fades the chip stays as a
   // muted "Undo last score" affordance until another goal is
-  // recorded (which replaces it). Tap fires score_undo; the replay
-  // engine pops the LIFO undo stack so the latest score is reverted.
+  // recorded (which replaces it). Tap fires score_undo naming this
+  // phone's goal (`key`, its write's op id): with two phones scoring,
+  // "the latest goal" may be the other phone's (UX round 2).
   const [lastScore, setLastScore] = useState<
-    | { kind: "team" | "opp"; playerName: string | null }
+    | { kind: "team" | "opp"; playerName: string | null; key: string | null }
     | null
   >(null);
   const [undoToastVisible, setUndoToastVisible] = useState(false);
   const undoToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startUndoToast = useCallback(
-    (kind: "team" | "opp", playerName: string | null) => {
+    (kind: "team" | "opp", playerName: string | null, key: string | null) => {
       if (undoToastTimerRef.current !== null) {
         clearTimeout(undoToastTimerRef.current);
       }
-      setLastScore({ kind, playerName });
+      setLastScore({ kind, playerName, key });
       setUndoToastVisible(true);
       undoToastTimerRef.current = setTimeout(() => {
         setUndoToastVisible(false);
@@ -1094,6 +1097,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const handleUndoLastScore = useCallback(() => {
     if (!lastScore) return;
     const undoKind = lastScore.kind;
+    const undoKey = lastScore.key;
     setLastScore(null);
     setUndoToastVisible(false);
     if (undoToastTimerRef.current !== null) {
@@ -1111,10 +1115,18 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         ? { ...prev, team: prev.team - 1 }
         : { ...prev, opp: prev.opp - 1 },
     );
-    const { flushed } = enqueueLiveAction("undoNetballScore", [auth, game.id]);
+    const { flushed } = enqueueLiveAction("undoNetballScore", [auth, game.id, undoKey ? { key: undoKey } : null]);
     // Refresh after flush so the rolled-back goal disappears from
-    // the scorebug + PositionToken chip on the next render.
-    flushed.then(() => startTransition(() => router.refresh()));
+    // the scorebug + PositionToken chip on the next render. Refused
+    // (the other phone already took it back): put the goal back.
+    flushed
+      .then(() => startTransition(() => router.refresh()))
+      .catch(() => {
+        setLocalScoreDelta((prev) =>
+          undoKind === "team" ? { ...prev, team: prev.team + 1 } : { ...prev, opp: prev.opp + 1 },
+        );
+        startTransition(() => router.refresh());
+      });
   }, [lastScore, auth, game.id, router]);
   // Reset the undo state if the user transitions out of LIVE play
   // (Q-break, finalised) so a stale chip doesn't carry across phases.
@@ -1390,7 +1402,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       team: prev.team + 1,
       player: { ...prev.player, [playerId]: (prev.player[playerId] ?? 0) + 1 },
     }));
-    const { flushed } = enqueueLiveAction("recordNetballGoal", [
+    const { id: goalKey, flushed } = enqueueLiveAction("recordNetballGoal", [
       auth,
       game.id,
       playerId,
@@ -1399,7 +1411,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     ]);
     flushed.then(() => startTransition(() => router.refresh()));
     setPendingGoal(null);
-    startUndoToast("team", playerName);
+    startUndoToast("team", playerName, goalKey);
     // Light haptic tap — confirms the goal recorded. P1-10 mirror
     // of AFL `15b0a7c`. Fire-and-forget; the bridge no-ops on web.
     void hapticTap("light");
@@ -1416,14 +1428,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // 2026-05-17 audit fix). Reset via the score-prop refresh
     // useEffect.
     setLocalScoreDelta((prev) => ({ ...prev, opp: prev.opp + 1 }));
-    const { flushed } = enqueueLiveAction("recordNetballOpponentGoal", [
+    const { id: goalKey, flushed } = enqueueLiveAction("recordNetballOpponentGoal", [
       auth,
       game.id,
       currentQuarter,
       clockMs,
     ]);
     flushed.then(() => startTransition(() => router.refresh()));
-    startUndoToast("opp", null);
+    startUndoToast("opp", null, goalKey);
     // Light haptic — opponent goal still counts as a registered tap.
     // P1-10 mirror of AFL `15b0a7c`.
     void hapticTap("light");
@@ -1775,15 +1787,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           roleSheet={roleSheet}
           teamAllowMidQuarterSubs={teamAllowMidQuarterSubs}
           gameAllowMidQuarterSubs={gameAllowMidQuarterSubs}
-          // "Back to availability" breadcrumb — only meaningful for
-          // the team-auth path (game detail page exists). Token-auth
-          // (share runner) doesn't have a netball flow yet, so the
-          // link is hidden in that case.
-          // The game-day panel replaces the "Update availability" link.
+          // "Update availability": the coach's game page, or the runner's
+          // who's-here list (UX round 2: a runner couldn't mark a no-show).
+          // The game-day panel replaces the link for the coach.
           availabilityHref={
-            auth.kind === "team" && !availabilityPanel
-              ? `/teams/${auth.teamId}/games/${game.id}/availability`
-              : undefined
+            auth.kind === "token"
+              ? `/run/${auth.token}?step=availability`
+              : !availabilityPanel
+                ? `/teams/${auth.teamId}/games/${game.id}/availability`
+                : undefined
           }
           availabilityPanel={availabilityPanel}
           gamePlan={gamePlan}
@@ -1809,7 +1821,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                 // actually wanted. Falls back to defaultOnFieldSize
                 // when the dropdown wasn't touched (or wasn't shown
                 // in this picker configuration).
-                await startNetballGame(
+                const result = await startNetballGame(
                   auth,
                   game.id,
                   lineup,
@@ -1817,6 +1829,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                   quarterOverrideSeconds,
                   /* startQuarterToo */ true,
                 );
+                // Refused because another phone already started: say so
+                // over the page as it refreshes into the game.
+                noteLiveResult(result);
                 resolve();
               });
             })
@@ -1901,13 +1916,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         )}
         {auth.kind === "token" && (
           <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
-            <div className="mx-auto max-w-4xl text-center">
-              <p className="text-sm font-semibold text-ink">
-                All done — thanks for running today&apos;s game!
-              </p>
-              <p className="mt-0.5 text-xs text-ink-dim">
-                Everything&apos;s saved. You can close this tab.
-              </p>
+            <div className="mx-auto max-w-4xl">
+              <RunnerAllDone />
             </div>
           </div>
         )}
@@ -2590,7 +2600,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                   [playerId]: (prev.player[playerId] ?? 0) + 1,
                 },
               }));
-              const { flushed } = enqueueLiveAction("recordNetballGoal", [
+              const { id: goalKey, flushed } = enqueueLiveAction("recordNetballGoal", [
                 auth,
                 game.id,
                 playerId,
@@ -2598,7 +2608,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                 clockMs,
               ]);
               flushed.then(() => startTransition(() => router.refresh()));
-              startUndoToast("team", playerName);
+              startUndoToast("team", playerName, goalKey);
               // Same light-tap haptic as the court flow's
               // handleConfirmGoal so coaches feel the same
               // confirmation regardless of entry point.

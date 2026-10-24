@@ -7,7 +7,7 @@
 // family and basketball had drifted on each piece:
 //
 //   - the undo strip flashes what was just recorded ("Roos goal — Mia")
-//     for 8 s, then settles to "Undo last score" (`scored`, `undoStrip`);
+//     for 8 s, then settles quietly, still naming it (`scored`, `undoStrip`);
 //   - a tap-tap sub asks first (the shared SwapConfirmDialog), then a
 //     toast says what changed (`confirmSwap`, `swapped`, `toast`);
 //   - the long-press sheet gets the kid's lent minutes, the season's
@@ -51,8 +51,14 @@ interface PendingSwap {
 }
 
 export interface LiveChrome {
-  /** A score was recorded: the undo strip flashes what it was. */
-  scored(score: { side: "us" | "them"; what: string; scorerId?: string | null }): void;
+  /**
+   * A score was recorded: the undo strip flashes what it was. `key` is
+   * its write's op id (useOptimisticEvents' write returns it): the score
+   * the strip names, which its Undo takes back (undoTap).
+   */
+  scored(score: { side: "us" | "them"; what: string; scorerId?: string | null; key?: string | null }): void;
+  /** The write key of the score the strip names, until it's undone. */
+  namedScoreKey: string | null;
   /** The last score was taken back: the strip stops flashing. */
   undone(): void;
   /** The undo strip, for LiveStickyScoreBar (null when `show` is false). */
@@ -87,6 +93,7 @@ export function useLiveChrome(opts: {
   const { teamName, opponentName, playersById, seasonLoanMinutes, events, openElapsedMs } = opts;
   const [message, setMessage] = useState<string | null>(null);
   const [flashing, setFlashing] = useState(false);
+  const [namedScoreKey, setNamedScoreKey] = useState<string | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [toastText, setToastText] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -122,8 +129,9 @@ export function useLiveChrome(opts: {
     [firstName, showToast],
   );
 
-  const scored: LiveChrome["scored"] = ({ side, what, scorerId }) => {
+  const scored: LiveChrome["scored"] = ({ side, what, scorerId, key }) => {
     if (flashTimer.current !== null) clearTimeout(flashTimer.current);
+    setNamedScoreKey(key ?? null);
     setMessage(undoMessage({ side, what, teamName, opponentName, scorerName: scorerId ? firstName(scorerId) : null }));
     setFlashing(true);
     flashTimer.current = setTimeout(() => setFlashing(false), UNDO_FLASH_MS);
@@ -134,12 +142,14 @@ export function useLiveChrome(opts: {
     flashTimer.current = null;
     setFlashing(false);
     setMessage(null);
+    setNamedScoreKey(null);
   };
 
   const squadLoanMins = squadLoanAverage(seasonLoanMinutes ?? {});
 
   return {
     scored,
+    namedScoreKey,
     undone,
     undoStrip: ({ show, onUndo, disabled }) =>
       show ? (

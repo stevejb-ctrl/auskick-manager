@@ -72,10 +72,9 @@ test("a runner link can't wipe a game that finished while it was open", async ({
   await finalise();
   const before = await eventCount();
 
-  await page.getByRole("button", { name: /^restart game$/i }).click();
-  await page.getByRole("button", { name: /i understand, continue/i }).click();
-  await page.getByRole("button", { name: /yes, restart this game/i }).click();
-  await expect(page.getByRole("dialog").getByText(/finished/i)).toBeVisible({ timeout: 10_000 });
+  // A game-day link never offers Restart (UX round 2, 24 Oct 2026), and
+  // resetGame refuses one (Vitest: liveActionsTwoPhones).
+  await expect(page.getByRole("button", { name: /^restart game$/i })).toHaveCount(0);
 
   expect(await eventCount()).toBe(before);
   const { data } = await admin.from("games").select("status").eq("id", game.id).single();

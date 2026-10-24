@@ -58,7 +58,9 @@ import {
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
-import { liveEvents, optimisticUndo } from "@/lib/live/optimisticEvents";
+import { liveEvents } from "@/lib/live/optimisticEvents";
+import { UNDO_GONE_MESSAGE, UNDO_MISSING_MESSAGE, undoTap } from "@/lib/live/undoTarget";
+import { announceLiveNotice } from "@/lib/live/liveSync";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
 import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import { hapticTap } from "@/lib/haptics";
@@ -552,28 +554,39 @@ export function SoccerLiveGame({
     if (!trackScoring) return;
     setSelectedId(null);
     setError(null);
-    write(
+    const key = write(
       "recordSoccerGoal",
       [auth, game.id, scorerId, base.currentPeriod, elapsedRef.current],
       liveEvents.score("goal", scorerId, at()),
     );
     void hapticTap("light");
-    chrome.scored({ side: "us", what: "goal", scorerId });
+    chrome.scored({ side: "us", what: "goal", scorerId, key });
   }
   const opponentGoal = () => {
     setError(null);
-    write(
+    const key = write(
       "recordSoccerOpponentGoal",
       [auth, game.id, base.currentPeriod, elapsedRef.current],
       liveEvents.score("opponent_goal", null, at()),
     );
-    chrome.scored({ side: "them", what: "goal" });
+    chrome.scored({ side: "them", what: "goal", key });
   };
+  // Takes back the goal the strip names (this phone's last), or with
+  // none named the latest on screen — never whatever the other phone
+  // scored since (UX round 2).
   const undoGoal = () => {
-    const undo = optimisticUndo(events, SOCCER_SCORE_TYPES);
-    if (!undo) return;
+    const tap = undoTap(events, SOCCER_SCORE_TYPES, chrome.namedScoreKey);
+    // Its score was taken back on the other phone, or never saved (a tap
+    // offline that didn't get through): nothing to write, and never
+    // another score in its place.
+    if (tap.kind === "gone" || tap.kind === "missing") {
+      chrome.undone();
+      announceLiveNotice(tap.kind === "gone" ? UNDO_GONE_MESSAGE : UNDO_MISSING_MESSAGE);
+      return;
+    }
+    if (tap.kind !== "undo") return;
     setError(null);
-    write("undoSoccerScore", [auth, game.id], undo);
+    write("undoSoccerScore", [auth, game.id, tap.target], tap.optimistic);
     chrome.undone();
   };
 

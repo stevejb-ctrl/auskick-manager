@@ -64,6 +64,7 @@ import { BasketballBench } from "./BasketballBench";
 import { BASKETBALL_LINE_LABEL } from "./BasketballPlayerTile";
 import { basketballStrategyLabel } from "./basketballWords";
 import { squadLoanAverage } from "@/lib/live/liveChrome";
+import { noteLiveResult } from "@/lib/live/liveSync";
 
 const POSITION_LABEL = Object.fromEntries(BASKETBALL_POSITION_DEFS.map((p) => [p.key, p.label])) as Record<string, string>;
 
@@ -238,6 +239,8 @@ export function BasketballLineupPicker({
     setError(null);
     startTransition(async () => {
       const result = await startBasketballGame(auth, gameId, lineup, onCourtSize, true, subIntervalSeconds);
+      // Refused because another phone already started: say so over the page.
+      noteLiveResult(result);
       if (!result.success) {
         setError(result.error ?? "Couldn't start the game.");
         setStartModalOpen(false);

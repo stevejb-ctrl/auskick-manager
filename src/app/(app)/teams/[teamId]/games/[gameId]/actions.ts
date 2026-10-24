@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient, getMembership } from "@/lib/supabase/server";
@@ -263,53 +264,39 @@ export async function resetGame(
 ): Promise<ActionResult> {
   const admin = createAdminClient();
 
-  // Resolve team id + authorise. Token bearers are trusted for live-game
-  // ops including reset (same level as scoring / late arrivals). Team
-  // callers must be a team admin (game_managers can run the game but not
-  // destroy its history).
-  let teamId: string;
+  // Authorise: a team admin only. game_managers can run the game but not
+  // destroy its history, and neither can a game-day link: it's shared in
+  // group chats, and a Manager could open it to do what their role
+  // forbids (UX round 2, 24 Oct 2026: a runner's Restart wiped a live
+  // game). The runner screens don't offer Restart.
   if (auth.kind === "token") {
-    const { data: game } = await admin
-      .from("games")
-      .select("id, team_id, share_token, status")
-      .eq("id", gameId)
-      .maybeSingle();
-    if (!game || game.share_token !== auth.token) {
-      return { success: false, error: "Invalid share link." };
-    }
-    // A finished game is the season's record. Share links get passed
-    // around group chats, so they can't wipe one — a team admin can,
-    // from the game page.
-    if (game.status === "completed") {
-      return {
-        success: false,
-        error: "This game is finished. Only a team admin can restart it, from the game page.",
-      };
-    }
-    teamId = game.team_id;
-  } else {
-    // Skip the second auth round-trip — middleware already validated.
-    const userId = readValidatedUserId();
-    if (!userId) return { success: false, error: "Unauthenticated." };
-
-    const membership = await getMembership(auth.teamId, userId);
-    if (!membership || membership.role !== "admin") {
-      return { success: false, error: "Only admins can reset games." };
-    }
-    // IDOR guard: the admin client below bypasses RLS and deletes by
-    // game_id, so confirm this game actually belongs to the team the caller
-    // is an admin of — otherwise an admin of any team could pass another
-    // team's gameId and wipe its history.
-    const { data: ownerCheck } = await admin
-      .from("games")
-      .select("team_id")
-      .eq("id", gameId)
-      .maybeSingle();
-    if (!ownerCheck || !gameBelongsToTeam(ownerCheck.team_id, auth.teamId)) {
-      return { success: false, error: "Game not found for this team." };
-    }
-    teamId = auth.teamId;
+    return {
+      success: false,
+      error: "Only a team admin can restart a game, from the game page.",
+      rejected: true,
+    };
   }
+  // Skip the second auth round-trip — middleware already validated.
+  const userId = readValidatedUserId();
+  if (!userId) return { success: false, error: "Unauthenticated." };
+
+  const membership = await getMembership(auth.teamId, userId);
+  if (!membership || membership.role !== "admin") {
+    return { success: false, error: "Only admins can reset games." };
+  }
+  // IDOR guard: the admin client below bypasses RLS and deletes by
+  // game_id, so confirm this game actually belongs to the team the caller
+  // is an admin of — otherwise an admin of any team could pass another
+  // team's gameId and wipe its history.
+  const { data: ownerCheck } = await admin
+    .from("games")
+    .select("team_id")
+    .eq("id", gameId)
+    .maybeSingle();
+  if (!ownerCheck || !gameBelongsToTeam(ownerCheck.team_id, auth.teamId)) {
+    return { success: false, error: "Game not found for this team." };
+  }
+  const teamId = auth.teamId;
 
   const { error: delError } = await admin
     .from("game_events")
@@ -350,12 +337,7 @@ export async function resetGame(
   // Redirect back to the pre-kick-off screen so the coach can re-set
   // availability and add fill-ins before starting again. Without this
   // the live page just rerenders into the lineup picker, skipping the
-  // availability + fill-in management surface entirely. Token bearers
-  // go to /run/[token] (their equivalent of the team game-detail
-  // page); team admins go to the game detail page.
-  if (auth.kind === "token") {
-    redirect(`/run/${auth.token}`);
-  }
+  // availability + fill-in management surface entirely.
   redirect(`/teams/${teamId}/games/${gameId}`);
 }
 
@@ -400,4 +382,43 @@ export async function deleteGame(
 
   revalidatePath(`/teams/${teamId}/games`);
   return { success: true };
+}
+
+// ─── newGameDayLink ──────────────────────────────────────────
+// Replaces the game's game-day link: the old /run/<token> stops working
+// at once (its phone's next sync check finds nothing and the page says
+// so), and the coach shares the new one. There was no way to take a link
+// back once it was in a group chat, or from a helper who'd been removed
+// (UX round 2, 24 Oct 2026). Team admins only.
+export async function newGameDayLink(
+  teamId: string,
+  gameId: string,
+): Promise<ActionResult<{ token: string }>> {
+  const userId = readValidatedUserId();
+  if (!userId) return { success: false, error: "Unauthenticated." };
+  const membership = await getMembership(teamId, userId);
+  if (!membership || membership.role !== "admin") {
+    return { success: false, error: "Only a team admin can replace the game-day link." };
+  }
+
+  const admin = createAdminClient();
+  const { data: before } = await admin
+    .from("games")
+    .select("team_id, share_token")
+    .eq("id", gameId)
+    .maybeSingle();
+  if (!before || !gameBelongsToTeam(before.team_id, teamId)) {
+    return { success: false, error: "Game not found for this team." };
+  }
+  const token = randomUUID();
+  const { error } = await admin
+    .from("games")
+    .update({ share_token: token })
+    .eq("id", gameId)
+    .eq("team_id", teamId);
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath(`/teams/${teamId}/games/${gameId}`);
+  revalidatePath(`/run/${before.share_token}`, "layout");
+  return { success: true, data: { token } };
 }

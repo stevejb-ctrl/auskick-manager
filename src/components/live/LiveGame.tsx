@@ -8,7 +8,7 @@ import {
   clockElapsedMs,
   useLiveGame,
 } from "@/lib/stores/liveGameStore";
-import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
+import { enqueueLiveAction, pendingWriteCount } from "@/lib/live/registerLiveActions";
 import { aflStoreLocks, type PlayerLock } from "@/lib/live/locks";
 import { hapticTap, hapticSiren } from "@/lib/haptics";
 import { LongPressHint } from "@/components/live/LongPressHint";
@@ -106,7 +106,7 @@ import {
   type ZoneCaps,
   type ZoneMinutes,
 } from "@/lib/fairness";
-import type { Game, Player, PositionModel, Zone } from "@/lib/types";
+import type { Game, Lineup, Player, PositionModel, Zone } from "@/lib/types";
 import {
   projectUpcomingRotation,
   withPinnedPeriods,
@@ -133,6 +133,7 @@ import { LiveTopBar } from "@/components/live/LiveTopBar";
 
 import { assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
 import { UndoStrip } from "@/components/live/UndoStrip";
+import { requestLiveSync } from "@/lib/live/liveSync";
 // YT IFrame API + playSong logic lives in `@/lib/live/useHypeSong`
 // since 2026-05-16 (extracted for AFL/netball parity). The hook
 // owns the refs, lifecycle, and trigger function.
@@ -219,12 +220,47 @@ interface LiveGameProps {
   ageGroup: AgeGroupConfig;
 }
 
+/**
+ * The store shows what the server's replay does: the same quarter and
+ * phase, score and who's where. A difference with nothing of this phone's
+ * in flight is the other phone's doing.
+ */
+function storeMatchesServer(
+  store: {
+    currentQuarter: number;
+    quarterEnded: boolean;
+    finalised: boolean;
+    teamScore: { goals: number; behinds: number };
+    opponentScore: { goals: number; behinds: number };
+    lineup: Lineup;
+    injuredIds: string[];
+    loanedIds: string[];
+  },
+  server: GameState,
+): boolean {
+  if (store.currentQuarter !== server.currentQuarter) return false;
+  if (store.quarterEnded !== server.quarterEnded || store.finalised !== server.finalised) return false;
+  if (store.teamScore.goals !== server.teamScore.goals || store.teamScore.behinds !== server.teamScore.behinds) return false;
+  if (store.opponentScore.goals !== server.opponentScore.goals || store.opponentScore.behinds !== server.opponentScore.behinds) return false;
+  const same = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((id) => b.includes(id));
+  if (!same(store.injuredIds, server.injuredIds) || !same(store.loanedIds, server.loanedIds)) return false;
+  if (!server.lineup) return true;
+  const zones: (keyof Lineup)[] = ["back", "hback", "mid", "hfwd", "fwd", "bench"];
+  return zones.every((z) => same(store.lineup[z] ?? [], server.lineup?.[z] ?? []));
+}
+
 type LastScore = {
   kind: "goal" | "behind";
   forTeam: "us" | "opponent";
   playerId: string | null;
   playerName: string | null;
   quarter: number;
+  /**
+   * The score's write (its op id, the event's idempotency key): Undo
+   * takes back this one, never "the latest", which may be the other
+   * phone's (UX round 2).
+   */
+  key: string;
 };
 
 /** Per player, the later of the server's and this phone's stamp. */
@@ -573,11 +609,25 @@ export function LiveGame({
     // server's game again rather than keep the store's.
     const resync = resyncAfterQueueRef.current;
     resyncAfterQueueRef.current = false;
+    // Another phone on this game (a parent's game-day link, a co-manager)
+    // moved it on — scored, subbed, started or ended a quarter, finished —
+    // and LiveSync refreshed the page with it. The store only follows its
+    // own taps, so the coach's phone kept the old score and quarter until
+    // a reload (UX round 2). With nothing of this phone's still on its way
+    // to the server, the server's replay is the game: take it, keeping
+    // this phone's clock in the quarter they share.
+    const otherPhoneMovedOn =
+      initedGameIdRef.current === gameId &&
+      fullStoreState.activeGameId === gameId &&
+      !storeAheadOfServer &&
+      pendingWriteCount() === 0 &&
+      !storeMatchesServer(fullStoreState, initialState);
     if (
       fullStoreState.activeGameId === gameId &&
       !storeAheadOfServer &&
       lineupHasAnyPlayer &&
-      !resync
+      !resync &&
+      !otherPhoneMovedOn
     ) {
       setHydrated(true);
       return;
@@ -631,6 +681,16 @@ export function LiveGame({
         // clock running immediately, matching the pre-70fda29
         // behaviour for those flows.
         if (isFreshMount) {
+          clockStartedAt = Date.now();
+        }
+      }
+      if (otherPhoneMovedOn) {
+        if (initialState.currentQuarter === storeQuarter && !fullStoreState.quarterEnded) {
+          // The quarter this phone is already timing: its clock stands.
+          clockStartedAt = fullStoreState.clockStartedAt;
+          accumulatedMs = fullStoreState.accumulatedMs;
+        } else {
+          // The other phone started it: it's running.
           clockStartedAt = Date.now();
         }
       }
@@ -879,18 +939,19 @@ export function LiveGame({
     // for now because light haptic is gentle and a behind is
     // worth acknowledging too.
     void hapticTap("light");
+    const { id: key } = enqueueLiveAction(kind === "goal" ? "recordGoal" : "recordBehind", [
+      auth,
+      gameId,
+      { player_id: playerId, quarter, elapsed_ms },
+    ]);
     startUndoToast({
       kind,
       forTeam: "us",
       playerId,
       playerName: p ? p.full_name.trim().split(/\s+/)[0] : null,
       quarter,
+      key,
     });
-    enqueueLiveAction(kind === "goal" ? "recordGoal" : "recordBehind", [
-      auth,
-      gameId,
-      { player_id: playerId, quarter, elapsed_ms },
-    ]);
   }
 
   // Unattributed goal: the coach saw it go through but not who kicked
@@ -905,18 +966,19 @@ export function LiveGame({
     incTeam("goals");
     playSong();
     void hapticTap("light");
+    const { id: key } = enqueueLiveAction("recordGoal", [
+      auth,
+      gameId,
+      { player_id: null, quarter, elapsed_ms, unattributed: true },
+    ]);
     startUndoToast({
       kind: "goal",
       forTeam: "us",
       playerId: null,
       playerName: null,
       quarter,
+      key,
     });
-    enqueueLiveAction("recordGoal", [
-      auth,
-      gameId,
-      { player_id: null, quarter, elapsed_ms, unattributed: true },
-    ]);
   }
 
   // Rushed behind: ball deflects through off the opposition (or
@@ -926,18 +988,19 @@ export function LiveGame({
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = currentElapsedMs();
     incTeam("behinds");
+    const { id: key } = enqueueLiveAction("recordBehind", [
+      auth,
+      gameId,
+      { player_id: null, quarter, elapsed_ms, rushed: true },
+    ]);
     startUndoToast({
       kind: "behind",
       forTeam: "us",
       playerId: null,
       playerName: null,
       quarter,
+      key,
     });
-    enqueueLiveAction("recordBehind", [
-      auth,
-      gameId,
-      { player_id: null, quarter, elapsed_ms, rushed: true },
-    ]);
   }
 
   function handleScore(kind: "goal" | "behind") {
@@ -1042,17 +1105,17 @@ export function LiveGame({
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = currentElapsedMs();
     incOpponent(kind === "goal" ? "goals" : "behinds");
-    startUndoToast({ kind, forTeam: "opponent", playerId: null, playerName: null, quarter });
-    enqueueLiveAction("recordOpponentScore", [
+    const { id: key } = enqueueLiveAction("recordOpponentScore", [
       auth,
       gameId,
       { kind, quarter, elapsed_ms },
     ]);
+    startUndoToast({ kind, forTeam: "opponent", playerId: null, playerName: null, quarter, key });
   }
 
   function handleUndo() {
     if (!lastScore) return;
-    const { kind, forTeam, playerId, quarter } = lastScore;
+    const { kind, forTeam, playerId, quarter, key } = lastScore;
 
     if (forTeam === "us") {
       undoTeamScore(kind === "goal" ? "goals" : "behinds");
@@ -1074,12 +1137,17 @@ export function LiveGame({
         : kind === "goal" ? "opponent_goal" : "opponent_behind";
 
     // On the game's write-queue lane, so it can't overtake its score.
+    // It names the score (its write's key). Refused because the other
+    // phone already took it back: the store catches up from the server.
     const { flushed } = enqueueLiveAction("undoLastScore", [
       auth,
       gameId,
-      { kind: serverKind, quarter, playerId: playerId ?? null },
+      { kind: serverKind, quarter, playerId: playerId ?? null, target: { key } },
     ]);
-    flushed.catch((e: unknown) => setError(e instanceof Error ? e.message : "Couldn't undo that score."));
+    flushed.catch((e: unknown) => {
+      setError(e instanceof Error ? e.message : "Couldn't undo that score.");
+      requestLiveSync();
+    });
   }
 
   // `resetSubTimer` = was this the PLANNED rotation tick? A scheduled
@@ -1472,6 +1540,8 @@ export function LiveGame({
   ) : null;
 
   if (isBetweenQuarters) {
+    // The quarter this break follows.
+    const breakQuarter = currentQuarter;
     return (
       <div className="ui-nonselect">
         {walkthroughOverlay}
@@ -1496,7 +1566,11 @@ export function LiveGame({
           chipModeByKey={chipModeByKey}
           aflPlaybook={aflPlaybook}
           periodCount={ageGroup.periodCount}
-          onStarted={() => beginNextQuarter()}
+          onStarted={() => {
+            // The page may already have caught up to this quarter (the
+            // start's refresh landing first re-inits the store into it).
+            if (useLiveGame.getState().currentQuarter <= breakQuarter) beginNextQuarter();
+          }}
           onPrimeAudio={primeSong}
         />
       </div>

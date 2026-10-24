@@ -82,6 +82,7 @@ import { onSurfaceLabel } from "@/lib/sports/words";
 import { rugbyForwards } from "@/lib/sports/rugby/lines";
 import { seasonLoanMinutes } from "@/lib/fairness";
 import { squadLoanAverage } from "@/lib/live/liveChrome";
+import { noteLiveResult } from "@/lib/live/liveSync";
 // Sub-minute formula from the previous picker — kept inline so the
 // spike doesn't fan-out into shared modules until we know it
 // sticks. RL §6 lock minutes are subtracted from rotateable time
@@ -989,6 +990,8 @@ export function LeagueLineupPicker({
         vestPlan,
         subIntervalSeconds,
       );
+      // Refused because another phone already started: say so over the page.
+      noteLiveResult(result);
       if (!result.success) {
         setError(result.error ?? "Couldn't start the game.");
         setStartModalOpen(false);

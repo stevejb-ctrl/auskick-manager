@@ -5,6 +5,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { liveGameStorage } from "./persistStorage";
 import { isNative } from "@/lib/platform";
 import type { OptimisticEventInput } from "./optimisticEvents";
+import { noteLiveResult } from "./liveSync";
 
 // ─── Durable write queue for live-game server actions ─────────
 //
@@ -60,7 +61,7 @@ import type { OptimisticEventInput } from "./optimisticEvents";
  * straight away and its `flushed` rejects with the error, rather than
  * pausing the lane (which would stall every score behind it).
  */
-export type ActionResult = { success: boolean; error?: string; rejected?: boolean };
+export type ActionResult = { success: boolean; error?: string; rejected?: boolean; stale?: boolean };
 
 /**
  * Every live-game action shares one lane, so a game's events land in the
@@ -599,6 +600,8 @@ async function dispatchOp(op: QueueOp): Promise<void> {
     // lane at the cap: give up on it so the caller can roll back its
     // optimistic UI. Reject BEFORE popping the queue so the .catch()
     // can read consistent state.
+    // Refused because another phone moved the game on: say so.
+    noteLiveResult(result);
     rejectFlushed(op, result.error ?? `Op ${op.kind} failed after ${MAX_OP_ATTEMPTS} attempts.`);
     useWriteQueue.setState((s) => ({
       queue: s.queue.filter((q) => q.id !== op.id),
