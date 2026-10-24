@@ -12,7 +12,7 @@ import {
   StatusPill,
 } from "@/components/sf";
 import { getSeasonEvents } from "@/lib/season";
-import { outcomeOf, scoreFromEvents, seasonRecord, type GameScore } from "@/lib/results";
+import { outcomeOf, scoreFromEvents, scoresKept, seasonRecord, type GameScore } from "@/lib/results";
 import type { Game, GameEvent, Sport } from "@/lib/types";
 import { getSportConfig, teamSport, type SurfaceArt } from "@/lib/sports";
 import { SurfaceMotif } from "@/components/brand/SurfaceMotif";
@@ -90,7 +90,7 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
 
     supabase
       .from("games")
-      .select("id, opponent, scheduled_at, round_number")
+      .select("id, opponent, scheduled_at, round_number, playbook_snapshot")
       .eq("team_id", params.teamId)
       .eq("status", "completed")
       .order("scheduled_at", { ascending: false }),
@@ -105,12 +105,14 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
   const trackScoring = teamRow?.track_scoring === true;
   const finals = (finalGames ?? []) as Pick<
     Game,
-    "id" | "opponent" | "scheduled_at" | "round_number"
+    "id" | "opponent" | "scheduled_at" | "round_number" | "playbook_snapshot"
   >[];
   // Scores come from each final game's events (one cached read for the
-  // whole season — the same cache the lineup suggester uses).
+  // whole season — the same cache the lineup suggester uses), for the
+  // games that kept score: each game's own record, not the switch today
+  // (UX round 3, 24 Oct 2026: an unscored game read as a draw).
   const scoresById = new Map<string, GameScore>();
-  if (trackScoring && finals.length > 0) {
+  if (finals.length > 0) {
     const byGame = new Map<string, GameEvent[]>();
     for (const ev of await getSeasonEvents(params.teamId)) {
       const list = byGame.get(ev.game_id) ?? [];
@@ -118,7 +120,8 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
       byGame.set(ev.game_id, list);
     }
     for (const g of finals) {
-      scoresById.set(g.id, scoreFromEvents(sport, byGame.get(g.id) ?? []));
+      const events = byGame.get(g.id) ?? [];
+      if (scoresKept(sport, g, trackScoring, events)) scoresById.set(g.id, scoreFromEvents(sport, events));
     }
   }
   const lastFinal = finals[0] ?? null;
@@ -192,13 +195,14 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
           teamId={params.teamId}
           game={lastFinal}
           score={scoresById.get(lastFinal.id) ?? null}
+          scoresNotKept={!scoresById.has(lastFinal.id)}
         />
       )}
 
       {finals.length > 0 && (
         <SeasonSnapshot
           played={finals.length}
-          record={trackScoring ? seasonRecord(Array.from(scoresById.values())) : null}
+          record={scoresById.size > 0 ? seasonRecord(Array.from(scoresById.values())) : null}
         />
       )}
 
@@ -316,11 +320,14 @@ function LastResult({
   teamId,
   game,
   score,
+  scoresNotKept = false,
 }: {
   teamId: string;
   game: Pick<Game, "id" | "opponent" | "scheduled_at" | "round_number">;
-  /** null when the team doesn't keep score. */
+  /** null when the game didn't keep score. */
   score: GameScore | null;
+  /** The game was played with scoring off: it says so. */
+  scoresNotKept?: boolean;
 }) {
   const outcome = score ? outcomeOf(score) : null;
   const tone =
@@ -358,7 +365,7 @@ function LastResult({
                 {score.us}–{score.them}
               </span>
             ) : (
-              <span className="text-xs text-ink-mute">Summary</span>
+              <span className="text-xs text-ink-mute">{scoresNotKept ? "Scores not kept" : "Summary"}</span>
             )}
           </div>
         </SFCard>

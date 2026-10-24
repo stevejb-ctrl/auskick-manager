@@ -28,11 +28,8 @@ import {
 } from "@/components/sf";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import type { Lineup, Player, PositionModel, Zone } from "@/lib/types";
-import {
-  suggestStartingLineup,
-  zoneCapsFor,
-  type PlayerZoneMinutes,
-} from "@/lib/fairness";
+import { zoneCapsFor, type PlayerZoneMinutes } from "@/lib/fairness";
+import { aflOpeningLineup } from "@/lib/sports/afl/openingLineup";
 import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 
 import { aflRuleCheck, assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
@@ -46,6 +43,7 @@ import { keepOnIds } from "@/components/playbook/KeepOnMarker";
 import { pinLaterPeriods, withPinnedPeriods } from "@/lib/game-plan";
 import { SUB_MINUTES_MAX, SUB_MINUTES_MIN, subMinutesFrom } from "@/lib/live/subCadence";
 import { squadLoanAverage } from "@/lib/live/liveChrome";
+import { useKeptSetting } from "@/components/lineup/useKeptSetting";
 // Rotations each player gets to sit on the bench over the whole game.
 // Bigger benches → more rotations per player (shorter stints each).
 function restsPerPlayer(benchSize: number): number {
@@ -288,7 +286,11 @@ export function LineupPicker({
   // If the coach saved a plan ahead of game day, those values seed
   // the picker. Otherwise we fall back to the age-group default
   // (size) and the suggester (lineup) at first render.
-  const [onFieldSize, setOnFieldSize] = useState(
+  // Kept through a Who's here change (useKeptSetting): the picker is
+  // remounted with a fresh suggestion, not the game's settings.
+  const [onFieldSize, setOnFieldSize] = useKeptSetting(
+    gameId,
+    "onFieldSize",
     initialDraft?.on_field_size ?? defaultOnFieldSize,
   );
 
@@ -299,7 +301,7 @@ export function LineupPicker({
   // build the lineup themselves position-by-position. Either mode
   // is fully editable via tap-tap-to-swap; the toggle just decides
   // the starting point.
-  const [lineupMode, setLineupMode] = useState<"suggested" | "manual">("suggested");
+  const [lineupMode, setLineupMode] = useKeptSetting<"suggested" | "manual">(gameId, "lineupMode", "suggested");
 
   // Mirror the local choice into the live store so QuarterBreak
   // picks it up as its default for every subsequent break. Steve's
@@ -342,34 +344,17 @@ export function LineupPicker({
         bench: playersForLineup.map((p) => p.id),
       };
     }
-    // Build chip-by-id map from the available players list — picked
-    // up by the suggester's chip-spread / chip-group penalty (Phase D).
-    const chipByPlayerId: Record<string, "a" | "b" | "c" | null | undefined> = {};
-    // Cohort chips retired with How we play (UX plan 5.8): their intent now lives in roles and rules.
-    const pinned: Record<string, Zone> = {};
-    let playbook = aflPlaybook;
-    for (const [pid, hold] of Object.entries(locksRef.current)) {
-      if (hold.kind === "zone") pinned[pid] = hold.zone as Zone;
-      if (hold.kind === "field" && playbook) {
-        const role = playbook.roles[pid] ?? { home: null, also: [], never: [], keepOn: false };
-        playbook = { ...playbook, roles: { ...playbook.roles, [pid]: { ...role, keepOn: true } } };
-      }
-    }
-    return suggestStartingLineup(
-      playersForLineup,
+    // The same opening lineup the game page's Game plan shares.
+    return aflOpeningLineup({
+      players: playersForLineup,
       season,
-      0,
-      zoneCapsFor(size, positionModel),
-      {},
-      pinned,
-      {},
-      {},
-      {},
-      chipByPlayerId,
+      onFieldSize: size,
+      positionModel,
+      locks: locksRef.current,
       chipModeByKey,
       fullPeriodMs,
-      playbook,
-    );
+      aflPlaybook,
+    });
   };
 
   // The suggester targets `onFieldSize` players via zoneCapsFor —
@@ -387,7 +372,7 @@ export function LineupPicker({
           fwd: initialDraft.lineup.fwd ?? [],
           bench: initialDraft.lineup.bench ?? [],
         }
-      : buildLineup("suggested", defaultOnFieldSize),
+      : buildLineup(lineupMode, onFieldSize),
   );
 
   function handleSizeChange(next: number) {
@@ -414,7 +399,9 @@ export function LineupPicker({
   const [savedAt, setSavedAt] = useState<string | null>(
     initialDraft?.updated_at ?? null,
   );
-  const [subMinInput, setSubMinInput] = useState<string | null>(
+  const [subMinInput, setSubMinInput] = useKeptSetting<string | null>(
+    gameId,
+    "subMinutes",
     initialDraft ? String(initialDraft.sub_interval_seconds / 60) : null,
   );
 
@@ -760,6 +747,19 @@ export function LineupPicker({
     }
     return out;
   }, [season]);
+  // Each kid's season total, beside their tile's zone bar: PlayerTile
+  // draws the bar only with a total, so after game 1 the "Season time in
+  // zone" key sat over tiles with no bars (UX round 2, 24 Oct 2026). Only
+  // once anyone has history, as the key.
+  const seasonTotalMsByPlayer = useMemo(() => {
+    if (!anySeasonHistory) return undefined;
+    const out: Record<string, number> = {};
+    for (const p of players) {
+      const z = seasonMsByPlayer[p.id];
+      out[p.id] = z ? z.back + z.hback + z.mid + z.hfwd + z.fwd : 0;
+    }
+    return out;
+  }, [anySeasonHistory, players, seasonMsByPlayer]);
 
   const playingShortHanded = onFieldSize < defaultOnFieldSize;
 
@@ -1121,6 +1121,7 @@ export function LineupPicker({
           onLongPress={setHoldPlayerId}
           lockedIds={holds.lockedIds}
           zoneLockedPlayers={holds.zoneLockedPlayers}
+          totalMsByPlayer={seasonTotalMsByPlayer}
           zoneMsByPlayer={seasonMsByPlayer}
           zoneCaps={displayZoneCaps}
           displayZoneCaps={displayZoneCaps}
@@ -1138,6 +1139,7 @@ export function LineupPicker({
           onLongPress={setHoldPlayerId}
           lockedIds={holds.lockedIds}
           zoneLockedPlayers={holds.zoneLockedPlayers}
+          totalMsByPlayer={seasonTotalMsByPlayer}
           zoneMsByPlayer={seasonMsByPlayer}
           chipModeByKey={chipModeByKey}
           keepOnIds={keepOnIds(roles.roles)}

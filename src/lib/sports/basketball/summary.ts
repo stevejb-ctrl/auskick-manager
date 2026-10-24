@@ -1,7 +1,8 @@
 // ─── Basketball game summary ─────────────────────────────────
 // The share text at full time ("Copy for group chat"), from the
 // replayed game: the result (only when scoring is on), the scorers by
-// points, then each kid's game time (with guard and forward split under
+// points (points nobody was named for close the list, "+1 pt (no
+// scorer)", so it adds up to the score), then each kid's game time (with guard and forward split under
 // the line strategies, and a foul-out marked), and the kids who were
 // here but didn't get on.
 
@@ -48,6 +49,8 @@ export function buildBasketballSummary(input: BasketballSummaryInput): string {
         const p = byId.get(id);
         return `${first(p)}${p?.jersey_number != null ? ` (#${p.jersey_number})` : ""} ${n}`;
       });
+    const unnamed = us - Object.values(state.playerPoints).reduce((s, n) => s + n, 0);
+    if (unnamed > 0) scorers.push(`+${unnamed} ${unnamed === 1 ? "pt" : "pts"} (no scorer)`);
     if (scorers.length > 0) lines.push(`\n🏀 Points: ${scorers.join(", ")}`);
   }
 

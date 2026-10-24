@@ -41,6 +41,8 @@ import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeco
 import type { LeagueLineup } from "@/lib/types";
 import type { FillIn, Game, GameEvent, LiveAuth, MixedGroup, Player, Sport } from "@/lib/types";
 import { withThirdsToday } from "@/lib/playbook/dayLines";
+import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
+import { activeOrInGameFilter } from "@/lib/live/presentPlayers";
 
 export const dynamic = "force-dynamic";
 
@@ -83,7 +85,7 @@ export default async function RunPage({ params }: RunPageProps) {
 
   const { data: teamRow } = await admin
     .from("teams")
-    .select("name, sport, track_scoring, age_group, quarter_length_seconds, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_mode, chip_b_mode, chip_c_mode, chip_a_label, chip_b_label, chip_c_label, track_zone_time")
+    .select("name, sport, track_scoring, age_group, quarter_length_seconds, on_field_size, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_mode, chip_b_mode, chip_c_mode, chip_a_label, chip_b_label, chip_c_label, track_zone_time")
     .eq("id", g.team_id)
     .single();
   // Read with the service client: no row means no such team.
@@ -117,6 +119,9 @@ export default async function RunPage({ params }: RunPageProps) {
     .eq("game_id", g.id)
     .order("created_at");
   const hasStarted = (thisGameEvents ?? []).some((e) => e.type === "lineup_set");
+  // The squad for this game: the active kids, and any kid its events name
+  // (deactivated mid-game, they stay on: UX round 3, 24 Oct 2026).
+  const squadFilter = activeOrInGameFilter((thisGameEvents ?? []) as GameEvent[]);
 
   // ─── Netball branch ─────────────────────────────────────────
   // Netball games render through NetballLiveGame; the AFL LiveGame
@@ -168,7 +173,7 @@ export default async function RunPage({ params }: RunPageProps) {
     );
     const [{ data: avail }, { data: players }, { data: teamGames }, { data: fillInRows }] = await Promise.all([
       admin.from("game_availability").select("player_id, status").eq("game_id", g.id).eq("status", "available"),
-      admin.from("players").select("*").eq("team_id", g.team_id).eq("is_active", true).order("jersey_number"),
+      admin.from("players").select("*").eq("team_id", g.team_id).or(squadFilter).order("jersey_number"),
       admin.from("games").select("id").eq("team_id", g.team_id),
       admin.from("game_fill_ins").select("*").eq("game_id", g.id).order("created_at"),
     ]);
@@ -304,7 +309,7 @@ export default async function RunPage({ params }: RunPageProps) {
     const trackFouls = teamExtras?.track_fouls ?? ageCfgB.tracksFoulsDefault;
     const [{ data: avail }, { data: players }, { data: teamGames }, { data: fillInRows }] = await Promise.all([
       admin.from("game_availability").select("player_id, status").eq("game_id", g.id).eq("status", "available"),
-      admin.from("players").select("*").eq("team_id", g.team_id).eq("is_active", true).order("jersey_number"),
+      admin.from("players").select("*").eq("team_id", g.team_id).or(squadFilter).order("jersey_number"),
       admin.from("games").select("id").eq("team_id", g.team_id),
       admin.from("game_fill_ins").select("*").eq("game_id", g.id).order("created_at"),
     ]);
@@ -449,7 +454,7 @@ export default async function RunPage({ params }: RunPageProps) {
     const girlsTryDouble = girlsTryCountsDouble(ageCfgT, mixedRule, teamExtras?.girls_try_double);
     const [{ data: avail }, { data: players }, { data: teamGames }, { data: fillInRows }] = await Promise.all([
       admin.from("game_availability").select("player_id, status").eq("game_id", g.id).eq("status", "available"),
-      admin.from("players").select("*").eq("team_id", g.team_id).eq("is_active", true).order("jersey_number"),
+      admin.from("players").select("*").eq("team_id", g.team_id).or(squadFilter).order("jersey_number"),
       admin.from("games").select("id").eq("team_id", g.team_id),
       admin.from("game_fill_ins").select("*").eq("game_id", g.id).order("created_at"),
     ]);
@@ -620,7 +625,7 @@ export default async function RunPage({ params }: RunPageProps) {
         .from("players")
         .select("*")
         .eq("team_id", g.team_id)
-        .eq("is_active", true)
+        .or(squadFilter)
         .order("jersey_number"),
       admin.from("games").select("id").eq("team_id", g.team_id),
       admin
@@ -758,7 +763,8 @@ export default async function RunPage({ params }: RunPageProps) {
               gameId={g.id}
               players={availablePlayers}
               ageGroup={ageCfgL}
-              defaultOnFieldSize={ageCfgL.defaultOnFieldSize}
+              // The game's own size, as the coach's page.
+              defaultOnFieldSize={g.on_field_size}
               minOnFieldSize={ageCfgL.minOnFieldSize}
               maxOnFieldSize={ageCfgL.maxOnFieldSize}
               // The game's own interval (see the AFL runner lineup page).
@@ -843,7 +849,7 @@ export default async function RunPage({ params }: RunPageProps) {
         .from("players")
         .select("*")
         .eq("team_id", g.team_id)
-        .eq("is_active", true)
+        .or(squadFilter)
         .order("jersey_number"),
       admin.from("games").select("id").eq("team_id", g.team_id),
       admin
@@ -1012,7 +1018,7 @@ export default async function RunPage({ params }: RunPageProps) {
         .from("players")
         .select("*")
         .eq("team_id", g.team_id)
-        .eq("is_active", true)
+        .or(squadFilter)
         .order("jersey_number"),
       admin.from("games").select("id").eq("team_id", g.team_id),
     ]);
@@ -1071,7 +1077,8 @@ export default async function RunPage({ params }: RunPageProps) {
           currentOnFieldSize={g.on_field_size}
           minOnFieldSize={ageCfgSport.minOnFieldSize}
           maxOnFieldSize={ageCfgSport.maxOnFieldSize}
-          defaultOnFieldSize={ageCfgSport.defaultOnFieldSize}
+          // The team's own full side, as the coach's page.
+          defaultOnFieldSize={teamOnFieldSize(ageCfgSport, (teamRow as { on_field_size?: number | null } | null)?.on_field_size)}
           chipModeByKey={teamChipModes}
           aflPlaybook={aflPlaybook}
           songUrl={songUrl}

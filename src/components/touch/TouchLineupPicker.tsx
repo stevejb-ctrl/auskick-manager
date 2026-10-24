@@ -23,6 +23,7 @@
 // Start, not after.
 
 import { useMemo, useRef, useState, useTransition } from "react";
+import { useKeptSetting } from "@/components/lineup/useKeptSetting";
 import { useRouter } from "next/navigation";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
 import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
@@ -134,11 +135,13 @@ export function TouchLineupPicker({
   const [groupPending, setGroupPending] = useState<string | null>(null);
 
   const clampSize = (n: number) => Math.max(ageGroup.minOnFieldSize, Math.min(ageGroup.maxOnFieldSize, n));
-  const [onFieldSize, setOnFieldSize] = useState(() => clampSize(initialSize));
+  // Settings are kept through a Who's here change (useKeptSetting): the
+  // picker remounts with a fresh suggestion in the coach's size and shape.
+  const [onFieldSize, setOnFieldSize] = useKeptSetting(gameId, "onFieldSize", () => clampSize(initialSize));
   const playing = useMemo(() => players.filter((p) => !loanedIds.has(p.id)).map((p) => p.id), [players, loanedIds]);
   const plan = touchFieldPlan(onFieldSize, playing, mixed);
   const size = Math.min(plan?.size ?? onFieldSize, playing.length || onFieldSize);
-  const [shapeId, setShapeId] = useState<string | null>(null);
+  const [shapeId, setShapeId] = useKeptSetting<string | null>(gameId, "shape", null);
   const shape = touchShapeFor(ageGroup, strategy, size, shapeId);
   const laneShapes = usesTouchLanes(strategy) ? (ageGroup.shapes[size] ?? []) : [];
 
@@ -157,7 +160,7 @@ export function TouchLineupPicker({
         bench: [...keep(draft.bench), ...players.map((p) => p.id).filter((id) => !placed.has(id))],
       };
     }
-    return suggest(clampSize(initialSize), null, players.map((p) => p.id).filter((id) => !initialLoanedIds.includes(id))).lineup;
+    return suggest(onFieldSize, shapeId, players.map((p) => p.id).filter((id) => !initialLoanedIds.includes(id))).lineup;
   });
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -167,7 +170,7 @@ export function TouchLineupPicker({
   const [startModalOpen, setStartModalOpen] = useState(false);
   const [savePending, setSavePending] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(initialDraft?.updated_at ?? null);
-  const [subMinInput, setSubMinInput] = useState(String(defaultSubMinutes));
+  const [subMinInput, setSubMinInput] = useKeptSetting(gameId, "subMinutes", String(defaultSubMinutes));
   const subIntervalSeconds = Math.round(subMinutesFrom(subMinInput, defaultSubMinutes) * 60);
 
   const fieldIds = touchOnField(lineup);

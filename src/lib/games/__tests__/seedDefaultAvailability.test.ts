@@ -20,7 +20,7 @@
 // this test fails before they ship.
 
 import { describe, it, expect, vi } from "vitest";
-import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
+import { seedAvailabilityForNewPlayers, seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
 
 /**
  * Build a Supabase-shaped mock client. Implements just enough of
@@ -162,5 +162,65 @@ describe("seedDefaultAvailability — default-available rule", () => {
     for (const [col, val] of eqCalls) filters.set(col as string, val);
     expect(filters.get("team_id")).toBe("t1");
     expect(filters.get("is_active")).toBe(true);
+  });
+});
+
+// ─── A kid added mid-season (UX round 2, 24 Oct 2026) ────────
+// Noah, added after game 1, opened game 2 as "Out: Noah": availability
+// was seeded for the squad when each game was made, and he had no row.
+// A new or returning kid is In for every game still to come, like
+// everyone else was when the game was made.
+
+function makeUpcomingClient(upcoming: { id: string }[]) {
+  const upserts: Array<{ rows: Array<Record<string, unknown>>; opts: Record<string, unknown> }> = [];
+  const filters = new Map<string, unknown>();
+  const gamesQuery = {
+    select: vi.fn(function (this: typeof gamesQuery) {
+      return this;
+    }),
+    eq: vi.fn(function (this: typeof gamesQuery, col: string, val: unknown) {
+      filters.set(col, val);
+      return this;
+    }),
+    then(resolve: (v: { data: { id: string }[]; error: null }) => unknown) {
+      return Promise.resolve({ data: upcoming, error: null }).then(resolve);
+    },
+  };
+  const supabase = {
+    from: vi.fn((table: string) => {
+      if (table === "games") return gamesQuery;
+      if (table === "game_availability") {
+        return {
+          upsert: vi.fn((rows: Array<Record<string, unknown>>, opts: Record<string, unknown>) => {
+            upserts.push({ rows, opts });
+            return Promise.resolve({ error: null });
+          }),
+        };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    }),
+  };
+  return { supabase: supabase as never, upserts, filters };
+}
+
+describe("seedAvailabilityForNewPlayers — a kid added mid-season", () => {
+  it("marks them available for every upcoming game", async () => {
+    const { supabase, upserts, filters } = makeUpcomingClient([{ id: "g2" }, { id: "g3" }]);
+    const count = await seedAvailabilityForNewPlayers({ supabase, teamId: "t1", playerIds: ["noah"], createdBy: "u-admin" });
+    expect(count).toBe(2);
+    expect(filters.get("team_id")).toBe("t1");
+    expect(filters.get("status")).toBe("upcoming");
+    expect(upserts[0].rows).toEqual([
+      { game_id: "g2", player_id: "noah", status: "available", updated_by: "u-admin" },
+      { game_id: "g3", player_id: "noah", status: "available", updated_by: "u-admin" },
+    ]);
+    // A coach's "Out" for a returning kid stays.
+    expect(upserts[0].opts).toEqual({ onConflict: "game_id,player_id", ignoreDuplicates: true });
+  });
+
+  it("writes nothing when no games are coming up", async () => {
+    const { supabase, upserts } = makeUpcomingClient([]);
+    expect(await seedAvailabilityForNewPlayers({ supabase, teamId: "t1", playerIds: ["noah"], createdBy: null })).toBe(0);
+    expect(upserts).toHaveLength(0);
   });
 });

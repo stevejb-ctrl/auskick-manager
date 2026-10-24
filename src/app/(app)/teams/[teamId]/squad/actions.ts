@@ -6,6 +6,9 @@ import { getAgeGroupConfig, teamSport } from "@/lib/sports";
 import type { ParsedPlayer } from "@/lib/squadPaste";
 import type { ActionResult, Sport } from "@/lib/types";
 import { teamSportById } from "@/lib/sports/teamSportById";
+import { seedAvailabilityForNewPlayers } from "@/lib/games/seedDefaultAvailability";
+import { presentPlayerIds } from "@/lib/live/presentPlayers";
+import type { GameEvent } from "@/lib/types";
 
 async function getAuthedAdmin(teamId: string) {
   const supabase = createClient();
@@ -48,6 +51,25 @@ async function squadCapFor(
 }
 
 /**
+ * A kid who joins (or comes back) is In for the games already made, as
+ * the squad was when each game was made (UX round 2, 24 Oct 2026: a
+ * newcomer opened every scheduled game as "Out"). The kid is added
+ * either way; a failed seed leaves them to be marked In by hand.
+ */
+async function inForUpcomingGames(
+  supabase: ReturnType<typeof createClient>,
+  teamId: string,
+  playerIds: string[],
+  userId: string | null,
+) {
+  try {
+    await seedAvailabilityForNewPlayers({ supabase, teamId, playerIds, createdBy: userId });
+  } catch (e) {
+    console.error("[squad] seeding upcoming games' availability failed", e);
+  }
+}
+
+/**
  * Add several players at once (the pasted-list path). All or nothing:
  * checks the squad cap and taken jersey numbers first so a coach never
  * ends up with half a list added.
@@ -80,8 +102,12 @@ export async function addPlayers(
     return { success: false, error: `Jersey #${clash.jersey_number} is already taken.` };
   }
 
+  // Ids made here, so the new kids can be marked In for upcoming games
+  // without reading the rows back.
+  const rows = players.map((p) => ({ id: crypto.randomUUID(), ...p }));
   const { error: insertError } = await supabase.from("players").insert(
-    players.map((p) => ({
+    rows.map((p) => ({
+      id: p.id,
       team_id: teamId,
       full_name: p.full_name,
       jersey_number: p.jersey_number,
@@ -94,6 +120,7 @@ export async function addPlayers(
     }
     return { success: false, error: insertError.message };
   }
+  await inForUpcomingGames(supabase, teamId, rows.map((p) => p.id), user.id);
 
   revalidatePath(`/teams/${teamId}/squad`);
   revalidatePath(`/teams/${teamId}/setup`);
@@ -126,7 +153,9 @@ export async function addPlayer(
     };
   }
 
+  const playerId = crypto.randomUUID();
   const { error: insertError } = await supabase.from("players").insert({
+    id: playerId,
     team_id: teamId,
     full_name: fullName,
     jersey_number: jerseyNumber,
@@ -141,6 +170,7 @@ export async function addPlayer(
     }
     return { success: false, error: insertError.message };
   }
+  await inForUpcomingGames(supabase, teamId, [playerId], user.id);
 
   revalidatePath(`/teams/${teamId}/squad`);
   return { success: true };
@@ -181,10 +211,44 @@ export async function updatePlayer(
   return { success: true };
 }
 
+/**
+ * Deactivate a kid. One in a game that's on now isn't, until the coach
+ * says so (`confirmLive`): it comes back with `liveGame`, the opponent,
+ * so the squad page can ask. They stay in that game either way (the live
+ * page keeps every kid its events name), but a kid dropped off the field
+ * mid-game with no warning (UX round 3, 24 Oct 2026).
+ */
 export async function deactivatePlayer(
   teamId: string,
-  playerId: string
-): Promise<ActionResult> {
+  playerId: string,
+  confirmLive: boolean = false,
+): Promise<ActionResult & { liveGame?: string }> {
+  if (!confirmLive) {
+    const { supabase, error } = await getAuthedAdmin(teamId);
+    if (error) return { success: false, error };
+    const { data: live } = await supabase
+      .from("games")
+      .select("id, opponent")
+      .eq("team_id", teamId)
+      .eq("status", "in_progress");
+    if (live && live.length > 0) {
+      const { data: events } = await supabase
+        .from("game_events")
+        .select("game_id, type, player_id, metadata")
+        .in("game_id", live.map((g) => g.id))
+        .in("type", ["lineup_set", "period_break_swap", "player_arrived"]);
+      const inGame = live.find((g) =>
+        presentPlayerIds(((events ?? []) as GameEvent[]).filter((e) => e.game_id === g.id)).includes(playerId),
+      );
+      if (inGame) {
+        return {
+          success: false,
+          error: `They're in the game against ${inGame.opponent} that's on now.`,
+          liveGame: inGame.opponent as string,
+        };
+      }
+    }
+  }
   return updatePlayer(teamId, playerId, { is_active: false });
 }
 
@@ -192,7 +256,7 @@ export async function reactivatePlayer(
   teamId: string,
   playerId: string
 ): Promise<ActionResult> {
-  const { supabase, error } = await getAuthedAdmin(teamId);
+  const { supabase, user, error } = await getAuthedAdmin(teamId);
   if (error) return { success: false, error };
 
   const maxPlayers = await squadCapFor(supabase, teamId);
@@ -207,5 +271,7 @@ export async function reactivatePlayer(
     return { success: false, error: "Squad is full — deactivate another player first." };
   }
 
-  return updatePlayer(teamId, playerId, { is_active: true });
+  const result = await updatePlayer(teamId, playerId, { is_active: true });
+  if (result.success) await inForUpcomingGames(supabase, teamId, [playerId], user?.id ?? null);
+  return result;
 }

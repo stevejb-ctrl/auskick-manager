@@ -18,6 +18,8 @@ import {
 import { primaryThirdFor, netballSport } from "@/lib/sports/netball";
 import type { Game, GameEvent, GameAvailability, Player } from "@/lib/types";
 import type { AttendanceRow, Season } from "@/lib/dashboard/types";
+import { attendanceRows } from "@/lib/dashboard/aggregators";
+import { awayMsByPeriod } from "@/lib/playbook/awayTime";
 
 const MS_PER_MIN = 60_000;
 const ALL_POSITIONS = ["gs", "ga", "wa", "c", "wd", "gd", "gk"] as const;
@@ -47,6 +49,12 @@ export interface NetballGameSnapshot {
   /** Full game length (4 × quarterLengthMs). */
   gameLengthMs: number;
   /**
+   * Per-player time they could play: the game less the time before a
+   * late arrival, injured, or lent (awayMsByPeriod, as How we played and
+   * AFL's stats count it). Kids never away get the whole game.
+   */
+  playerAvailableMs: Record<string, number>;
+  /**
    * Pairs of players who shared a third for some duration this game.
    * Drives the chemistry section. Key is a sorted "a:b" pair.
    */
@@ -68,7 +76,7 @@ export interface NetballPlayerSeasonStats {
   /** Per-position ms across the season; sums to totalMs. */
   positionMs: Partial<Record<NetballPosition, number>>;
   goals: number;
-  /** % of total possible on-court time across games they played. */
+  /** % of the on-court time they could play, across the games they were at. */
   teamGameTimePct: number;
 }
 
@@ -232,6 +240,14 @@ export function replayNetballGameForStats(
     }
   }
 
+  const gameLengthMs = quarterLengthMs * 4;
+  const away = awayMsByPeriod(sorted, () => quarterLengthMs, 4);
+  const playerAvailableMs: Record<string, number> = {};
+  playerIds.forEach((pid) => {
+    const awayMs = Object.values(away[pid] ?? {}).reduce((a, b) => a + b, 0);
+    playerAvailableMs[pid] = Math.max(0, gameLengthMs - awayMs);
+  });
+
   return {
     gameId,
     playerThirdMs: playerThirdMsRecord,
@@ -241,7 +257,8 @@ export function replayNetballGameForStats(
     teamGoalsByQtr,
     oppGoalsByQtr,
     quarterLengthMs,
-    gameLengthMs: quarterLengthMs * 4,
+    gameLengthMs,
+    playerAvailableMs,
     pairThirdMs,
     playerIds: Array.from(playerIds),
   };
@@ -293,10 +310,12 @@ export function computeNetballPlayerStats(
         row.thirdMs.attack += t.attack;
         row.thirdMs.centre += t.centre;
         row.thirdMs.defence += t.defence;
-        // Capacity: full game length per game they played in. Used
-        // for the % team game time below.
-        row.onCourtCapacityMs += snap.gameLengthMs;
       }
+      // Capacity: the time they could play in every game they were at
+      // (UX round 2, 24 Oct 2026: a kid hurt at 6:29 read 16%, a late
+      // arrival 50% of a game she was only there for three quarters of).
+      // A kid who sat on the bench all game was still there, at 0%.
+      row.onCourtCapacityMs += snap.playerAvailableMs?.[pid] ?? snap.gameLengthMs;
       const counts = snap.playerPositionCounts[pid] ?? {};
       for (const [pos, n] of Object.entries(counts)) {
         const p = pos as NetballPosition;
@@ -354,12 +373,14 @@ export function computeNetballChemistry(
 export function computeNetballHeadToHead(
   games: Game[],
   snapshots: NetballGameSnapshot[],
+  /** Whether a game kept score: one that didn't isn't a result (no draw). */
+  keptScore: (gameId: string) => boolean = () => true,
 ): NetballHeadToHeadRecord[] {
   const byId = new Map(snapshots.map((s) => [s.gameId, s]));
   const byOpp = new Map<string, NetballHeadToHeadRecord>();
   for (const game of games) {
     const snap = byId.get(game.id);
-    if (!snap) continue;
+    if (!snap || !keptScore(game.id)) continue;
     const opp = game.opponent;
     let row = byOpp.get(opp);
     if (!row) {
@@ -392,37 +413,29 @@ export function computeNetballHeadToHead(
   return Array.from(byOpp.values()).sort((a, b) => b.gamesPlayed - a.gamesPlayed);
 }
 
+/**
+ * Games each kid got on court in, out of the games they were on the
+ * squad for: AFL's rule (attendanceRows). It used to count "marked
+ * available" as played, so a kid who came and never got on read 100%,
+ * and a kid added mid-season was charged for the games before (UX round
+ * 2, 24 Oct 2026). Jersey numbers are null in netball; the column stays.
+ */
 export function computeNetballAttendance(
   players: Player[],
   games: Game[],
   availability: GameAvailability[],
+  snapshots: NetballGameSnapshot[],
 ): AttendanceRow[] {
-  const gameIds = new Set(games.map((g) => g.id));
-  const availBy: Record<string, number> = {};
-  for (const a of availability) {
-    if (!gameIds.has(a.game_id)) continue;
-    if (a.status !== "available") continue;
-    availBy[a.player_id] = (availBy[a.player_id] ?? 0) + 1;
-  }
-  const total = games.length;
-  const rows: AttendanceRow[] = [];
-  for (const p of players) {
-    const avail = availBy[p.id] ?? 0;
-    rows.push({
-      playerId: p.id,
-      playerName: p.full_name,
-      // jerseyNumber on netball players is null — we keep the field
-      // present on the row so AttendanceTable's existing column
-      // header stays consistent (it just renders empty).
-      jerseyNumber: p.jersey_number,
-      gamesAvailable: avail,
-      gamesPlayed: avail, // same — we count "available" as "showed up"
-      attendancePct: total > 0 ? Math.round((avail / total) * 100) : 0,
-    });
-  }
-  // Sort by attendance pct descending so most-reliable players are at
-  // the top.
-  return rows.sort((a, b) => b.attendancePct - a.attendancePct);
+  const marked = new Set(
+    availability.filter((a) => a.status === "available").map((a) => `${a.game_id}:${a.player_id}`),
+  );
+  const gotOn = new Map(
+    snapshots.map((s) => [
+      s.gameId,
+      new Set(Object.entries(s.playerThirdMs).filter(([, t]) => t.attack + t.centre + t.defence > 0).map(([pid]) => pid)),
+    ]),
+  );
+  return attendanceRows(players, games, (gid) => gotOn.get(gid), (gid, pid) => marked.has(`${gid}:${pid}`));
 }
 
 // Helpers used by the dashboard shell.

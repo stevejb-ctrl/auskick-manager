@@ -5,6 +5,10 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
 import { newGameDefaults, PERIOD_MINUTES_MAX } from "@/lib/games/newGameDefaults";
+import { pinPlayedPeriodLength } from "@/lib/games/pinPlayedPeriodLength";
+import { gameWriteError } from "@/lib/games/gameWriteError";
+import { teamSport } from "@/lib/sports/registry";
+import { onSurfaceLabel } from "@/lib/sports/words";
 import type { ActionResult } from "@/lib/types";
 
 async function getAuthedAdmin(teamId: string) {
@@ -74,6 +78,7 @@ export async function createGame(
     .single();
   const defaults = newGameDefaults(team?.sport, team?.age_group, team?.on_field_size, team?.period_count);
   const gameId = crypto.randomUUID();
+  const onFieldSize = input.on_field_size ?? defaults.on_field_size;
   const { error: insertError } = await supabase
     .from("games")
     .insert({
@@ -84,13 +89,17 @@ export async function createGame(
       location: input.location?.trim() || null,
       round_number: input.round_number ?? null,
       notes: input.notes?.trim() || null,
-      on_field_size: input.on_field_size ?? defaults.on_field_size,
+      on_field_size: onFieldSize,
       sub_interval_seconds: defaults.sub_interval_seconds,
       created_by: user.id,
     });
 
   if (insertError) {
-    return { success: false, error: insertError.message };
+    // In the coach's words, never a constraint's name (UX round 3).
+    return {
+      success: false,
+      error: gameWriteError(insertError, { size: onFieldSize, onSurface: onSurfaceLabel(teamSport(team?.sport)) }),
+    };
   }
 
   // Default: all active players are "available". Coach un-selects
@@ -123,6 +132,20 @@ export async function setTrackScoring(
     .from("teams")
     .update({ track_scoring: enabled })
     .eq("id", teamId);
+  // A game on now goes with the switch: its record says whether it kept
+  // score, so a later change never rewrites its result (UX round 3).
+  if (!updateError) {
+    const { data: live } = await supabase
+      .from("games")
+      .select("id, playbook_snapshot")
+      .eq("team_id", teamId)
+      .eq("status", "in_progress");
+    for (const g of live ?? []) {
+      const snapshot = g.playbook_snapshot as Record<string, unknown> | null;
+      if (!snapshot) continue;
+      await supabase.from("games").update({ playbook_snapshot: { ...snapshot, trackScoring: enabled } }).eq("id", g.id);
+    }
+  }
 
   if (updateError) return { success: false, error: updateError.message };
 
@@ -138,7 +161,8 @@ export async function setTrackScoring(
  * Per-team override for quarter duration (in seconds). Pass `null` to
  * clear the override and fall back to the age-group default. The form
  * validates sane ranges (1–60 min: union's U17–U18 halves run 35); the
- * DB column has no CHECK.
+ * DB column has no CHECK. Games not yet started take the new length;
+ * games already played keep theirs (pinPlayedPeriodLength).
  */
 export async function setQuarterLengthSeconds(
   teamId: string,
@@ -154,6 +178,13 @@ export async function setQuarterLengthSeconds(
         error: `Period length must be a whole number of minutes between 1 and ${PERIOD_MINUTES_MAX}.`,
       };
     }
+  }
+
+  // Past games keep the length they were played with (UX round 2).
+  try {
+    await pinPlayedPeriodLength(supabase, teamId);
+  } catch (e) {
+    return { success: false, error: (e as Error).message };
   }
 
   const { error: updateError } = await supabase

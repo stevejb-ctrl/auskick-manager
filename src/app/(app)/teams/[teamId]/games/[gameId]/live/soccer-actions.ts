@@ -50,6 +50,8 @@ import { SOCCER_UNITS } from "@/lib/sports/soccer/types";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
 import type { PlaybookSnapshot } from "@/lib/playbook/types";
+import { gameWriteError } from "@/lib/games/gameWriteError";
+import { onSurfaceLabel } from "@/lib/sports/words";
 
 interface Writer {
   supabase: SupabaseClient;
@@ -182,24 +184,6 @@ export async function startSoccerGame(
   const firstError = check.issues.find((i) => i.kind === "error");
   if (firstError) return { success: false, error: firstError.message };
 
-  const { error: insertError } = await w.supabase.from("game_events").insert({
-    game_id: gameId,
-    type: "lineup_set",
-    metadata: { lineup, sport },
-    created_by: w.userId,
-  });
-  if (insertError) return { success: false, error: insertError.message };
-
-  if (startHalfToo) {
-    const { error: startError } = await w.supabase.from("game_events").insert({
-      game_id: gameId,
-      type: "quarter_start",
-      metadata: { quarter: 1, sport },
-      created_by: w.userId,
-    });
-    if (startError) return { success: false, error: startError.message };
-  }
-
   const gameUpdate: {
     status: "in_progress";
     on_field_size: number;
@@ -214,7 +198,37 @@ export async function startSoccerGame(
   if (subIntervalSeconds != null) {
     gameUpdate.sub_interval_seconds = Math.round(Math.min(10 * 60, Math.max(60, subIntervalSeconds)));
   }
-  await w.supabase.from("games").update(gameUpdate).eq("id", gameId);
+  // The game goes in progress before anything is written, so a refused
+  // write stops kick-off: at 3 a side the lineup and the first half were
+  // written, the clock ran, and the game stayed "Upcoming" everywhere
+  // else (UX round 3, 24 Oct 2026).
+  const { error: gameError } = await w.supabase.from("games").update(gameUpdate).eq("id", gameId);
+  if (gameError) {
+    return { success: false, error: gameWriteError(gameError, { size, onSurface: onSurfaceLabel(sport) }) };
+  }
+  // Back to upcoming if the kick-off events don't land.
+  const undoStart = async (message: string): Promise<ActionResult> => {
+    await w.supabase.from("games").update({ status: "upcoming" }).eq("id", gameId);
+    return { success: false, error: message };
+  };
+
+  const { error: insertError } = await w.supabase.from("game_events").insert({
+    game_id: gameId,
+    type: "lineup_set",
+    metadata: { lineup, sport },
+    created_by: w.userId,
+  });
+  if (insertError) return undoStart(insertError.message);
+
+  if (startHalfToo) {
+    const { error: startError } = await w.supabase.from("game_events").insert({
+      game_id: gameId,
+      type: "quarter_start",
+      metadata: { quarter: 1, sport },
+      created_by: w.userId,
+    });
+    if (startError) return undoStart(startError.message);
+  }
 
   // Kick-off retires the pre-game draft, as for every sport.
   await w.supabase.from("game_lineup_drafts").delete().eq("game_id", gameId);

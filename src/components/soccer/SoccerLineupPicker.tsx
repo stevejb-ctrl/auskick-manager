@@ -17,6 +17,7 @@
 // season debt. Changing the size or the shape suggests again.
 
 import { useMemo, useRef, useState, useTransition } from "react";
+import { keptSetting, useKeptSetting } from "@/components/lineup/useKeptSetting";
 import { useRouter } from "next/navigation";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
 import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
@@ -131,7 +132,9 @@ export function SoccerLineupPicker({
   const firstPeriod = `${periodWord.charAt(0).toUpperCase()}1`;
 
   const clampSize = (n: number) => Math.max(ageGroup.minOnFieldSize, Math.min(ageGroup.maxOnFieldSize, n));
-  const [onFieldSize, setOnFieldSize] = useState(() => clampSize(initialSize));
+  // Settings are kept through a Who's here change (useKeptSetting): the
+  // picker remounts with a fresh suggestion in the coach's size and shape.
+  const [onFieldSize, setOnFieldSize] = useKeptSetting(gameId, "onFieldSize", () => clampSize(initialSize));
   const playing = useMemo(() => players.filter((p) => !loanedIds.has(p.id)).map((p) => p.id), [players, loanedIds]);
   const shapes = soccerFormations(ageGroup, Math.min(onFieldSize, playing.length || onFieldSize));
 
@@ -148,12 +151,12 @@ export function SoccerLineupPicker({
   const [firstSuggestion] = useState(() =>
     initialDraft
       ? null
-      : suggest(clampSize(initialSize), null, players.map((p) => p.id).filter((id) => !initialLoanedIds.includes(id))),
+      : suggest(onFieldSize, keptSetting<string | null>(gameId, "shape") ?? null, players.map((p) => p.id).filter((id) => !initialLoanedIds.includes(id))),
   );
   // The shape on the pitch: the coach's pick, else the suggestion's (the
   // first that fits every kid's "Plays as": futsal's diamond for a
   // Wings-only kid, never 2-2 with them up front).
-  const [formationId, setFormationId] = useState<string | null>(firstSuggestion?.formation.id ?? null);
+  const [formationId, setFormationId] = useKeptSetting<string | null>(gameId, "shape", firstSuggestion?.formation.id ?? null);
   const formation = shapes.find((f) => f.id === formationId) ?? shapes[0];
 
   const [lineup, setLineup] = useState<SoccerLineup>(() => {
@@ -189,7 +192,7 @@ export function SoccerLineupPicker({
   const [startModalOpen, setStartModalOpen] = useState(false);
   const [savePending, setSavePending] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(initialDraft?.updated_at ?? null);
-  const [subMinInput, setSubMinInput] = useState(String(defaultSubMinutes));
+  const [subMinInput, setSubMinInput] = useKeptSetting(gameId, "subMinutes", String(defaultSubMinutes));
   const subIntervalSeconds = Math.round(subMinutesFrom(subMinInput, defaultSubMinutes) * 60);
 
   const fieldIds = soccerOnField(lineup);

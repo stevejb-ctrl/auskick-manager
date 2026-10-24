@@ -39,6 +39,8 @@ import { AflWalkthroughOffer, LeagueWalkthroughOffer } from "@/components/live/W
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { ParentScoreboard } from "@/components/live/ParentScoreboard";
 import { GameDayAvailabilityPanel } from "@/components/games/GameDayAvailabilityPanel";
+import { activeOrInGameFilter } from "@/lib/live/presentPlayers";
+import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
 import {
   replayGame,
   seasonZoneMinutes,
@@ -83,6 +85,20 @@ function fillInToPlayer(f: FillIn, teamId: string): Player {
     created_by: f.created_by ?? "",
     created_at: f.created_at,
     updated_at: f.created_at,
+  };
+}
+
+/**
+ * When and where the game is, and the squad kids not here, for the Game
+ * plan's copied text, as the game page's plan says them (UX round 2,
+ * 24 Oct 2026: parents had to ask).
+ */
+function gamePlanDetails(g: Game, squad: Player[], availableIds: Set<string> | string[]) {
+  const here = new Set(availableIds);
+  return {
+    scheduledAt: g.scheduled_at,
+    venue: g.location,
+    out: squad.filter((p) => !here.has(p.id)).map((p) => p.full_name.trim().split(/\s+/)[0]),
   };
 }
 
@@ -201,7 +217,7 @@ export default async function LivePage({ params }: LivePageProps) {
       .single(),
     supabase
       .from("teams")
-      .select("name, sport, track_scoring, track_zone_time, age_group, quarter_length_seconds, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
+      .select("name, sport, track_scoring, track_zone_time, age_group, quarter_length_seconds, on_field_size, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
       .eq("id", params.teamId)
       .single(),
     supabase
@@ -212,6 +228,9 @@ export default async function LivePage({ params }: LivePageProps) {
   ]);
   if (!game) notFound();
   const g = game as Game;
+  // The squad for this game: the active kids, and any kid its events name
+  // (deactivated mid-game, they stay on: UX round 3, 24 Oct 2026).
+  const squadFilter = activeOrInGameFilter((thisGameEvents ?? []) as GameEvent[]);
   const teamName = teamRow?.name ?? "Team";
   const sport: Sport = teamRow ? teamSport(teamRow.sport) : ((await teamSportById(params.teamId)) ?? notFound());
   // track_scoring is sport-agnostic — both AFL and netball flows
@@ -334,7 +353,7 @@ export default async function LivePage({ params }: LivePageProps) {
     );
     const [{ data: avail }, { data: players }, { data: fillInRows }] = await Promise.all([
       supabase.from("game_availability").select("player_id, status").eq("game_id", params.gameId).eq("status", "available"),
-      supabase.from("players").select("*").eq("team_id", params.teamId).eq("is_active", true).order("jersey_number"),
+      supabase.from("players").select("*").eq("team_id", params.teamId).or(squadFilter).order("jersey_number"),
       supabase.from("game_fill_ins").select("*").eq("game_id", params.gameId).order("created_at"),
     ]);
     const fillIns = ((fillInRows ?? []) as FillIn[]).map((f) => fillInToPlayer(f, params.teamId));
@@ -476,7 +495,7 @@ export default async function LivePage({ params }: LivePageProps) {
     const trackFouls = teamExtras?.track_fouls ?? ageCfgB.tracksFoulsDefault;
     const [{ data: avail }, { data: players }, { data: fillInRows }] = await Promise.all([
       supabase.from("game_availability").select("player_id, status").eq("game_id", params.gameId).eq("status", "available"),
-      supabase.from("players").select("*").eq("team_id", params.teamId).eq("is_active", true).order("jersey_number"),
+      supabase.from("players").select("*").eq("team_id", params.teamId).or(squadFilter).order("jersey_number"),
       supabase.from("game_fill_ins").select("*").eq("game_id", params.gameId).order("created_at"),
     ]);
     const fillIns = ((fillInRows ?? []) as FillIn[]).map((f) => fillInToPlayer(f, params.teamId));
@@ -626,7 +645,7 @@ export default async function LivePage({ params }: LivePageProps) {
     const girlsTryDouble = girlsTryCountsDouble(ageCfgT, mixedRule, teamExtras?.girls_try_double);
     const [{ data: avail }, { data: players }, { data: fillInRows }] = await Promise.all([
       supabase.from("game_availability").select("player_id, status").eq("game_id", params.gameId).eq("status", "available"),
-      supabase.from("players").select("*").eq("team_id", params.teamId).eq("is_active", true).order("jersey_number"),
+      supabase.from("players").select("*").eq("team_id", params.teamId).or(squadFilter).order("jersey_number"),
       supabase.from("game_fill_ins").select("*").eq("game_id", params.gameId).order("created_at"),
     ]);
     const fillIns = ((fillInRows ?? []) as FillIn[]).map((f) => fillInToPlayer(f, params.teamId));
@@ -800,7 +819,7 @@ export default async function LivePage({ params }: LivePageProps) {
         .from("players")
         .select("*")
         .eq("team_id", params.teamId)
-        .eq("is_active", true)
+        .or(squadFilter)
         .order("jersey_number"),
       supabase
         .from("game_fill_ins")
@@ -948,7 +967,8 @@ export default async function LivePage({ params }: LivePageProps) {
               gameId={params.gameId}
               players={availablePlayers}
               ageGroup={ageCfgL}
-              defaultOnFieldSize={ageCfgL.defaultOnFieldSize}
+              // The game's own size, as AFL's and every picker's.
+              defaultOnFieldSize={g.on_field_size}
               minOnFieldSize={ageCfgL.minOnFieldSize}
               maxOnFieldSize={ageCfgL.maxOnFieldSize}
               defaultSubMinutes={g.sub_interval_seconds / 60}
@@ -961,6 +981,7 @@ export default async function LivePage({ params }: LivePageProps) {
                 subIntervalSeconds: g.sub_interval_seconds,
                 teamName,
                 opponentName: g.opponent,
+                details: gamePlanDetails(g, (players ?? []) as Player[], availableIds),
                 seasonEvents: leagueSeasonEvents as GameEvent[],
                 chipModeByKey: teamChipModes,
                 leaguePlaybook,
@@ -1055,7 +1076,7 @@ export default async function LivePage({ params }: LivePageProps) {
         .from("players")
         .select("*")
         .eq("team_id", params.teamId)
-        .eq("is_active", true)
+        .or(squadFilter)
         .order("jersey_number"),
       supabase.from("games").select("id").eq("team_id", params.teamId),
       supabase
@@ -1269,6 +1290,8 @@ export default async function LivePage({ params }: LivePageProps) {
                   periodMinutes: quarterLengthSeconds / 60,
                   teamName,
                   opponentName: g.opponent,
+                  // When, where and who's out, as the game page's plan.
+                  details: gamePlanDetails(g, (players ?? []) as Player[], availableIds),
                   seasonEvents: seasonEvents as GameEvent[],
                   chipModeByKey: teamChipModes,
                   netballPlaybook,
@@ -1331,7 +1354,7 @@ export default async function LivePage({ params }: LivePageProps) {
         .from("players")
         .select("*")
         .eq("team_id", params.teamId)
-        .eq("is_active", true)
+        .or(squadFilter)
         .order("jersey_number"),
       supabase.from("games").select("id").eq("team_id", params.teamId),
       supabase
@@ -1420,7 +1443,9 @@ export default async function LivePage({ params }: LivePageProps) {
           currentOnFieldSize={g.on_field_size}
           minOnFieldSize={ageCfg.minOnFieldSize}
           maxOnFieldSize={ageCfg.maxOnFieldSize}
-          defaultOnFieldSize={ageCfg.defaultOnFieldSize}
+          // A full side is the team's own (its competition's), not the age
+          // group's: a team that plays 6 drew 6 empty slots (UX round 3).
+          defaultOnFieldSize={teamOnFieldSize(ageCfg, (teamRow as { on_field_size?: number | null } | null)?.on_field_size)}
           chipModeByKey={teamChipModes}
           aflPlaybook={aflPlaybook}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
@@ -1455,7 +1480,7 @@ export default async function LivePage({ params }: LivePageProps) {
       .from("players")
       .select("*")
       .eq("team_id", params.teamId)
-      .eq("is_active", true)
+      .or(squadFilter)
       .order("jersey_number"),
     supabase.from("games").select("id").eq("team_id", params.teamId),
     supabase
@@ -1582,11 +1607,17 @@ export default async function LivePage({ params }: LivePageProps) {
           gameId={params.gameId}
           players={availablePlayers}
           season={season}
-          defaultOnFieldSize={ageCfg.defaultOnFieldSize}
+          // The game's own size (the team's, its competition's, when it
+          // was made or since), as the runner's lineup and every other
+          // sport's picker start from: it said 12 after Settings said 11
+          // (UX round 2, 24 Oct 2026).
+          defaultOnFieldSize={g.on_field_size}
           minOnFieldSize={ageCfg.minOnFieldSize}
           maxOnFieldSize={ageCfg.maxOnFieldSize}
           positionModel={positionModel}
-          gameMinutes={(ageCfg.periodSeconds * ageCfg.periodCount) / 60}
+          // This game's length, not the age group's: the sub-interval
+          // explainer said "over 48 min" for a 40-minute game.
+          gameMinutes={(quarterMs * ageCfg.periodCount) / 60_000}
           defaultSubMinutes={g.sub_interval_seconds / 60}
           fullPeriodMs={quarterMs}
           backHref={`/teams/${params.teamId}/games/${params.gameId}`}
@@ -1600,6 +1631,7 @@ export default async function LivePage({ params }: LivePageProps) {
             subIntervalSeconds: g.sub_interval_seconds,
             teamName,
             opponentName: g.opponent,
+            details: gamePlanDetails(g, (players ?? []) as Player[], availableIds),
             seasonEvents: (seasonEvents ?? []) as GameEvent[],
             chipModeByKey: teamChipModes,
             aflPlaybook,

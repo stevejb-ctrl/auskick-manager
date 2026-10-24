@@ -8,6 +8,10 @@ interface GameDayAvailabilityProps {
   total: number;
   /** First names of squad players currently Out, for the summary line. */
   outNames: string[];
+  /** First names of squad players never marked for this game. */
+  notMarkedNames?: string[];
+  /** Shown under the header whether or not the list is open. */
+  notice?: ReactNode;
   /** Open on first render — used when nobody is in yet. */
   defaultOpen?: boolean;
   /** The availability list (server-rendered AvailabilityList). */
@@ -24,14 +28,19 @@ export function GameDayAvailability({
   inCount,
   total,
   outNames,
+  notMarkedNames = [],
+  notice,
   defaultOpen = false,
   children,
 }: GameDayAvailabilityProps) {
   const [open, setOpen] = useState(defaultOpen);
-  const summary =
-    outNames.length > 0
-      ? `${inCount} of ${total} in · Out: ${outNames.join(", ")}`
-      : `${inCount} of ${total} in`;
+  const summary = [
+    `${inCount} of ${total} in`,
+    outNames.length > 0 && `Out: ${outNames.join(", ")}`,
+    notMarkedNames.length > 0 && `Not marked: ${notMarkedNames.join(", ")}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <section className="rounded-lg border border-hairline bg-surface shadow-card">
@@ -53,6 +62,7 @@ export function GameDayAvailability({
           <SFIcon.chevronDown />
         </span>
       </button>
+      {notice}
       {open && (
         <div id="game-day-availability" className="border-t border-hairline p-3">
           {children}

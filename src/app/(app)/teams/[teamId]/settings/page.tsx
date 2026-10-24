@@ -146,6 +146,14 @@ export default async function SettingsPage({ params, searchParams }: SettingsPag
       : isTouch(sport)
         ? touchAgeGroupForTeam(sport, teamAgeGroup, teamPeriodCount)
         : getAgeGroupConfig(sport, teamAgeGroup);
+  // Games already scheduled on the team's size: changing it moves them
+  // too, and the size card says so before the coach saves.
+  const { count: scheduledOnSize } = await supabase
+    .from("games")
+    .select("id", { count: "exact", head: true })
+    .eq("team_id", params.teamId)
+    .eq("status", "upcoming")
+    .eq("on_field_size", teamOnFieldSize(ageGroupCfg, (team as { on_field_size?: number | null }).on_field_size ?? null));
   // Hockey's halves or quarters: the game's length is the age group's
   // (4 × 15 is 2 × 30).
   const hockeyFormat =
@@ -267,6 +275,7 @@ export default async function SettingsPage({ params, searchParams }: SettingsPag
           min={ageGroupCfg.minOnFieldSize}
           max={ageGroupCfg.maxOnFieldSize}
           initialSize={(team as { on_field_size?: number | null }).on_field_size ?? null}
+          scheduledGames={scheduledOnSize ?? 0}
           isAdmin={isAdmin}
         />
         {isBasketball(sport) && (

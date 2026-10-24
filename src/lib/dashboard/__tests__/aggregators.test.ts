@@ -660,3 +660,88 @@ describe("loan minutes — bounded to the loaned period (Steve 2026-07-07)", () 
     expect(stats.find((s) => s.playerId === "p1")?.teamGameTimePct).toBe(100);
   });
 });
+
+describe("an injury, then its replacement at the same moment (UX round 2, 24 Oct 2026)", () => {
+  // Noah played 11:42 and was hurt; Ruby came on for him. The summary
+  // said 11:42 but stats said 23 min and 100%: the injury closed his
+  // stint, then the replacement's swap closed it again from 0. Ruby
+  // never reached the field either, so she lost the rest of the game.
+  function injuryThenReplacement(): GameEvent[] {
+    _seq = 0;
+    return [
+      makeEvent({
+        type: "lineup_set",
+        metadata: {
+          lineup: { back: ["p5", "p6"], hback: [], mid: ["p3", "p4"], hfwd: [], fwd: ["noah", "p2"], bench: ["ruby"] },
+        },
+      }),
+      makeEvent({ type: "quarter_start", metadata: { quarter: 1 } }),
+      makeEvent({ type: "injury", player_id: "noah", metadata: { injured: true, quarter: 1, elapsed_ms: 702_000 } }),
+      makeEvent({
+        type: "swap",
+        metadata: { off_player_id: "noah", on_player_id: "ruby", zone: "fwd", quarter: 1, elapsed_ms: 702_000 },
+      }),
+      makeEvent({ type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 720_000 } }),
+      makeEvent({ type: "quarter_start", metadata: { quarter: 2 } }),
+      makeEvent({ type: "quarter_end", metadata: { quarter: 2, elapsed_ms: 720_000 } }),
+    ];
+  }
+  const snap = replayGame("g1", injuryThenReplacement(), 720_000);
+  const onField = (pid: string) => {
+    const zm = snap.playerZoneMs[pid];
+    return zm ? zm.back + zm.hback + zm.mid + zm.hfwd + zm.fwd : 0;
+  };
+
+  it("counts the injured kid's 11:42 once", () => {
+    expect(onField("noah")).toBe(702_000);
+  });
+
+  it("puts the replacement in his spot for the rest of the game", () => {
+    expect(onField("ruby")).toBe(18_000 + 720_000);
+    expect(snap.lineupPeriods[snap.lineupPeriods.length - 1].zonePlayers.fwd).toContain("ruby");
+  });
+
+  it("reads 12 min and 100% of the time he could play, as the summary does", () => {
+    const stats = computePlayerStats([makePlayer("noah", 1)], [snap], [makeGame("g1")]);
+    const noah = stats.find((s) => s.playerId === "noah");
+    expect(noah?.totalMs).toBe(702_000);
+    expect(noah?.teamGameTimePct).toBe(100);
+  });
+});
+
+describe("computeAttendance — games on the squad, and games they got on (UX round 2, 24 Oct 2026)", () => {
+  // Noah joined after game 1 and read "1 / 2, 50%". Max turned up late to
+  // game 1, never got on, and read "2 / 2, 100%".
+  const g1 = { ...makeGame("g1"), scheduled_at: "2025-03-01T09:00:00Z" };
+  const g2 = { ...makeGame("g2"), scheduled_at: "2025-03-08T09:00:00Z" };
+  const joined = (id: string, at: string): Player => ({ ...makePlayer(id, null), created_at: at });
+  const players = [
+    joined("p1", "2025-02-01T00:00:00Z"),
+    joined("max", "2025-02-01T00:00:00Z"),
+    joined("noah", "2025-03-03T00:00:00Z"),
+  ];
+  const lineup = (fwd: string[]) => ({ back: [], hback: [], mid: [], hfwd: [], fwd, bench: [] });
+  _seq = 0;
+  const s1 = replayGame("g1", [
+    makeEvent({ type: "lineup_set", metadata: { lineup: lineup(["p1"]) } }),
+    makeEvent({ type: "quarter_start", metadata: { quarter: 1 } }),
+    makeEvent({ type: "player_arrived", player_id: "max", metadata: { quarter: 1, elapsed_ms: 300_000 } }),
+    makeEvent({ type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 720_000 } }),
+  ]);
+  const s2 = replayGame("g2", [
+    makeEvent({ type: "lineup_set", metadata: { lineup: lineup(["p1", "max", "noah"]) } }),
+    makeEvent({ type: "quarter_start", metadata: { quarter: 1 } }),
+    makeEvent({ type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 720_000 } }),
+  ]);
+  const rows = computeAttendance(players, [g1, g2], [], [s1, s2]);
+  const rowOf = (id: string) => rows.find((r) => r.playerId === id);
+
+  it("counts only the games a newcomer was on the squad for", () => {
+    expect(rowOf("noah")).toMatchObject({ gamesPlayed: 1, gamesOnSquad: 1, attendancePct: 100 });
+  });
+
+  it("doesn't count a game a kid came to but never got on in", () => {
+    expect(rowOf("max")).toMatchObject({ gamesPlayed: 1, gamesOnSquad: 2, attendancePct: 50 });
+    expect(rowOf("p1")).toMatchObject({ gamesPlayed: 2, gamesOnSquad: 2, attendancePct: 100 });
+  });
+});
