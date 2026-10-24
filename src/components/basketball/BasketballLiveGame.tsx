@@ -265,7 +265,7 @@ export function BasketballLiveGame({
   const [nowMs, setNowMs] = useState<number | null>(null);
   const periodStartedAtMs = base.periodStartedAt ? Date.parse(base.periodStartedAt) : NaN;
   const startedAtMs = Number.isNaN(periodStartedAtMs) ? null : periodStartedAtMs;
-  const pause = useEventPeriodPause(events, game.id, base.currentPeriod, startedAtMs, clockMultiplier);
+  const pause = useEventPeriodPause(events, base.currentPeriod, startedAtMs, clockMultiplier);
   const running = pause.pausedAtMs === null;
   useEffect(() => {
     if (!isPeriodActive || !running) return;

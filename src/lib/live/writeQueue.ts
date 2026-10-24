@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { liveGameStorage } from "./persistStorage";
 import { isNative } from "@/lib/platform";
+import type { OptimisticEventInput } from "./optimisticEvents";
 
 // ─── Durable write queue for live-game server actions ─────────
 //
@@ -33,8 +34,25 @@ import { isNative } from "@/lib/platform";
 // Persistence: the queue itself rides on the liveGameStorage
 // adapter (Capacitor Preferences on native, localStorage on web)
 // under "siren-write-queue-v1", so a force-quit mid-quarter still
-// has the unflushed ops on relaunch. Lane state (inFlightKinds /
-// pausedKinds) is runtime-only.
+// has the unflushed ops on relaunch, and they send as soon as the
+// store rehydrates. Lane state (inFlightKinds / pausedKinds) is
+// runtime-only.
+//
+// A live write is never lost (round-3 edge testing, 24 Oct 2026, P0).
+// The queue used to give up after five tries on a 1/2/4/8 s backoff
+// without asking whether the phone had signal, so anything tapped more
+// than ~15 s into an outage was thrown away, in tap order, and a server
+// answering 500 for ~15 s lost a goal the same way. Now:
+//   - with no signal (navigator.onLine false, or a request that never
+//     got an answer) nothing is spent: the lane waits for the signal,
+//     and retries on a capped backoff in case the phone never says so;
+//   - a server error retries on a capped backoff, forever;
+//   - a game write the server keeps refusing is kept, in order, and
+//     marked `stuck` after MAX_OP_ATTEMPTS, so the coach sees "Couldn't
+//     save · Retry" (OfflineBanner) and retries or discards it;
+//   - only a rule refusal (`rejected`) drops an op at once.
+// Writes off the game lane (a pre-game availability tap) still give up
+// at the cap, so their optimistic flip can roll back.
 
 /**
  * `rejected`: the server refused the write under a game rule (e.g. a
@@ -134,19 +152,35 @@ export type ActionHandler = (
   ...args: unknown[]
 ) => Promise<ActionResult>;
 
-interface QueueOp {
+/**
+ * The game event a queued write will insert, as the screen showed it
+ * (useOptimisticEvents). Saved with the op, so a screen reloaded before
+ * the write saved still draws it (queuedOptimisticEvents).
+ */
+export interface QueuedEvent {
+  gameId: string;
+  /** The created_at the screen gave it. */
+  createdAt: string;
+  event: OptimisticEventInput;
+}
+
+export interface QueueOp {
   /** UUID v4. Used as the idempotency_key on the resulting event row. */
   id: string;
   /** Registered handler key — e.g. "recordGoal", "recordSwap". */
   kind: string;
   /** Positional args passed to the handler (excluding idempotencyKey). */
   args: unknown[];
-  /** Bumped on every failed drain attempt. */
+  /** Bumped on every attempt the server answered (or errored) — not one lost for want of signal. */
   attemptCount: number;
   /** Wall-clock ms when the op was first appended. */
   queuedAt: number;
   /** Most recent error message, if any. */
   lastError?: string;
+  /** A game write that failed MAX_OP_ATTEMPTS times: kept, waiting on the coach's Retry or Discard. */
+  stuck?: boolean;
+  /** The event it stands for on screen, if the caller drew one. */
+  optimistic?: QueuedEvent;
 }
 
 export interface EnqueueResult {
@@ -158,23 +192,23 @@ export interface EnqueueResult {
    * the new state without breaking the queue's fire-and-forget
    * contract — fine for online users (resolves ~immediately) and
    * for offline users (resolves when the network returns and the
-   * queue drains). Rejects (with the last error message) when the
-   * queue gives up on an op after `MAX_OP_ATTEMPTS` failures —
-   * lets the caller roll back any optimistic UI flip.
+   * queue drains). Rejects (with the error) when the server refuses
+   * it under a rule, when the coach discards it, or when an op off
+   * the game lane gives up after `MAX_OP_ATTEMPTS` — lets the caller
+   * roll back any optimistic UI flip.
    */
   flushed: Promise<void>;
 }
 
 /**
- * Stop retrying a failing op after this many attempts. Earlier
- * draft retried forever, which left "permanent" failures (auth
- * rejected, validation error) spinning the optimistic UI
- * indefinitely. Steve 2026-05-19: availability toggle stuck in
- * loading state when the server returned `{success: false}`.
+ * After this many failed attempts a game write is marked `stuck` (shown
+ * with Retry and Discard) and an op off the game lane is dropped. An
+ * attempt lost for want of signal doesn't count.
  *
- * Transient network failures usually resolve in 1-2 retries, so
- * 5 attempts gives enough headroom for a flaky reconnect without
- * letting a genuine permanent error spin forever.
+ * History: the queue once retried forever with nothing shown, which
+ * left "permanent" failures spinning the optimistic UI (Steve
+ * 2026-05-19: availability toggle stuck in loading). Then it dropped
+ * at the cap, which lost live writes to a 15 s outage (round 3).
  */
 export const MAX_OP_ATTEMPTS = 5;
 
@@ -184,12 +218,47 @@ interface WriteQueueState {
   inFlightKinds: string[];
   /** Kinds halted after a failure / missing handler. Cleared by resume(). */
   pausedKinds: string[];
-  enqueue: (kind: string, args: unknown[]) => EnqueueResult;
+  enqueue: (kind: string, args: unknown[], optimistic?: QueuedEvent) => EnqueueResult;
   drain: () => Promise<void>;
   /** Clear pausedKinds so previously-failed lanes get retried. */
   resume: () => void;
+  /** The coach's Retry: try the stuck writes (and the rest behind them) again now. */
+  retryStuck: () => void;
+  /** The coach's Discard: drop one write; its caller hears why, and the lane goes on. */
+  discard: (id: string) => void;
   /** Clear the entire queue. Test affordance + a "give up" option for users. */
   clearQueue: () => void;
+}
+
+/** The phone says it has no signal. */
+function isOffline(): boolean {
+  return typeof navigator !== "undefined" && navigator.onLine === false;
+}
+
+/**
+ * A request that never got an answer: no signal, or the connection
+ * dropped. Chrome says "Failed to fetch", Safari "Load failed", Firefox
+ * "NetworkError when attempting to fetch resource.". A server that
+ * answered with an error isn't one.
+ */
+export function isNetworkFailure(err: unknown): boolean {
+  if (isOffline()) return true;
+  const message = err instanceof Error ? err.message : String(err);
+  return /failed to fetch|load failed|networkerror|network request failed|internet|err_network|err_connection/i.test(message);
+}
+
+// Told about every write that saves (onQueueSaved), including ones a
+// reload left in the queue with no caller waiting: a screen refreshes
+// to show them.
+/** `hadCaller`: this page queued it (and its caller heard); false for one a reload left. */
+export type QueueSavedListener = (op: QueueOp, info: { hadCaller: boolean }) => void;
+const savedListeners = new Set<QueueSavedListener>();
+
+export function onQueueSaved(listener: QueueSavedListener): () => void {
+  savedListeners.add(listener);
+  return () => {
+    savedListeners.delete(listener);
+  };
 }
 
 // In-memory map of op id → flushed-promise resolver / rejecter.
@@ -253,7 +322,7 @@ export const useWriteQueue = create<WriteQueueState>()(
       inFlightKinds: [],
       pausedKinds: [],
 
-      enqueue: (kind, args) => {
+      enqueue: (kind, args, optimistic) => {
         const id = uuid();
         const op: QueueOp = {
           id,
@@ -261,6 +330,7 @@ export const useWriteQueue = create<WriteQueueState>()(
           args,
           attemptCount: 0,
           queuedAt: Date.now(),
+          ...(optimistic ? { optimistic } : {}),
         };
         const flushed = new Promise<void>((resolve, reject) => {
           flushedResolvers.set(id, resolve);
@@ -283,6 +353,9 @@ export const useWriteQueue = create<WriteQueueState>()(
         // ops still drain serially because a kind can have at
         // most one in-flight op at a time.
         while (true) {
+          // No signal: send nothing, so no attempt is spent on a request
+          // that can't arrive. The 'online' listener drains again.
+          if (isOffline()) break;
           const state = get();
           // Track which kinds we've already scheduled this pass so
           // we don't schedule two ops of the same kind at once
@@ -330,12 +403,39 @@ export const useWriteQueue = create<WriteQueueState>()(
         set({ pausedKinds: [] });
       },
 
+      retryStuck: () => {
+        retryTimers.forEach((t) => clearTimeout(t));
+        retryTimers.clear();
+        set((s) => ({
+          queue: s.queue.map((q) => (q.stuck ? { ...q, stuck: false, attemptCount: 0 } : q)),
+          pausedKinds: [],
+        }));
+        void get().drain();
+      },
+
+      discard: (id) => {
+        const op = get().queue.find((q) => q.id === id);
+        if (!op) return;
+        rejectFlushed(op, op.lastError ? `Not saved: ${op.lastError}` : "Not saved.");
+        const lane = laneOf(op.kind);
+        const timer = retryTimers.get(lane);
+        if (timer) clearTimeout(timer);
+        retryTimers.delete(lane);
+        set((s) => ({
+          queue: s.queue.filter((q) => q.id !== id),
+          pausedKinds: s.pausedKinds.filter((k) => k !== lane),
+        }));
+        void get().drain();
+      },
+
       clearQueue: () => {
         // Drop any flushed-promise resolvers too, otherwise they'd
         // leak (their ops are gone, no one ever resolves them).
         flushedResolvers.clear();
+        flushedRejecters.clear();
         retryTimers.forEach((t) => clearTimeout(t));
         retryTimers.clear();
+        networkStreaks.clear();
         set({ queue: [], inFlightKinds: [], pausedKinds: [] });
       },
     }),
@@ -348,14 +448,43 @@ export const useWriteQueue = create<WriteQueueState>()(
       // (kind stuck in-flight or paused with no live process to
       // unblock it). Only the durable queue itself rides on disk.
       partialize: (state) => ({ queue: state.queue }),
+      // What a reload left on the phone sends at once. It used to wait
+      // for the next tap or the next 'online' event (round 3: a try
+      // queued before a reload sat at attempt 4 until then).
+      onRehydrateStorage: () => (state) => {
+        if (!state || state.queue.length === 0) return;
+        state.resume();
+        void state.drain();
+      },
     },
   ),
 );
 
+function rejectFlushed(op: QueueOp, message: string): void {
+  const reject = flushedRejecters.get(op.id);
+  if (!reject) return;
+  flushedResolvers.delete(op.id);
+  flushedRejecters.delete(op.id);
+  reject(new Error(message));
+}
+
+/** Signal's back: send everything (the 'online' listener, and native's). */
+export function notifyOnline(): void {
+  retryTimers.forEach((t) => clearTimeout(t));
+  retryTimers.clear();
+  networkStreaks.clear();
+  useWriteQueue.getState().resume();
+  void useWriteQueue.getState().drain();
+}
+
 // ─── Backoff retry for a paused lane ──────────────────────────
-// 1s, 2s, 4s, … (capped at 30s) after each failed attempt; the op is
-// dropped at MAX_OP_ATTEMPTS as before. One timer per lane.
+// 1s, 2s, 4s, … capped at 30s, after each failed attempt (a server
+// error's attempt count, or how many lost requests in a row). One
+// timer per lane.
 const retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+// Requests in a row that got no answer, per lane: the backoff for a
+// phone that says it's online but isn't (a captive wifi, a dead zone).
+const networkStreaks = new Map<string, number>();
 function scheduleLaneRetry(lane: string, attempt: number): void {
   if (retryTimers.has(lane)) return;
   const delay = Math.min(30_000, 1000 * 2 ** Math.max(0, attempt - 1));
@@ -376,6 +505,8 @@ function scheduleLaneRetry(lane: string, attempt: number): void {
 async function dispatchOp(op: QueueOp): Promise<void> {
   const handler = handlers[op.kind];
   let result: ActionResult;
+  // The request never got an answer (no signal): spends no attempt.
+  let unanswered = false;
   try {
     // Idempotency key appended as the final argument so handlers
     // don't have to know the queue exists — they just see one
@@ -398,11 +529,13 @@ async function dispatchOp(op: QueueOp): Promise<void> {
             "Action handler returned an unexpected response — the write will retry.",
         };
   } catch (err) {
+    unanswered = isNetworkFailure(err);
     result = {
       success: false,
       error: err instanceof Error ? err.message : String(err),
     };
   }
+  const lane = laneOf(op.kind);
 
   // Always remove from in-flight.
   useWriteQueue.setState((s) => {
@@ -414,6 +547,7 @@ async function dispatchOp(op: QueueOp): Promise<void> {
   });
 
   if (result.success) {
+    networkStreaks.delete(lane);
     // Resolve the caller's flushed-promise (if any — rehydrated
     // ops from a previous session won't have an entry here) BEFORE
     // popping the queue, so a .then() chain doesn't race a
@@ -427,56 +561,56 @@ async function dispatchOp(op: QueueOp): Promise<void> {
     useWriteQueue.setState((s) => ({
       queue: s.queue.filter((q) => q.id !== op.id),
     }));
-  } else {
-    const nextAttempt = op.attemptCount + 1;
-    if (result.rejected || nextAttempt >= MAX_OP_ATTEMPTS) {
-      // Refused under a rule, or hit the cap — give up on this op so the caller can roll
-      // back any optimistic UI. Without this, a permanent failure
-      // (auth rejected, validation error) leaves the optimistic
-      // flip spinning forever. Reject BEFORE popping the queue so
-      // the .catch() can read consistent state.
-      const reject = flushedRejecters.get(op.id);
-      if (reject) {
-        flushedResolvers.delete(op.id);
-        flushedRejecters.delete(op.id);
-        reject(
-          new Error(
-            result.error
-              ?? `Op ${op.kind} failed after ${MAX_OP_ATTEMPTS} attempts.`,
-          ),
-        );
-      }
-      useWriteQueue.setState((s) => ({
-        queue: s.queue.filter((q) => q.id !== op.id),
-        // Don't keep the kind paused — other ops of the same kind
-        // should still get a chance. The next op's success will
-        // clear any lingering state.
-        pausedKinds: s.pausedKinds.filter((k) => k !== laneOf(op.kind)),
-      }));
-    } else {
-      // Transient failure: bump attemptCount, pause this kind. The
-      // op stays at its position so when resume() clears the
-      // pause, drain picks it up again from the same place. The lane
-      // also retries itself after a backoff: with one game lane, a
-      // single hiccup used to hold every later sideline action until
-      // the phone went offline and back, or reloaded.
-      scheduleLaneRetry(laneOf(op.kind), nextAttempt);
-      useWriteQueue.setState((s) => ({
-        queue: s.queue.map((q) =>
-          q.id === op.id
-            ? {
-                ...q,
-                attemptCount: nextAttempt,
-                lastError: result.error,
-              }
-            : q,
-        ),
-        pausedKinds: s.pausedKinds.includes(laneOf(op.kind))
-          ? s.pausedKinds
-          : [...s.pausedKinds, laneOf(op.kind)],
-      }));
-    }
+    savedListeners.forEach((listener) => listener(op, { hadCaller: !!resolve }));
+    return;
   }
+
+  const pauseLane = (patch: Partial<QueueOp>) =>
+    useWriteQueue.setState((s) => ({
+      queue: s.queue.map((q) => (q.id === op.id ? { ...q, ...patch } : q)),
+      pausedKinds: s.pausedKinds.includes(lane) ? s.pausedKinds : [...s.pausedKinds, lane],
+    }));
+
+  if (unanswered) {
+    // No signal: the op keeps its place and its attempts. The lane
+    // waits for 'online' (notifyOnline), and tries again on a capped
+    // backoff in case the phone never says it's back.
+    const streak = (networkStreaks.get(lane) ?? 0) + 1;
+    networkStreaks.set(lane, streak);
+    scheduleLaneRetry(lane, streak);
+    pauseLane({ lastError: result.error });
+    return;
+  }
+
+  const nextAttempt = op.attemptCount + 1;
+  if (result.rejected || (lane !== "game" && nextAttempt >= MAX_OP_ATTEMPTS)) {
+    // Refused under a rule (retrying can't help), or an op off the game
+    // lane at the cap: give up on it so the caller can roll back its
+    // optimistic UI. Reject BEFORE popping the queue so the .catch()
+    // can read consistent state.
+    rejectFlushed(op, result.error ?? `Op ${op.kind} failed after ${MAX_OP_ATTEMPTS} attempts.`);
+    useWriteQueue.setState((s) => ({
+      queue: s.queue.filter((q) => q.id !== op.id),
+      // Don't keep the kind paused — other ops of the same kind
+      // should still get a chance.
+      pausedKinds: s.pausedKinds.filter((k) => k !== lane),
+    }));
+    return;
+  }
+
+  // A server error, or an answer that wasn't a yes: bump attemptCount and
+  // pause the lane. The op stays at its position, so the order holds.
+  // The lane retries itself on a capped backoff (with one game lane, a
+  // single hiccup used to hold every later sideline action until the
+  // phone went offline and back, or reloaded). Past the cap a game write
+  // is `stuck`: still kept, still retried, and shown with Retry and
+  // Discard.
+  scheduleLaneRetry(lane, nextAttempt);
+  pauseLane({
+    attemptCount: nextAttempt,
+    lastError: result.error,
+    ...(nextAttempt >= MAX_OP_ATTEMPTS ? { stuck: true } : {}),
+  });
 }
 
 // ─── Network listener: drain on reconnect ─────────────────────
@@ -490,12 +624,9 @@ async function initNetworkListener(): Promise<void> {
   if (networkListenerInitialised) return;
   networkListenerInitialised = true;
 
-  const onOnline = () => {
-    // Clear any previously-paused kinds so the next drain pass
-    // retries them. resume() is a no-op if nothing is paused.
-    useWriteQueue.getState().resume();
-    void useWriteQueue.getState().drain();
-  };
+  // Clear any previously-paused kinds so the next drain pass retries
+  // them, at once.
+  const onOnline = notifyOnline;
 
   if (isNative()) {
     const { Network } = await import("@capacitor/network");

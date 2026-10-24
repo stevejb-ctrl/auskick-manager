@@ -14,7 +14,7 @@ import {
   lastClockPause,
   periodPauseFromEvents,
   storeClockFromMark,
-  withQueuedClockPauses,
+  withQueuedClockPauseMark,
 } from "@/lib/live/clockPause";
 
 const MIN = 60_000;
@@ -133,42 +133,35 @@ describe("AFL's store clock from the events", () => {
   });
 });
 
-describe("a pause still in the write queue", () => {
+describe("AFL: a pause still in the write queue", () => {
   const op = (id: string, gameId: string, input: unknown, kind = "recordClockPause") => ({
     id,
     kind,
     args: [{ kind: "team", teamId: "t1" }, gameId, input],
     queuedAt: KICKOFF_MS + 2 * MIN,
   });
+  const saved = { key: "e9", paused: false, elapsedMs: MIN, atMs: KICKOFF_MS + MIN };
 
-  it("counts after the saved events, so a reload with no signal keeps it", () => {
-    const saved = [start(1)];
-    const merged = withQueuedClockPauses(saved, [op("op1", "g1", clockPauseInput(1, true, 2 * MIN, KICKOFF_MS + 2 * MIN))], "g1");
-    expect(lastClockPause(merged, 1)).toEqual({ key: "op1", paused: true, elapsedMs: 2 * MIN, atMs: KICKOFF_MS + 2 * MIN });
+  it("wins over the replay's mark, so a reload with no signal keeps it", () => {
+    const mark = withQueuedClockPauseMark(saved, [op("op1", "g1", clockPauseInput(1, true, 2 * MIN, KICKOFF_MS + 2 * MIN))], "g1", 1);
+    expect(mark).toEqual({ key: "op1", paused: true, elapsedMs: 2 * MIN, atMs: KICKOFF_MS + 2 * MIN });
   });
 
-  it("counts once when the screen or the server already has a copy", () => {
+  it("takes the queue's latest: a pause queued before a reload, then a resume made since", () => {
+    const mark = withQueuedClockPauseMark(
+      saved,
+      [op("op1", "g1", clockPauseInput(1, true, 2 * MIN, KICKOFF_MS + 2 * MIN)), op("op2", "g1", clockPauseInput(1, false, 2 * MIN, KICKOFF_MS + 4 * MIN))],
+      "g1",
+      1,
+    );
+    expect(mark?.paused).toBe(false);
+  });
+
+  it("leaves other games, other periods and other writes alone", () => {
     const input = clockPauseInput(1, true, 2 * MIN, KICKOFF_MS + 2 * MIN);
-    const saved = [start(1), ev("clock_pause", { ...input }, KICKOFF_MS + 2 * MIN, "op1")];
-    const merged = withQueuedClockPauses(saved, [op("op1", "g1", input)], "g1");
-    expect(merged.filter((e) => e.type === "clock_pause")).toHaveLength(1);
-    expect(lastClockPause(merged, 1)?.paused).toBe(true);
-  });
-
-  it("keeps the queue's order: a pause queued before a reload, then a resume made since", () => {
-    const pausedOffline = clockPauseInput(1, true, 2 * MIN, KICKOFF_MS + 2 * MIN);
-    const resumedNow = clockPauseInput(1, false, 2 * MIN, KICKOFF_MS + 4 * MIN);
-    // The resume is on screen (optimistic) and both are still queued.
-    const onScreen = [start(1), ev("clock_pause", { ...resumedNow }, KICKOFF_MS + 4 * MIN, "op2")];
-    const merged = withQueuedClockPauses(onScreen, [op("op1", "g1", pausedOffline), op("op2", "g1", resumedNow)], "g1");
-    expect(lastClockPause(merged, 1)?.paused).toBe(false);
-  });
-
-  it("leaves other games and other writes alone", () => {
-    const input = clockPauseInput(1, true, 2 * MIN, KICKOFF_MS + 2 * MIN);
-    const saved = [start(1)];
-    expect(withQueuedClockPauses(saved, [op("op2", "g2", input)], "g1")).toBe(saved);
-    expect(withQueuedClockPauses(saved, [op("op3", "g1", input, "recordSwap")], "g1")).toBe(saved);
-    expect(withQueuedClockPauses(saved, [op("op4", "g1", { quarter: 1 })], "g1")).toBe(saved);
+    expect(withQueuedClockPauseMark(saved, [op("op2", "g2", input)], "g1", 1)).toBe(saved);
+    expect(withQueuedClockPauseMark(saved, [op("op3", "g1", input, "recordSwap")], "g1", 1)).toBe(saved);
+    expect(withQueuedClockPauseMark(saved, [op("op4", "g1", { quarter: 1 })], "g1", 1)).toBe(saved);
+    expect(withQueuedClockPauseMark(saved, [op("op5", "g1", input)], "g1", 2)).toBe(saved);
   });
 });

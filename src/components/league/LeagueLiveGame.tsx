@@ -296,7 +296,7 @@ export function LeagueLiveGame({
   const [nowMs, setNowMs] = useState<number | null>(null);
   const quarterStartedAtMs = state.quarterStartedAt ? Date.parse(state.quarterStartedAt) : NaN;
   const startedAtMs = Number.isNaN(quarterStartedAtMs) ? null : quarterStartedAtMs;
-  const pause = useEventPeriodPause(thisGameEvents, game.id, state.currentQuarter, startedAtMs, clockMultiplier);
+  const pause = useEventPeriodPause(thisGameEvents, state.currentQuarter, startedAtMs, clockMultiplier);
   const running = pause.pausedAtMs === null;
   useEffect(() => {
     if (!state.quarterStartedAt || state.quarterEnded || state.finalised) {

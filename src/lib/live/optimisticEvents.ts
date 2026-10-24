@@ -76,6 +76,28 @@ export function toOptimisticEvent(
   };
 }
 
+/**
+ * The writes still in the queue for `gameId` that carry the event they
+ * stand for (each op's `optimistic`, writeQueue.ts), as pending events,
+ * in the queue's order. A screen reloaded before they saved draws them:
+ * they used to vanish from it while the queue still held them, so a
+ * coach tapped them again and both saved (round 3, 24 Oct 2026).
+ */
+export function queuedOptimisticEvents(
+  queue: readonly {
+    id: string;
+    optimistic?: { gameId: string; createdAt: string; event: OptimisticEventInput };
+  }[],
+  gameId: string,
+): PendingEvent[] {
+  const out: PendingEvent[] = [];
+  for (const op of queue) {
+    if (!op.optimistic || op.optimistic.gameId !== gameId) continue;
+    out.push(toOptimisticEvent(op.optimistic.event, { opId: op.id, gameId, createdAt: op.optimistic.createdAt }));
+  }
+  return out;
+}
+
 /** The server's events, then the writes it hasn't returned yet. */
 export function mergeOptimisticEvents(server: GameEvent[], pending: GameEvent[]): GameEvent[] {
   if (pending.length === 0) return server;

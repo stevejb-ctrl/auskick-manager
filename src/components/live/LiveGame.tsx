@@ -117,7 +117,7 @@ import { useHypeSong } from "@/lib/live/useHypeSong";
 import { isFinalSubWindow, canPlanNextPeriod } from "@/lib/live/subCadence";
 import { mergeSubAnchor, type SubAnchor } from "@/lib/live/subAnchor";
 import { clockPauseInput, storeClockFromMark, withQueuedClockPauseMark } from "@/lib/live/clockPause";
-import { useWriteQueue } from "@/lib/live/writeQueue";
+import { onQueueSaved, useWriteQueue } from "@/lib/live/writeQueue";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 
 import { assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
@@ -388,6 +388,11 @@ export function LiveGame({
   // the clock was set from: a pause another phone made is applied once.
   const ownClockOpsRef = useRef(new Set<string>());
   const appliedClockMarkRef = useRef<string | null>(null);
+  // Set when the last of the writes a reload left in the queue saves:
+  // the next init takes the server's game (round 3, 24 Oct 2026: after
+  // a reconnect the screen kept the lineup from before the offline subs
+  // while the database had them, until a manual reload).
+  const resyncAfterQueueRef = useRef(false);
   // Swaps made on this phone, stamped in the replay's absolute game-ms
   // frame. The recency guard's lastSubbedOn/OffMs come from the server
   // replay, which a mid-quarter swap doesn't refresh — so without these
@@ -546,10 +551,16 @@ export function LiveGame({
     // second run then falls through and re-inits with
     // clockStartedAt=null, silently pausing the freshly-started
     // clock. Steve 2026-05-20 demo clock-auto-resume fix.
+    // Writes a reload left in the write queue have since saved (below):
+    // this screen drew the server's game without them, so take the
+    // server's game again rather than keep the store's.
+    const resync = resyncAfterQueueRef.current;
+    resyncAfterQueueRef.current = false;
     if (
       fullStoreState.activeGameId === gameId &&
       !storeAheadOfServer &&
-      lineupHasAnyPlayer
+      lineupHasAnyPlayer &&
+      !resync
     ) {
       setHydrated(true);
       return;
@@ -561,7 +572,7 @@ export function LiveGame({
     // not to auto-resume. A real page reload remounts; ref starts
     // null; we auto-resume the clock from the server's
     // quarterStartedAt and skip the kickoff modal.
-    const isFreshMount = initedGameIdRef.current !== gameId;
+    const isFreshMount = initedGameIdRef.current !== gameId || resync;
     initedGameIdRef.current = gameId;
 
     let clockStartedAt: number | null = null;
@@ -656,6 +667,20 @@ export function LiveGame({
     const id = setInterval(() => setTick((t) => t + 1), 500);
     return () => clearInterval(id);
   }, [clockStartedAt]);
+
+  // A write a reload left in the queue saved, with no caller here to
+  // refresh: once the last of this game's has, refresh and take the
+  // server's game (resyncAfterQueueRef, above).
+  useEffect(
+    () =>
+      onQueueSaved((op, { hadCaller }) => {
+        if (hadCaller || op.args[1] !== gameId) return;
+        if (useWriteQueue.getState().queue.some((q) => q.args[1] === gameId)) return;
+        resyncAfterQueueRef.current = true;
+        startTransition(() => router.refresh());
+      }),
+    [gameId, router],
+  );
 
   // A pause or resume another phone made lands with a refresh: put the
   // clock where its event says. This phone's own are already there.

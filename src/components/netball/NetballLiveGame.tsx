@@ -367,7 +367,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     const ms = Date.parse(quarterStartedAt);
     return Number.isNaN(ms) ? null : ms;
   })();
-  const savedPause = useEventPeriodPause(clockEvents, game.id, currentQuarter, quarterStartedAtMs, clockMultiplier);
+  const savedPause = useEventPeriodPause(clockEvents, currentQuarter, quarterStartedAtMs, clockMultiplier);
   // The hooter holds the clock too (below), until quarter_end lands.
   const [hooterFrozenAtMs, setHooterFrozenAtMs] = useState<number | null>(null);
   useEffect(() => {

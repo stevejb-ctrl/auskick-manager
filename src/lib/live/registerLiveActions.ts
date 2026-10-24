@@ -5,6 +5,7 @@ import {
   useWriteQueue,
   type ActionHandler,
   type EnqueueResult,
+  type QueuedEvent,
 } from "./writeQueue";
 
 import {
@@ -240,11 +241,15 @@ for (const [kind, fn] of Object.entries(handlers)) {
 // The first positional after `kind` is whatever the action's
 // signature expects; the queue appends its idempotency key as
 // the final argument when it dispatches.
+//
+// `optimistic`: the event the write stands for on screen, saved with the
+// op so a screen reloaded before it saves still draws it.
 export function enqueueLiveAction<K extends LiveActionKind>(
   kind: K,
   args: LiveActionArgs<K>,
+  optimistic?: QueuedEvent,
 ): EnqueueResult {
-  return useWriteQueue.getState().enqueue(kind, args);
+  return useWriteQueue.getState().enqueue(kind, args, optimistic);
 }
 
 /** Returns the current queue length — useful for "syncing N pending" UIs. */

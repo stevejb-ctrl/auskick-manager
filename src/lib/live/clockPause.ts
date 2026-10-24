@@ -151,48 +151,11 @@ export interface QueuedOp {
 }
 
 /**
- * `events` with the pauses and resumes still in the write queue (no
- * signal, or a reload before they saved) as the events they'll insert,
- * for `gameId`. They go last, in the queue's order: the game's writes
- * share one queue lane, so nothing still queued is older than what's
- * saved. A copy of a queued one already in `events` (the screen's
- * optimistic copy, or the server's row while the save's reply is on its
- * way) gives way to the queue's, so a pause queued before a reload
- * can't land after a resume made since.
- */
-export function withQueuedClockPauses(
-  events: readonly GameEvent[],
-  queue: readonly QueuedOp[],
-  gameId: string,
-): readonly GameEvent[] {
-  const queued: GameEvent[] = [];
-  for (const op of queue) {
-    if (op.kind !== "recordClockPause" || op.args[1] !== gameId) continue;
-    const input = op.args[2];
-    if (!isClockPauseInput(input)) continue;
-    queued.push({
-      id: `queued-${op.id}`,
-      game_id: gameId,
-      type: "clock_pause",
-      player_id: null,
-      metadata: { ...input },
-      created_by: null,
-      created_at: new Date(op.queuedAt).toISOString(),
-      idempotency_key: op.id,
-    });
-  }
-  if (queued.length === 0) return events;
-  const queuedKeys = new Set(queued.map((e) => e.idempotency_key));
-  return [
-    ...events.filter((e) => !(e.type === "clock_pause" && e.idempotency_key && queuedKeys.has(e.idempotency_key))),
-    ...queued,
-  ];
-}
-
-/**
  * The latest of `saved` (the replay's mark) and this game's pauses
- * still in the write queue for `period`: AFL's live store has no events
- * list to merge them into.
+ * still in the write queue for `period` (no signal, or a reload before
+ * they saved): AFL's live store has no events list for the queue's to
+ * join, as the replay sports' do (useOptimisticEvents). Queued ones are
+ * newer than anything saved: the game's writes share one queue lane.
  */
 export function withQueuedClockPauseMark(
   saved: ClockPauseMark | null,
