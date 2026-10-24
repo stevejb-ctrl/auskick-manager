@@ -247,6 +247,9 @@ export const aflSport: SportConfig = {
     tagline: "Junior AFL team management — fair rotations, live game control, no spreadsheets.",
     defaultSport: "afl",
     palette: "brand",
+    // The main Siren brand: every sport without a site of its own
+    // signs in here, so its login says "sport", not "AFL".
+    audience: "Junior sport",
   },
   zones: AFL_ZONES_FULL,
   allPositions: AFL_POSITIONS,
@@ -260,4 +263,7 @@ export const aflSport: SportConfig = {
   jerseyNumbers: true,
   teamSong: true,
   periodBreak: aflPeriodBreak,
+  // The siren starts and ends every quarter.
+  words: { sportName: "AFL", surface: "field", startCue: "siren goes", endCue: "siren" },
+  surfaceArt: "oval",
 };

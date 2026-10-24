@@ -82,7 +82,7 @@ export function LoginBrandPanel() {
             Track minutes per player and balance time on the bench.
           </BrandBullet>
           <BrandBullet n="02">
-            Build the lineup once, then drag players between quarters.
+            Build the lineup once, then drag players around at each break.
           </BrandBullet>
           <BrandBullet n="03">
             Share a read-only game link with parents. No account needed.

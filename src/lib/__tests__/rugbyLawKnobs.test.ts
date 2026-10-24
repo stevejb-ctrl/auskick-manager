@@ -63,7 +63,6 @@ describe("each law knob switches only its own walkthrough copy", () => {
     vests: { fr: true, dh: true },
     kickingAllowed: true,
     trackZoneTime: true,
-    enforceUnbrokenPeriods: true,
     goalsFromPlay: false,
     kickRotations: true,
     unbrokenPeriods: true,

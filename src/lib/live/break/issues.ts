@@ -40,6 +40,8 @@ export interface BreakIssuesInput<L> {
   emptySpots?: boolean;
   /** Other soft notes the check doesn't make. */
   extraWarnings?: readonly string[];
+  /** The sport's ranking of a Fix swap, higher tried first (findFix's prefer). */
+  preferFix?: (a: BoardSlot, b: BoardSlot) => number;
 }
 
 export function breakIssues<L>({
@@ -50,6 +52,7 @@ export function breakIssues<L>({
   sidelined,
   emptySpots = true,
   extraWarnings = [],
+  preferFix,
 }: BreakIssuesInput<L>): BreakIssues {
   const items = check(lineup);
   const empty = emptySpots ? board(lineup).filter((s) => s.zone !== BENCH && !s.playerId).length : 0;
@@ -60,7 +63,7 @@ export function breakIssues<L>({
       id: i.id,
       message: i.text,
       rule: i.rule || undefined,
-      fix: findFix({ lineup, board, swap, check, sidelined, itemId: i.id }) ?? undefined,
+      fix: findFix({ lineup, board, swap, check, sidelined, itemId: i.id, prefer: preferFix }) ?? undefined,
     }));
   const warnings = [...emptyNote, ...extraWarnings, ...items.filter((i) => i.status === "warn").map((i) => i.text)];
   return { broken, warnings };

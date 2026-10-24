@@ -1,6 +1,12 @@
 import type { QuarterScoringRow } from "@/lib/dashboard/types";
 import { EmptyState } from "./EmptyState";
 
+// A quarter is won on points (goals × 6 + behinds), so 1.1 (7) beats
+// 1.0 (6); it compared goals and called that quarter lost (UX audit,
+// 23 Oct 2026). Averages drop a trailing ".0".
+const TONE = { ahead: "text-brand-600", level: "text-ink-dim", behind: "text-danger" } as const;
+const avg = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
 interface Props {
   rows: QuarterScoringRow[];
   hasData: boolean;
@@ -11,13 +17,13 @@ export function QuarterScoring({ rows, hasData }: Props) {
     return (
       <EmptyState
         title="No data yet — will populate once games are played"
-        description="Shows average goals scored vs conceded per quarter across all games."
+        description="Shows average scores for and against per quarter across all games."
       />
     );
   }
 
-  const maxGoals = Math.max(
-    ...rows.flatMap((r) => [r.avgGoalsFor, r.avgGoalsAgainst])
+  const maxPoints = Math.max(
+    ...rows.flatMap((r) => [r.avgPointsFor, r.avgPointsAgainst])
   );
 
   return (
@@ -39,12 +45,16 @@ export function QuarterScoring({ rows, hasData }: Props) {
         </span>
       </div>
       {rows.map((row) => {
-        const forPct = maxGoals > 0 ? (row.avgGoalsFor / maxGoals) * 100 : 0;
+        const forPct = maxPoints > 0 ? (row.avgPointsFor / maxPoints) * 100 : 0;
         const agPct =
-          maxGoals > 0 ? (row.avgGoalsAgainst / maxGoals) * 100 : 0;
-        const won = row.avgGoalsFor > row.avgGoalsAgainst;
+          maxPoints > 0 ? (row.avgPointsAgainst / maxPoints) * 100 : 0;
         return (
-          <div key={row.quarter} className="space-y-1.5">
+          <div
+            key={row.quarter}
+            className="space-y-1.5"
+            data-testid={`quarter-scoring-${row.quarter}`}
+            data-result={row.result}
+          >
             <div className="flex items-baseline justify-between gap-2">
               <span className="text-sm font-semibold text-ink">
                 Q{row.quarter}
@@ -53,15 +63,12 @@ export function QuarterScoring({ rows, hasData }: Props) {
                 {row.gamesCount} {row.gamesCount === 1 ? "game" : "games"}
               </span>
             </div>
-            <p
-              className={`text-xs font-medium tabular-nums ${
-                won ? "text-brand-600" : "text-danger"
-              }`}
-            >
-              {row.avgGoalsFor.toFixed(1)}g {row.avgBehindsFor.toFixed(1)}b{" "}
+            <p className={`text-xs font-medium tabular-nums ${TONE[row.result]}`}>
+              {avg(row.avgGoalsFor)}g {avg(row.avgBehindsFor)}b ({avg(row.avgPointsFor)}){" "}
               <span className="text-ink-mute">vs</span>{" "}
-              {row.avgGoalsAgainst.toFixed(1)}g{" "}
-              {row.avgBehindsAgainst.toFixed(1)}b
+              {avg(row.avgGoalsAgainst)}g {avg(row.avgBehindsAgainst)}b ({avg(row.avgPointsAgainst)})
+              <span className="text-ink-mute"> · </span>
+              {row.result}
             </p>
             <div className="space-y-1">
               <div className="h-2.5 w-full rounded-full bg-surface-alt">

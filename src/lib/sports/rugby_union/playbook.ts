@@ -95,11 +95,26 @@ const NAMED_POSITIONS: StrategyDef = {
   balanceByDefault: true,
 };
 
+/**
+ * Union's front row — loosehead, hooker, tighthead — is for kids picked
+ * to play it (scrum safety; UX audit, 23 Oct 2026: half time dealt it to
+ * a fullback and a lock). The standard spots by key, a coach's own list
+ * by its label (LHP1, HK2, THP3) or name (prop, hooker).
+ */
+export function isUnionFrontRow(p: { key: string; label: string; name: string }): boolean {
+  return (
+    ["ru-1", "ru-2", "ru-3"].includes(p.key) ||
+    /^(LHP|HK|THP)\d*$/i.test(p.label.trim()) ||
+    /\b(prop|hooker)\b/i.test(p.name)
+  );
+}
+
 export const unionPlaybook = rugbyPlaybook("rugby_union", {
   lawSource: RA_PATHWAY,
   namedPositionAges: new Set(["U10", "U11", "U12", "U13", "U14", "U15", "U16", "U17", "U18"]),
   catalogue: unionCatalogue,
   namedPositions: NAMED_POSITIONS,
+  restricted: isUnionFrontRow,
   // Union labels carry the jersey number ("LK4", "HB9"); the full side
   // knows the standard ones, a coach's own label is its own name.
   positionName: (label) =>

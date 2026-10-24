@@ -30,7 +30,7 @@ import {
 } from "@/lib/sports/netball/fairness";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { consumePeriodPin, seedNextPeriodLineup } from "@/lib/game-plan";
-import { benchPlayerInPositionLineup } from "@/lib/live/lineupOps";
+import { benchPlayerInPositionLineup, repeatPositionLineup } from "@/lib/live/lineupOps";
 import { useStagedBreakDraft } from "@/lib/live/useStagedBreakDraft";
 import { hapticTap } from "@/lib/haptics";
 import type { AgeGroupConfig } from "@/lib/sports/types";
@@ -341,6 +341,14 @@ export function NetballQuarterBreak({
     return cycled;
   }, [previousLineup, positionsToFill, candidatePool, netballPlaybook, positions]);
 
+  // Repeat: last quarter's court again. A late arrival (not in last
+  // quarter's lineup) joins the bench rather than vanishing (UX audit
+  // 23 Oct 2026, P1).
+  const repeatedLineup = useMemo<GenericLineup>(
+    () => repeatPositionLineup(previousLineup, candidatePool),
+    [previousLineup, candidatePool],
+  );
+
   // Only re-derive `draft` when the coach explicitly changes the mode
   // (ambient recomputes must never stomp their edits, Steve 2026-05-09).
   // Kids brought back this break stay on the bench whatever the mode.
@@ -363,7 +371,7 @@ export function NetballQuarterBreak({
           ? rotatedLineup
           : lineupMode === "manual"
             ? manualLineup
-            : previousLineup;
+            : repeatedLineup;
     if (forcedBenchIds.size === 0) {
       setDraft(base);
       return;
@@ -392,7 +400,7 @@ export function NetballQuarterBreak({
       }
     });
     setDraft(next);
-  }, [lineupMode, suggestedLineup, rotatedLineup, previousLineup, manualLineup, forcedBenchIds]);
+  }, [lineupMode, suggestedLineup, rotatedLineup, repeatedLineup, manualLineup, forcedBenchIds]);
 
   // The staged lineup survives leaving the live screen (the team page
   // and back, a reload, the app backgrounded): kept in the live store,

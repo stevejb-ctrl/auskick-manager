@@ -200,3 +200,63 @@ test("NETBALL-05: stats dashboard does NOT render AFL aggregator headings", asyn
     page.getByRole("heading", { name: /quarter scoring/i }),
   ).toHaveCount(0);
 });
+
+// UX audit 23 Oct 2026: on a phone the Player statistics table was 499px
+// wide in a 330px card with no scroll cue, and a kid's position % didn't
+// add up to their thirds % (a mid-quarter replacement stint was missing
+// from the position split, which counted quarter starts). Each kid is a
+// card now, as AFL's, and positions share the thirds' minutes.
+test("player stats fit a phone, and a replacement stint counts at its position", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "go", sport: "netball", name: `NB-StatsFit-${Date.now() % 1e6}` });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 9, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  const k = players.map((p) => p.id);
+  const at = (i: number) => new Date(Date.now() - 3_600_000 + i * 60_000).toISOString();
+  const q1 = { positions: Object.fromEntries(NETBALL_LINEUP_KEYS.map((key, i) => [key, [k[i]]])), bench: [k[7], k[8]] };
+  // Q2: k[7] at WA for the quarter, k[2] sits.
+  const q2 = { positions: { ...q1.positions, wa: [k[7]] }, bench: [k[2], k[8]] };
+  // Q1: k[0] off GS at 5:00, k[7] on in her place.
+  const q1Subs = [
+    { positionId: "gs", outPlayerId: k[0], inPlayerId: null, atMs: 300_000 },
+    { positionId: "gs", outPlayerId: null, inPlayerId: k[7], atMs: 300_000 },
+  ];
+  const events = [
+    { type: "lineup_set", metadata: { lineup: q1 }, created_at: at(0) },
+    { type: "quarter_start", metadata: { quarter: 1 }, created_at: at(1) },
+    { type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 600_000 }, created_at: at(11) },
+    { type: "period_break_swap", metadata: { lineup: q2, midQuarterSubs: q1Subs }, created_at: at(12) },
+    { type: "quarter_start", metadata: { quarter: 2 }, created_at: at(13) },
+    { type: "quarter_end", metadata: { quarter: 2, elapsed_ms: 600_000 }, created_at: at(23) },
+    { type: "period_break_swap", metadata: { lineup: q1, midQuarterSubs: [] }, created_at: at(24) },
+    { type: "quarter_start", metadata: { quarter: 3 }, created_at: at(25) },
+    { type: "quarter_end", metadata: { quarter: 3, elapsed_ms: 600_000 }, created_at: at(35) },
+    { type: "period_break_swap", metadata: { lineup: q1, midQuarterSubs: [] }, created_at: at(36) },
+    { type: "quarter_start", metadata: { quarter: 4 }, created_at: at(37) },
+    { type: "quarter_end", metadata: { quarter: 4, elapsed_ms: 600_000 }, created_at: at(47) },
+    { type: "game_finalised", metadata: { midQuarterSubs: [] }, created_at: at(48) },
+  ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId }));
+  const { error } = await admin.from("game_events").insert(events);
+  if (error) throw new Error(error.message);
+  await admin.from("games").update({ status: "completed" }).eq("id", game.id);
+
+  await page.goto(`/teams/${team.id}/stats`);
+  const section = page.getByRole("heading", { name: /player statistics/i }).locator("xpath=ancestor::section[1]");
+  await expect(section).toBeVisible({ timeout: 10_000 });
+
+  // k[7]: 5 min at GS and 10 at WA. Thirds and positions agree.
+  const card = section.getByTestId(`player-stats-${k[7]}`);
+  await expect(card).toContainText("Att 33%");
+  await expect(card).toContainText("Cen 67%");
+  await expect(card).toContainText("GS 33%");
+  await expect(card).toContainText("WA 67%");
+
+  // Nothing in the section is wider than its box.
+  const overflowing = await section.evaluate((root) =>
+    [root, ...Array.from(root.querySelectorAll("*"))].filter((el) => el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== "visible").length,
+  );
+  expect(overflowing).toBe(0);
+});

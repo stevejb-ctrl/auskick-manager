@@ -933,6 +933,10 @@ export interface ScoreLogEntry {
   quarter: number | null;
   /** Whether this was added retroactively from the Fix-scores panel. */
   retro: boolean;
+  /** A rushed behind (ours, no scorer). */
+  rushed: boolean;
+  /** A goal of ours nobody was credited with. */
+  unattributed: boolean;
   /** target_event_id for score_undo entries — lets the UI grey-out the row it cancelled. */
   target_event_id: string | null;
   created_at: string;
@@ -968,6 +972,8 @@ export async function getGameScoreLog(
           ? (meta.intended_quarter as number)
           : null,
       retro: meta.retro === true,
+      rushed: meta.rushed === true,
+      unattributed: meta.unattributed === true,
       target_event_id: isUndo ? ((meta.target_event_id as string) ?? null) : null,
       created_at: row.created_at as string,
     };

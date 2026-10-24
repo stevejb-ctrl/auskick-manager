@@ -483,14 +483,17 @@ describe("suggestNetballLineup", () => {
     expect(TEST_THIRD(bobAt!)).not.toBe("centre-third");
   });
 
-  it("regression: Steve's 8-player squad — Q1 attack pair stays apart in Q2", () => {
+  it("regression: Steve's 8-player squad — Q2 gives everyone a new third, and splits partners where it can", () => {
     // Reproduces game 529e6ba6 from the bug report. Q1 lineup:
     //   ATTACK  = hattie, sammy
     //   CENTRE  = rosie, jess, lucy
     //   DEFENCE = jonie, lori
     //   BENCH   = renae
-    // After Q2 suggestion, no two players who shared a Q1 third
-    // should both end up in the SAME Q2 third.
+    // A new third outranks splitting partners (Steve, 23 Oct 2026), so
+    // everyone on court in Q2 plays a third they didn't in Q1. Then
+    // partners split where that still holds: the attack and defence
+    // pairs can, but the centre trio's only new thirds are attack and
+    // defence (two bibs each), so at most two of them share one.
     const previousTeammates: Record<string, Set<string>> = {
       hattie: new Set(["sammy"]),
       sammy: new Set(["hattie"]),
@@ -536,34 +539,38 @@ describe("suggestNetballLineup", () => {
       return null; // bench
     };
 
-    // Hattie + Sammy were attack teammates in Q1 — must split.
-    expect(thirdOf("hattie")).not.toBe(thirdOf("sammy"));
+    // Everyone on court plays a new third.
+    const q1Third: Record<string, string> = { ...lastQuarterThird };
+    for (const ids of Object.values(lineup.positions)) {
+      for (const pid of ids) expect(thirdOf(pid), pid).not.toBe(q1Third[pid] ?? "none");
+    }
 
-    // Centre trio (rosie, jess, lucy): no two of them should land in
-    // the same third for Q2.
+    // Hattie + Sammy were attack teammates in Q1 — must split.
+    expect(thirdOf("hattie") === null || thirdOf("hattie") !== thirdOf("sammy")).toBe(true);
+
+    // Centre trio (rosie, jess, lucy): never all three in one third.
     const centreTrio = ["rosie", "jess", "lucy"] as const;
     const centreThirds = centreTrio.map(thirdOf).filter(Boolean);
-    expect(new Set(centreThirds).size).toBe(centreThirds.length);
+    expect(new Set(centreThirds).size).toBeGreaterThan(centreThirds.length > 1 ? 1 : 0);
 
     // Defence pair (jonie, lori) — must split too.
-    expect(thirdOf("jonie")).not.toBe(thirdOf("lori"));
+    expect(thirdOf("jonie") === null || thirdOf("jonie") !== thirdOf("lori")).toBe(true);
   });
 
-  it("regression: tier 4 wins over tier 1's unplayed-third bonus", () => {
+  it("regression: game 41e8b552 — the Q1 centre trio splits when new thirds allow it", () => {
     // Reproduces Steve's game 41e8b552 Q2 suggestion. Q1:
     //   ATTACK  = jady, patra
     //   CENTRE  = lucy, jimmy, nicole
     //   DEFENCE = sam (hattie injured)
     //   BENCH   = stacey, yumi
     // Earlier the candidate-order shuffle put `sam, stacey, lucy,
-    // yumi, nicole, ...` and Sam grabbed GS first. By the time
-    // Nicole's turn came, her only fresh thirds were taken by
-    // attack, leaving "centre (stale)" or "defence (with Lucy)".
-    // tier 1's +100000 unplayed-third bonus + tier 4's measly
-    // -5000 mate penalty meant defence still scored ~+95000 — vs
-    // -10000 for stale centre — and Nicole landed in defence with
-    // Lucy. Bumping tier 4 to -150000 flips the comparison so
-    // staleCentre wins and the trio actually splits.
+    // yumi, nicole, ...` and Sam grabbed GS first; by Nicole's turn her
+    // only new third (defence) held Lucy, and she landed there with
+    // her. That was once fixed by a tier-4 penalty bigger than the
+    // new-third bonus. Since 23 Oct 2026 a new third ranks first
+    // (Steve), and the swap pass after placement splits the trio here:
+    // the bibs can be arranged so everyone gets a new third and the
+    // trio still splits.
     const previousTeammates: Record<string, Set<string>> = {
       jady: new Set(["patra"]),
       patra: new Set(["jady"]),

@@ -61,7 +61,7 @@ async function deadSpaceBelowContent(page: import("@playwright/test").Page): Pro
     // bar's fixed half doesn't occupy flow space).
     let el: Element = main;
     for (;;) {
-      const kids = [...el.children].filter(
+      const kids = Array.from(el.children).filter(
         (k) => getComputedStyle(k).position !== "fixed" && (k as HTMLElement).offsetHeight > 0,
       );
       const last = kids[kids.length - 1];

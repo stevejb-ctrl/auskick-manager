@@ -50,7 +50,9 @@ export default async function WelcomePage() {
     {
       num: 4,
       title: "Your fixture",
-      body: "Pull games from PlayHQ, or skip.",
+      // No sport is chosen yet, and most sports have no PlayHQ import
+      // (PLAYHQ_TENANT), so the step doesn't promise one.
+      body: "Add your games, or skip.",
     },
     {
       num: 5,

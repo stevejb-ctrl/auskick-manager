@@ -463,6 +463,7 @@ export const rugbyLeagueSport: SportConfig = {
       "Junior rugby league coaching — fair playing time, rotated vests, live game control.",
     defaultSport: "rugby_league",
     palette: "brand",
+    audience: "Junior rugby league",
   },
   zones: RL_ZONES,
   allPositions: RL_POSITIONS,
@@ -478,5 +479,8 @@ export const rugbyLeagueSport: SportConfig = {
   jerseyNumbers: true,
   teamSong: false,
   periodBreak: { zones: rugbyBreakZones, scoreDetail: "points", lowTimeMs: 4 * 60_000 },
+  // Junior league runs on the referee's whistle, not a siren.
+  words: { sportName: "rugby league", surface: "field", startCue: "whistle goes", endCue: "whistle" },
+  surfaceArt: "rugby-field",
   validateLineup: validateRugbyLineup,
 };

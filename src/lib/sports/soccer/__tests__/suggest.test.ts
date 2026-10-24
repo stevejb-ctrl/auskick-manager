@@ -368,6 +368,27 @@ describe("plays as: the lines a kid plays", () => {
     if (plan!.lineup.keeper !== "d1" && !plan!.lineup.bench.includes("d1")) expect(plan!.lineup.lines.att).toContain("d1");
   });
 
+  it("picks a shape every kid's Plays as fits when the team hasn't picked one", () => {
+    // Futsal's default 2-2 has no wings: a Wings-only kid was put at
+    // Front. The diamond (1-2-1) has wings.
+    const futsalU10 = soccerFamilyAgeGroup("futsal", "U10");
+    const kids = ["f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8"];
+    const wings = { notInLine: { f2: ["def", "att"] as const } };
+    const fits = suggestSoccerLineup({ ageGroup: futsalU10, onFieldSize: 5, players: kids, prefs: wings });
+    expect(fits.formation.id).toBe("1-2-1");
+    expect(fits.lineup.lines.mid).toContain("f2");
+    // The kid's on the bench at kick-off: rolling subs bring them on
+    // only for a line they play, so the shape still needs wings.
+    const later = suggestSoccerLineup({ ageGroup: futsalU10, onFieldSize: 5, players: kids, prefs: { notInLine: { f8: ["def", "att"] } } });
+    expect(later.lineup.bench).toContain("f8");
+    expect(later.formation.id).toBe("1-2-1");
+    // No roles: the default. A shape the team picked is theirs to keep.
+    expect(suggestSoccerLineup({ ageGroup: futsalU10, onFieldSize: 5, players: kids }).formation.id).toBe("2-2");
+    expect(suggestSoccerLineup({ ageGroup: futsalU10, onFieldSize: 5, players: kids, prefs: wings, formationId: "3-1" }).formation.id).toBe("3-1");
+    // Nothing fits (three on court plays 1-1, no wings): the default.
+    expect(suggestSoccerLineup({ ageGroup: futsalU10, onFieldSize: 3, players: kids, prefs: wings }).formation.id).toBe("1-1");
+  });
+
   it("reads the lines a kid doesn't play from their role", () => {
     expect(
       soccerKeeperPrefs([

@@ -14,7 +14,7 @@
 // backs only, and the copy says so. Teams that don't keep players to
 // a line can leave this off and avoid visual noise on their tiles.
 //
-// Mirrors UnbrokenPeriodsToggle / MidQuarterSubsToggle:
+// Mirrors MidQuarterSubsToggle:
 //   - same card layout + Toggle primitive
 //   - optimistic flip with server rollback on error
 //   - admin-only (parent viewers can't change team settings)

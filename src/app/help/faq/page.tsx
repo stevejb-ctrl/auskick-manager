@@ -2,6 +2,11 @@
 
 import Link from "next/link";
 import { HelpPage, HelpCallout } from "@/components/help/HelpPage";
+import { subsAtBreaksOnly } from "@/lib/sports/words";
+
+// The sports that sub only at the breaks (netball), from their configs:
+// every other sport has rolling subs and the Sub Due alert.
+const BREAK_ONLY = subsAtBreaksOnly().map((s) => s.words.sportName).join(" and ");
 
 export const metadata = {
   title: "FAQ · Help · Siren",
@@ -77,13 +82,14 @@ const FAQ: FAQItem[] = [
     q: "Why isn't the Sub Due alert firing?",
     a: (
       <>
-        Sub Due alerts apply to rolling subs, so AFL and league only —
-        netball teams sub at the quarter break instead, so the alert never
-        appears. For AFL and league: the sub timer only runs while a quarter
-        or half is <strong>active</strong> (not paused and not at a break).
-        Make sure you&apos;ve tapped <strong>Start Q{"{n}"}</strong> (league
-        from Under 10: <strong>Start H{"{n}"}</strong>) after the break. If
-        the clock isn&apos;t running, the timer doesn&apos;t count. Also
+        Sub Due alerts come with rolling subs, so every sport has them
+        except {BREAK_ONLY}: {BREAK_ONLY} teams sub at the break instead, so
+        the alert never appears. Everywhere else, the sub timer only runs
+        while a quarter or half is <strong>active</strong> (not paused and
+        not at a break). Make sure you&apos;ve tapped{" "}
+        <strong>Start Q{"{n}"}</strong> (or <strong>Start H{"{n}"}</strong>{" "}
+        in a halves game) after the break. If the clock isn&apos;t running,
+        the timer doesn&apos;t count. Also
         check the sub interval (1 to 10 minutes) under Game settings, on the
         lineup screen or below the field during the game. If your team uses
         the <strong>Subs only at the breaks</strong> rule, Siren won&apos;t

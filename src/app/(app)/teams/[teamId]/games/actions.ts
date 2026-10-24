@@ -128,6 +128,9 @@ export async function setTrackScoring(
 
   revalidatePath(`/teams/${teamId}/games`);
   revalidatePath(`/teams/${teamId}/settings`);
+  // The setup wizard's How we play step shows the toggle beside the
+  // locked rules, and "No scores are kept" goes once the team keeps score.
+  revalidatePath(`/teams/${teamId}/setup`);
   return { success: true };
 }
 
@@ -228,40 +231,13 @@ export async function setGameAllowMidQuarterSubs(
 }
 
 /**
- * Team-level default for the Junior Rugby League §6 unbroken-period
- * enforcement rule. Off by default — many casual competitions don't
- * enforce it strictly. When on, this becomes the standing preference
- * for new games created for this team, and coaches can still override
- * per-game via the in-game Game Settings sheet.
- *
- * Mirror of `setAllowMidQuarterSubs` — same shape, same admin guard.
- */
-export async function setEnforceUnbrokenPeriods(
-  teamId: string,
-  enabled: boolean,
-): Promise<ActionResult> {
-  const { supabase, error } = await getAuthedAdmin(teamId);
-  if (error) return { success: false, error };
-
-  const { error: updateError } = await supabase
-    .from("teams")
-    .update({ enforce_unbroken_periods: enabled })
-    .eq("id", teamId);
-
-  if (updateError) return { success: false, error: updateError.message };
-
-  revalidatePath(`/teams/${teamId}/settings`);
-  return { success: true };
-}
-
-/**
  * Team-level default for the rugby-league zone-time tracking bar (AFL
  * F/C/B equivalent, with FR / DH vest time mapped to "centre"). Off by
  * default — only useful for teams that actually rotate the vests. When
  * on, this becomes the standing preference for new games and coaches
  * can still flip it per-game via the in-game Game Settings sheet.
  *
- * Mirror of `setEnforceUnbrokenPeriods` — same shape, same admin guard.
+ * Mirror of `setAllowMidQuarterSubs` — same shape, same admin guard.
  */
 export async function setTrackZoneTime(
   teamId: string,

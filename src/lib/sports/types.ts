@@ -216,6 +216,12 @@ export interface BrandConfig {
   tagline: string;
   /** Default sport created when a user signs up on this brand. */
   defaultSport: SportId;
+  /**
+   * Who the brand is for, before "team management" on the login screen:
+   * "Junior netball". The main Siren brand serves every sport, so it
+   * says "Junior sport".
+   */
+  audience: string;
   /** Tailwind brand palette key. */
   palette: "brand" | "netball";
 }
@@ -296,6 +302,32 @@ export interface SportBreakSpec {
   lowTimeMs: number;
 }
 
+// ─── A sport's own words ─────────────────────────────────────
+// What shared screens call the playing surface and the sounds that
+// start and end play. A shared screen never says "siren" or "field"
+// itself: it asks the sport (src/lib/sports/words.ts builds the lines).
+export interface SportWords {
+  /** The sport in a sentence: "AFL", "netball", "touch football". */
+  sportName: string;
+  /** Where the kids play: "field" ("on field") or "court" ("on court"). */
+  surface: "field" | "court";
+  /** What starts play, after "when the": "siren goes", "umpire calls play", "ball goes up". */
+  startCue: string;
+  /** What ends a period: "siren", "whistle", "buzzer". */
+  endCue: string;
+}
+
+/** The decorative outline a shared screen draws for the sport's surface. */
+export type SurfaceArt =
+  | "oval"
+  | "netball-court"
+  | "rugby-field"
+  | "soccer-pitch"
+  | "futsal-court"
+  | "hockey-pitch"
+  | "basketball-court"
+  | "touch-field";
+
 // Forward-declared — the concrete Lineup shape lives in `@/lib/types`
 // and is imported into `SportConfig.validateLineup` where needed.
 // Phase 1 refactors this to `{ positions: Record<PositionId, string[]>, bench: string[] }`.
@@ -346,6 +378,10 @@ export interface SportConfig {
   teamSong: boolean;
   /** The period break screen's zones, score line and low-time threshold. */
   periodBreak: SportBreakSpec;
+  /** What shared screens call the surface and the start and end of play. */
+  words: SportWords;
+  /** The surface outline drawn behind the team home's "Next up" card. */
+  surfaceArt: SurfaceArt;
   /** Sport-specific event types layered on top of the base enum. */
   extraEventTypes?: string[];
   /**

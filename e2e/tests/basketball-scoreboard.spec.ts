@@ -63,7 +63,7 @@ test("basketball's +1 / +2 / +3 sit in one row, aren't covered, and score on a p
   await expect(page.getByText(/long-press a player/i)).toBeVisible({ timeout: 10_000 });
   // The hint sits wholly above the score bar, on any phone.
   const overlap = await page.evaluate(() => {
-    const hint = [...document.querySelectorAll("[role=status]")].find((e) => /long-press a player/i.test(e.textContent ?? ""))!;
+    const hint = Array.from(document.querySelectorAll("[role=status]")).find((e) => /long-press a player/i.test(e.textContent ?? ""))!;
     const bar = document.querySelector("[aria-label^='Clock']")!.closest(".fixed")!;
     return hint.getBoundingClientRect().bottom - bar.getBoundingClientRect().top;
   });

@@ -485,6 +485,7 @@ export const netballSport: SportConfig = {
     tagline: "Junior netball coaching — fair rotations across GS through GK, quarter-break subs, live score in your pocket.",
     defaultSport: "netball",
     palette: "netball",
+    audience: "Junior netball",
   },
   zones: NETBALL_ZONES,
   allPositions: NETBALL_POSITIONS,
@@ -497,5 +498,8 @@ export const netballSport: SportConfig = {
   jerseyNumbers: false,
   teamSong: true,
   periodBreak: netballPeriodBreak,
+  // The umpire's call starts each quarter; a whistle ends it.
+  words: { sportName: "netball", surface: "court", startCue: "umpire calls play", endCue: "whistle" },
+  surfaceArt: "netball-court",
   validateLineup: validateNetballLineup,
 };

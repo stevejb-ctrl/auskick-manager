@@ -14,7 +14,7 @@
 // check, the strategies, its writers. What differs between sports lives
 // in config or in the adapter, never in a branch here.
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { QuarterKickoffBar } from "@/components/quarter-break/QuarterKickoffBar";
@@ -72,6 +72,11 @@ export interface PeriodBreakProps {
   scores?: Readonly<Record<string, { text: string; label: string }>>;
   /** Small notes per kid (fouls, a vest). */
   tags?: Readonly<Record<string, string[]>>;
+  /**
+   * Named positions (rugby): each kid's position label, shown as the
+   * tile's tag in the zone's colour, as a netball bib is.
+   */
+  positions?: Readonly<Record<string, string>>;
   /** Kids who can't play, and why: "Injured", "Lent", "Fouled out". */
   sidelined: Readonly<Record<string, string>>;
   onSwap: (a: BoardSlot, b: BoardSlot) => void;
@@ -149,6 +154,21 @@ export function PeriodBreak(props: PeriodBreakProps) {
   const [chipOpen, setChipOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+  // The break opens at the top: the score, the strategy picker and the
+  // first zones. It replaces the live view, which was often scrolled
+  // down the field, and the page kept that offset (AFL audit, 23 Oct
+  // 2026: scrollY 179 hid the score and the picker). Every scrolled
+  // ancestor too: the /run demo's DeviceFrame scrolls itself.
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let el = rootRef.current?.parentElement ?? null;
+    while (el) {
+      if (el.scrollTop > 0) el.scrollTop = 0;
+      el = el.parentElement;
+    }
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [nextPeriod]);
+
   const sidelinedSet = useMemo(() => new Set(Object.keys(sidelined)), [sidelined]);
   const places = useMemo(() => placeIndex(config.zones), [config.zones]);
   const periodName = config.periodName(nextPeriod);
@@ -195,10 +215,11 @@ export function PeriodBreak(props: PeriodBreakProps) {
     const prev = previous[id] ?? BENCH;
     const ms = gameMs[id] ?? 0;
     const jersey = config.showJumperNumbers && p?.jerseyNumber != null && p.jerseyNumber !== "" ? `#${p.jerseyNumber}` : "";
+    const bib = slot.label ?? (slot.zone !== BENCH ? props.positions?.[id] : undefined);
     return {
       playerId: id,
-      tag: slot.label ?? jersey,
-      tagIsBib: !!slot.label,
+      tag: bib ?? jersey,
+      tagIsBib: !!bib,
       zoneColor: color,
       name: p?.name ?? "Player",
       score: props.scores?.[id],
@@ -250,7 +271,7 @@ export function PeriodBreak(props: PeriodBreakProps) {
   const selectedEmpty = selectedSlot && !selectedSlot.playerId ? selectedSlot.label ?? config.zones.find((z) => z.key === selectedSlot.zone)?.short : null;
 
   return (
-    <div className="pb-40">
+    <div ref={rootRef} className="pb-40">
       {props.header.exitHref ? (
         <LiveTopBar
           exitHref={props.header.exitHref}

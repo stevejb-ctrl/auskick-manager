@@ -201,7 +201,7 @@ export default async function LivePage({ params }: LivePageProps) {
       .single(),
     supabase
       .from("teams")
-      .select("name, sport, track_scoring, track_zone_time, enforce_unbroken_periods, age_group, quarter_length_seconds, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
+      .select("name, sport, track_scoring, track_zone_time, age_group, quarter_length_seconds, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
       .eq("id", params.teamId)
       .single(),
     supabase
@@ -364,6 +364,8 @@ export default async function LivePage({ params }: LivePageProps) {
       weight: howWePlay.balance === "off" ? 0 : seasonBalanceWeight(sport, howWePlay.balance),
       periodMs: periodSecondsS * 1000,
     };
+    // Lent minutes in the season's other games, for the long-press sheet.
+    const seasonLoanMinsS = seasonLoanMinutes(seasonEvents as GameEvent[]);
 
     if (!events.some((e) => e.type === "lineup_set")) {
       const { data: draftRow } = await supabase
@@ -422,6 +424,7 @@ export default async function LivePage({ params }: LivePageProps) {
               season={season}
               keeperStrategy={howWePlay.keeperStrategy}
               keeperPrefs={howWePlay.prefs}
+              seasonLoanMinutes={seasonLoanMinsS}
               initialDraft={initialDraft}
               initialLoanedIds={initialLoanedIds}
               availabilityPanel={soccerAvailabilityPanel}
@@ -448,6 +451,7 @@ export default async function LivePage({ params }: LivePageProps) {
           season={season}
           keeperStrategy={howWePlay.keeperStrategy}
           keeperPrefs={howWePlay.prefs}
+          seasonLoanMinutes={seasonLoanMinsS}
           isAdmin={isAdmin}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
         />
@@ -502,6 +506,8 @@ export default async function LivePage({ params }: LivePageProps) {
       weight: howWePlay.balance === "off" ? 0 : seasonBalanceWeight(sport, howWePlay.balance),
       periodMs: periodSecondsB * 1000,
     };
+    // Lent minutes in the season's other games, for the long-press sheet.
+    const seasonLoanMinsB = seasonLoanMinutes(seasonEvents as GameEvent[]);
 
     if (!events.some((e) => e.type === "lineup_set")) {
       const { data: draftRow } = await supabase
@@ -559,6 +565,7 @@ export default async function LivePage({ params }: LivePageProps) {
               strategy={howWePlay.strategy}
               prefs={howWePlay.prefs}
               season={season}
+              seasonLoanMinutes={seasonLoanMinsB}
               initialDraft={initialDraft}
               initialLoanedIds={initialLoanedIds}
               availabilityPanel={basketballAvailabilityPanel}
@@ -586,6 +593,7 @@ export default async function LivePage({ params }: LivePageProps) {
           strategy={howWePlay.strategy}
           prefs={howWePlay.prefs}
           season={season}
+          seasonLoanMinutes={seasonLoanMinsB}
           isAdmin={isAdmin}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
         />
@@ -765,17 +773,9 @@ export default async function LivePage({ params }: LivePageProps) {
       ageCfgL,
       { quarter_length_seconds: g.quarter_length_seconds },
     );
-    // Game → team → false. Newly-created games have a null override so
-    // they inherit the team's standing preference; the mid-game toggle
-    // writes the per-game value as a true override (Steve 2026-05-26).
-    const leagueEnforceUnbroken =
-      (g as { enforce_unbroken_periods?: boolean | null }).enforce_unbroken_periods ??
-      (teamRow as { enforce_unbroken_periods?: boolean | null } | null)
-        ?.enforce_unbroken_periods ??
-      false;
-    // Same fallback for "Track forward/back time" — prior behaviour read
-    // only game.track_zone_time, so new games never inherited the team
-    // setting (Steve 2026-05-26).
+    // "Track forward/back time": game → team → false. New games have a
+    // null override so they inherit the team's setting (Steve
+    // 2026-05-26: only game.track_zone_time was read, so they never did).
     const leagueTrackZoneTime =
       (g as { track_zone_time?: boolean | null }).track_zone_time ??
       (teamRow as { track_zone_time?: boolean | null } | null)?.track_zone_time ??
@@ -963,7 +963,6 @@ export default async function LivePage({ params }: LivePageProps) {
               seasonEvents={leagueSeasonEvents as GameEvent[]}
               initialLoanedIds={leagueLoanedIds}
               initialDraft={initialDraft}
-              enforceUnbrokenPeriods={leagueEnforceUnbroken}
               walkthroughOffer={
                 <LeagueWalkthroughOffer
                   sport={sport}
@@ -975,7 +974,6 @@ export default async function LivePage({ params }: LivePageProps) {
                   kickRotations={ageCfgL.kickRotations === true}
                   unbrokenPeriods={ageCfgL.unbrokenPeriods === true}
                   trackZoneTime={leagueTrackZoneTime}
-                  enforceUnbrokenPeriods={leagueEnforceUnbroken}
                 />
               }
               chipLabels={{
@@ -1004,7 +1002,6 @@ export default async function LivePage({ params }: LivePageProps) {
           subIntervalSeconds={g.sub_interval_seconds}
           clockMultiplier={g.clock_multiplier ?? 1}
           trackScoring={trackScoring}
-          enforceUnbrokenPeriods={leagueEnforceUnbroken}
           trackZoneTime={leagueTrackZoneTime}
           state={replay}
           thisGameEvents={(thisGameEvents ?? []) as GameEvent[]}

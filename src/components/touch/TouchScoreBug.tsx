@@ -8,16 +8,19 @@
 // amber and names the break), the opponent's mirror on the right. The
 // chips are AFL's SCORE_CHIP token.
 //
-// A try is 1 point: one +T chip a side. Ours opens the scorer picker
-// (the parent owns it), and a try credited to a girl is a girl's try
-// when the team plays one (Oztag mixed). We don't know the opponent's
-// scorer, so when girls' tries count theirs are "+1" and "+2 (girl)".
-// With scoring off the chips hide.
+// A try is 1 point: one +T chip a side, AFL's +G / +B size. Ours opens
+// the scorer picker (the parent owns it), and a try credited to a girl
+// is a girl's try when the team plays one (Oztag mixed). We don't know
+// the opponent's scorer, so when girls' tries count theirs are "+T" and
+// "+2" marked girl (touchOpponentChips), on one row: wrapped to two, the
+// bar grew to about 30% of a 390 px screen and covered Finish game (UX
+// audit 23 Oct). With scoring off the chips hide.
 
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { RollingNumber, SCORE_GHOST, useScoreGhost } from "@/components/live/RollingNumber";
 import { SCORE_CHIP, SCORE_TEAM_NAME } from "@/components/live/scoreChip";
 import { hapticTap } from "@/lib/haptics";
+import { touchOpponentChips } from "@/components/touch/touchWords";
 
 interface TouchScoreBugProps {
   teamName: string;
@@ -39,7 +42,7 @@ interface TouchScoreBugProps {
   /** "Half time" or "Full time": the break the hooter starts. */
   breakName: string;
   trackScoring: boolean;
-  /** A girl's try counts 2 (Oztag mixed): the opponent's chips are +1 and +2 (girl). */
+  /** A girl's try counts 2 (Oztag mixed): the opponent's chips are +T and +2 (girl). */
   girlsTryDouble: boolean;
   pending?: boolean;
   onTeamScore?: () => void;
@@ -86,15 +89,11 @@ export function TouchScoreBug({
   const tapDown = () => void hapticTap("light");
 
   const TOTAL = "text-[44px] font-bold leading-10 tracking-[-0.04em]";
-  // "+2 (girl)" stacks its "girl" under the +2, so both chips fit one
-  // row beside the clock: wrapped to two rows, the bug grew under the
-  // long-press hint and it covered the +1.
-  const opponentChips: { girl: boolean; text: string; sub?: string; label: string }[] = girlsTryDouble
-    ? [
-        { girl: false, text: "+1", label: `Add a try, ${opponentName}` },
-        { girl: true, text: "+2", sub: "girl", label: `Add a girl's try, 2 points, ${opponentName}` },
-      ]
-    : [{ girl: false, text: "+T", label: `Add a try, ${opponentName}` }];
+  // AFL's chip (GameHeader's CHIP): 48 px wide, so two fit one row
+  // beside the clock on a 375 px phone. The girl's chip stacks its word
+  // under the +2 to keep that width.
+  const CHIP = `${SCORE_CHIP} w-12`;
+  const opponentChips = touchOpponentChips(girlsTryDouble, opponentName);
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-x-3 px-4 pb-6 pt-3">
@@ -107,7 +106,7 @@ export function TouchScoreBug({
           </p>
         </div>
         {onTeamScore && trackScoring && (
-          <div className="relative flex flex-wrap gap-1.5">
+          <div className="relative flex gap-1.5">
             {teamGhost && (
               <span key={teamGhost.key} aria-hidden className={`${SCORE_GHOST} left-3`}>
                 {teamGhost.text}
@@ -118,7 +117,7 @@ export function TouchScoreBug({
               onClick={onTeamScore}
               onPointerDown={tapDown}
               disabled={pending}
-              className={`${SCORE_CHIP} px-2`}
+              className={CHIP}
               aria-label={`Add a try, ${teamName}`}
             >
               +T
@@ -173,7 +172,7 @@ export function TouchScoreBug({
           </p>
         </div>
         {onOpponentScore && trackScoring && (
-          <div className="relative flex flex-wrap justify-end gap-1.5">
+          <div className="relative flex justify-end gap-1.5">
             {oppGhost && (
               <span key={oppGhost.key} aria-hidden className={`${SCORE_GHOST} right-3`}>
                 {oppGhost.text}
@@ -181,16 +180,16 @@ export function TouchScoreBug({
             )}
             {opponentChips.map((c) => (
               <button
-                key={c.text}
+                key={c.key}
                 type="button"
                 onClick={() => onOpponentScore(c.girl)}
                 onPointerDown={tapDown}
                 disabled={pending}
-                className={`${SCORE_CHIP} px-2${c.sub ? " flex-col !py-1 leading-none" : ""}`}
+                className={`${CHIP}${c.sub ? " flex-col !px-1 !py-1 leading-none" : ""}`}
                 aria-label={c.label}
               >
                 {c.text}
-                {c.sub && <span className="mt-0.5 text-[9px] font-semibold uppercase tracking-micro text-ink-dim">({c.sub})</span>}
+                {c.sub && <span className="mt-0.5 text-[9px] font-semibold uppercase tracking-micro text-ink-dim">{c.sub}</span>}
               </button>
             ))}
           </div>

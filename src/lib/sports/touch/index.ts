@@ -140,5 +140,7 @@ export const touchSport: SportConfig = {
   jerseyNumbers: true,
   teamSong: false,
   periodBreak: touchPeriodBreak,
+  words: { sportName: "touch football", surface: "field", startCue: "whistle goes", endCue: "whistle" },
+  surfaceArt: "touch-field",
   validateLineup: validateTouchLineup,
 };

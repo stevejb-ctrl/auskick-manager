@@ -40,6 +40,20 @@ test("soccer: the wizard makes a U9 team with MiniRoos rules, and every team pag
   await expect(page.getByText(/no scores or ladders are kept/i)).toBeVisible();
   await expect(page.getByText(/MiniRoos keeps no scores or ladders/i)).toBeVisible();
 
+  // A team that keeps score after all: the locked "No scores or ladders
+  // are kept" goes, here and on the Team tab (audit, 23 Oct 2026: it
+  // stayed with Track goals on).
+  await page.getByRole("switch", { name: /track scoring/i }).click();
+  await expect
+    .poll(async () => (await admin.from("teams").select("track_scoring").eq("id", teamId).single()).data?.track_scoring)
+    .toBe(true);
+  await expect(page.getByText(/no scores or ladders are kept/i)).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.getByText("No offside")).toBeVisible();
+  await gotoStable(page, `/teams/${teamId}/settings`);
+  await waitForHydration(page);
+  await expect(page.getByText("No offside")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/no scores or ladders are kept/i)).toHaveCount(0);
+
   // Every team page opens for soccer.
   for (const path of ["", "/games", "/squad", "/settings", "/stats"]) {
     const res = await gotoStable(page, `/teams/${teamId}${path}`);

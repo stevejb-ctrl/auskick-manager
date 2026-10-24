@@ -54,6 +54,7 @@ import {
   seasonVestCountsByPlayer,
   suggestLeagueLineup,
   suggestVestRotation,
+  unbrokenPeriodsRequired,
 } from "@/lib/sports/rugby_league/fairness";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type {
@@ -74,7 +75,8 @@ import { keepOnIds } from "@/components/playbook/KeepOnMarker";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { pinLaterPeriods, withPinnedPeriods } from "@/lib/game-plan";
 import { SUB_MINUTES_MAX, SUB_MINUTES_MIN, subMinutesFrom } from "@/lib/live/subCadence";
-import { periodLabels, type RugbySport } from "@/lib/sports";
+import { getSportConfig, periodLabels, type RugbySport } from "@/lib/sports";
+import { onSurfaceLabel } from "@/lib/sports/words";
 import { rugbyForwards } from "@/lib/sports/rugby/lines";
 // Sub-minute formula from the previous picker — kept inline so the
 // spike doesn't fan-out into shared modules until we know it
@@ -110,13 +112,6 @@ interface LeagueLineupPickerProps {
   maxOnFieldSize: number;
   initialDraft?: { lineup: LeagueLineup; updated_at: string } | null;
   availabilityHref?: string | null;
-  /**
-   * Junior League §6 (unbroken periods) is opt-in per team / game
-   * (enforce_unbroken_periods). When off, the suggester and the sub
-   * interval ignore the age group's minUnbrokenPeriods (UX plan H7 —
-   * the flag used to be stored but never read here).
-   */
-  enforceUnbrokenPeriods?: boolean;
   /** First-visit tour offer (LeagueWalkthroughOffer), shown under the breadcrumb. */
   walkthroughOffer?: React.ReactNode;
   /** Game-day "Who's here" panel, shown under the breadcrumb. */
@@ -168,7 +163,6 @@ export function LeagueLineupPicker({
   maxOnFieldSize,
   initialDraft,
   availabilityHref,
-  enforceUnbrokenPeriods = false,
   walkthroughOffer,
   availabilityPanel,
   gamePlan,
@@ -236,9 +230,8 @@ export function LeagueLineupPicker({
     () => seasonVestCountsByPlayer(seasonEvents),
     [seasonEvents],
   );
-  const requiredUnbroken = enforceUnbrokenPeriods
-    ? (ageGroup.minUnbrokenPeriods ?? 0)
-    : 0;
+  // §6 wherever the grade plays it: the laws, with no switch.
+  const requiredUnbroken = unbrokenPeriodsRequired(ageGroup);
 
   // ── Initial suggestion ──────────────────────────────────────
   const initialSuggestion = useMemo(
@@ -1448,6 +1441,7 @@ export function LeagueLineupPicker({
       <LineupPickerFooter
         onFieldCount={fieldIds.length}
         benchCount={benchIds.length}
+        onFieldLabel={onSurfaceLabel(sport)}
         onSavePlan={
           auth.kind === "team" ? () => void handleSavePlan() : undefined
         }
@@ -1506,6 +1500,7 @@ export function LeagueLineupPicker({
         <StartQuarterModal
           quarter={1}
           periodLabel={periodLabels(sport, ageGroup).label}
+          cue={getSportConfig(sport).words.startCue}
           loading={isPending}
           onStart={handleConfirmStart}
           onCancel={() => setStartModalOpen(false)}
