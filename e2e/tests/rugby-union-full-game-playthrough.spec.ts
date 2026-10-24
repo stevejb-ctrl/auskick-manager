@@ -56,6 +56,9 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
   await page.addInitScript(() => {
     try {
       localStorage.setItem("league-walkthrough-seen", "1");
+      // This coach has seen the one-time long-press hint: on an iPhone it
+      // sits over the bench this test taps.
+      localStorage.setItem("siren-longpress-seen-v1", "true");
     } catch {}
   });
 
@@ -125,7 +128,11 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
   // A tap-tap sub: a bench kid, then a back. AFL's confirm, then its toast.
   const benchKid = players.find((p) => !onField.forwards.includes(p.id) && !onField.backs.includes(p.id))!;
   const offKid = onField.backs[1];
-  await page.getByTestId(`league-player-tile-${benchKid.id}`).click({ timeout: 10_000 });
+  // Fifteen on the field put the bench below an iPhone's fold, where the
+  // fixed score bar covers a tile scrolled just into view: centre it.
+  const benchTile = page.getByTestId(`league-player-tile-${benchKid.id}`);
+  await benchTile.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  await benchTile.click({ timeout: 10_000 });
   await page.getByTestId(`league-player-tile-${offKid}`).click({ timeout: 10_000 });
   const confirm = page.getByRole("dialog", { name: /manually sub/i });
   await expect(confirm).toContainText(`${benchKid.full_name} (Bench) for ${nameOf(offKid)} (Backs)`);

@@ -20,7 +20,7 @@ import { test, expect, type Locator, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
-import { waitForHydration } from "../helpers/navigation";
+import { gotoStable, waitForHydration } from "../helpers/navigation";
 import { startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "serial" });
@@ -168,8 +168,10 @@ test("oztag U10 single-gender: lanes 2-4-2, no Girl/Boy, lanes rotate at half-ti
   expect(move?.metadata).toMatchObject({ player_a_id: middle, zone_a: "middle", zone_b: "wing", sport: "oztag" });
   await expect(field.getByRole("group", { name: "Wings" }).getByTestId(`player-tile-${middle}`)).toBeVisible({ timeout: 10_000 });
 
-  // A single-gender team asks nobody's group, anywhere.
-  await page.goto(`/teams/${team.id}/squad`);
+  // A single-gender team asks nobody's group, anywhere. (The move's
+  // save may still be refreshing the live page; on WebKit a plain goto is
+  // interrupted by it.)
+  await gotoStable(page, `/teams/${team.id}/squad`);
   await waitForHydration(page);
   await expect(page.getByText(/counts as/i)).toHaveCount(0);
 
