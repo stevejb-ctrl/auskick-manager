@@ -23,12 +23,11 @@ import { PeriodBreak, type BreakPlayer, type BreakStrategy } from "@/components/
 import { breakConfigFor } from "@/lib/sports/break";
 import { getSportConfig } from "@/lib/sports/registry";
 import type { RuleCheckItem } from "@/lib/playbook/ruleCheck";
-import { checkRules } from "@/lib/playbook/ruleCheck";
 import { buildBoard, placesOf, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
 import { rotateGroups } from "@/lib/live/break/rotateGroups";
 import { normalizeTouchLineup, touchLineOf, touchOnField, type TouchLineup } from "@/lib/sports/touch/lineup";
-import { touchLineupRuleItems } from "@/lib/sports/touch/ruleCheck";
+import { touchBreakCheck } from "@/lib/sports/touch/breakCheck";
 import { touchCanPlay, touchGameMs, type TouchGameState } from "@/lib/sports/touch/replay";
 import {
   suggestTouchBreakPlan,
@@ -44,7 +43,6 @@ import type { Game, LiveAuth, Player } from "@/lib/types";
 import type { SportId } from "@/lib/sports/types";
 
 const GROUPS = ["middle", "link", "wing", "field"] as const;
-const LINE_LABEL: Record<string, string> = { middle: "Middles", link: "Links", wing: "Wings", field: "Field" };
 
 function stagedOf(l: TouchLineup): StagedLineup {
   return { groups: { middle: l.lines.middle, link: l.lines.link, wing: l.lines.wing, field: l.lines.field }, bench: l.bench };
@@ -284,38 +282,20 @@ export function TouchBreak({
   const names = useMemo(() => Object.fromEntries(squad.map((p) => [p.id, p.full_name])), [squad]);
   const issues = useMemo(() => {
     // The lineup's own rules (the lane shape, nobody twice, the mixed
-    // rule), then the shared 50% game-time floor.
-    const check = (l: TouchLineup): RuleCheckItem[] => {
-      // Kids who can't play aren't held to the rules.
-      const benched = benchOutInTouchLineup(l, sidelinedSet);
-      const lu = { ...benched, bench: benched.bench.filter((id) => !sidelinedSet.has(id)) };
-      const items: RuleCheckItem[] = touchLineupRuleItems({ lineup: lu, ageGroup, size: sideSize, mixed });
-      const onField: Record<string, string> = {};
-      for (const g of GROUPS) for (const pid of lu.lines[g]) onField[pid] = g;
-      const playedThisGame: Record<string, Record<string, number>> = {};
-      for (const pid of [...Object.keys(onField), ...lu.bench]) {
-        playedThisGame[pid] = Object.fromEntries(Object.entries(state.ms[pid] ?? {}).filter(([, v]) => typeof v === "number")) as Record<string, number>;
-      }
-      items.push(
-        ...checkRules({
-          onField,
-          bench: lu.bench,
-          lines: shape.lines.field > 0 ? ["field"] : [...TOUCH_LANES],
-          lineLabel: (k) => LINE_LABEL[k] ?? k,
-          name: (pid) => names[pid] ?? "A player",
-          playedThisGame,
-          benchedLastPeriod: previousLineup ? previousLineup.bench : [],
-          period: nextPeriod,
-          periodCount: ageGroup.periodCount,
-          periodMs,
-          periodWord: "half",
-          lineWord: "lane",
-          minGameTimePct: 50,
-          rules: [],
-        }),
-      );
-      return items;
-    };
+    // rule), then the shared 50% game-time floor (touch/breakCheck).
+    const check = (l: TouchLineup): RuleCheckItem[] =>
+      touchBreakCheck({
+        lineup: l,
+        state,
+        ageGroup,
+        size: sideSize,
+        mixed,
+        sidelined: sidelinedSet,
+        field: shape.lines.field > 0,
+        period: nextPeriod,
+        periodMs,
+        names,
+      });
     return breakIssues({
       lineup: draft,
       check,
@@ -326,7 +306,7 @@ export function TouchBreak({
       emptySpots: false,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, sidelinedSet, ageGroup, sideSize, mixed, state.ms, shape, names, previousLineup, nextPeriod, periodMs, config.zones]);
+  }, [draft, sidelinedSet, ageGroup, sideSize, mixed, state, shape, names, nextPeriod, periodMs, config.zones]);
 
   const asBreakPlayer = (p: Player): BreakPlayer => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number });
   const players = useMemo(() => new Map(squad.map((p) => [p.id, asBreakPlayer(p)])), [squad]);

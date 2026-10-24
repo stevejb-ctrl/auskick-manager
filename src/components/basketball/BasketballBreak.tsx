@@ -22,8 +22,8 @@ import { breakConfigFor } from "@/lib/sports/break";
 import { buildBoard, placesOf, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
 import { rotateGroups } from "@/lib/live/break/rotateGroups";
-import { checkRules } from "@/lib/playbook/ruleCheck";
 import { BASKETBALL_POSITION_DEFS } from "@/lib/sports/basketball";
+import { basketballBreakCheck } from "@/lib/sports/basketball/breakCheck";
 import {
   basketballLineOf,
   basketballOnCourt,
@@ -42,7 +42,6 @@ import type { BasketballAgeGroupConfig, BasketballLine, BasketballStrategy } fro
 import type { Game, LiveAuth, Player } from "@/lib/types";
 
 const GROUPS = ["forward", "guard", "court"] as const;
-const LINE_LABEL: Record<string, string> = { guard: "Guards", forward: "Forwards", court: "Court" };
 const POSITION_TAG = Object.fromEntries(BASKETBALL_POSITION_DEFS.map((p) => [p.key, p.label])) as Record<string, string>;
 
 /** The shared staged lineup, with each kid's position (the position strategies) beside it. */
@@ -280,34 +279,18 @@ export function BasketballBreak({
   const names = useMemo(() => Object.fromEntries(squad.map((p) => [p.id, p.full_name])), [squad]);
   const issues = useMemo(() => {
     // Basketball's engine acts on no catalogue rule yet: the check is the
-    // 50% game-time floor.
-    const check = (l: BasketballLineup) => {
-      // Kids who can't play aren't held to the rules.
-      const benched = benchOutInBasketballLineup(l, sidelinedSet);
-      const lu = { ...benched, bench: benched.bench.filter((id) => !sidelinedSet.has(id)) };
-      const onField: Record<string, string> = {};
-      for (const g of GROUPS) for (const pid of lu.lines[g]) onField[pid] = g;
-      const playedThisGame: Record<string, Record<string, number>> = {};
-      for (const pid of [...Object.keys(onField), ...lu.bench]) {
-        playedThisGame[pid] = Object.fromEntries(Object.entries(state.ms[pid] ?? {}).filter(([, v]) => typeof v === "number")) as Record<string, number>;
-      }
-      return checkRules({
-        onField,
-        bench: lu.bench,
-        lines: shape.lines.court > 0 ? ["court"] : ["guard", "forward"],
-        lineLabel: (k) => LINE_LABEL[k] ?? k,
-        name: (pid) => names[pid] ?? "A player",
-        playedThisGame,
-        benchedLastPeriod: previousLineup ? previousLineup.bench : [],
+    // 50% game-time floor (basketball/breakCheck).
+    const check = (l: BasketballLineup) =>
+      basketballBreakCheck({
+        lineup: l,
+        state,
+        sidelined: sidelinedSet,
+        court: shape.lines.court > 0,
         period: nextPeriod,
         periodCount: ageGroup.periodCount,
         periodMs,
-        periodWord: ageGroup.periodCount === 4 ? "quarter" : "half",
-        lineWord: "line",
-        minGameTimePct: 50,
-        rules: [],
+        names,
       });
-    };
     return breakIssues({
       lineup: draft,
       check,
@@ -316,7 +299,7 @@ export function BasketballBreak({
       sidelined: sidelinedSet,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, sidelinedSet, state.ms, shape, names, previousLineup, nextPeriod, ageGroup.periodCount, periodMs, config.zones]);
+  }, [draft, sidelinedSet, state, shape, names, nextPeriod, ageGroup.periodCount, periodMs, config.zones]);
 
   const asBreakPlayer = (p: Player): BreakPlayer => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number });
   const players = useMemo(() => new Map(squad.map((p) => [p.id, asBreakPlayer(p)])), [squad]);
