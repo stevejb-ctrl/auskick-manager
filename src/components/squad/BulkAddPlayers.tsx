@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { addPlayers } from "@/app/(app)/teams/[teamId]/squad/actions";
 import { SFButton } from "@/components/sf";
 import { Label } from "@/components/ui/Label";
-import { parseSquadPaste } from "@/lib/squadPaste";
+import { parseSquadPaste, type SquadKid } from "@/lib/squadPaste";
 
 interface BulkAddPlayersProps {
   teamId: string;
@@ -12,6 +12,8 @@ interface BulkAddPlayersProps {
   withJersey: boolean;
   /** Places left in the squad, for the over-cap warning. */
   room: number;
+  /** Everyone on the squad, active or not: names to warn about, numbers taken. */
+  squad: SquadKid[];
 }
 
 /**
@@ -19,13 +21,13 @@ interface BulkAddPlayersProps {
  * group-chat message in one go (UX plan 2.2). Shows exactly what will be
  * added before anything is saved.
  */
-export function BulkAddPlayers({ teamId, withJersey, room }: BulkAddPlayersProps) {
+export function BulkAddPlayers({ teamId, withJersey, room, squad }: BulkAddPlayersProps) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
   const [added, setAdded] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
-  const parsed = useMemo(() => parseSquadPaste(text, { withJersey }), [text, withJersey]);
+  const parsed = useMemo(() => parseSquadPaste(text, { withJersey, squad }), [text, withJersey, squad]);
   const tooMany = parsed.players.length > room;
 
   function handleAdd() {
@@ -95,6 +97,14 @@ export function BulkAddPlayers({ teamId, withJersey, room }: BulkAddPlayersProps
         <ul className="space-y-0.5 text-xs text-warn">
           {parsed.errors.map((e) => (
             <li key={e}>{e}</li>
+          ))}
+        </ul>
+      )}
+      {/* Kept, but maybe a mistake: the single add warns the same way. */}
+      {parsed.warnings.length > 0 && (
+        <ul className="space-y-0.5 text-xs text-ink-dim" data-testid="paste-warnings">
+          {parsed.warnings.map((w) => (
+            <li key={w}>{w} Add a surname or number so you can tell them apart.</li>
           ))}
         </ul>
       )}

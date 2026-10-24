@@ -12,10 +12,24 @@ export interface ParsedPlayer {
   jersey_number: number | null;
 }
 
+/** A kid already on the squad, active or not (names and numbers to check against). */
+export interface SquadKid {
+  full_name: string;
+  jersey_number: number | null;
+  is_active: boolean;
+}
+
 export interface SquadPasteResult {
   players: ParsedPlayer[];
   /** One message per line that couldn't be used, with its line number. */
   errors: string[];
+  /**
+   * Lines that were kept but may be a mistake: a name listed twice or
+   * already on the squad. The single add warns the same way (round 3
+   * edge testing, 24 Oct 2026: one path took a duplicate silently, the
+   * other refused it).
+   */
+  warnings: string[];
   /** Numbers left off the names (the sport has no jersey numbers). */
   numbersLeftOff: number;
 }
@@ -39,12 +53,15 @@ function splitNameAndNumber(line: string): { name: string; num: string | null; b
 
 export function parseSquadPaste(
   text: string,
-  opts: { withJersey: boolean } = { withJersey: true },
+  opts: { withJersey: boolean; squad?: SquadKid[] } = { withJersey: true },
 ): SquadPasteResult {
   const players: ParsedPlayer[] = [];
   const errors: string[] = [];
+  const warnings: string[] = [];
   const seenNames = new Set<string>();
   const seenJerseys = new Set<number>();
+  const squad = opts.squad ?? [];
+  const squadNames = new Set(squad.map((k) => nameKey(k.full_name)));
   let numbersLeftOff = 0;
 
   text.split(/\r?\n/).forEach((raw, i) => {
@@ -77,16 +94,26 @@ export function parseSquadPaste(
         errors.push(`Line ${lineNo}: jersey #${jersey_number} is listed twice.`);
         return;
       }
+      // The number is the squad's already (the database refuses it, and
+      // the coach needs to know whose).
+      const owner = squad.find((k) => k.jersey_number === jersey_number);
+      if (owner) {
+        errors.push(`Line ${lineNo}: #${jersey_number} is ${owner.full_name}'s${owner.is_active ? "" : " (inactive)"}.`);
+        return;
+      }
       seenJerseys.add(jersey_number);
     }
-    const key = full_name.toLowerCase();
-    if (seenNames.has(key)) {
-      errors.push(`Line ${lineNo}: ${full_name} is listed twice.`);
-      return;
-    }
+    const key = nameKey(full_name);
+    if (seenNames.has(key)) warnings.push(`Line ${lineNo}: ${full_name} is listed twice.`);
+    else if (squadNames.has(key)) warnings.push(`Line ${lineNo}: there's already a ${full_name} on the squad.`);
     seenNames.add(key);
     players.push({ full_name, jersey_number });
   });
 
-  return { players, errors, numbersLeftOff };
+  return { players, errors, warnings, numbersLeftOff };
+}
+
+/** A name to compare: case and spacing don't count. */
+export function nameKey(name: string): string {
+  return name.trim().replace(/\s+/g, " ").toLocaleLowerCase();
 }

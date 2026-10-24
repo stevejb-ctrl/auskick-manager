@@ -61,12 +61,13 @@ export async function addPlayers(
   if (players.length === 0) return { success: false, error: "No players to add." };
 
   const maxPlayers = await squadCapFor(supabase, teamId);
-  const { data: active } = await supabase
+  // Every kid, active or not: a number stays an inactive kid's (the
+  // database's unique index), so the clash names them.
+  const { data: everyone } = await supabase
     .from("players")
-    .select("jersey_number")
-    .eq("team_id", teamId)
-    .eq("is_active", true);
-  const activeCount = (active ?? []).length;
+    .select("full_name, jersey_number, is_active")
+    .eq("team_id", teamId);
+  const activeCount = (everyone ?? []).filter((p) => p.is_active).length;
   if (activeCount + players.length > maxPlayers) {
     const room = Math.max(0, maxPlayers - activeCount);
     return {
@@ -74,10 +75,9 @@ export async function addPlayers(
       error: `That's ${players.length} players but there's room for ${room} (squad max ${maxPlayers}).`,
     };
   }
-  const taken = new Set((active ?? []).map((p) => p.jersey_number).filter((n) => n != null));
-  const clash = players.find((p) => p.jersey_number != null && taken.has(p.jersey_number));
-  if (clash) {
-    return { success: false, error: `Jersey #${clash.jersey_number} is already taken.` };
+  for (const p of players) {
+    const owner = p.jersey_number != null ? (everyone ?? []).find((k) => k.jersey_number === p.jersey_number) : null;
+    if (owner) return { success: false, error: jerseyTakenMessage(p.jersey_number!, owner) };
   }
 
   const { error: insertError } = await supabase.from("players").insert(
@@ -136,14 +136,33 @@ export async function addPlayer(
   });
 
   if (insertError) {
-    if (insertError.code === "23505") {
-      return { success: false, error: `Jersey #${jerseyNumber} is already taken.` };
+    if (insertError.code === "23505" && jerseyNumber != null) {
+      return { success: false, error: await jerseyTakenError(supabase, teamId, jerseyNumber) };
     }
     return { success: false, error: insertError.message };
   }
 
   revalidatePath(`/teams/${teamId}/squad`);
   return { success: true };
+}
+
+/** "Jersey #8 is Sam Lee's (inactive)." — whose, so the coach can choose. */
+function jerseyTakenMessage(n: number, owner: { full_name: string; is_active: boolean }): string {
+  return `Jersey #${n} is ${owner.full_name}'s${owner.is_active ? "" : " (inactive)"}.`;
+}
+
+async function jerseyTakenError(
+  supabase: ReturnType<typeof createClient>,
+  teamId: string,
+  n: number,
+): Promise<string> {
+  const { data: owner } = await supabase
+    .from("players")
+    .select("full_name, is_active")
+    .eq("team_id", teamId)
+    .eq("jersey_number", n)
+    .maybeSingle();
+  return owner ? jerseyTakenMessage(n, owner) : `Jersey #${n} is already taken.`;
 }
 
 export async function updatePlayer(
@@ -168,11 +187,8 @@ export async function updatePlayer(
     .eq("team_id", teamId);
 
   if (updateError) {
-    if (updateError.code === "23505") {
-      return {
-        success: false,
-        error: `Jersey #${patch.jersey_number} is already taken.`,
-      };
+    if (updateError.code === "23505" && patch.jersey_number != null) {
+      return { success: false, error: await jerseyTakenError(supabase, teamId, patch.jersey_number) };
     }
     return { success: false, error: updateError.message };
   }

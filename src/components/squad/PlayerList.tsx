@@ -67,7 +67,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
               teamId={teamId}
               activeCount={activePlayers.length}
               maxPlayers={maxPlayers}
-              takenJerseys={takenJerseys}
+              squad={allPlayers.map((p) => ({ full_name: p.full_name, jersey_number: p.jersey_number, is_active: p.is_active }))}
               showJersey={showJersey}
               mixed={mixed}
             />
@@ -76,6 +76,7 @@ export async function PlayerList({ teamId, isAdmin }: PlayerListProps) {
                 teamId={teamId}
                 withJersey={showJersey}
                 room={Math.max(0, maxPlayers - activePlayers.length)}
+                squad={allPlayers.map((p) => ({ full_name: p.full_name, jersey_number: p.jersey_number, is_active: p.is_active }))}
               />
             </div>
           </div>

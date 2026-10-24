@@ -8,12 +8,17 @@ import { Label } from "@/components/ui/Label";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { MixedGroupPicker } from "@/components/squad/MixedGroupPicker";
 import type { MixedGroup } from "@/lib/types";
+import { nameKey, type SquadKid } from "@/lib/squadPaste";
 
 interface AddPlayerFormProps {
   teamId: string;
   activeCount: number;
   maxPlayers: number;
-  takenJerseys: number[];
+  /**
+   * Everyone on the squad, active or not: a name already there gets a
+   * warning (the coach can still add it), and a taken number says whose.
+   */
+  squad: SquadKid[];
   /**
    * AFL teams use jersey numbers; netball doesn't. When false the input
    * is hidden and `jersey_number: null` is always sent. Defaults true to
@@ -28,7 +33,7 @@ export function AddPlayerForm({
   teamId,
   activeCount,
   maxPlayers,
-  takenJerseys,
+  squad,
   showJersey = true,
   mixed = false,
 }: AddPlayerFormProps) {
@@ -38,9 +43,16 @@ export function AddPlayerForm({
   const [nameError, setNameError] = useState<string | undefined>();
   const [jerseyError, setJerseyError] = useState<string | undefined>();
   const [serverError, setServerError] = useState<string | null>(null);
+  // The name the duplicate warning was shown for: the next Add adds it.
+  const [warnedFor, setWarnedFor] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const isFull = activeCount >= maxPlayers;
+  // Round 3 edge testing (24 Oct 2026): a second "Jack Smith" went in
+  // without a word, and the two couldn't be told apart anywhere. Warn,
+  // and let the coach add them anyway (twins happen).
+  const dupe = name.trim() ? squad.find((k) => nameKey(k.full_name) === nameKey(name)) ?? null : null;
+  const warned = dupe !== null && warnedFor === nameKey(name);
 
   function validate() {
     let valid = true;
@@ -58,9 +70,12 @@ export function AddPlayerForm({
       if (isNaN(jerseyNum) || jerseyNum < 1 || jerseyNum > 99) {
         setJerseyError("Jersey must be 1–99.");
         valid = false;
-      } else if (takenJerseys.includes(jerseyNum)) {
-        setJerseyError(`#${jerseyNum} is already taken.`);
-        valid = false;
+      } else {
+        const owner = squad.find((k) => k.jersey_number === jerseyNum);
+        if (owner) {
+          setJerseyError(`#${jerseyNum} is ${owner.full_name}'s${owner.is_active ? "" : " (inactive)"}.`);
+          valid = false;
+        }
       }
     }
 
@@ -70,6 +85,12 @@ export function AddPlayerForm({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
+    // First tap on a name already there: the warning shows (below) and
+    // the button reads "Add anyway". The second adds.
+    if (dupe && !warned) {
+      setWarnedFor(nameKey(name));
+      return;
+    }
 
     startTransition(async () => {
       const jerseyValue = jersey.trim() === "" ? null : parseInt(jersey, 10);
@@ -86,6 +107,7 @@ export function AddPlayerForm({
         setName("");
         setJersey("");
         setGroup(null);
+        setWarnedFor(null);
       }
     });
   }
@@ -140,6 +162,13 @@ export function AddPlayerForm({
 
       {mixed && <MixedGroupPicker value={group} onChange={setGroup} disabled={isPending} />}
 
+      {dupe && warned && (
+        <InlineAlert kind="warn">
+          There&apos;s already a {dupe.full_name}{dupe.is_active ? "" : " (inactive)"} on the squad. Add a surname or
+          initial so you can tell them apart, or add them anyway.
+        </InlineAlert>
+      )}
+
       {serverError && (
         <InlineAlert>
           {serverError}
@@ -147,7 +176,7 @@ export function AddPlayerForm({
       )}
 
       <SFButton type="submit" loading={isPending} size="md">
-        Add player
+        {warned ? "Add anyway" : "Add player"}
       </SFButton>
     </form>
   );
