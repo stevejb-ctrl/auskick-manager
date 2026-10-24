@@ -26,12 +26,12 @@ import { breakConfigFor } from "@/lib/sports/break";
 import { buildBoard, placesOf, swapInStaged, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
 import { awayMsSoFar } from "@/lib/live/break/floor";
-import { rotateGroups } from "@/lib/live/break/rotateGroups";
 import { getSportConfig, periodLabels, type RugbySport } from "@/lib/sports";
 import { rugbyForwards } from "@/lib/sports/rugby/lines";
 import { rugbyBreakCheck } from "@/lib/sports/rugby/breakCheck";
 import { assignLeaguePositions, withLeagueSlots, type LeaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
 import {
+  leagueSlotsNow,
   playerZoneMsOnField,
   unbrokenPeriodLiveStatus,
   unbrokenPeriodsRequired,
@@ -39,7 +39,7 @@ import {
 } from "@/lib/sports/rugby_league/fairness";
 import { currentVests } from "@/lib/sports/rugby_league/vests";
 import { consumePeriodPin } from "@/lib/game-plan";
-import { leagueBreakSuggestion } from "@/lib/sports/rugby/breakSuggestion";
+import { leagueBreakRotation, leagueBreakSuggestion } from "@/lib/sports/rugby/breakSuggestion";
 import { benchSidelinedInLeagueLineup, plannedLeagueLineup } from "@/lib/live/lineupOps";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
@@ -160,29 +160,28 @@ export function LeagueBreak({
     [sport, ageGroup, previousLineup, injured, loaned, game.on_field_size, state.currentQuarter, leaguePlaybook, msByPlayer, zoneMs, periodSeconds, unbroken, nextVests, awayMs],
   );
   const manual = useMemo<Lineup>(() => ({ forwards: [], backs: [], bench: [...healthy, ...sidelinedInGame] }), [healthy, sidelinedInGame]);
-  // Rotate: forwards and backs swap lines, the split kept, least-played on.
+  // The field's split: this size's forwards, the rest backs.
   const caps = useMemo(() => {
     const onField = Math.min(game.on_field_size, healthy.length);
     const forwards = rugbyForwards(ageGroup, game.on_field_size);
     return { forwards: Math.min(forwards, onField), backs: Math.max(0, onField - forwards) };
   }, [game.on_field_size, healthy.length, ageGroup]);
-  const rotated = useMemo<Lineup>(() => {
-    const out = rotateGroups({
-      players: healthy,
-      cycle: ["forwards", "backs"],
-      caps,
-      timeIn: (pid, g) => (g === "forwards" ? zoneMs[pid]?.forwards : zoneMs[pid]?.backs) ?? 0,
-      total: (pid) => msByPlayer[pid] ?? 0,
-      lastGroup: Object.fromEntries(
-        healthy.map((pid) => [
-          pid,
-          previousLineup.forwards.includes(pid) ? "forwards" : previousLineup.backs.includes(pid) ? "backs" : undefined,
-        ]),
-      ),
-      sidelinedIds: sidelinedInGame,
-    });
-    return lineupOf(out);
-  }, [healthy, caps, zoneMs, msByPlayer, previousLineup, sidelinedInGame]);
+  // Rotate: forwards and backs swap lines, the split kept, least-played
+  // on; union's picked front row stays forwards (breakSuggestion.ts).
+  const rotated = useMemo<Lineup>(
+    () =>
+      leagueBreakRotation({
+        ageGroup,
+        previousLineup,
+        injured,
+        loaned,
+        onFieldSize: game.on_field_size,
+        leaguePlaybook,
+        msByPlayer,
+        lineMs: zoneMs,
+      }),
+    [ageGroup, previousLineup, injured, loaned, game.on_field_size, leaguePlaybook, msByPlayer, zoneMs],
+  );
 
   // ── The staged lineup ───────────────────────────────────────
   const persistedRotationMode = useLiveGame((s) => s.rotationMode);
@@ -284,7 +283,7 @@ export function LeagueBreak({
         auth,
         game.id,
         // Named positions: record each kid's slot (UX plan 5.7).
-        withLeagueSlots(lineup, leaguePlaybook),
+        withLeagueSlots(lineup, leaguePlaybook, held),
         undefined,
       ]).flushed;
       await enqueueLiveAction("startLeagueQuarter", [auth, game.id, nextPeriod]).flushed;
@@ -323,15 +322,27 @@ export function LeagueBreak({
   // Named positions: each kid's position as Start will record it, on
   // their tile, the lines read in the list's order (UX audit, 23 Oct
   // 2026: the break said only Forwards / Backs, so the front row going
-  // to a fullback went unseen).
+  // to a fullback went unseen). Repeat keeps the slot each kid held at
+  // the hooter (round 2 usability, 24 Oct 2026: it re-dealt them all and
+  // tagged everyone "Stays"); the tiles say a move within a line.
+  const slotsNow = useMemo(() => leagueSlotsNow(events), [events]);
+  const held = strategy === "repeat" ? slotsNow : undefined;
   const dealt = useMemo(
-    () => (leaguePlaybook?.positions?.length ? assignLeaguePositions(benchSidelinedInLeagueLineup(draft, sidelinedSet), leaguePlaybook) : {}),
-    [leaguePlaybook, draft, sidelinedSet],
+    () =>
+      leaguePlaybook?.positions?.length
+        ? assignLeaguePositions(benchSidelinedInLeagueLineup(draft, sidelinedSet), leaguePlaybook, held)
+        : {},
+    [leaguePlaybook, draft, sidelinedSet, held],
   );
-  const positionLabels = useMemo(() => {
-    const labelOf = new Map((leaguePlaybook?.positions ?? []).map((p) => [p.key, p.label]));
-    return Object.fromEntries(Object.entries(dealt).map(([pid, key]) => [pid, labelOf.get(key) ?? key]));
-  }, [dealt, leaguePlaybook]);
+  const labelOf = useMemo(() => new Map((leaguePlaybook?.positions ?? []).map((p) => [p.key, p.label])), [leaguePlaybook]);
+  const positionLabels = useMemo(
+    () => Object.fromEntries(Object.entries(dealt).map(([pid, key]) => [pid, labelOf.get(key) ?? key])),
+    [dealt, labelOf],
+  );
+  const previousPositions = useMemo(
+    () => Object.fromEntries(Object.entries(slotsNow).map(([pid, key]) => [pid, labelOf.get(key) ?? key])),
+    [slotsNow, labelOf],
+  );
   const inPositionOrder = (l: Lineup): Lineup => {
     const keys = (leaguePlaybook?.positions ?? []).map((p) => p.key);
     if (keys.length === 0) return l;
@@ -370,6 +381,7 @@ export function LeagueBreak({
             homeLine: leaguePlaybook ? Object.fromEntries(Object.entries(leaguePlaybook.roles).map(([pid, r]) => [pid, r.home])) : undefined,
             unbroken,
             positions: leaguePlaybook?.positions?.length ? leaguePlaybook : undefined,
+            held,
             awayMs,
           });
         },
@@ -378,7 +390,7 @@ export function LeagueBreak({
         sidelined: sidelinedSet,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [draft, sidelinedSet, zoneMs, ageGroup, names, previousLineup, nextPeriod, periodSeconds, periodWord, leaguePlaybook, unbroken, awayMs, config.zones],
+    [draft, sidelinedSet, zoneMs, ageGroup, names, previousLineup, nextPeriod, periodSeconds, periodWord, leaguePlaybook, unbroken, awayMs, held, config.zones],
   );
 
   const asBreakPlayer = (p: Player): BreakPlayer => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number });
@@ -433,6 +445,7 @@ export function LeagueBreak({
       scores={scores}
       tags={tags}
       positions={leaguePlaybook?.positions?.length ? positionLabels : undefined}
+      previousPositions={leaguePlaybook?.positions?.length ? previousPositions : undefined}
       sidelined={sidelined}
       onSwap={(a, b) => {
         shaped.current = true;

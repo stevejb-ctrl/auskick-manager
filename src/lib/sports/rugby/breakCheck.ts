@@ -52,6 +52,8 @@ export interface RugbyBreakCheckInput {
   unbroken?: { required: number; done: Record<string, number> };
   /** Named positions: the lineup's positions are dealt from these, as Start records them. */
   positions?: LeaguePlaybookInput;
+  /** Named positions: the slots kids keep (Repeat), as Start records them. */
+  held?: Record<string, string>;
   /** ms each kid couldn't play so far (late, hurt, lent): their floor is over the rest. */
   awayMs?: Readonly<Record<string, number>>;
 }
@@ -138,7 +140,7 @@ export function rugbyBreakCheck(c: RugbyBreakCheckInput): RuleCheckItem[] {
     }
   }
   if (c.positions) {
-    const slots = assignLeaguePositions(c.lineup, c.positions);
+    const slots = assignLeaguePositions(c.lineup, c.positions, c.held);
     const inForce = restrictedKeysInForce(c.positions);
     const squad = [...c.lineup.forwards, ...c.lineup.backs, ...c.lineup.bench];
     for (const m of restrictedMisfits(slots, c.positions)) {

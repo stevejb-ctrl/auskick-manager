@@ -1,4 +1,4 @@
-// ─── Rugby (league and union): the break's "Suggested" ───────
+// ─── Rugby (league and union): the break's Suggested and Rotate ─
 // Who plays the next period, and in which line, from the game as it
 // stands. It used to be the planner's cold projection of the next period
 // (the plan-ahead modal's), given no events or minutes, so after live
@@ -20,8 +20,10 @@
 // there is one). A restricted spot in force (union's front row) keeps a
 // kid picked for it on, as the planner does. Lines split by the kids'
 // roles (How we play), ties evening each kid's forwards and backs time.
-// The kids who can't play go at the end of the bench.
+// The kids who can't play go at the end of the bench. Rotate (lines
+// swap) is here too, so union's front row stays where it's picked.
 
+import { rotateGroups } from "@/lib/live/break/rotateGroups";
 import { benchSidelinedInLeagueLineup } from "@/lib/live/lineupOps";
 import { rugbyForwards } from "@/lib/sports/rugby/lines";
 import {
@@ -180,4 +182,70 @@ export function leagueBreakSuggestion(input: LeagueBreakSuggestionInput): Lineup
     : { forwards: starters.slice(0, fwdCount), backs: starters.slice(fwdCount) };
   const placed = new Set([...forwards, ...backs]);
   return { forwards, backs, bench: [...healthy.filter((id) => !placed.has(id)), ...sidelinedInGame] };
+}
+
+export interface LeagueBreakRotationInput {
+  ageGroup: AgeGroupConfig;
+  /** The lineup at the end of the period just played. */
+  previousLineup: Lineup;
+  injured: ReadonlySet<string>;
+  loaned: ReadonlySet<string>;
+  onFieldSize: number;
+  leaguePlaybook?: LeaguePlaybookInput;
+  /** Game time so far, ms. */
+  msByPlayer: Readonly<Record<string, number>>;
+  /** Time so far in each line, ms. */
+  lineMs?: Readonly<Record<string, { forwards: number; backs: number }>>;
+}
+
+/**
+ * Rotate: forwards and backs swap lines, the split kept, the least-played
+ * on (rotateGroups). A kid How we play never plays in a line isn't sent
+ * there, and kids picked for a restricted spot in force (union's front
+ * row) stay forwards (round 2 usability, 24 Oct 2026: Rotate sent the
+ * whole front row to the wings and dealt LHP1 to an unpicked late
+ * arrival). If least-played-on would sit everyone picked for a spot, the
+ * one who's played least comes on for the last forward in who isn't
+ * picked for any.
+ */
+export function leagueBreakRotation(input: LeagueBreakRotationInput): Lineup {
+  const { previousLineup, ageGroup, leaguePlaybook: pb } = input;
+  const sidelined = new Set([...Array.from(input.injured), ...Array.from(input.loaned)]);
+  const inGame = [...previousLineup.forwards, ...previousLineup.backs, ...previousLineup.bench];
+  const healthy = inGame.filter((id) => !sidelined.has(id));
+  const sidelinedInGame = inGame.filter((id) => sidelined.has(id));
+  const onField = Math.min(input.onFieldSize, healthy.length);
+  const fwd = rugbyForwards(ageGroup, input.onFieldSize);
+  const inForce = restrictedKeysInForce(pb);
+  const pickedFor = (pid: string, key: string) => canPlayPosition(pb, pid, key, inForce);
+  const frontRow = (pid: string) => Array.from(inForce).some((key) => pickedFor(pid, key));
+  const out = rotateGroups({
+    players: healthy,
+    cycle: ["forwards", "backs"],
+    caps: { forwards: Math.min(fwd, onField), backs: Math.max(0, onField - fwd) },
+    timeIn: (pid, g) => input.lineMs?.[pid]?.[g as "forwards" | "backs"] ?? 0,
+    total: (pid) => input.msByPlayer[pid] ?? 0,
+    lastGroup: Object.fromEntries(
+      healthy.map((pid) => [
+        pid,
+        previousLineup.forwards.includes(pid) ? "forwards" : previousLineup.backs.includes(pid) ? "backs" : undefined,
+      ]),
+    ),
+    sidelinedIds: sidelinedInGame,
+    plays: (pid, line) => !pb?.roles[pid]?.never.includes(line) && !(line === "backs" && frontRow(pid)),
+  });
+  const forwards = [...(out.groups.forwards ?? [])];
+  const backs = [...(out.groups.backs ?? [])];
+  const bench = [...out.bench];
+  inForce.forEach((key) => {
+    if (forwards.some((id) => pickedFor(id, key))) return;
+    const sub = bench
+      .filter((id) => !sidelined.has(id) && pickedFor(id, key))
+      .sort((a, b) => (input.msByPlayer[a] ?? 0) - (input.msByPlayer[b] ?? 0))[0];
+    const off = [...forwards].reverse().find((id) => !frontRow(id));
+    if (!sub || !off) return;
+    forwards[forwards.indexOf(off)] = sub;
+    bench[bench.indexOf(sub)] = off;
+  });
+  return { forwards, backs, bench };
 }
