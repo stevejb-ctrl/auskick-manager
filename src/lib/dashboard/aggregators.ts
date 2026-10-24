@@ -30,6 +30,27 @@ export function deriveSeasons(games: Game[]): Season[] {
     .sort((a, b) => b.year - a.year);
 }
 
+/**
+ * The season Stats opens on: the latest season a game was played in (up
+ * to today), else this year if it has games, else the soonest season.
+ * It opened on the newest year with any game, so one mistyped 9999
+ * fixture, or next season's first game added in December, showed "0
+ * completed games" (UX round 3, 24 Oct 2026). Null with no games.
+ */
+export function defaultSeasonYear(
+  games: readonly Pick<Game, "scheduled_at" | "status">[],
+  now: Date = new Date(),
+): number | null {
+  const year = (g: Pick<Game, "scheduled_at">) => new Date(g.scheduled_at).getFullYear();
+  const played = games.filter((g) => g.status === "completed" && Date.parse(g.scheduled_at) <= now.getTime());
+  if (played.length > 0) return Math.max(...played.map(year));
+  const years = games.map(year);
+  if (years.length === 0) return null;
+  if (years.includes(now.getFullYear())) return now.getFullYear();
+  const ahead = years.filter((y) => y > now.getFullYear());
+  return ahead.length > 0 ? Math.min(...ahead) : Math.max(...years);
+}
+
 export function filterBySeason(games: Game[], year: number): Game[] {
   return games.filter((g) => new Date(g.scheduled_at).getFullYear() === year);
 }

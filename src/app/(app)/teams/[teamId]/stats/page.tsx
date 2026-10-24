@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { bucketFillIns, replayGame } from "@/lib/dashboard/eventReplay";
 import { FILL_IN_STATS_ID, type Player, type Sport } from "@/lib/types";
 import {
+  defaultSeasonYear,
   deriveSeasons,
   filterBySeason,
   computePlayerStats,
@@ -106,9 +107,10 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     );
   }
 
+  // The season just played, not the newest with any fixture.
   const selectedYear = searchParams.season
     ? parseInt(searchParams.season, 10)
-    : seasons[0].year;
+    : (defaultSeasonYear(allGames) ?? seasons[0].year);
 
   // Two filters running together: status="completed" weeds out
   // upcoming / in-progress games, AND we require a `game_finalised`
