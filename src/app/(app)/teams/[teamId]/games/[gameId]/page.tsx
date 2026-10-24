@@ -13,7 +13,7 @@ import {
 } from "@/components/sf";
 import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isBasketball, isSoccer, isTouch, periodLabels, teamSport } from "@/lib/sports";
 import { teamMixedRule } from "@/lib/sports/touch/mixed";
-import { scorersFromEvents } from "@/lib/results";
+import { scorersFromEvents, unnamedScoreFromEvents } from "@/lib/results";
 import { getSeasonEvents } from "@/lib/season";
 import { gamePlanPlaybooks } from "@/lib/playbook/planInputs";
 import { FinishedGameSummary } from "@/components/games/FinishedGameSummary";
@@ -138,6 +138,9 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   const scorerRows = scorersFromEvents(sport, (scoringEvents ?? []) as GameEvent[])
     .map((t) => ({ player: playerById.get(t.playerId), ...t }))
     .filter((r) => r.player);
+  // Scored with nobody named ("Not sure who"): its own row, so the card
+  // adds up to the score (UX round 2, 24 Oct 2026).
+  const unnamedScore = unnamedScoreFromEvents(sport, (scoringEvents ?? []) as GameEvent[]);
   const scorerWords = SCORER_WORDS[sport];
 
   const isLive = g.status === "in_progress";
@@ -481,7 +484,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
 
       {/* ── Scorers, in each sport's words (AFL goals + behinds, netball
             goals, league tries + kicks); numbers where the sport has them ── */}
-      {scorerRows.length > 0 && (
+      {(scorerRows.length > 0 || unnamedScore) && (
         <SFCard>
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -528,6 +531,12 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 </span>
               </li>
             ))}
+            {unnamedScore && (
+              <li data-testid="no-scorer-row" className="flex items-center justify-between py-3 text-sm">
+                <span className="font-medium text-ink-dim">No scorer</span>
+                <span className="font-mono font-bold tabular-nums text-ink">{unnamedScore.detail}</span>
+              </li>
+            )}
           </ul>
         </SFCard>
       )}

@@ -3,7 +3,9 @@
 // replayed game, under the sport's own emoji (⚽, or hockey's 🏑): the
 // result (only when scoring is on: MiniRoos records
 // none), the goal scorers, then each kid's game time with their time in
-// goal, and the kids who were here but didn't get on.
+// goal, and the kids who were here but didn't get on. Goals nobody was
+// named for close the scorers ("+1 goal (no scorer)"), as touch's tries
+// do, so the list adds up to the score.
 
 import type { Player } from "@/lib/types";
 import { DIDNT_GET_ON, didntGetOn } from "@/lib/live/presentPlayers";
@@ -49,6 +51,8 @@ export function buildSoccerSummary(input: SoccerSummaryInput): string {
         const p = byId.get(id);
         return `${first(p)}${p?.jersey_number != null ? ` (#${p.jersey_number})` : ""}${n > 1 ? ` ×${n}` : ""}`;
       });
+    const unnamed = us - Object.values(state.playerGoals).reduce((s, n) => s + n, 0);
+    if (unnamed > 0) scorers.push(`+${unnamed} ${unnamed === 1 ? "goal" : "goals"} (no scorer)`);
     if (scorers.length > 0) lines.push(`\n${emoji} Goals: ${scorers.join(", ")}`);
   }
 
