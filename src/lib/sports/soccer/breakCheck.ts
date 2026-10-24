@@ -14,6 +14,9 @@
 //   - "Everyone has a turn" (U8–U11): last half's keeper plays out in the
 //     field. The suggester already does it; a coach's edit can undo it.
 //   - A kid marked "not in goal" isn't put there.
+//   - A kid isn't placed in a line their "Plays as" leaves out (round 2
+//     usability, 24 Oct 2026: futsal's Rotate put a wings-only kid at
+//     Back, and nothing said so).
 
 import { benchReachMs as reachFrom } from "@/lib/live/break/floor";
 import { checkRules, type RuleCheckItem } from "@/lib/playbook/ruleCheck";
@@ -112,6 +115,23 @@ export function soccerBreakCheck(c: SoccerBreakCheckInput): RuleCheckItem[] {
         text: `${name(keeper)} would rather not go in goal`,
         rule: "Kids marked “not in goal” stay out of goal",
         playerIds: [keeper],
+      });
+    }
+  }
+
+  // "Plays as": a kid placed in an outfield line their role leaves out.
+  for (const line of ["def", "mid", "att"] as const) {
+    for (const pid of c.lineup.lines[line]) {
+      const left = c.prefs?.notInLine?.[pid];
+      if (!left?.includes(line)) continue;
+      const plays = (["def", "mid", "att"] as const).filter((l) => !left.includes(l)).map((l) => c.rules.lineLabels[l].label);
+      if (plays.length === 0) continue;
+      items.push({
+        id: `plays-as-${pid}`,
+        status: "fail",
+        text: `${name(pid)} plays ${plays.join(" or ")} only`,
+        rule: "Kids play the lines their “Plays as” names",
+        playerIds: [pid],
       });
     }
   }

@@ -40,6 +40,7 @@ import {
   type SoccerAgeGroupConfig,
   type SoccerFormation,
   type SoccerKeeperStrategy,
+  type SoccerLine,
   type SoccerUnit,
 } from "@/lib/sports/soccer/types";
 import type { Game, LiveAuth, Player } from "@/lib/types";
@@ -163,7 +164,7 @@ export function SoccerBreak({
   );
   // Rotate: the half-time plan's keeper goes in goal; everyone else moves
   // up a line (defence → midfield → attack → defence), the shape kept,
-  // least-played on.
+  // least-played on, each kid only to a line their "Plays as" names.
   const rotatedPlan = useMemo<SoccerLineup>(() => {
     const keeper = plan.formation.keeper ? plan.lineup.keeper : null;
     const shape = plan.formation.lines;
@@ -180,9 +181,10 @@ export function SoccerBreak({
         }),
       ),
       sidelinedIds: sidelinedInGame,
+      plays: (pid, line) => line === "field" || !keeperPrefs?.notInLine?.[pid]?.includes(line as SoccerLine),
     });
     return lineupOf({ groups: { ...out.groups, gk: keeper ? [keeper] : [] }, bench: out.bench });
-  }, [plan, healthy, state.ms, gameMs, previousLineup, sidelinedInGame]);
+  }, [plan, healthy, state.ms, gameMs, previousLineup, sidelinedInGame, keeperPrefs]);
   // Every plan but Manual puts the kit-up keeper in goal.
   const {
     suggested,
