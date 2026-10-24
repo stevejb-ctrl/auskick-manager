@@ -915,20 +915,19 @@ export function LeagueLiveGame({
     setSelectedPlayerId(null);
   }
 
+  // The period's end is an optimistic write, like every other tap: the
+  // break opens at the hooter with or without signal (round 3, 24 Oct
+  // 2026: it waited on the save).
   const endQuarterAtClient = useCallback(
-    async (elapsed: number) => {
-      setPending(true);
-      const { flushed } = enqueueLiveAction("endLeagueQuarter", [
-        auth,
-        game.id,
-        state.currentQuarter,
-        elapsed,
-      ]);
-      await flushed;
-      setPending(false);
-      router.refresh();
+    (elapsed: number) => {
+      setError(null);
+      write(
+        "endLeagueQuarter",
+        [auth, game.id, state.currentQuarter, elapsed],
+        liveEvents.periodEnd({ quarter: state.currentQuarter, elapsed_ms: elapsed }),
+      );
     },
-    [auth, game.id, state.currentQuarter, router],
+    [auth, game.id, state.currentQuarter, write],
   );
 
   useEffect(() => {
@@ -1552,6 +1551,7 @@ export function LeagueLiveGame({
         )}
         <LeagueBreak
           auth={auth}
+          write={write}
           sport={sport}
           game={game}
           exitHref={exitHref}

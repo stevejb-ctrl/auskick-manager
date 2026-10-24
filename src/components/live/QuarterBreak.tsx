@@ -14,9 +14,7 @@ import { Guernsey, SFButton } from "@/components/sf";
 import {
   markInjury,
   markLoan,
-  recordLineupSet,
   setOnFieldSize as setOnFieldSizeAction,
-  startQuarter as startQuarterAction,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { type ChipMode } from "@/lib/chips";
 import {
@@ -249,7 +247,6 @@ export function QuarterBreak({
   }, [basePlayedZoneMs]);
 
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   // Q-break lineup-build mode (the screen's Suggested / Rotate / Repeat /
   // Manual). All four are fully editable via tap-tap; the picker just sets
@@ -668,33 +665,30 @@ export function QuarterBreak({
     onPrimeAudio?.();
     // Nobody injured, lent or out starts the quarter on the field.
     const full: Lineup = benchSidelinedInLineup({ ...emptyLineup(), ...draft }, sidelinedSet);
-    startTransition(async () => {
-      if (!lineupsEqual(lineup, full)) {
-        const r = await recordLineupSet(auth, gameId, full);
-        if (!r.success) {
-          setError(r.error);
-          return;
-        }
-        setLineup(full);
-      }
-      const result = await startQuarterAction(auth, gameId, nextQuarter);
-      if (!result.success) {
-        setError(result.error);
-        return;
-      }
-      // The staged lineup is now the quarter's: nothing left to restore.
-      stagedBreakDraft.clear();
-      onStarted();
-      // D-14: this period's plan is used; later planned periods stay.
-      if (plannedRotation && plannedRotation.gameId === gameId) {
-        setPlannedRotation(consumePeriodPin(plannedRotation, upcomingPeriodIndex));
-      }
-      // The sheet's Start is the umpire's whistle: start the clock now.
-      startClock();
-      // Medium haptic — the "go!" tap (P1-10).
-      void hapticTap("medium");
-      reactStartTransition(() => router.refresh());
-    });
+    // Both writes go through the write queue, in order, and the quarter
+    // starts here at once, as every other live tap does. They used to be
+    // awaited as bare server actions, so Start with no signal crashed the
+    // page to "Something went wrong · Failed to fetch" (round 3, 24 Oct
+    // 2026); now they send when the signal's back.
+    if (!lineupsEqual(lineup, full)) {
+      enqueueLiveAction("recordLineupSet", [auth, gameId, full]);
+      setLineup(full);
+    }
+    const { flushed } = enqueueLiveAction("startQuarter", [auth, gameId, nextQuarter]);
+    // The staged lineup is now the quarter's: nothing left to restore.
+    stagedBreakDraft.clear();
+    onStarted();
+    // D-14: this period's plan is used; later planned periods stay.
+    if (plannedRotation && plannedRotation.gameId === gameId) {
+      setPlannedRotation(consumePeriodPin(plannedRotation, upcomingPeriodIndex));
+    }
+    // The sheet's Start is the umpire's whistle: start the clock now.
+    startClock();
+    // Medium haptic — the "go!" tap (P1-10).
+    void hapticTap("medium");
+    flushed
+      .then(() => reactStartTransition(() => router.refresh()))
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Couldn't start the quarter."));
   }
 
   // ─── The break screen ─────────────────────────────────────────
@@ -803,7 +797,7 @@ export function QuarterBreak({
           defaultValue: defaultOnFieldSize,
           word: "On-field size",
           onChange: handleSizeChange,
-          pending: sizePending || isPending,
+          pending: sizePending,
           error: sizeError,
         },
         injured: {
@@ -852,7 +846,8 @@ export function QuarterBreak({
       }
       start={{
         onStart: handleConfirmStart,
-        pending: isPending,
+        // Start is queued and instant: nothing to wait on.
+        pending: false,
         cue: "siren goes",
         error,
       }}

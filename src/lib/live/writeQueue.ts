@@ -247,6 +247,17 @@ export function isNetworkFailure(err: unknown): boolean {
   return /failed to fetch|load failed|networkerror|network request failed|internet|err_network|err_connection/i.test(message);
 }
 
+/**
+ * A live write queued now won't reach the server at once: the phone says
+ * it's offline, or a game write is already waiting on a failure.
+ */
+export function liveWritesWaiting(): boolean {
+  return (
+    isOffline() ||
+    useWriteQueue.getState().queue.some((op) => laneOf(op.kind) === "game" && (op.attemptCount > 0 || !!op.lastError))
+  );
+}
+
 // Told about every write that saves (onQueueSaved), including ones a
 // reload left in the queue with no caller waiting: a screen refreshes
 // to show them.

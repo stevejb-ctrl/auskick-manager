@@ -272,6 +272,30 @@ export const liveEvents = {
       metadata: { on_field_size: input.on_field_size, quarter: input.quarter, elapsed_ms: input.elapsed_ms },
     };
   },
+  /**
+   * A period's end (endSoccerHalf / endBasketballPeriod / endTouchPeriod /
+   * endLeagueQuarter / endNetballQuarter), so the break opens at the
+   * hooter with or without signal (round 3: it sat on "Applying…").
+   */
+  periodEnd(input: At): OptimisticEventInput {
+    return { type: "quarter_end", player_id: null, metadata: { quarter: input.quarter, elapsed_ms: input.elapsed_ms } };
+  },
+  /** A period's start (startSoccerHalf / startBasketballPeriod / startTouchPeriod / startLeagueQuarter / startNetballQuarter). */
+  periodStart(quarter: number): OptimisticEventInput {
+    return { type: "quarter_start", player_id: null, metadata: { quarter } };
+  },
+  /** The break's lineup, committed at Start (record*LineupSet with no `at`). */
+  breakLineup(lineup: unknown): OptimisticEventInput {
+    return { type: "lineup_set", player_id: null, metadata: { lineup } };
+  },
+  /** periodBreakSwap: netball's break lineup, with the last quarter's mid-quarter subs. */
+  netballBreakSwap(input: { quarter: number; lineup: unknown; midQuarterSubs: unknown[] }): OptimisticEventInput {
+    return {
+      type: "period_break_swap",
+      player_id: null,
+      metadata: { quarter: input.quarter, lineup: input.lineup, midQuarterSubs: input.midQuarterSubs },
+    };
+  },
   /** recordClockPause: the clock stopped, or started again (lib/live/clockPause). */
   clockPause(input: ClockPauseInput): OptimisticEventInput {
     return {

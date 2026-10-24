@@ -12,7 +12,21 @@
 import { useMemo } from "react";
 import type { GameEvent } from "@/lib/types";
 import type { PeriodPause } from "@/lib/live/periodClock";
-import { periodPauseFromEvents } from "@/lib/live/clockPause";
+import { clockPauseInput, periodPauseFromEvents, type ClockPauseInput } from "@/lib/live/clockPause";
+import { liveWritesWaiting } from "@/lib/live/writeQueue";
+
+/**
+ * The clock's start for a period started now with no signal (or behind
+ * a write still waiting): a clock_pause "running from 0:00" at the tap,
+ * written after the period's quarter_start. Every clock is timed from
+ * the period's quarter_start, which the server stamps when the queued
+ * write arrives, possibly minutes later; this mark keeps the clock
+ * running from the whistle (lib/live/clockPause). Null when the start
+ * will reach the server at once, as before.
+ */
+export function queuedStartClockMark(period: number): ClockPauseInput | null {
+  return liveWritesWaiting() ? clockPauseInput(period, false, 0, Date.now()) : null;
+}
 
 /** The period's pause for computePeriodClockMs, from `events`. */
 export function useEventPeriodPause(

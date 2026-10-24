@@ -278,16 +278,16 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     availableIds,
     ageGroup,
     quarterLengthSeconds,
-    initialLineup,
-    currentQuarter,
-    quarterElapsedMs: _quarterElapsedMs,
-    quarterStartedAt,
-    teamScore,
-    opponentScore,
-    playerGoals,
-    quarterEnded,
-    finalised,
-    thisGameEvents,
+    initialLineup: serverInitialLineup,
+    currentQuarter: serverQuarter,
+    quarterElapsedMs: serverQuarterElapsedMs,
+    quarterStartedAt: serverQuarterStartedAt,
+    teamScore: serverTeamScore,
+    opponentScore: serverOpponentScore,
+    playerGoals: serverPlayerGoals,
+    quarterEnded: serverQuarterEnded,
+    finalised: serverFinalised,
+    thisGameEvents: serverEvents,
     seasonEvents,
     trackScoring = false,
     clockMultiplier = 1,
@@ -314,6 +314,33 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // reload. Pairs with revalidatePath calls in netball-actions.ts.
   // (Phase 4 deferred items #1 + #2 / 04-EVIDENCE.md §5.)
   const router = useRouter();
+
+  // ─── The game: the server's, then this phone's writes not back yet ──
+  // The clock's pauses and the period's end and start are optimistic
+  // events (useOptimisticEvents): on screen at once, with or without
+  // signal. While any are waiting, the screen replays them over the
+  // server's events, as league's does; otherwise it reads the server's
+  // replay (the page's props). The hooter with no signal used to freeze
+  // the clock at 0:00 with no break, and Start Q2 waited on the save
+  // (round 3, 24 Oct 2026).
+  const { events: thisGameEvents, write: writeEvent } = useOptimisticEvents(serverEvents, {
+    gameId: game.id,
+    // A write that can't save comes off the screen, which says so.
+    onError: () => {},
+  });
+  const pendingReplay = useMemo(
+    () => (thisGameEvents === serverEvents ? null : replayNetballGame(thisGameEvents)),
+    [thisGameEvents, serverEvents],
+  );
+  const currentQuarter = pendingReplay?.currentQuarter ?? serverQuarter;
+  const quarterEnded = pendingReplay?.quarterEnded ?? serverQuarterEnded;
+  const finalised = pendingReplay?.finalised ?? serverFinalised;
+  const quarterStartedAt = pendingReplay ? pendingReplay.quarterStartedAt : serverQuarterStartedAt;
+  const _quarterElapsedMs = pendingReplay?.quarterElapsedMs ?? serverQuarterElapsedMs;
+  const teamScore = pendingReplay?.teamScore ?? serverTeamScore;
+  const opponentScore = pendingReplay?.opponentScore ?? serverOpponentScore;
+  const playerGoals = pendingReplay?.playerGoals ?? serverPlayerGoals;
+  const initialLineup = pendingReplay ? pendingReplay.lineup : serverInitialLineup;
 
   // Steve 2026-05-16 (AFL parity): hype song. Same hook AFL uses,
   // same call shape. `hydrated=true` here unconditionally because
@@ -357,17 +384,12 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // and ended the quarter with everyone on full time (round 2, 24 Oct
   // 2026). A fresh quarter has none, so it starts running. A tap
   // writes the event optimistically (on screen at once).
-  const { events: clockEvents, write: writeClockEvent } = useOptimisticEvents(thisGameEvents, {
-    gameId: game.id,
-    // The clock visibly carries on when a pause can't save.
-    onError: () => {},
-  });
   const quarterStartedAtMs = (() => {
     if (!quarterStartedAt) return null;
     const ms = Date.parse(quarterStartedAt);
     return Number.isNaN(ms) ? null : ms;
   })();
-  const savedPause = useEventPeriodPause(clockEvents, currentQuarter, quarterStartedAtMs, clockMultiplier);
+  const savedPause = useEventPeriodPause(thisGameEvents, currentQuarter, quarterStartedAtMs, clockMultiplier);
   // The hooter holds the clock too (below), until quarter_end lands.
   const [hooterFrozenAtMs, setHooterFrozenAtMs] = useState<number | null>(null);
   useEffect(() => {
@@ -453,7 +475,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       }),
       now,
     );
-    writeClockEvent("recordClockPause", [auth, game.id, input], liveEvents.clockPause(input));
+    writeEvent("recordClockPause", [auth, game.id, input], liveEvents.clockPause(input));
   }, [
     currentQuarter,
     quarterEnded,
@@ -463,7 +485,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     accumulatedPauseMs,
     _quarterElapsedMs,
     clockMultiplier,
-    writeClockEvent,
+    writeEvent,
     auth,
     game.id,
   ]);
@@ -559,13 +581,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // Same sirenic haptic as the auto-hooter below — manual-end is
     // still "the quarter is ending" from the player's POV. P1-10.
     void hapticSiren();
-    const { flushed } = enqueueLiveAction("endNetballQuarter", [
-      auth,
-      game.id,
-      currentQuarter,
-      quarterLengthMs,
-    ]);
-    flushed.then(() => startTransition(() => router.refresh()));
+    writeEvent(
+      "endNetballQuarter",
+      [auth, game.id, currentQuarter, quarterLengthMs],
+      liveEvents.periodEnd({ quarter: currentQuarter, elapsed_ms: quarterLengthMs }),
+    );
   }
 
   // Pending goal: tap on a GS/GA token doesn't fire the goal directly;
@@ -607,8 +627,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // playerGoals object identity. teamScore/opponentScore are
     // fresh objects each props refresh, so depending on
     // `.goals` keeps the effect from firing on no-op re-renders
-    // where only an unrelated prop changed.
-  }, [teamScore.goals, opponentScore.goals, playerGoals]);
+    // where only an unrelated prop changed. The server's props, not the
+    // replay of this phone's pending writes: that's rebuilt on every
+    // pending pause or period end, and would drop a goal still saving.
+  }, [serverTeamScore.goals, serverOpponentScore.goals, serverPlayerGoals]);
 
   const effectiveTeamScore = useMemo(
     () => ({ goals: teamScore.goals + localScoreDelta.team }),
@@ -677,15 +699,12 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // Siren-pattern haptic — quarter end IS the hooter, the same
     // sirenic moment AFL pre-existed and full-time mirrors. P1-10.
     void hapticSiren();
-    const { flushed: hooterFlushed } = enqueueLiveAction("endNetballQuarter", [
-      auth,
-      game.id,
-      currentQuarter,
-      quarterLengthMs,
-    ]);
-    // Chain refresh after the queue flushes so SSR sees the
-    // quarter_end event and renders the Q-break shell.
-    hooterFlushed.then(() => startTransition(() => router.refresh()));
+    // On screen at once (the break opens), saved when there's signal.
+    writeEvent(
+      "endNetballQuarter",
+      [auth, game.id, currentQuarter, quarterLengthMs],
+      liveEvents.periodEnd({ quarter: currentQuarter, elapsed_ms: quarterLengthMs }),
+    );
   }, [
     remainingMs,
     currentQuarter,
@@ -694,7 +713,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     auth,
     game.id,
     quarterLengthMs,
-    router,
+    writeEvent,
     pendingGoal,
   ]);
 
@@ -1926,6 +1945,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         {walkthroughOverlay}
         <NetballQuarterBreak
           auth={auth}
+          write={writeEvent}
           gameId={game.id}
           game={game}
           exitHref={exitHref}

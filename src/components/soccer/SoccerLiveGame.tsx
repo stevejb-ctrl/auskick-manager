@@ -36,7 +36,6 @@
 // (UX audit 23 Oct 2026, "Drift from AFL").
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { SFButton } from "@/components/sf";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
@@ -58,11 +57,6 @@ import {
 } from "@/components/live/InjuryReplacementModal";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
-import {
-  enqueueLiveAction,
-  type LiveActionArgs,
-  type LiveActionKind,
-} from "@/lib/live/registerLiveActions";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
 import { liveEvents, optimisticUndo } from "@/lib/live/optimisticEvents";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
@@ -70,7 +64,7 @@ import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import { hapticTap } from "@/lib/haptics";
 import { computePeriodClockMs } from "@/lib/live/periodClock";
 import { clockPauseInput } from "@/lib/live/clockPause";
-import { useEventPeriodPause } from "@/lib/live/useClockPause";
+import { queuedStartClockMark, useEventPeriodPause } from "@/lib/live/useClockPause";
 import { openSubBatch, resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { periodBreakName } from "@/lib/live/periodBreakName";
@@ -197,12 +191,12 @@ export function SoccerLiveGame({
   exitHref,
   seasonLoanMinutes,
 }: SoccerLiveGameProps) {
-  const router = useRouter();
   const opponentName = game.opponent || "Opponent";
   const playerById = useMemo(() => new Map(squad.map((p) => [p.id, p])), [squad]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  // Every write is optimistic, so nothing here waits on a save.
+  const pending = false;
   const [clockMenuOpen, setClockMenuOpen] = useState(false);
   const [endConfirmOpen, setEndConfirmOpen] = useState(false);
   const [startConfirmOpen, setStartConfirmOpen] = useState(false);
@@ -394,31 +388,28 @@ export function SoccerLiveGame({
   elapsedRef.current = elapsedMs;
   const at = () => ({ quarter: base.currentPeriod, elapsed_ms: elapsedRef.current });
 
-  // A period starting or ending changes the whole screen (the break is
-  // the server's plan), so it waits for the save, with a pending state.
-  // Every other write is optimistic (write, below).
-  async function run<K extends LiveActionKind>(kind: K, args: LiveActionArgs<K>) {
-    setPending(true);
-    setError(null);
-    try {
-      await enqueueLiveAction(kind, args).flushed;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "That didn't save. Try again.");
-    } finally {
-      setPending(false);
-    }
-    router.refresh();
-  }
-
+  // A period's end and start are optimistic writes too, like every
+  // other tap: the break opens at the hooter and the next period starts
+  // at the tap, with or without signal. They used to wait on the save,
+  // so a hooter with no signal sat on "Applying…" while the kids' minutes
+  // ran past the period (round 3, 24 Oct 2026).
   const endHalfAtClient = useCallback(
-    async (elapsed: number) => {
-      setPending(true);
-      await enqueueLiveAction("endSoccerHalf", [auth, game.id, base.currentPeriod, elapsed]).flushed;
-      setPending(false);
-      router.refresh();
+    (elapsed: number) => {
+      setError(null);
+      write(
+        "endSoccerHalf",
+        [auth, game.id, base.currentPeriod, elapsed],
+        liveEvents.periodEnd({ quarter: base.currentPeriod, elapsed_ms: elapsed }),
+      );
     },
-    [auth, game.id, base.currentPeriod, router],
+    [auth, game.id, base.currentPeriod, write],
   );
+  function startFirstPeriod() {
+    setError(null);
+    const mark = queuedStartClockMark(1);
+    write("startSoccerHalf", [auth, game.id, 1], liveEvents.periodStart(1));
+    if (mark) write("recordClockPause", [auth, game.id, mark], liveEvents.clockPause(mark));
+  }
 
   // The hooter: the period ends itself at full time on the clock (not
   // while paused; the coach is stopping on purpose).
@@ -669,6 +660,7 @@ export function SoccerLiveGame({
       <div ref={liveRootRef}>
         <SoccerBreak
           auth={auth}
+          write={write}
           sport={sport}
           game={game}
           exitHref={exitHref}
@@ -962,7 +954,7 @@ export function SoccerLiveGame({
           loading={pending}
           onStart={() => {
             setStartConfirmOpen(false);
-            void run("startSoccerHalf", [auth, game.id, 1]);
+            startFirstPeriod();
           }}
           onCancel={() => setStartConfirmOpen(false)}
         />
