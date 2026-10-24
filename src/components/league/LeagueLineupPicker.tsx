@@ -68,6 +68,7 @@ import { LeagueField } from "./LeagueField";
 import { LeagueBenchStrip } from "./LeagueBenchStrip";
 
 import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_league/engine";
+import { vestStartBlocker } from "@/lib/sports/rugby_league/vests";
 import { linePositionOrder } from "@/lib/sports/rugby/fieldPositions";
 import { useRoleSheet, type RoleSheetConfig } from "@/components/playbook/useRoleSheet";
 import { GamePlanButton, type GamePlanButtonProps } from "@/components/game-plan/GamePlanButton";
@@ -1457,6 +1458,11 @@ export function LeagueLineupPicker({
           `Start ${periodLabels(sport, ageGroup).label.charAt(0).toUpperCase()}1`
         }
         confirmDisabled={confirmDisabled}
+        confirmHint={
+          fieldIds.length > 0
+            ? vestStartBlocker({ onField: fieldIds.length, required: reqs, fr: frId, dh: dhId })
+            : null
+        }
         confirmLoading={isPending}
       />
 

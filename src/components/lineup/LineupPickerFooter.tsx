@@ -67,6 +67,12 @@ interface LineupPickerFooterProps {
   confirmLabel: string;
   /** Disable gate for the primary CTA — typically `onFieldCount === 0 || isPending`. */
   confirmDisabled?: boolean;
+  /**
+   * Why the primary CTA is disabled, said under it (round 3 edge cases,
+   * 24 Oct 2026: league's Start H1 greyed out with one kid in and nothing
+   * said the vests need two).
+   */
+  confirmHint?: string | null;
   /** Loading state for the primary CTA. */
   confirmLoading?: boolean;
   /** Optional right-side icon. AFL passes chevronRight; netball passes nothing. */
@@ -84,6 +90,7 @@ export function LineupPickerFooter({
   onConfirm,
   confirmLabel,
   confirmDisabled = false,
+  confirmHint = null,
   confirmLoading = false,
   confirmIconAfter,
 }: LineupPickerFooterProps) {
@@ -143,9 +150,15 @@ export function LineupPickerFooter({
           size="lg"
           full
           iconAfter={confirmIconAfter}
+          aria-describedby={confirmDisabled && confirmHint ? "lineup-confirm-hint" : undefined}
         >
           {confirmLabel}
         </SFButton>
+        {confirmDisabled && confirmHint && (
+          <p id="lineup-confirm-hint" role="status" className="text-center text-xs font-medium text-warn">
+            {confirmHint}
+          </p>
+        )}
       </div>
     </div>
   );

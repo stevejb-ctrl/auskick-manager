@@ -78,7 +78,7 @@ import { VestAssignmentCard } from "./VestAssignmentCard";
 import { LeagueBreak } from "./LeagueBreak";
 import { RecordConversionDialog } from "./RecordConversionDialog";
 import { KickoffPicker } from "./KickoffPicker";
-import { currentVests, type VestType } from "@/lib/sports/rugby_league/vests";
+import { currentVests, missingVestOnField, type VestType } from "@/lib/sports/rugby_league/vests";
 import {
   conversionTryEventId,
   playerConversionStatusInCycle,
@@ -843,24 +843,19 @@ export function LeagueLiveGame({
   // ── Force-vest-replacement detection ─────────────────────────
   // Triggered when an FR/DH wearer is no longer on the field.
   // Possible causes: sub off (swap), injury, loan.
+  // A wearer hurt with nobody to replace them keeps their field slot,
+  // but isn't wearing the vest on the field (round 3 edge cases, 24 Oct
+  // 2026: H2 was played with no First Receiver and no prompt).
   const missingVestWearer = useMemo<VestType | null>(() => {
     if (!vestRequired || !lineup) return null;
     if (state.currentQuarter < 1 || state.finalised) return null;
-    if (
-      ageGroup.vestRequirements?.fr
-      && activeVests.fr
-      && !onFieldSet.has(activeVests.fr)
-    ) {
-      return "fr";
-    }
-    if (
-      ageGroup.vestRequirements?.dh
-      && activeVests.dh
-      && !onFieldSet.has(activeVests.dh)
-    ) {
-      return "dh";
-    }
-    return null;
+    return missingVestOnField({
+      vests: activeVests,
+      onField: onFieldIds,
+      injured: injuredSet,
+      loaned: loanedSet,
+      required: ageGroup.vestRequirements,
+    });
   }, [
     vestRequired,
     lineup,
@@ -868,7 +863,9 @@ export function LeagueLiveGame({
     state.finalised,
     ageGroup.vestRequirements,
     activeVests,
-    onFieldSet,
+    onFieldIds,
+    injuredSet,
+    loanedSet,
   ]);
   // Auto-open the forced replacement when the wearer disappears,
   // unless the coach has already dismissed this period's prompt
@@ -2331,9 +2328,8 @@ export function LeagueLiveGame({
                   Replace {missingVestWearer === "fr" ? "First Receiver" : missingVestWearer === "dh" ? "Dummy Half" : "vest"}
                 </h2>
                 <p className="text-xs text-ink-mute">
-                  {missingVestNote
-                    ? `${missingVestNote}. Pick who wears the vest now.`
-                    : "The vest wearer is no longer on the field. Pick a replacement to continue."}
+                  {missingVestNote ? `${missingVestNote}. ` : "The vest wearer is no longer on the field. "}
+                  Who takes the {missingVestWearer === "dh" ? "DH" : "FR"} vest?
                 </p>
               </div>
               <button
@@ -2349,10 +2345,9 @@ export function LeagueLiveGame({
               sport={sport}
               gameId={game.id}
               squad={squad}
-              onFieldPlayerIds={[
-                ...lineup.forwards,
-                ...lineup.backs,
-              ]}
+              // Kids on the field who can play: a hurt wearer keeps their
+              // slot but can't hand the vest to themselves.
+              onFieldPlayerIds={kickoffSquad.map((p) => p.id)}
               events={thisGameEvents}
               ageGroup={ageGroup}
               period={state.currentQuarter || 1}
