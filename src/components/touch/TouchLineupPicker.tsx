@@ -567,6 +567,7 @@ export function TouchLineupPicker({
         <StartQuarterModal
           quarter={1}
           periodLabel={onePeriod ? "period" : "half"}
+          shortSide={{ playing: fieldIds.length, size: initialSize, min: ageGroup.minOnFieldSize }}
           cue={getSportConfig(sport).words.startCue}
           loading={isPending}
           onStart={handleConfirmStart}

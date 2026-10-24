@@ -1228,6 +1228,11 @@ export function NetballLineupPicker({
         <StartQuarterModal
           cue="umpire calls play"
           quarter={1}
+          shortSide={{
+            playing: Object.values(lineup.positions).reduce((sum, ids) => sum + ids.length, 0),
+            size: ageGroup.defaultOnFieldSize,
+            min: ageGroup.minOnFieldSize,
+          }}
           loading={saving}
           onStart={handleConfirmStart}
           onCancel={() => setStartModalOpen(false)}

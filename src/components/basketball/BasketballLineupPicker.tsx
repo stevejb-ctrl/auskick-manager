@@ -495,6 +495,7 @@ export function BasketballLineupPicker({
           quarter={1}
           periodLabel={periodWord}
           cue="ball goes up"
+          shortSide={{ playing: courtIds.length, size: initialSize, min: ageGroup.minOnFieldSize }}
           loading={isPending}
           onStart={handleConfirmStart}
           onCancel={() => setStartModalOpen(false)}

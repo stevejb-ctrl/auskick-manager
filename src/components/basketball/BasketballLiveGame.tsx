@@ -1058,6 +1058,7 @@ export function BasketballLiveGame({
           quarter={1}
           periodLabel={periodWord}
           cue="ball goes up"
+          shortSide={{ playing: state.lineup ? basketballOnCourt(state.lineup).length : 0, size: game.on_field_size, min: ageGroup.minOnFieldSize }}
           loading={pending}
           onStart={() => {
             setStartConfirmOpen(false);

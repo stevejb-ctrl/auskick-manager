@@ -938,6 +938,7 @@ export function SoccerLiveGame({
           quarter={base.currentPeriod + 1}
           periodLabel={periodWord}
           cue="whistle goes"
+          shortSide={{ playing: state.lineup ? soccerOnField(state.lineup).length : 0, size: game.on_field_size, min: ageGroup.minOnFieldSize }}
           loading={pending}
           onStart={() => {
             setStartConfirmOpen(false);

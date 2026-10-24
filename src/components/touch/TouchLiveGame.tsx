@@ -1041,6 +1041,7 @@ export function TouchLiveGame({
           quarter={base.currentPeriod + 1}
           periodLabel={periodLabel}
           cue={getSportConfig(sport).words.startCue}
+          shortSide={{ playing: state.lineup ? touchOnField(state.lineup).length : 0, size: game.on_field_size, min: ageGroup.minOnFieldSize }}
           loading={pending}
           onStart={() => {
             setStartConfirmOpen(false);

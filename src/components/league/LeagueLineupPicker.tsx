@@ -944,12 +944,8 @@ export function LeagueLineupPicker({
       setError(`Pick a Dummy Half — required at ${ageGroup.label}.`);
       return;
     }
-    if (fieldIds.length < minOnFieldSize) {
-      const proceed = window.confirm(
-        `Only ${fieldIds.length} players on the field — recommended minimum for ${ageGroup.label} is ${minOnFieldSize}. Proceed anyway?`,
-      );
-      if (!proceed) return;
-    }
+    // Under the minimum: the kickoff confirm says so (shortSide), as in
+    // every sport, instead of a browser confirm.
     // Reset scrolled ancestors before kickoff so the live view
     // lands at the top of the DeviceFrame on the public /run demo.
     // See LeagueLiveGame.handleStartNextPeriod for the full
@@ -1506,6 +1502,7 @@ export function LeagueLineupPicker({
         <StartQuarterModal
           quarter={1}
           periodLabel={periodLabels(sport, ageGroup).label}
+          shortSide={{ playing: fieldIds.length, size: defaultOnFieldSize, min: minOnFieldSize }}
           cue={getSportConfig(sport).words.startCue}
           loading={isPending}
           onStart={handleConfirmStart}
