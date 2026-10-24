@@ -824,6 +824,7 @@ export function NetballLineupPicker({
         <PositionToken
           positionId={positionId}
           playerName={occupantName}
+          playerId={occupantId}
           selected={!!occupantId && selected === occupantId}
           onTap={() => {
             if (occupantId) handleTapPlayer(occupantId);

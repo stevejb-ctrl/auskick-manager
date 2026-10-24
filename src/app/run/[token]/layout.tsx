@@ -3,6 +3,9 @@ import { unstable_noStore as noStore } from "next/cache";
 import { DeviceFrame } from "@/components/DeviceFrame";
 import { SirenWordmark } from "@/components/marketing/SirenWordmark";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { SquadNamesProvider } from "@/components/live/SquadNames";
+import { loadSquadNames } from "@/lib/live/loadSquadNames";
+import type { NamedPlayer } from "@/lib/names";
 
 // Back-target resolution. /run/{token} is reached by two distinct
 // audiences:
@@ -18,11 +21,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // We discriminate by querying the team behind the token's game:
 // teams.is_demo is the same flag the /demo picker keys off when
 // finding the demo team to start a game against.
-async function resolveBackTarget(token: string): Promise<string> {
+//
+// The same read finds the squad, so the runner's tiles and sheets tell
+// two kids with the same short name apart (SquadNamesProvider).
+async function resolveBackTarget(token: string): Promise<{ backHref: string; players: NamedPlayer[] }> {
   const admin = createAdminClient();
   const { data: row } = await admin
     .from("games")
-    .select("team:teams!inner(is_demo)")
+    .select("id, team_id, team:teams!inner(is_demo)")
     .eq("share_token", token)
     .maybeSingle();
 
@@ -30,7 +36,8 @@ async function resolveBackTarget(token: string): Promise<string> {
   // non-demo team fall through to the homepage. Only confirmed
   // demo games get the /demo back-target.
   const teamRow = row?.team as { is_demo: boolean | null } | undefined;
-  return teamRow?.is_demo ? "/demo" : "/";
+  const players = row ? await loadSquadNames(admin, row.team_id as string, row.id as string) : [];
+  return { backHref: teamRow?.is_demo ? "/demo" : "/", players };
 }
 
 export default async function RunLayout({
@@ -41,7 +48,7 @@ export default async function RunLayout({
   params: { token: string };
 }) {
   noStore();
-  const backHref = await resolveBackTarget(params.token);
+  const { backHref, players } = await resolveBackTarget(params.token);
 
   return (
     <div>
@@ -84,7 +91,9 @@ export default async function RunLayout({
         </div>
       </header>
       <DeviceFrame>
-        <main>{children}</main>
+        <main>
+          <SquadNamesProvider players={players}>{children}</SquadNamesProvider>
+        </main>
       </DeviceFrame>
     </div>
   );

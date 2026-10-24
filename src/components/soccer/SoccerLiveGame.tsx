@@ -38,6 +38,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SFButton } from "@/components/sf";
+import { shortName } from "@/lib/names";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
@@ -177,7 +178,7 @@ const KEEPER_AT_BREAKS =
   "The keeper changes at the break: kit takes a few minutes to put on. If the keeper's hurt, long-press them to mark the injury.";
 
 function firstName(p: Player): string {
-  return p.full_name.trim().split(/\s+/)[0] ?? p.full_name;
+  return shortName(p.full_name);
 }
 
 export function SoccerLiveGame({

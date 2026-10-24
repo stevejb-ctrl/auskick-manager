@@ -1262,7 +1262,7 @@ export function BasketballLiveGame({
                     hint: "Out for the rest of the game",
                     testId: "basketball-foul-out",
                     // One tap was final; it asks first (UX audit 23 Oct 2026).
-                    confirm: `${actionPlayer.full_name.trim().split(/\s+/)[0]} is out for the rest of the game.`,
+                    confirm: `${chrome.firstName(actionPlayer.id)} is out for the rest of the game.`,
                     onClick: () => {
                       const pid = actionPlayer.id;
                       setActionPlayerId(null);

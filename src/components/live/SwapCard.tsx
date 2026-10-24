@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { SUB_DUE_RING, SUB_IDLE_SHADOW, SubDueHeading, SubDueRoot } from "@/components/live/SubDue";
 import type { Lineup, Player, Zone } from "@/lib/types";
 import type { SwapSuggestion } from "@/lib/fairness";
+import { firstName, shortName } from "@/lib/names";
+import { useSquadNames } from "@/components/live/SquadNames";
 import {
   applyInlineSwapOverride,
   eligibleOffReplacements,
@@ -128,15 +130,11 @@ const ZONE_COLOR: Record<Zone, string> = {
   fwd: "text-zone-f-dark",
 };
 
-function first(name: string): string {
-  return name.split(" ")[0];
-}
-
+// The avatar's letters, from the words with letters ("😀 Emoji Kid" is EK).
 function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  const a = parts[0]?.[0] ?? "";
-  const b = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  return (a + b).toUpperCase();
+  const first = firstName(name);
+  const rest = shortName(name, "initial").slice(first.length).trim();
+  return (Array.from(first)[0] ?? "") + (rest ? Array.from(rest)[0] : "");
 }
 
 // The numbered chip that ties a card row to its tile's "OFF n" chip.
@@ -168,6 +166,7 @@ export function SwapCard({
   subIntervalMs,
   pastHooterCarry,
 }: SwapCardProps) {
+  const names = useSquadNames();
   const [open, setOpen] = useState(forceOpen ?? false);
   // Which chip's inline override picker is open. null = none.
   const [editing, setEditing] = useState<{ index: number; side: "on" | "off" } | null>(
@@ -287,7 +286,7 @@ export function SwapCard({
         summary={valid.map(({ off, on, index }, i) => (
           <span key={index} className={`flex items-center gap-1.5 ${i > 0 ? "ml-1.5" : ""}`}>
             <span className={`${PAIR_CHIP} h-4 w-4 text-[10px] leading-4`}>{index + 1}</span>
-            {first(off.full_name)} → {first(on.full_name)}
+            {names.first(off)} → {names.first(on)}
           </span>
         ))}
       />
@@ -422,7 +421,7 @@ export function SwapCard({
                         canOverride ? "underline decoration-warm/40 decoration-dashed underline-offset-[5px]" : ""
                       } ${editingThis("off") ? "bg-white/15" : canOverride ? "hover:bg-white/10" : ""}`}
                     >
-                      {first(off.full_name)}
+                      {names.first(off)}
                       {canOverride && " ⌄"}
                     </button>
                     <span aria-hidden className="text-warm/50">→</span>
@@ -444,7 +443,7 @@ export function SwapCard({
                         canOverride ? "underline decoration-mint/50 decoration-dashed underline-offset-[5px]" : ""
                       } ${editingThis("on") ? "bg-white/15" : canOverride ? "hover:bg-white/10" : ""}`}
                     >
-                      {first(on.full_name)}
+                      {names.first(on)}
                       {canOverride && " ⌄"}
                     </button>
                     {edited && (
@@ -523,7 +522,7 @@ export function SwapCard({
                                 <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black/20 font-mono text-[8px] font-bold">
                                   {p ? initials(p.full_name) : "?"}
                                 </span>
-                                {p ? first(p.full_name) : pid}
+                                {p ? names.first(p) : pid}
                               </button>
                             );
                           })}

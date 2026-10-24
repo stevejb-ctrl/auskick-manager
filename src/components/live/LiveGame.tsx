@@ -19,6 +19,7 @@ import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import { GameHeader } from "@/components/live/GameHeader";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { SwapDoneToast } from "@/components/live/SwapDoneToast";
+import { useSquadNames } from "@/components/live/SquadNames";
 import { SwapCard } from "@/components/live/SwapCard";
 import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
@@ -253,6 +254,7 @@ export function LiveGame({
   quarterMs,
   ageGroup,
 }: LiveGameProps) {
+  const names = useSquadNames();
   const activeZones = useMemo(() => positionsFor(positionModel), [positionModel]);
   // F3 (Phase 12): labelled zones for the long-press player summary, derived
   // from the AFL sport config in display order and filtered to this age
@@ -746,11 +748,11 @@ export function LiveGame({
     undoTimerRef.current = setTimeout(() => setUndoToastVisible(false), 8000);
   }
 
+  // "Jack", or "Jack S" beside another Jack (SquadNames).
   function shortName(playerId: string): string {
     const p = playersById.get(playerId);
     if (!p) return "Player";
-    const [first] = p.full_name.trim().split(/\s+/);
-    return first ?? p.full_name;
+    return names.first(p);
   }
 
   function showSwapToast(text: string) {
@@ -790,7 +792,7 @@ export function LiveGame({
       kind,
       forTeam: "us",
       playerId,
-      playerName: p ? p.full_name.trim().split(/\s+/)[0] : null,
+      playerName: p ? names.first(p) : null,
       quarter,
     });
     enqueueLiveAction(kind === "goal" ? "recordGoal" : "recordBehind", [
@@ -1873,7 +1875,7 @@ export function LiveGame({
                 )}
                 {selected.kind === "bench" && (
                   <p className="text-xs text-ink-dim">
-                    Tap a field player to swap {p ? p.full_name.split(" ")[0] : "them"} on.
+                    Tap a field player to swap {p ? names.first(p) : "them"} on.
                   </p>
                 )}
                 {/* Swap player — covers both cases:

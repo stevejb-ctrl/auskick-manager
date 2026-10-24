@@ -17,6 +17,7 @@ import type { SoccerUnit, SoccerUnitWords } from "@/lib/sports/soccer/types";
 import type { SoccerUnitMs } from "@/lib/sports/soccer/replay";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
+import { useSquadNames } from "@/components/live/SquadNames";
 import { KeepOnMarker } from "@/components/playbook/KeepOnMarker";
 
 // Lines take AFL's three zone colours by place on the field (attack is
@@ -140,10 +141,8 @@ function SoccerPlayerTileImpl({
                 ? "bg-surface shadow-lift-field ring-1 ring-inset ring-warn/50"
                 : "bg-surface shadow-lift-field";
 
-  const parts = player.full_name.trim().split(/\s+/);
-  const firstName = parts[0] ?? "";
-  const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  const displayName = lastInitial ? `${firstName} ${lastInitial}` : firstName;
+  // "First L", told apart from a squad-mate with the same (SquadNames).
+  const displayName = useSquadNames().tile(player);
 
   const unitLabel = positionLabel ?? (unit ? words[unit].short || null : null);
 

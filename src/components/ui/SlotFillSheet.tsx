@@ -1,5 +1,6 @@
 "use client";
 
+import { useSquadNames } from "@/components/live/SquadNames";
 // ─── Slot Fill Sheet ─────────────────────────────────────────
 // Modal sheet that opens when a coach taps an empty slot in the
 // lineup picker (pre-game OR quarter-break, AFL OR netball). Lists
@@ -108,6 +109,13 @@ export function SlotFillSheet({
   extraOption,
   extraOptions = [],
 }: Props) {
+  // Two kids with the same full name read "Jack Smith (1)" / "(2)" (or
+  // their numbers), as their tiles do; any other label stays as given.
+  const names = useSquadNames();
+  const label = (c: Candidate) => {
+    const full = names.full({ id: c.id, full_name: c.name });
+    return full.toLocaleLowerCase().startsWith(c.name.trim().toLocaleLowerCase()) ? full : c.name;
+  };
   return (
     <div
       // z-60 (one step above Modal's z-50) because SlotFillSheet is
@@ -214,7 +222,7 @@ export function SlotFillSheet({
                   )}
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium text-ink">
-                      {c.name}
+                      {label(c)}
                     </span>
                     {c.subLabel && (
                       <span className="block truncate text-[11px] text-ink-mute">

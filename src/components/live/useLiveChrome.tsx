@@ -21,6 +21,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { UndoStrip } from "@/components/live/UndoStrip";
 import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { SwapDoneToast } from "@/components/live/SwapDoneToast";
+import { useSquadNames } from "@/components/live/SquadNames";
 import { hapticTap } from "@/lib/haptics";
 import {
   liveLoanMinutes,
@@ -91,6 +92,7 @@ export function useLiveChrome(opts: {
   const [toastText, setToastText] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pendingSwap, setPendingSwap] = useState<PendingSwap | null>(null);
+  const names = useSquadNames();
 
   useEffect(
     () => () => {
@@ -104,9 +106,10 @@ export function useLiveChrome(opts: {
     (playerId: string) => {
       const p = playersById.get(playerId);
       if (!p) return "Player";
-      return p.full_name.trim().split(/\s+/)[0] ?? p.full_name;
+      // "Jack", or "Jack S" beside another Jack (SquadNames).
+      return names.first(p);
     },
-    [playersById],
+    [playersById, names],
   );
 
   const showToast = useCallback((text: string) => {

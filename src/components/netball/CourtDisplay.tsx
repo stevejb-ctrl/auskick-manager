@@ -96,6 +96,7 @@ export function CourtDisplay({
             <PositionToken
               positionId={positionId}
               playerName={name}
+              playerId={pid}
               disabled={disabled}
               canScore={scoringPositionIds?.has(positionId) ?? false}
               injured={injuredIds?.has(pid ?? "") ?? false}

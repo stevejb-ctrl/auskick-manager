@@ -20,6 +20,7 @@ import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
 import { leagueScoreLine, playerMsOnField, rugbyPoints, rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
 import type { RugbySport } from "@/lib/sports/registry";
 import type { GameEvent, Player } from "@/lib/types";
+import { shortName, shortNames } from "@/lib/names";
 import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
 import { DIDNT_GET_ON, didntGetOn, presentPlayerIds } from "@/lib/live/presentPlayers";
 
@@ -59,7 +60,9 @@ function buildSummary(
   const words = rugbyScoreWords(sport);
   const points = rugbyPoints(sport);
   const playersById = new Map(squad.map((p) => [p.id, p]));
-  const firstName = (full: string) => full.split(" ")[0];
+  // Two Jacks read "Jack S" and "Jack M" (the number is printed beside them).
+  const short = shortNames(squad, "first", { numberShown: true });
+  const nameOf = (p: Player) => short.get(p.id) ?? shortName(p.full_name);
 
   lines.push(`🏉 Full time — ${teamName} v ${opponentName}`);
 
@@ -84,7 +87,7 @@ function buildSummary(
       .sort((a, b) => b[1] - a[1])
       .map(([id, n]) => {
         const p = playersById.get(id);
-        const name = p ? firstName(p.full_name) : "Unknown";
+        const name = p ? nameOf(p) : "Unknown";
         const jersey
           = p?.jersey_number != null ? ` (#${p.jersey_number})` : "";
         return `${name}${jersey}${n > 1 ? ` ×${n}` : ""}`;
@@ -99,7 +102,7 @@ function buildSummary(
       .sort((a, b) => b[1].made - a[1].made || b[1].attempts - a[1].attempts)
       .map(([id, c]) => {
         const p = playersById.get(id);
-        const name = p ? firstName(p.full_name) : "Unknown";
+        const name = p ? nameOf(p) : "Unknown";
         const jersey
           = p?.jersey_number != null ? ` (#${p.jersey_number})` : "";
         return `${name}${jersey} ${c.made}/${c.attempts}`;
@@ -115,7 +118,7 @@ function buildSummary(
       .sort((a, b) => goalPoints(b[1]) - goalPoints(a[1]))
       .map(([id, g]) => {
         const p = playersById.get(id);
-        const name = p ? firstName(p.full_name) : "Unknown";
+        const name = p ? nameOf(p) : "Unknown";
         const jersey
           = p?.jersey_number != null ? ` (#${p.jersey_number})` : "";
         const bits = [
@@ -144,7 +147,7 @@ function buildSummary(
     .sort((a, b) => b[1] - a[1])
     .map(([id, ms]) => {
       const p = playersById.get(id);
-      const name = p ? firstName(p.full_name) : "Unknown";
+      const name = p ? nameOf(p) : "Unknown";
       const jersey
         = p?.jersey_number != null ? `#${p.jersey_number} ` : "";
       return `${jersey}${name} — ${fmtMs(ms)}`;
@@ -157,7 +160,7 @@ function buildSummary(
     const p = playersById.get(id);
     if (!p) continue;
     const jersey = p.jersey_number != null ? `#${p.jersey_number} ` : "";
-    playerRows.push(`${jersey}${firstName(p.full_name)} — ${DIDNT_GET_ON}`);
+    playerRows.push(`${jersey}${nameOf(p)} — ${DIDNT_GET_ON}`);
   }
 
   if (playerRows.length > 0) {

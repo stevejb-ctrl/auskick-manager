@@ -19,6 +19,7 @@ import { memo, useEffect, useId, useRef, useState, type ReactNode } from "react"
 import type { Player } from "@/lib/types";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
+import { useSquadNames } from "@/components/live/SquadNames";
 import { KeepOnMarker } from "@/components/playbook/KeepOnMarker";
 
 /** How a sport draws one of its lines on a tile. */
@@ -149,10 +150,8 @@ function LinePlayerTileImpl({
                 ? "bg-surface shadow-lift-field ring-1 ring-inset ring-warn/50"
                 : "bg-surface shadow-lift-field";
 
-  const parts = player.full_name.trim().split(/\s+/);
-  const firstName = parts[0] ?? "";
-  const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  const displayName = lastInitial ? `${firstName} ${lastInitial}` : firstName;
+  // "First L", told apart from a squad-mate with the same (SquadNames).
+  const displayName = useSquadNames().tile(player);
 
   const style = line ? styles[line] : undefined;
   const lineLabel = positionLabel || style?.short || null;

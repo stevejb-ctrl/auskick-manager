@@ -22,10 +22,13 @@ import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { hapticTap } from "@/lib/haptics";
 import { dispatchLongPressEvent } from "@/components/live/LongPressHint";
 import { KeepOnMarker } from "@/components/playbook/KeepOnMarker";
+import { useSquadNames } from "@/components/live/SquadNames";
 
 interface PositionTokenProps {
   positionId: string;
   playerName?: string | null;
+  /** The kid's id, so a clashing short name is told apart (SquadNames). */
+  playerId?: string | null;
   onTap?: () => void;
   /** Triggered after a 500ms hold; suppresses the trailing tap. */
   onLongPress?: () => void;
@@ -79,6 +82,7 @@ const THIRD_DISC: Record<"attack" | "centre" | "defence", string> = {
 export function PositionToken({
   positionId,
   playerName,
+  playerId,
   onTap,
   onLongPress,
   selected,
@@ -152,15 +156,10 @@ export function PositionToken({
     onTap?.();
   }
 
-  // Pull a "First L" display name like the AFL tile.
-  const parts = (playerName ?? "").trim().split(/\s+/).filter(Boolean);
-  const firstName = parts[0] ?? "";
-  const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  const display = playerName
-    ? lastInitial
-      ? `${firstName} ${lastInitial}`
-      : firstName
-    : "—";
+  // "First L" like the AFL tile, told apart from a squad-mate with the
+  // same (SquadNames).
+  const names = useSquadNames();
+  const display = playerName ? names.tile({ id: playerId ?? "", full_name: playerName }) : "—";
 
   // Re-skin (design session 17 Oct 2026): a white card that sits ON
   // the court — no border, the court lift shadow — laid out as a row:

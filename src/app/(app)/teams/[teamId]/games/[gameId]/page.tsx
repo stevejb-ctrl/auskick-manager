@@ -25,6 +25,7 @@ import { BackLink } from "@/components/ui/BackLink";
 import { teamSportById } from "@/lib/sports/teamSportById";
 import { teamAgeGroup } from "@/lib/sports/teamAgeGroup";
 import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
+import { distinctFullNames } from "@/lib/names";
 
 interface GameDetailPageProps {
   params: { teamId: string; gameId: string };
@@ -139,6 +140,8 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
     .map((t) => ({ player: playerById.get(t.playerId), ...t }))
     .filter((r) => r.player);
   const scorerWords = SCORER_WORDS[sport];
+  // Two kids with the same name read "Ava Smith #3" / "#12" (lib/names).
+  const scorerNames = distinctFullNames(Array.from(playerById.values()));
 
   const isLive = g.status === "in_progress";
   const isFinal = g.status === "completed";
@@ -511,8 +514,8 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                   {getSportConfig(sport).jerseyNumbers && (
                     <Guernsey num={r.player!.jersey_number} size={32} />
                   )}
-                  <span className="font-semibold text-ink">
-                    {r.player!.full_name}
+                  <span className="min-w-0 break-words font-semibold text-ink">
+                    {scorerNames.get(r.player!.id) ?? r.player!.full_name}
                   </span>
                 </span>
                 <span className="font-mono tabular-nums text-ink-dim">

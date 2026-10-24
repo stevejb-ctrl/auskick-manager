@@ -3,6 +3,7 @@ import { AvailabilityList } from "@/components/games/AvailabilityList";
 import { GameDayAvailability } from "@/components/games/GameDayAvailability";
 import { Spinner } from "@/components/ui/Spinner";
 import type { LiveAuth } from "@/lib/types";
+import { shortNames } from "@/lib/names";
 
 interface GameDayAvailabilityPanelProps {
   auth: LiveAuth;
@@ -36,13 +37,14 @@ export function GameDayAvailabilityPanel({
   const out = squad.filter((p) => !inSet.has(p.id));
   const total = squad.length + fillInCount;
   const inCount = total - out.length;
-  const firstName = (n: string) => n.trim().split(/\s+/)[0] ?? n;
+  // "Out: Mia C, Mia T" when two Mias are out (lib/names).
+  const outNames = shortNames(squad);
 
   return (
     <GameDayAvailability
       inCount={inCount}
       total={total}
-      outNames={out.map((p) => firstName(p.full_name))}
+      outNames={out.map((p) => outNames.get(p.id) ?? p.full_name)}
       defaultOpen={inCount === 0}
     >
       <Suspense
