@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient, getMembership } from "@/lib/supabase/server";
@@ -376,4 +377,43 @@ export async function deleteGame(
 
   revalidatePath(`/teams/${teamId}/games`);
   return { success: true };
+}
+
+// ─── newGameDayLink ──────────────────────────────────────────
+// Replaces the game's game-day link: the old /run/<token> stops working
+// at once (its phone's next sync check finds nothing and the page says
+// so), and the coach shares the new one. There was no way to take a link
+// back once it was in a group chat, or from a helper who'd been removed
+// (UX round 2, 24 Oct 2026). Team admins only.
+export async function newGameDayLink(
+  teamId: string,
+  gameId: string,
+): Promise<ActionResult<{ token: string }>> {
+  const userId = readValidatedUserId();
+  if (!userId) return { success: false, error: "Unauthenticated." };
+  const membership = await getMembership(teamId, userId);
+  if (!membership || membership.role !== "admin") {
+    return { success: false, error: "Only a team admin can replace the game-day link." };
+  }
+
+  const admin = createAdminClient();
+  const { data: before } = await admin
+    .from("games")
+    .select("team_id, share_token")
+    .eq("id", gameId)
+    .maybeSingle();
+  if (!before || !gameBelongsToTeam(before.team_id, teamId)) {
+    return { success: false, error: "Game not found for this team." };
+  }
+  const token = randomUUID();
+  const { error } = await admin
+    .from("games")
+    .update({ share_token: token })
+    .eq("id", gameId)
+    .eq("team_id", teamId);
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath(`/teams/${teamId}/games/${gameId}`);
+  revalidatePath(`/run/${before.share_token}`, "layout");
+  return { success: true, data: { token } };
 }

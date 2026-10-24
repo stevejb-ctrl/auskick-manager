@@ -14,7 +14,7 @@ import * as basketball from "@/app/(app)/teams/[teamId]/games/[gameId]/live/bask
 import * as touch from "@/app/(app)/teams/[teamId]/games/[gameId]/live/touch-actions";
 import * as gameActions from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
 
-const state: { db: FakeDb } = { db: makeFakeDb() };
+const state: { db: FakeDb; role: string } = { db: makeFakeDb(), role: "admin" };
 
 vi.mock("react", async (importOriginal) => ({
   ...(await importOriginal<typeof import("react")>()),
@@ -30,7 +30,7 @@ vi.mock("next/navigation", () => ({ redirect: vi.fn(), notFound: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => state.db.client }));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: () => state.db.client,
-  getMembership: async () => ({ role: "admin" }),
+  getMembership: async () => ({ role: state.role }),
   getUser: async () => ({ data: { user: { id: "coach" } } }),
 }));
 vi.mock("@/lib/auth/userIdHeader", () => ({ readValidatedUserId: () => "coach" }));
@@ -171,6 +171,7 @@ const ofType = (type: string) => events().filter((e) => e.type === type);
 
 beforeEach(() => {
   state.db = makeFakeDb();
+  state.role = "admin";
 });
 
 describe.each(SPORTS)("$sport: a phone behind the game can't write a second kickoff or break", (s) => {
@@ -333,5 +334,32 @@ describe("resetGame", () => {
     expect(r).toMatchObject({ success: false });
     expect(events().length).toBe(before);
     expect(state.db.rows("games")[0].status).toBe("in_progress");
+  });
+});
+
+// ─── A coach can take a game-day link back ───────────────────
+describe("newGameDayLink", () => {
+  it("replaces the link: the old one can't write any more, the new one can", async () => {
+    seed("touch", "in_progress", atBreak("touch"));
+    const r = await gameActions.newGameDayLink(TEAM, GAME);
+    expect(r.success).toBe(true);
+    const token = (r as { data?: { token: string } }).data!.token;
+    expect(token).not.toBe("tok");
+    expect(state.db.rows("games")[0].share_token).toBe(token);
+    expect(await touch.startTouchPeriod(auth, GAME, 2)).toMatchObject({ success: false, error: "Invalid share link." });
+    expect((await touch.startTouchPeriod({ kind: "token", token }, GAME, 2)).success).toBe(true);
+  });
+
+  it("is a team admin's: a manager can't replace it", async () => {
+    seed("touch", "in_progress", atBreak("touch"));
+    state.role = "game_manager";
+    expect((await gameActions.newGameDayLink(TEAM, GAME)).success).toBe(false);
+    expect(state.db.rows("games")[0].share_token).toBe("tok");
+  });
+
+  it("won't touch another team's game", async () => {
+    seed("touch", "in_progress", atBreak("touch"));
+    expect((await gameActions.newGameDayLink("other-team", GAME)).success).toBe(false);
+    expect(state.db.rows("games")[0].share_token).toBe("tok");
   });
 });

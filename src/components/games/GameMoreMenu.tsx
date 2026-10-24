@@ -29,6 +29,8 @@ interface GameMoreMenuProps {
     };
   };
   canRestart: boolean;
+  /** Team admins: "Get a new link" in the Game-day link dialog. */
+  canReplaceLink?: boolean;
   canDelete: boolean;
   /** The team's period word: Restart wipes "every half" in a halves game. */
   periodLabel: "quarter" | "half" | "period";
@@ -48,6 +50,7 @@ export function GameMoreMenu({
   liveHref,
   edit,
   canRestart,
+  canReplaceLink = false,
   canDelete,
   periodLabel,
 }: GameMoreMenuProps) {
@@ -117,7 +120,13 @@ export function GameMoreMenu({
       {sheetOpen && (
         <ActionSheet title="Game actions" actions={actions} onClose={() => setSheetOpen(false)} />
       )}
-      {dialog === "link" && shareToken && <GameDayLinkDialog token={shareToken} onClose={close} />}
+      {dialog === "link" && shareToken && (
+        <GameDayLinkDialog
+          token={shareToken}
+          onClose={close}
+          replace={canReplaceLink ? { teamId, gameId } : undefined}
+        />
+      )}
       {dialog === "edit" && edit && (
         <EditGameDialog teamId={teamId} game={edit.game} onClose={close} />
       )}

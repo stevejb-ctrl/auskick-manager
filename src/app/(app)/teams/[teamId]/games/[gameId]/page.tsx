@@ -301,6 +301,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 teamId={params.teamId}
                 gameId={params.gameId}
                 shareToken={g.share_token}
+                canReplaceLink={role === "admin"}
                 canRestart={role === "admin"}
                 canDelete={role === "admin"}
                 periodLabel={periodLabel}
@@ -449,6 +450,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                   teamId={params.teamId}
                   gameId={params.gameId}
                   shareToken={g.share_token}
+                  canReplaceLink={role === "admin"}
                   edit={
                     isUp && role === "admin"
                       ? {
