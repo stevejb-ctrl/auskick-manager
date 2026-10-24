@@ -39,6 +39,7 @@ import { AflWalkthroughOffer, LeagueWalkthroughOffer } from "@/components/live/W
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { ParentScoreboard } from "@/components/live/ParentScoreboard";
 import { GameDayAvailabilityPanel } from "@/components/games/GameDayAvailabilityPanel";
+import { activeOrInGameFilter } from "@/lib/live/presentPlayers";
 import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
 import {
   replayGame,
@@ -227,6 +228,9 @@ export default async function LivePage({ params }: LivePageProps) {
   ]);
   if (!game) notFound();
   const g = game as Game;
+  // The squad for this game: the active kids, and any kid its events name
+  // (deactivated mid-game, they stay on: UX round 3, 24 Oct 2026).
+  const squadFilter = activeOrInGameFilter((thisGameEvents ?? []) as GameEvent[]);
   const teamName = teamRow?.name ?? "Team";
   const sport: Sport = teamRow ? teamSport(teamRow.sport) : ((await teamSportById(params.teamId)) ?? notFound());
   // track_scoring is sport-agnostic — both AFL and netball flows
@@ -349,7 +353,7 @@ export default async function LivePage({ params }: LivePageProps) {
     );
     const [{ data: avail }, { data: players }, { data: fillInRows }] = await Promise.all([
       supabase.from("game_availability").select("player_id, status").eq("game_id", params.gameId).eq("status", "available"),
-      supabase.from("players").select("*").eq("team_id", params.teamId).eq("is_active", true).order("jersey_number"),
+      supabase.from("players").select("*").eq("team_id", params.teamId).or(squadFilter).order("jersey_number"),
       supabase.from("game_fill_ins").select("*").eq("game_id", params.gameId).order("created_at"),
     ]);
     const fillIns = ((fillInRows ?? []) as FillIn[]).map((f) => fillInToPlayer(f, params.teamId));
@@ -491,7 +495,7 @@ export default async function LivePage({ params }: LivePageProps) {
     const trackFouls = teamExtras?.track_fouls ?? ageCfgB.tracksFoulsDefault;
     const [{ data: avail }, { data: players }, { data: fillInRows }] = await Promise.all([
       supabase.from("game_availability").select("player_id, status").eq("game_id", params.gameId).eq("status", "available"),
-      supabase.from("players").select("*").eq("team_id", params.teamId).eq("is_active", true).order("jersey_number"),
+      supabase.from("players").select("*").eq("team_id", params.teamId).or(squadFilter).order("jersey_number"),
       supabase.from("game_fill_ins").select("*").eq("game_id", params.gameId).order("created_at"),
     ]);
     const fillIns = ((fillInRows ?? []) as FillIn[]).map((f) => fillInToPlayer(f, params.teamId));
@@ -641,7 +645,7 @@ export default async function LivePage({ params }: LivePageProps) {
     const girlsTryDouble = girlsTryCountsDouble(ageCfgT, mixedRule, teamExtras?.girls_try_double);
     const [{ data: avail }, { data: players }, { data: fillInRows }] = await Promise.all([
       supabase.from("game_availability").select("player_id, status").eq("game_id", params.gameId).eq("status", "available"),
-      supabase.from("players").select("*").eq("team_id", params.teamId).eq("is_active", true).order("jersey_number"),
+      supabase.from("players").select("*").eq("team_id", params.teamId).or(squadFilter).order("jersey_number"),
       supabase.from("game_fill_ins").select("*").eq("game_id", params.gameId).order("created_at"),
     ]);
     const fillIns = ((fillInRows ?? []) as FillIn[]).map((f) => fillInToPlayer(f, params.teamId));
@@ -815,7 +819,7 @@ export default async function LivePage({ params }: LivePageProps) {
         .from("players")
         .select("*")
         .eq("team_id", params.teamId)
-        .eq("is_active", true)
+        .or(squadFilter)
         .order("jersey_number"),
       supabase
         .from("game_fill_ins")
@@ -1072,7 +1076,7 @@ export default async function LivePage({ params }: LivePageProps) {
         .from("players")
         .select("*")
         .eq("team_id", params.teamId)
-        .eq("is_active", true)
+        .or(squadFilter)
         .order("jersey_number"),
       supabase.from("games").select("id").eq("team_id", params.teamId),
       supabase
@@ -1350,7 +1354,7 @@ export default async function LivePage({ params }: LivePageProps) {
         .from("players")
         .select("*")
         .eq("team_id", params.teamId)
-        .eq("is_active", true)
+        .or(squadFilter)
         .order("jersey_number"),
       supabase.from("games").select("id").eq("team_id", params.teamId),
       supabase
@@ -1476,7 +1480,7 @@ export default async function LivePage({ params }: LivePageProps) {
       .from("players")
       .select("*")
       .eq("team_id", params.teamId)
-      .eq("is_active", true)
+      .or(squadFilter)
       .order("jersey_number"),
     supabase.from("games").select("id").eq("team_id", params.teamId),
     supabase

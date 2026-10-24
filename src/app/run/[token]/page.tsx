@@ -42,6 +42,7 @@ import type { LeagueLineup } from "@/lib/types";
 import type { FillIn, Game, GameEvent, LiveAuth, MixedGroup, Player, Sport } from "@/lib/types";
 import { withThirdsToday } from "@/lib/playbook/dayLines";
 import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
+import { activeOrInGameFilter } from "@/lib/live/presentPlayers";
 
 export const dynamic = "force-dynamic";
 
@@ -118,6 +119,9 @@ export default async function RunPage({ params }: RunPageProps) {
     .eq("game_id", g.id)
     .order("created_at");
   const hasStarted = (thisGameEvents ?? []).some((e) => e.type === "lineup_set");
+  // The squad for this game: the active kids, and any kid its events name
+  // (deactivated mid-game, they stay on: UX round 3, 24 Oct 2026).
+  const squadFilter = activeOrInGameFilter((thisGameEvents ?? []) as GameEvent[]);
 
   // ─── Netball branch ─────────────────────────────────────────
   // Netball games render through NetballLiveGame; the AFL LiveGame
@@ -169,7 +173,7 @@ export default async function RunPage({ params }: RunPageProps) {
     );
     const [{ data: avail }, { data: players }, { data: teamGames }, { data: fillInRows }] = await Promise.all([
       admin.from("game_availability").select("player_id, status").eq("game_id", g.id).eq("status", "available"),
-      admin.from("players").select("*").eq("team_id", g.team_id).eq("is_active", true).order("jersey_number"),
+      admin.from("players").select("*").eq("team_id", g.team_id).or(squadFilter).order("jersey_number"),
       admin.from("games").select("id").eq("team_id", g.team_id),
       admin.from("game_fill_ins").select("*").eq("game_id", g.id).order("created_at"),
     ]);
@@ -305,7 +309,7 @@ export default async function RunPage({ params }: RunPageProps) {
     const trackFouls = teamExtras?.track_fouls ?? ageCfgB.tracksFoulsDefault;
     const [{ data: avail }, { data: players }, { data: teamGames }, { data: fillInRows }] = await Promise.all([
       admin.from("game_availability").select("player_id, status").eq("game_id", g.id).eq("status", "available"),
-      admin.from("players").select("*").eq("team_id", g.team_id).eq("is_active", true).order("jersey_number"),
+      admin.from("players").select("*").eq("team_id", g.team_id).or(squadFilter).order("jersey_number"),
       admin.from("games").select("id").eq("team_id", g.team_id),
       admin.from("game_fill_ins").select("*").eq("game_id", g.id).order("created_at"),
     ]);
@@ -450,7 +454,7 @@ export default async function RunPage({ params }: RunPageProps) {
     const girlsTryDouble = girlsTryCountsDouble(ageCfgT, mixedRule, teamExtras?.girls_try_double);
     const [{ data: avail }, { data: players }, { data: teamGames }, { data: fillInRows }] = await Promise.all([
       admin.from("game_availability").select("player_id, status").eq("game_id", g.id).eq("status", "available"),
-      admin.from("players").select("*").eq("team_id", g.team_id).eq("is_active", true).order("jersey_number"),
+      admin.from("players").select("*").eq("team_id", g.team_id).or(squadFilter).order("jersey_number"),
       admin.from("games").select("id").eq("team_id", g.team_id),
       admin.from("game_fill_ins").select("*").eq("game_id", g.id).order("created_at"),
     ]);
@@ -621,7 +625,7 @@ export default async function RunPage({ params }: RunPageProps) {
         .from("players")
         .select("*")
         .eq("team_id", g.team_id)
-        .eq("is_active", true)
+        .or(squadFilter)
         .order("jersey_number"),
       admin.from("games").select("id").eq("team_id", g.team_id),
       admin
@@ -845,7 +849,7 @@ export default async function RunPage({ params }: RunPageProps) {
         .from("players")
         .select("*")
         .eq("team_id", g.team_id)
-        .eq("is_active", true)
+        .or(squadFilter)
         .order("jersey_number"),
       admin.from("games").select("id").eq("team_id", g.team_id),
       admin
@@ -1014,7 +1018,7 @@ export default async function RunPage({ params }: RunPageProps) {
         .from("players")
         .select("*")
         .eq("team_id", g.team_id)
-        .eq("is_active", true)
+        .or(squadFilter)
         .order("jersey_number"),
       admin.from("games").select("id").eq("team_id", g.team_id),
     ]);

@@ -7,6 +7,8 @@ import type { ParsedPlayer } from "@/lib/squadPaste";
 import type { ActionResult, Sport } from "@/lib/types";
 import { teamSportById } from "@/lib/sports/teamSportById";
 import { seedAvailabilityForNewPlayers } from "@/lib/games/seedDefaultAvailability";
+import { presentPlayerIds } from "@/lib/live/presentPlayers";
+import type { GameEvent } from "@/lib/types";
 
 async function getAuthedAdmin(teamId: string) {
   const supabase = createClient();
@@ -209,10 +211,44 @@ export async function updatePlayer(
   return { success: true };
 }
 
+/**
+ * Deactivate a kid. One in a game that's on now isn't, until the coach
+ * says so (`confirmLive`): it comes back with `liveGame`, the opponent,
+ * so the squad page can ask. They stay in that game either way (the live
+ * page keeps every kid its events name), but a kid dropped off the field
+ * mid-game with no warning (UX round 3, 24 Oct 2026).
+ */
 export async function deactivatePlayer(
   teamId: string,
-  playerId: string
-): Promise<ActionResult> {
+  playerId: string,
+  confirmLive: boolean = false,
+): Promise<ActionResult & { liveGame?: string }> {
+  if (!confirmLive) {
+    const { supabase, error } = await getAuthedAdmin(teamId);
+    if (error) return { success: false, error };
+    const { data: live } = await supabase
+      .from("games")
+      .select("id, opponent")
+      .eq("team_id", teamId)
+      .eq("status", "in_progress");
+    if (live && live.length > 0) {
+      const { data: events } = await supabase
+        .from("game_events")
+        .select("game_id, type, player_id, metadata")
+        .in("game_id", live.map((g) => g.id))
+        .in("type", ["lineup_set", "period_break_swap", "player_arrived"]);
+      const inGame = live.find((g) =>
+        presentPlayerIds(((events ?? []) as GameEvent[]).filter((e) => e.game_id === g.id)).includes(playerId),
+      );
+      if (inGame) {
+        return {
+          success: false,
+          error: `They're in the game against ${inGame.opponent} that's on now.`,
+          liveGame: inGame.opponent as string,
+        };
+      }
+    }
+  }
   return updatePlayer(teamId, playerId, { is_active: false });
 }
 

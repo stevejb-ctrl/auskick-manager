@@ -117,15 +117,22 @@ export function PlayerRow({
     });
   }
 
-  function handleToggle(active: boolean) {
+  // A kid in a game that's on now: asked before they're deactivated
+  // (UX round 3, 24 Oct 2026). The opponent, while the question is up.
+  const [liveGame, setLiveGame] = useState<string | null>(null);
+
+  function handleToggle(active: boolean, confirmLive = false) {
     setServerError(null);
+    setLiveGame(null);
     startTransition(async () => {
       // A refusal (e.g. "Squad is full") is shown, not swallowed — the
       // switch flipping back on its own said nothing about why.
       const result = active
         ? await reactivatePlayer(teamId, player.id)
-        : await deactivatePlayer(teamId, player.id);
-      if (!result.success) setServerError(result.error);
+        : await deactivatePlayer(teamId, player.id, confirmLive);
+      const live = (result as { liveGame?: string }).liveGame;
+      if (!result.success && live) setLiveGame(live);
+      else if (!result.success) setServerError(result.error);
     });
   }
 
@@ -245,6 +252,22 @@ export function PlayerRow({
       )}
       {!editing && serverError && (
         <InlineAlert className="basis-full">{serverError}</InlineAlert>
+      )}
+      {liveGame && (
+        <div role="alert" className="basis-full rounded-md border border-warn/40 bg-warn-soft px-3 py-2 text-sm text-ink">
+          <p>
+            {player.full_name} is in the game against {liveGame} that&apos;s on now. They&apos;ll stay in that game
+            until it&apos;s finished, and be off the squad for the next one.
+          </p>
+          <div className="mt-2 flex gap-2">
+            <SFButton size="sm" variant="danger" onClick={() => handleToggle(false, true)} loading={isPending}>
+              Deactivate anyway
+            </SFButton>
+            <SFButton size="sm" variant="ghost" onClick={() => setLiveGame(null)} disabled={isPending}>
+              Keep {player.full_name.trim().split(/\s+/)[0]}
+            </SFButton>
+          </div>
+        </div>
       )}
     </li>
   );
