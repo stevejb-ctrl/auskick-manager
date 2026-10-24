@@ -58,12 +58,9 @@ import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
 import { liveEvents, optimisticUndo } from "@/lib/live/optimisticEvents";
 import { useLiveChrome } from "@/components/live/useLiveChrome";
-import {
-  computePeriodClockMs,
-  togglePeriodPause,
-  RUNNING_CLOCK,
-  type PeriodPause,
-} from "@/lib/live/periodClock";
+import { computePeriodClockMs } from "@/lib/live/periodClock";
+import { clockPauseInput } from "@/lib/live/clockPause";
+import { useEventPeriodPause } from "@/lib/live/useClockPause";
 import { resolveLeagueSubAnchorElapsed } from "@/lib/sports/rugby_league/subAnchor";
 import { finaliseLeagueGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/league-actions";
 import { LeagueField } from "./LeagueField";
@@ -290,13 +287,14 @@ export function LeagueLiveGame({
   // `elapsedMs` (game ms) is netball's period clock: wall-clock time
   // since `state.quarterStartedAt`, less the real time spent paused,
   // scaled by clockMultiplier. A pause freezes it; resuming banks the
-  // stoppage (togglePeriodPause) so the clock carries on from where
-  // it stopped instead of jumping ahead by the paused time. Pause is
-  // CLIENT-ONLY: it doesn't persist across reloads yet — needs a
-  // `quarter_pause` / `quarter_resume` event pair to lock in server-
-  // side. Filed as a follow-up; the UX matches AFL for now.
+  // stoppage so the clock carries on from where it stopped instead of
+  // jumping ahead by the paused time. The pause is the period's latest
+  // clock_pause event (lib/live/clockPause), so a reload or a second
+  // phone keeps it.
   const [nowMs, setNowMs] = useState<number | null>(null);
-  const [pause, setPause] = useState<PeriodPause>(RUNNING_CLOCK);
+  const quarterStartedAtMs = state.quarterStartedAt ? Date.parse(state.quarterStartedAt) : NaN;
+  const startedAtMs = Number.isNaN(quarterStartedAtMs) ? null : quarterStartedAtMs;
+  const pause = useEventPeriodPause(thisGameEvents, game.id, state.currentQuarter, startedAtMs, clockMultiplier);
   const running = pause.pausedAtMs === null;
   useEffect(() => {
     if (!state.quarterStartedAt || state.quarterEnded || state.finalised) {
@@ -308,32 +306,28 @@ export function LeagueLiveGame({
     return () => window.clearInterval(id);
   }, [state.quarterStartedAt, state.quarterEnded, state.finalised, running]);
 
-  const elapsedMs = useMemo(() => {
-    // Until the first client tick, show the server's value so the
-    // hydrated clock matches the server render.
-    if (nowMs == null) return state.quarterElapsedMs ?? 0;
-    const startedAtMs = state.quarterStartedAt ? Date.parse(state.quarterStartedAt) : NaN;
-    return computePeriodClockMs({
-      currentQuarter: state.currentQuarter,
-      quarterEnded: state.quarterEnded,
-      finalised: state.finalised,
-      quarterStartedAtMs: Number.isNaN(startedAtMs) ? null : startedAtMs,
-      pausedAtMs: pause.pausedAtMs,
-      accumulatedPauseMs: pause.accumulatedPauseMs,
-      fallbackElapsedMs: state.quarterElapsedMs ?? 0,
-      clockMultiplier,
-      nowMs,
-    });
-  }, [
-    nowMs,
-    state.currentQuarter,
-    state.quarterEnded,
-    state.finalised,
-    state.quarterStartedAt,
-    state.quarterElapsedMs,
-    pause,
-    clockMultiplier,
-  ]);
+  const clockAt = useCallback(
+    (now: number) =>
+      computePeriodClockMs({
+        currentQuarter: state.currentQuarter,
+        quarterEnded: state.quarterEnded,
+        finalised: state.finalised,
+        quarterStartedAtMs: startedAtMs,
+        pausedAtMs: pause.pausedAtMs,
+        accumulatedPauseMs: pause.accumulatedPauseMs,
+        fallbackElapsedMs: state.quarterElapsedMs ?? 0,
+        clockMultiplier,
+        nowMs: now,
+      }),
+    [state.currentQuarter, state.quarterEnded, state.finalised, startedAtMs, state.quarterElapsedMs, pause, clockMultiplier],
+  );
+  // Until the first client tick, a running clock shows the server's
+  // value so the hydrated clock matches the server render; a paused one
+  // reads its pause, which doesn't move.
+  const elapsedMs = useMemo(
+    () => (nowMs == null && running ? state.quarterElapsedMs ?? 0 : clockAt(nowMs ?? 0)),
+    [nowMs, running, state.quarterElapsedMs, clockAt],
+  );
 
   // AFL's live chrome: the undo strip's flash, the swap confirm and
   // toast, and the season's lent minutes on the long-press sheet.
@@ -354,17 +348,16 @@ export function LeagueLiveGame({
   elapsedRef.current = elapsedMs;
   const at = () => ({ quarter: state.currentQuarter, elapsed_ms: elapsedRef.current });
 
-  // Reset pause when the period flips — a fresh quarter starts
-  // running by default, with no stoppages banked.
-  useEffect(() => {
-    setPause(RUNNING_CLOCK);
-  }, [state.currentQuarter, state.quarterEnded]);
-
+  // Pause or resume: a clock_pause event, on screen at once. A fresh
+  // period has none, so it starts running.
   function toggleClock() {
     if (!state.quarterStartedAt || state.quarterEnded || state.finalised) {
       return;
     }
-    setPause((prev) => togglePeriodPause(prev, Date.now()));
+    if (hooterFiredRef.current) return;
+    const now = Date.now();
+    const input = clockPauseInput(state.currentQuarter, running, clockAt(now), now);
+    write("recordClockPause", [auth, game.id, input], liveEvents.clockPause(input));
   }
   function handleClockTap() {
     if (!state.quarterStartedAt || state.quarterEnded || state.finalised) {
@@ -1096,9 +1089,11 @@ export function LeagueLiveGame({
   }
 
   // A rolling sub: `onId` takes `offId`'s spot, `offId` goes to the bench.
-  function sub(offId: string, onId: string) {
+  // `manual`: made by hand, off the rotation's cadence, so the sub clock
+  // doesn't restart (AFL's rule).
+  function sub(offId: string, onId: string, manual = false) {
     setError(null);
-    const input = { off_player_id: offId, on_player_id: onId, ...at() };
+    const input = { off_player_id: offId, on_player_id: onId, ...(manual ? { manual } : {}), ...at() };
     write("recordLeagueSwap", [auth, game.id, input], liveEvents.swap(input));
   }
 
@@ -1169,7 +1164,7 @@ export function LeagueLiveGame({
       // Never bring a hurt or lent kid on, e.g. one selected before they
       // were lent (Stagehand round 4): this tap starts a new selection.
       if (injuredSet.has(on) || loanedSet.has(on)) return false;
-      chrome.confirmSwap({ offId: off, onId: on, spotName: lineName((firstZone ?? secondZone)!), onConfirm: () => sub(off, on) });
+      chrome.confirmSwap({ offId: off, onId: on, spotName: lineName((firstZone ?? secondZone)!), onConfirm: () => sub(off, on, true) });
       handleClearSelection();
       return true;
     }

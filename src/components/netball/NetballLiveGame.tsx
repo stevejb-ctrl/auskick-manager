@@ -95,6 +95,10 @@ import {
   startNetballGame,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
+import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
+import { liveEvents } from "@/lib/live/optimisticEvents";
+import { clockPauseInput } from "@/lib/live/clockPause";
+import { useEventPeriodPause } from "@/lib/live/useClockPause";
 import { netballPositionLocks, replayLocks, type PlayerLock } from "@/lib/live/locks";
 import { Button } from "@/components/ui/Button";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
@@ -346,18 +350,30 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // current pause (null when running). `accumulatedPauseMs` is the
   // total paused time across all pauses this quarter — subtracted
   // from `Date.now() - quarterStartedAt` so the clock skips paused
-  // intervals. Both are in-memory only (lost on reload), mirroring
-  // AFL's pause model — the comment on liveGameStore.ts explicitly
-  // notes pauses don't survive reload there either.
-  const [pausedAtMs, setPausedAtMs] = useState<number | null>(null);
-  const [accumulatedPauseMs, setAccumulatedPauseMs] = useState(0);
-  // Reset pause state on quarter transition so a fresh quarter
-  // starts unpaused with zero accumulated. Otherwise the
-  // accumulatedPauseMs from Q1 would silently steal time from Q2.
+  // intervals. Both come from the quarter's latest clock_pause event
+  // (lib/live/clockPause), so a reload keeps a pause: before, the
+  // clock came back running from quarter_start, ran past the hooter
+  // and ended the quarter with everyone on full time (round 2, 24 Oct
+  // 2026). A fresh quarter has none, so it starts running. A tap
+  // writes the event optimistically (on screen at once).
+  const { events: clockEvents, write: writeClockEvent } = useOptimisticEvents(thisGameEvents, {
+    gameId: game.id,
+    // The clock visibly carries on when a pause can't save.
+    onError: () => {},
+  });
+  const quarterStartedAtMs = (() => {
+    if (!quarterStartedAt) return null;
+    const ms = Date.parse(quarterStartedAt);
+    return Number.isNaN(ms) ? null : ms;
+  })();
+  const savedPause = useEventPeriodPause(clockEvents, game.id, currentQuarter, quarterStartedAtMs, clockMultiplier);
+  // The hooter holds the clock too (below), until quarter_end lands.
+  const [hooterFrozenAtMs, setHooterFrozenAtMs] = useState<number | null>(null);
   useEffect(() => {
-    setPausedAtMs(null);
-    setAccumulatedPauseMs(0);
+    setHooterFrozenAtMs(null);
   }, [currentQuarter]);
+  const pausedAtMs = savedPause.pausedAtMs ?? hooterFrozenAtMs;
+  const accumulatedPauseMs = savedPause.accumulatedPauseMs;
   // Scroll to the top of the page (= top of the scorebug) when a
   // new quarter goes live. Without this the page inherits the
   // Q-break scroll position and the coach lands mid-page as the
@@ -394,11 +410,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // sync. Mirrors AFL's clockMultiplier semantics in LiveGame.tsx.
   // Date.parse returns NaN on malformed input; treat that the same
   // as a null start (falls through to fallbackElapsedMs).
-  const quarterStartedAtMs = (() => {
-    if (!quarterStartedAt) return null;
-    const ms = Date.parse(quarterStartedAt);
-    return Number.isNaN(ms) ? null : ms;
-  })();
   const clockMs = computePeriodClockMs({
     currentQuarter,
     quarterEnded,
@@ -419,14 +430,39 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // server confirmation). The hooter's setPausedAtMs is the
     // freeze anchor; users shouldn't be able to break it.
     if (hooterFiredForQuarterRef.current === currentQuarter) return;
-    if (pausedAtMs !== null) {
-      // Resume: bank the elapsed pause-time and clear the pause anchor.
-      setAccumulatedPauseMs((prev) => prev + (Date.now() - pausedAtMs));
-      setPausedAtMs(null);
-    } else {
-      setPausedAtMs(Date.now());
-    }
-  }, [currentQuarter, quarterEnded, finalised, pausedAtMs]);
+    // Pause (or resume, banking the stoppage): a clock_pause event at
+    // the clock's reading now.
+    const now = Date.now();
+    const input = clockPauseInput(
+      currentQuarter,
+      pausedAtMs === null,
+      computePeriodClockMs({
+        currentQuarter,
+        quarterEnded,
+        finalised,
+        quarterStartedAtMs,
+        pausedAtMs,
+        accumulatedPauseMs,
+        fallbackElapsedMs: _quarterElapsedMs,
+        clockMultiplier,
+        nowMs: now,
+      }),
+      now,
+    );
+    writeClockEvent("recordClockPause", [auth, game.id, input], liveEvents.clockPause(input));
+  }, [
+    currentQuarter,
+    quarterEnded,
+    finalised,
+    pausedAtMs,
+    quarterStartedAtMs,
+    accumulatedPauseMs,
+    _quarterElapsedMs,
+    clockMultiplier,
+    writeClockEvent,
+    auth,
+    game.id,
+  ]);
 
   // Quarter length in ms — varies by age group (Set 6min, Go/11u 8min,
   // 12u 10min, 13u 12min, Open 15min). Drives the countdown header and
@@ -629,7 +665,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // reported 2026-05-15. Idempotent guard: if the coach manually
     // paused earlier and the hooter then auto-fires, don't overwrite
     // the earlier pause anchor.
-    setPausedAtMs((prev) => prev ?? Date.now());
+    setHooterFrozenAtMs((prev) => prev ?? Date.now());
     // Bump the pulse key so the next render (Q-break score-bug for
     // Q1-3, Q4-end for Q4) shows the brand halo on the clock pill.
     // Re-keys per quarter so the pulse fires once per hooter.

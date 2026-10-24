@@ -63,8 +63,9 @@ import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
 import { liveEvents, optimisticUndo, type OptimisticEventInput } from "@/lib/live/optimisticEvents";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
 import { hapticTap } from "@/lib/haptics";
-import { computePeriodClockMs, togglePeriodPause } from "@/lib/live/periodClock";
-import { usePeriodPause } from "@/lib/live/periodPauseStorage";
+import { computePeriodClockMs } from "@/lib/live/periodClock";
+import { clockPauseInput } from "@/lib/live/clockPause";
+import { useEventPeriodPause } from "@/lib/live/useClockPause";
 import { resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
@@ -251,12 +252,16 @@ export function BasketballLiveGame({
   const isFinished = base.finalised || isAtFinal;
   const isPreTipoff = base.currentPeriod === 0 && !base.finalised;
 
-  // ── Clock: the shared period clock, its pause saved on the phone ──
+  // ── Clock: the shared period clock, its pause a game event ──
   // Game ms since the period started, less real time paused, scaled by
   // the clock multiplier, held at the period's length: the stadium clock
   // stops in the last minutes, so the phone waits there for the hooter.
+  // The pause is the period's latest clock_pause event
+  // (lib/live/clockPause), so a reload or a second phone keeps it.
   const [nowMs, setNowMs] = useState<number | null>(null);
-  const [pause, setPause] = usePeriodPause(game.id, base.currentPeriod);
+  const periodStartedAtMs = base.periodStartedAt ? Date.parse(base.periodStartedAt) : NaN;
+  const startedAtMs = Number.isNaN(periodStartedAtMs) ? null : periodStartedAtMs;
+  const pause = useEventPeriodPause(events, game.id, base.currentPeriod, startedAtMs, clockMultiplier);
   const running = pause.pausedAtMs === null;
   useEffect(() => {
     if (!isPeriodActive || !running) return;
@@ -265,23 +270,29 @@ export function BasketballLiveGame({
     return () => window.clearInterval(id);
   }, [isPeriodActive, running, base.periodStartedAt]);
 
-  const elapsedMs = useMemo(() => {
-    const fallback = base.periodEnded ? base.periodElapsedMs : 0;
-    if (nowMs == null) return fallback;
-    const startedAtMs = base.periodStartedAt ? Date.parse(base.periodStartedAt) : NaN;
-    const raw = computePeriodClockMs({
-      currentQuarter: base.currentPeriod,
-      quarterEnded: base.periodEnded,
-      finalised: base.finalised,
-      quarterStartedAtMs: Number.isNaN(startedAtMs) ? null : startedAtMs,
-      pausedAtMs: pause.pausedAtMs,
-      accumulatedPauseMs: pause.accumulatedPauseMs,
-      fallbackElapsedMs: fallback,
-      clockMultiplier,
-      nowMs,
-    });
-    return isPeriodActive ? Math.min(raw, periodMs) : raw;
-  }, [nowMs, base, pause, clockMultiplier, isPeriodActive, periodMs]);
+  const clockAt = useCallback(
+    (now: number) => {
+      const raw = computePeriodClockMs({
+        currentQuarter: base.currentPeriod,
+        quarterEnded: base.periodEnded,
+        finalised: base.finalised,
+        quarterStartedAtMs: startedAtMs,
+        pausedAtMs: pause.pausedAtMs,
+        accumulatedPauseMs: pause.accumulatedPauseMs,
+        fallbackElapsedMs: base.periodEnded ? base.periodElapsedMs : 0,
+        clockMultiplier,
+        nowMs: now,
+      });
+      return isPeriodActive ? Math.min(raw, periodMs) : raw;
+    },
+    [base, startedAtMs, pause, clockMultiplier, isPeriodActive, periodMs],
+  );
+  // Until the first tick, a running clock shows the server's render; a
+  // paused one reads its pause, which doesn't move.
+  const elapsedMs = useMemo(
+    () => (nowMs == null && running ? (base.periodEnded ? base.periodElapsedMs : 0) : clockAt(nowMs ?? 0)),
+    [nowMs, running, base, clockAt],
+  );
   const elapsedSecond = Math.floor(elapsedMs / 1000);
 
   // AFL's live chrome: the undo strip's flash, the swap confirm and toast.
@@ -408,9 +419,18 @@ export function BasketballLiveGame({
     [auth, game.id, base.currentPeriod, router],
   );
 
-  function sub(offId: string | null, onId: string, line?: BasketballLine) {
+  // Pause or resume: a clock_pause event, on screen at once.
+  function toggleClock() {
+    if (!isPeriodActive) return;
+    const now = Date.now();
+    const input = clockPauseInput(base.currentPeriod, running, clockAt(now), now);
+    write("recordClockPause", [auth, game.id, input], liveEvents.clockPause(input));
+  }
+
+  /** `manual`: made by hand, off the rotation's cadence, so the sub clock doesn't restart (AFL's rule). */
+  function sub(offId: string | null, onId: string, line?: BasketballLine, manual = false) {
     setError(null);
-    const input = { off_player_id: offId, on_player_id: onId, ...(line ? { line } : {}), ...at() };
+    const input = { off_player_id: offId, on_player_id: onId, ...(line ? { line } : {}), ...(manual ? { manual } : {}), ...at() };
     write("recordBasketballSwap", [auth, game.id, input], liveEvents.swap(input));
   }
   function move(a: string, b: string | null, zoneB: BasketballLine) {
@@ -453,7 +473,7 @@ export function BasketballLiveGame({
           chrome.showToast(`${chrome.firstName(kid)} → ${spotName(line)}`);
         } else if (canComeOn(kid)) {
           // A bench kid into an empty spot asks first, as AFL's does.
-          chrome.confirmSwap({ offId: null, onId: kid, spotName: spotName(line), onConfirm: () => sub(null, kid, line) });
+          chrome.confirmSwap({ offId: null, onId: kid, spotName: spotName(line), onConfirm: () => sub(null, kid, line, true) });
         }
         setSelectedId(null);
       } else {
@@ -482,7 +502,7 @@ export function BasketballLiveGame({
       const off = aLine ? first : pid;
       const on = aLine ? pid : first;
       if (!canComeOn(on)) return;
-      chrome.confirmSwap({ offId: off, onId: on, spotName: spotName((aLine ?? bLine)!), onConfirm: () => sub(off, on) });
+      chrome.confirmSwap({ offId: off, onId: on, spotName: spotName((aLine ?? bLine)!), onConfirm: () => sub(off, on, undefined, true) });
     } else setSelectedId(pid); // two bench kids: the second is the selection
   }
 
@@ -1072,8 +1092,8 @@ export function BasketballLiveGame({
           sport="basketball"
           periodAbbr={`${periodLetter}${base.currentPeriod}`}
           running={running}
-          onPause={() => setPause((p) => togglePeriodPause(p, Date.now()))}
-          onResume={() => setPause((p) => togglePeriodPause(p, Date.now()))}
+          onPause={toggleClock}
+          onResume={toggleClock}
           onEndEarly={isPeriodActive ? () => setEndConfirmOpen(true) : undefined}
           onClose={() => setClockMenuOpen(false)}
         />
@@ -1289,7 +1309,7 @@ export function BasketballLiveGame({
             const line = fillLine;
             setFillLine(null);
             // A deliberate pick: straight on, with AFL's toast.
-            sub(null, pid, line);
+            sub(null, pid, line, true);
             chrome.swapped(null, pid);
           }}
           onCancel={() => setFillLine(null)}
