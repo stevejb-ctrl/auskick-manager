@@ -503,7 +503,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 key={r.player!.id}
                 className="flex items-center justify-between py-3 text-sm"
               >
-                <span className="flex items-center gap-3">
+                <span className="flex min-w-0 items-center gap-3">
                   <span
                     className={`font-mono text-[11px] font-bold tracking-[0.06em] ${
                       i === 0 ? "text-warn" : "text-ink-mute"

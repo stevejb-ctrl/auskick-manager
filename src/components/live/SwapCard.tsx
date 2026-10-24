@@ -284,9 +284,9 @@ export function SwapCard({
         due={isDue}
         count={valid.length}
         summary={valid.map(({ off, on, index }, i) => (
-          <span key={index} className={`flex items-center gap-1.5 ${i > 0 ? "ml-1.5" : ""}`}>
+          <span key={index} className={`flex min-w-0 items-center gap-1.5 ${i > 0 ? "ml-1.5" : ""}`}>
             <span className={`${PAIR_CHIP} h-4 w-4 text-[10px] leading-4`}>{index + 1}</span>
-            {names.first(off)} → {names.first(on)}
+            <span className="truncate">{names.first(off)} → {names.first(on)}</span>
           </span>
         ))}
       />
@@ -421,7 +421,7 @@ export function SwapCard({
                         canOverride ? "underline decoration-warm/40 decoration-dashed underline-offset-[5px]" : ""
                       } ${editingThis("off") ? "bg-white/15" : canOverride ? "hover:bg-white/10" : ""}`}
                     >
-                      {names.first(off)}
+                      <span className="inline-block max-w-[9rem] truncate align-bottom">{names.first(off)}</span>
                       {canOverride && " ⌄"}
                     </button>
                     <span aria-hidden className="text-warm/50">→</span>
@@ -443,7 +443,7 @@ export function SwapCard({
                         canOverride ? "underline decoration-mint/50 decoration-dashed underline-offset-[5px]" : ""
                       } ${editingThis("on") ? "bg-white/15" : canOverride ? "hover:bg-white/10" : ""}`}
                     >
-                      {names.first(on)}
+                      <span className="inline-block max-w-[9rem] truncate align-bottom">{names.first(on)}</span>
                       {canOverride && " ⌄"}
                     </button>
                     {edited && (

@@ -42,7 +42,7 @@ export function AttendanceTable({ rows, totalGames, hasData }: Props) {
               <td className="px-2 py-2 tabular-nums text-ink-mute">
                 {row.jerseyNumber ?? ""}
               </td>
-              <td className="truncate px-2 py-2 font-medium text-ink">
+              <td className="w-full max-w-0 truncate px-2 py-2 font-medium text-ink" title={row.playerName}>
                 {row.playerName}
               </td>
               <td className="px-2 py-2 text-right tabular-nums text-ink-dim">

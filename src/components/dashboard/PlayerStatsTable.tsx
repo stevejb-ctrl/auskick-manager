@@ -84,7 +84,10 @@ export function PlayerStatsTable({ stats, hasData }: Props) {
         </div>
       )}
 
-      <div className="grid gap-2 sm:grid-cols-2">
+      {/* grid-cols-1 (minmax(0, 1fr)), so a long name truncates in its card
+          instead of widening every card past TOTAL MIN (round 3 edge
+          testing, 24 Oct 2026: a 64-character name clipped everyone's). */}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {sorted.map((p) => {
           // Zone split as a % of the player's own on-field time (sums to
           // ~100%) — "where do they play", independent of how much they
@@ -103,7 +106,7 @@ export function PlayerStatsTable({ stats, hasData }: Props) {
           return (
             <div
               key={p.playerId}
-              className="rounded-lg border border-hairline bg-surface p-3 shadow-card"
+              className="min-w-0 rounded-lg border border-hairline bg-surface p-3 shadow-card"
             >
               {/* Header: jersey + name + headline total */}
               <div className="flex items-start justify-between gap-2">

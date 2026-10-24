@@ -32,11 +32,11 @@ export function HowWePlayedCard({ report }: { report: GameReport }) {
             <span aria-hidden className={`font-bold ${TONE[i.status]}`}>
               {ICON[i.status]}
             </span>
-            <span className={i.status === "ok" ? "text-ink-dim" : "text-ink"}>{i.text}</span>
+            <span className={`min-w-0 break-words [overflow-wrap:anywhere] ${i.status === "ok" ? "text-ink-dim" : "text-ink"}`}>{i.text}</span>
           </li>
         ))}
       </ul>
-      {report.seasonLine && <p className="text-sm text-ink-dim">{report.seasonLine}</p>}
+      {report.seasonLine && <p className="break-words text-sm text-ink-dim [overflow-wrap:anywhere]">{report.seasonLine}</p>}
     </section>
   );
 }
