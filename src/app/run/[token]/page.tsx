@@ -45,7 +45,7 @@ import { LiveSync } from "@/components/live/LiveSync";
 import { periodShort, periodWordOf } from "@/lib/live/periodGuard";
 import { RunnerAllDone } from "@/components/games/RunnerAllDone";
 import { readLiveSyncStamp } from "@/lib/live/liveSyncStamp";
-import { backfillNetballCourt, filterLineupToAvailable } from "@/lib/live/lineupDraft";
+import { backfillNetballCourt, filterLineupToAvailable, inSquadOrder } from "@/lib/live/lineupDraft";
 import type { GenericLineup } from "@/lib/sports/netball/fairness";
 
 export const dynamic = "force-dynamic";
@@ -944,7 +944,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
       .map((e) => e.player_id as string);
     const availableIds = Array.from(
       new Set<string>([
-        ...(avail ?? []).map((a) => a.player_id),
+        ...inSquadOrder((avail ?? []).map((a) => a.player_id), squad),
         ...fillInsForLive.map((f) => f.id),
         ...lateArrivedFromEvents,
       ]),

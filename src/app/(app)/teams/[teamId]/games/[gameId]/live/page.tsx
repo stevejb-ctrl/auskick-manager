@@ -55,7 +55,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { teamSportById } from "@/lib/sports/teamSportById";
 import { LiveSync } from "@/components/live/LiveSync";
 import { readLiveSyncStamp } from "@/lib/live/liveSyncStamp";
-import { backfillNetballCourt, filterLineupToAvailable } from "@/lib/live/lineupDraft";
+import { backfillNetballCourt, filterLineupToAvailable, inSquadOrder } from "@/lib/live/lineupDraft";
 
 /**
  * A fill-in player is stored in `game_fill_ins` but needs to look like a
@@ -1027,7 +1027,7 @@ async function LivePageBody({ params }: LivePageProps) {
       .map((e) => e.player_id as string);
     const availableIds = Array.from(
       new Set<string>([
-        ...(avail ?? []).map((a) => a.player_id),
+        ...inSquadOrder((avail ?? []).map((a) => a.player_id), squad),
         ...fillInsForLive.map((f) => f.id),
         ...lateArrivedFromEvents,
       ]),

@@ -89,3 +89,16 @@ export function backfillNetballCourt(
     bench: bench.filter((id) => !filledBench.has(id)),
   };
 }
+
+/**
+ * Who's here, in the squad's own order (jersey, name, id) rather than the
+ * order availability rows come back in: the suggesters break ties by
+ * input order, and the coach's and the runner's phones read availability
+ * in whatever order the database returned it, so the two suggested
+ * different lineups for the same kickoff (UX round 2). Ids not in the
+ * squad keep their place after it.
+ */
+export function inSquadOrder(ids: readonly string[], squad: readonly { id: string }[]): string[] {
+  const rank = new Map(squad.map((p, i) => [p.id, i]));
+  return [...ids].sort((a, b) => (rank.get(a) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b) ?? Number.MAX_SAFE_INTEGER));
+}
