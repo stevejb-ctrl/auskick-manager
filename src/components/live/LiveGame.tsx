@@ -35,6 +35,7 @@ import { GameSummaryCard } from "@/components/live/GameSummaryCard";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import type { InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
 import { periodPhase } from "@/lib/live/periodPhase";
+import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 
 // Perf phase 8: dynamic-import the modals that are only rendered
@@ -1226,6 +1227,10 @@ export function LiveGame({
   // Unlock the sub-due beep's AudioContext on the first tap (shared
   // with league and union; see subDueBeep.ts).
   useSubDueAudioUnlock();
+
+  // The summary after Finish opens at the top: the final score and Copy
+  // for group chat, not the review's scroll (round 2, 24 Oct 2026).
+  useScrollToTopOnFinish(finalised);
 
   // Game ms, like quarterMs and every stint stamp.
   const nowMs = currentElapsedMs();

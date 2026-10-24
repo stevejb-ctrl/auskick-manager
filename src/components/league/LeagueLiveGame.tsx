@@ -43,6 +43,7 @@ const GamePlanModal = dynamic(
 import { SubDueBanner } from "@/components/live/SubDueBanner";
 import { subDueBannerShows } from "@/components/live/SubDue";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
+import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import { hapticTap } from "@/lib/haptics";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
@@ -62,6 +63,7 @@ import { computePeriodClockMs } from "@/lib/live/periodClock";
 import { clockPauseInput } from "@/lib/live/clockPause";
 import { useEventPeriodPause } from "@/lib/live/useClockPause";
 import { resolveLeagueSubAnchorElapsed } from "@/lib/sports/rugby_league/subAnchor";
+import { leagueSwapPossible } from "@/lib/sports/rugby_league/legalSwap";
 import { finaliseLeagueGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/league-actions";
 import { LeagueField } from "./LeagueField";
 import { LeagueBenchStrip } from "./LeagueBenchStrip";
@@ -369,6 +371,9 @@ export function LeagueLiveGame({
   const hooterFiredRef = useRef(false);
   // Anchor for the DeviceFrame scroll-reset (see handleStartNextPeriod).
   const liveRootRef = useRef<HTMLDivElement>(null);
+  // The summary after Finish opens at the top: the final score and Copy
+  // for group chat, not the review's scroll (round 2, 24 Oct 2026).
+  useScrollToTopOnFinish(state.finalised, liveRootRef);
 
   // ── Period label resolver ─────────────────────────────────────
   const { label: periodLabel, plural: periodLabelPlural } = periodLabels(sport, ageGroup);

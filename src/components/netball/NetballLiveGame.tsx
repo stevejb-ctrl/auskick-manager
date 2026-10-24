@@ -32,6 +32,7 @@ import {
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { useHypeSong } from "@/lib/live/useHypeSong";
+import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
@@ -383,6 +384,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     if (typeof window === "undefined") return;
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [currentQuarter, quarterEnded, finalised]);
+  // The summary after Finish opens at the top: the final score and Copy
+  // for group chat, not the review's scroll (round 2, 24 Oct 2026).
+  useScrollToTopOnFinish(finalised);
   useEffect(() => {
     if (currentQuarter < 1 || quarterEnded || finalised || !quarterStartedAt) {
       return;

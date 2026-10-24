@@ -61,6 +61,7 @@ import { liveEvents, optimisticUndo } from "@/lib/live/optimisticEvents";
 import { getSportConfig } from "@/lib/sports/registry";
 import { isGirlsTry, TOUCH_SCORE_EVENT_TYPES, touchTryEventType, touchTryWhat } from "@/lib/sports/touch/scoreEvents";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
+import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import { hapticTap } from "@/lib/haptics";
 import { computePeriodClockMs } from "@/lib/live/periodClock";
 import { clockPauseInput } from "@/lib/live/clockPause";
@@ -202,6 +203,9 @@ export function TouchLiveGame({
   const isAtFinal = base.periodEnded && base.currentPeriod >= ageGroup.periodCount && !base.finalised;
   const isFinished = base.finalised || isAtFinal;
   const isPreStart = base.currentPeriod === 0 && !base.finalised;
+  // The summary after Finish opens at the top: the final score and Copy
+  // for group chat, not the review's scroll (round 2, 24 Oct 2026).
+  useScrollToTopOnFinish(base.finalised, liveRootRef);
 
   // ── Clock: the shared period clock, its pause a game event ──
   // Game ms since the period started, less real time paused, scaled by

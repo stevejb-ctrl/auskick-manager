@@ -62,6 +62,7 @@ import {
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
 import { liveEvents, optimisticUndo, type OptimisticEventInput } from "@/lib/live/optimisticEvents";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
+import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import { hapticTap } from "@/lib/haptics";
 import { computePeriodClockMs } from "@/lib/live/periodClock";
 import { clockPauseInput } from "@/lib/live/clockPause";
@@ -251,6 +252,9 @@ export function BasketballLiveGame({
   const isAtFinal = base.periodEnded && base.currentPeriod >= ageGroup.periodCount && !base.finalised;
   const isFinished = base.finalised || isAtFinal;
   const isPreTipoff = base.currentPeriod === 0 && !base.finalised;
+  // The summary after Finish opens at the top: the final score and Copy
+  // for group chat, not the review's scroll (round 2, 24 Oct 2026).
+  useScrollToTopOnFinish(base.finalised, liveRootRef);
 
   // ── Clock: the shared period clock, its pause a game event ──
   // Game ms since the period started, less real time paused, scaled by
