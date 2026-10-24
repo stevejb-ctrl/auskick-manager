@@ -12,11 +12,11 @@
 // demo), the same frame as saved events' elapsed_ms and replayGame's
 // stint stamps, so a stint opened here and one rebuilt by the replay
 // can be compared directly. Netball keeps the same single game-time
-// clock (computePeriodClockMs). The only thing the wall-clock approach
-// can't recover is in-quarter pause time — pauses aren't event-
-// persisted, so a reload silently includes paused seconds in
-// accumulatedMs. For a quarter without pauses (the common case)
-// the recovery is exact.
+// clock (computePeriodClockMs). A pause or resume is a clock_pause
+// event (lib/live/clockPause), so a reload rebuilds the clock from the
+// quarter's latest one instead: held at the pause, or running on from
+// the resume with the stoppage banked. Before that a reload counted the
+// paused seconds as play (round-2 usability test, 24 Oct 2026).
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
@@ -187,6 +187,8 @@ export interface LiveGameState {
   setRotationMode: (mode: "suggested" | "manual" | "rotate") => void;
   startClock: () => void;
   pauseClock: () => void;
+  /** Put the clock at `accumulatedMs`, running from now or held (a pause another phone made). */
+  restoreClock: (accumulatedMs: number, running: boolean) => void;
   beginNextQuarter: () => void;
   endCurrentQuarter: (
     quarterMs: number,
@@ -562,6 +564,9 @@ export const useLiveGame = create<LiveGameState>()(
         clockStartedAt: null,
       };
     }),
+
+  restoreClock: (accumulatedMs, running) =>
+    set({ accumulatedMs, clockStartedAt: running ? Date.now() : null }),
 
   beginNextQuarter: () =>
     set((prev) => {

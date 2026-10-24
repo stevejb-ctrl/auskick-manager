@@ -4,8 +4,9 @@
 // had been paused. The hooter, the sub timer and every saved
 // elapsed_ms then credited on-field kids with the stoppage.
 //
-// The pause still lives only in the page (no quarter_pause event),
-// so it doesn't survive a reload. Neither does AFL's or netball's.
+// A pause and a resume are clock_pause events now (round 2, 24 Oct
+// 2026), so a pause survives a reload in every sport:
+// clock-pause-survives-reload.spec.ts.
 
 import { test, expect, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";

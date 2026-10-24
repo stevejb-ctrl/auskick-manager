@@ -13,6 +13,7 @@
 
 import type { GameEvent } from "@/lib/types";
 import { takeUndoTarget } from "@/lib/live/scoreUndo";
+import type { ClockPauseInput } from "@/lib/live/clockPause";
 
 /** An event as a write would insert it (the server stamps the rest). */
 export interface OptimisticEventInput {
@@ -73,6 +74,28 @@ export function toOptimisticEvent(
     created_at: opts.createdAt,
     idempotency_key: opts.opId,
   };
+}
+
+/**
+ * The writes still in the queue for `gameId` that carry the event they
+ * stand for (each op's `optimistic`, writeQueue.ts), as pending events,
+ * in the queue's order. A screen reloaded before they saved draws them:
+ * they used to vanish from it while the queue still held them, so a
+ * coach tapped them again and both saved (round 3, 24 Oct 2026).
+ */
+export function queuedOptimisticEvents(
+  queue: readonly {
+    id: string;
+    optimistic?: { gameId: string; createdAt: string; event: OptimisticEventInput };
+  }[],
+  gameId: string,
+): PendingEvent[] {
+  const out: PendingEvent[] = [];
+  for (const op of queue) {
+    if (!op.optimistic || op.optimistic.gameId !== gameId) continue;
+    out.push(toOptimisticEvent(op.optimistic.event, { opId: op.id, gameId, createdAt: op.optimistic.createdAt }));
+  }
+  return out;
 }
 
 /** The server's events, then the writes it hasn't returned yet. */
@@ -140,7 +163,9 @@ type At = { quarter: number; elapsed_ms: number };
  */
 export const liveEvents = {
   /** recordSoccerSwap / recordBasketballSwap / recordTouchSwap / recordLeagueSwap. */
-  swap(input: { off_player_id: string | null; on_player_id: string; line?: string; batch_left?: number } & At): OptimisticEventInput {
+  swap(
+    input: { off_player_id: string | null; on_player_id: string; line?: string; batch_left?: number; manual?: boolean } & At,
+  ): OptimisticEventInput {
     return {
       type: "swap",
       player_id: input.on_player_id,
@@ -151,6 +176,7 @@ export const liveEvents = {
         quarter: input.quarter,
         elapsed_ms: input.elapsed_ms,
         ...(input.batch_left ? { batch_left: input.batch_left } : {}),
+        ...(input.manual ? { manual: true } : {}),
       },
     };
   },
@@ -244,6 +270,38 @@ export const liveEvents = {
       type: "roster_shrink",
       player_id: null,
       metadata: { on_field_size: input.on_field_size, quarter: input.quarter, elapsed_ms: input.elapsed_ms },
+    };
+  },
+  /**
+   * A period's end (endSoccerHalf / endBasketballPeriod / endTouchPeriod /
+   * endLeagueQuarter / endNetballQuarter), so the break opens at the
+   * hooter with or without signal (round 3: it sat on "Applying…").
+   */
+  periodEnd(input: At): OptimisticEventInput {
+    return { type: "quarter_end", player_id: null, metadata: { quarter: input.quarter, elapsed_ms: input.elapsed_ms } };
+  },
+  /** A period's start (startSoccerHalf / startBasketballPeriod / startTouchPeriod / startLeagueQuarter / startNetballQuarter). */
+  periodStart(quarter: number): OptimisticEventInput {
+    return { type: "quarter_start", player_id: null, metadata: { quarter } };
+  },
+  /** The break's lineup, committed at Start (record*LineupSet with no `at`). */
+  breakLineup(lineup: unknown): OptimisticEventInput {
+    return { type: "lineup_set", player_id: null, metadata: { lineup } };
+  },
+  /** periodBreakSwap: netball's break lineup, with the last quarter's mid-quarter subs. */
+  netballBreakSwap(input: { quarter: number; lineup: unknown; midQuarterSubs: unknown[] }): OptimisticEventInput {
+    return {
+      type: "period_break_swap",
+      player_id: null,
+      metadata: { quarter: input.quarter, lineup: input.lineup, midQuarterSubs: input.midQuarterSubs },
+    };
+  },
+  /** recordClockPause: the clock stopped, or started again (lib/live/clockPause). */
+  clockPause(input: ClockPauseInput): OptimisticEventInput {
+    return {
+      type: "clock_pause",
+      player_id: null,
+      metadata: { quarter: input.quarter, paused: input.paused, elapsed_ms: input.elapsed_ms, at_ms: input.at_ms },
     };
   },
 };

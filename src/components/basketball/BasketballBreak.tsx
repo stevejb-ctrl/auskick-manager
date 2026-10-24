@@ -13,6 +13,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
+import { liveEvents } from "@/lib/live/optimisticEvents";
+import type { OptimisticWrite } from "@/lib/live/useOptimisticEvents";
+import { queuedStartClockMark } from "@/lib/live/useClockPause";
 import { useStagedBreakDraft } from "@/lib/live/useStagedBreakDraft";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { hapticTap } from "@/lib/haptics";
@@ -71,6 +74,8 @@ function swapSlots(l: BasketballLineup, a: BoardSlot, b: BoardSlot): BasketballL
 
 interface Props {
   auth: LiveAuth;
+  /** The live screen's optimistic write: Start shows at once, with or without signal. */
+  write: OptimisticWrite;
   game: Game;
   exitHref?: string;
   squad: Player[];
@@ -92,6 +97,7 @@ interface Props {
 
 export function BasketballBreak({
   auth,
+  write,
   game,
   exitHref,
   squad,
@@ -250,23 +256,21 @@ export function BasketballBreak({
     void run(enqueueLiveAction("markInjury", [auth, game.id, { player_id: pid, injured: true, ...at, reason: "out" }]).flushed);
   }
 
-  async function start() {
-    setPending(true);
+  // Start: the break's lineup, then the period, as optimistic writes
+  // through the live screen's `write`, so the period starts at the tap
+  // with or without signal (it used to wait on both saves; with no
+  // signal it never started). With no signal the clock's start rides
+  // along too (queuedStartClockMark).
+  function start() {
     setError(null);
-    try {
-      // Kids who can't play now start on the bench, places left empty.
-      await enqueueLiveAction("recordBasketballLineupSet", [auth, game.id, benchOutInBasketballLineup(draft, sidelinedSet), undefined])
-        .flushed;
-      await enqueueLiveAction("startBasketballPeriod", [auth, game.id, nextPeriod]).flushed;
-      stagedBreakDraft.clear();
-      void hapticTap("medium");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "That didn't save. Try again.");
-      setPending(false);
-      return;
-    }
-    setPending(false);
-    router.refresh();
+    // Kids who can't play now start on the bench, places left empty.
+    const lineup = benchOutInBasketballLineup(draft, sidelinedSet);
+    const mark = queuedStartClockMark(nextPeriod);
+    write("recordBasketballLineupSet", [auth, game.id, lineup, undefined], liveEvents.breakLineup(lineup));
+    write("startBasketballPeriod", [auth, game.id, nextPeriod], liveEvents.periodStart(nextPeriod));
+    if (mark) write("recordClockPause", [auth, game.id, mark], liveEvents.clockPause(mark));
+    stagedBreakDraft.clear();
+    void hapticTap("medium");
   }
 
   // ── The break screen ────────────────────────────────────────
@@ -391,7 +395,7 @@ export function BasketballBreak({
         pending,
         error,
       }}
-      start={{ onStart: () => void start(), pending, cue: "whistle goes", error }}
+      start={{ onStart: start, pending, cue: "whistle goes", error }}
     />
   );
 }

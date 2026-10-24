@@ -12,10 +12,10 @@
 // it's just the finish. BasketballGameSummaryCard is the share text
 // afterwards, on the shared CopyableTextBlock.
 
-import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { SFButton } from "@/components/sf";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { useFinishGame } from "@/components/live/useFinishGame";
 import { BreakScoreEditor } from "@/components/quarter-break/BreakScoreEditor";
 import { basketballPointsWords } from "@/lib/sports/basketball/scoreEvents";
 import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
@@ -65,22 +65,15 @@ export function BasketballFullTimeReview({
   scorePending = false,
 }: BasketballFullTimeReviewProps) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  const chips: Points[] = threePointers ? [1, 2, 3] : [1, 2];
-
-  function handleFinalise() {
-    setError(null);
-    startTransition(async () => {
-      const result = await finaliseBasketballGame(auth, gameId, finalisedElapsedMs);
-      if (!result.success) {
-        setError(result.error ?? "Couldn't finish the game.");
-        return;
-      }
+  // A failure keeps this screen up, and Finish is safe to tap again.
+  const { finish: handleFinalise, pending, error } = useFinishGame(
+    (key) => finaliseBasketballGame(auth, gameId, finalisedElapsedMs, key),
+    () => {
       void hapticSiren();
       router.refresh();
-    });
-  }
+    },
+  );
+  const chips: Points[] = threePointers ? [1, 2, 3] : [1, 2];
 
   const box = "rounded-md border border-hairline bg-surface-alt p-3";
 

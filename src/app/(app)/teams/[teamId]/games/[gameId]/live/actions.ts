@@ -11,6 +11,7 @@ import { invalidateSeasonEvents } from "@/lib/season";
 import { notifyGameStarted } from "@/lib/notifications/gameStarted";
 import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvailability";
 import { isPlayerLock, type PlayerLock } from "@/lib/live/locks";
+import { isClockPauseInput, type ClockPauseInput } from "@/lib/live/clockPause";
 import { pairScoreUndos } from "@/lib/live/scoreUndo";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
@@ -582,10 +583,16 @@ export async function finaliseGame(
   auth: LiveAuth,
   gameId: string,
   elapsedMs: number,
+  /** The same for every retry of one Finish, so a retry can't finalise twice. */
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
-  const finalise = await insertEvent(auth, gameId, "game_finalised", {
-    metadata: { quarter: 4, elapsed_ms: elapsedMs },
-  });
+  const finalise = await insertEvent(
+    auth,
+    gameId,
+    "game_finalised",
+    { metadata: { quarter: 4, elapsed_ms: elapsedMs } },
+    idempotencyKey,
+  );
   if (!finalise.success) return finalise;
 
   const w = await resolveWriter(auth, gameId);
@@ -838,6 +845,35 @@ export async function recordPlayerLock(
   );
 }
 
+/**
+ * Save a clock pause or resume, in any sport (lib/live/clockPause.ts),
+ * so a reload or a second phone rebuilds the paused clock.
+ */
+export async function recordClockPause(
+  auth: LiveAuth,
+  gameId: string,
+  input: ClockPauseInput,
+  idempotencyKey?: string,
+): Promise<ActionResult> {
+  if (!isClockPauseInput(input)) {
+    return { success: false, error: "That pause isn't one we know.", rejected: true };
+  }
+  return insertEvent(
+    auth,
+    gameId,
+    "clock_pause",
+    {
+      metadata: {
+        quarter: input.quarter,
+        paused: input.paused,
+        elapsed_ms: input.elapsed_ms,
+        at_ms: input.at_ms,
+      },
+    },
+    idempotencyKey,
+  );
+}
+
 export async function recordLineupSet(
   auth: LiveAuth,
   gameId: string,
@@ -862,6 +898,10 @@ export async function recordSwap(
     zone: Zone;
     quarter: number;
     elapsed_ms: number;
+    /** By hand, off the rotation's cadence: the sub clock doesn't restart (lib/live/subAnchor). */
+    manual?: boolean;
+    /** One swap of a due batch, with this many still to make. */
+    batch_left?: number;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {

@@ -36,7 +36,6 @@
 // (UX audit 23 Oct 2026, "Drift from AFL").
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { SFButton } from "@/components/sf";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
@@ -58,21 +57,14 @@ import {
 } from "@/components/live/InjuryReplacementModal";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
-import {
-  enqueueLiveAction,
-  type LiveActionArgs,
-  type LiveActionKind,
-} from "@/lib/live/registerLiveActions";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
 import { liveEvents, optimisticUndo } from "@/lib/live/optimisticEvents";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
+import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import { hapticTap } from "@/lib/haptics";
-import {
-  computePeriodClockMs,
-  togglePeriodPause,
-  RUNNING_CLOCK,
-  type PeriodPause,
-} from "@/lib/live/periodClock";
+import { computePeriodClockMs } from "@/lib/live/periodClock";
+import { clockPauseInput } from "@/lib/live/clockPause";
+import { queuedStartClockMark, useEventPeriodPause } from "@/lib/live/useClockPause";
 import { openSubBatch, resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { periodBreakName } from "@/lib/live/periodBreakName";
@@ -199,12 +191,12 @@ export function SoccerLiveGame({
   exitHref,
   seasonLoanMinutes,
 }: SoccerLiveGameProps) {
-  const router = useRouter();
   const opponentName = game.opponent || "Opponent";
   const playerById = useMemo(() => new Map(squad.map((p) => [p.id, p])), [squad]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  // Every write is optimistic, so nothing here waits on a save.
+  const pending = false;
   const [clockMenuOpen, setClockMenuOpen] = useState(false);
   const [endConfirmOpen, setEndConfirmOpen] = useState(false);
   const [startConfirmOpen, setStartConfirmOpen] = useState(false);
@@ -217,7 +209,7 @@ export function SoccerLiveGame({
   const liveRootRef = useRef<HTMLDivElement>(null);
   const periodMs = periodSeconds * 1000;
   // The server's events, then the writes it hasn't returned yet.
-  const { events, write } = useOptimisticEvents(serverEvents, { gameId: game.id, onError: setError });
+  const { events, write, queueReady } = useOptimisticEvents(serverEvents, { gameId: game.id, onError: setError });
   // The sport's own words and keeper rules, and the age group's periods
   // ("half" and "H", or hockey's "quarter" and "Q").
   const rules = soccerFamilyRules(sport);
@@ -234,12 +226,18 @@ export function SoccerLiveGame({
   const isAtFinal = base.periodEnded && base.currentPeriod >= ageGroup.periodCount && !base.finalised;
   const isFinished = base.finalised || isAtFinal;
   const isPreKickoff = base.currentPeriod === 0 && !base.finalised;
+  // The summary after Finish opens at the top: the final score and Copy
+  // for group chat, not the review's scroll (round 2, 24 Oct 2026).
+  useScrollToTopOnFinish(base.finalised, liveRootRef);
 
   // ── Clock: league's and netball's period clock ──────────────
   // Game ms since the period started, less real time paused, scaled by
-  // the clock multiplier. Pause is client-only, as in league.
+  // the clock multiplier. The pause is the period's latest clock_pause
+  // event (lib/live/clockPause), so a reload or a second phone keeps it.
   const [nowMs, setNowMs] = useState<number | null>(null);
-  const [pause, setPause] = useState<PeriodPause>(RUNNING_CLOCK);
+  const periodStartedAtMs = base.periodStartedAt ? Date.parse(base.periodStartedAt) : NaN;
+  const startedAtMs = Number.isNaN(periodStartedAtMs) ? null : periodStartedAtMs;
+  const pause = useEventPeriodPause(events, base.currentPeriod, startedAtMs, clockMultiplier);
   const running = pause.pausedAtMs === null;
   useEffect(() => {
     if (!isPeriodActive || !running) return;
@@ -247,26 +245,28 @@ export function SoccerLiveGame({
     const id = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, [isPeriodActive, running, base.periodStartedAt]);
-  useEffect(() => {
-    setPause(RUNNING_CLOCK);
-  }, [base.currentPeriod, base.periodEnded]);
 
-  const elapsedMs = useMemo(() => {
-    const fallback = base.periodEnded ? base.periodElapsedMs : 0;
-    if (nowMs == null) return fallback;
-    const startedAtMs = base.periodStartedAt ? Date.parse(base.periodStartedAt) : NaN;
-    return computePeriodClockMs({
-      currentQuarter: base.currentPeriod,
-      quarterEnded: base.periodEnded,
-      finalised: base.finalised,
-      quarterStartedAtMs: Number.isNaN(startedAtMs) ? null : startedAtMs,
-      pausedAtMs: pause.pausedAtMs,
-      accumulatedPauseMs: pause.accumulatedPauseMs,
-      fallbackElapsedMs: fallback,
-      clockMultiplier,
-      nowMs,
-    });
-  }, [nowMs, base, pause, clockMultiplier]);
+  const clockAt = useCallback(
+    (now: number) =>
+      computePeriodClockMs({
+        currentQuarter: base.currentPeriod,
+        quarterEnded: base.periodEnded,
+        finalised: base.finalised,
+        quarterStartedAtMs: startedAtMs,
+        pausedAtMs: pause.pausedAtMs,
+        accumulatedPauseMs: pause.accumulatedPauseMs,
+        fallbackElapsedMs: base.periodEnded ? base.periodElapsedMs : 0,
+        clockMultiplier,
+        nowMs: now,
+      }),
+    [base, startedAtMs, pause, clockMultiplier],
+  );
+  // Until the first tick, a running clock shows the server's render; a
+  // paused one reads its pause, which doesn't move.
+  const elapsedMs = useMemo(
+    () => (nowMs == null && running ? (base.periodEnded ? base.periodElapsedMs : 0) : clockAt(nowMs ?? 0)),
+    [nowMs, running, base, clockAt],
+  );
   const elapsedSecond = Math.floor(elapsedMs / 1000);
 
   // AFL's live chrome: the undo strip's flash, the swap confirm and toast.
@@ -393,31 +393,28 @@ export function SoccerLiveGame({
   elapsedRef.current = elapsedMs;
   const at = () => ({ quarter: base.currentPeriod, elapsed_ms: elapsedRef.current });
 
-  // A period starting or ending changes the whole screen (the break is
-  // the server's plan), so it waits for the save, with a pending state.
-  // Every other write is optimistic (write, below).
-  async function run<K extends LiveActionKind>(kind: K, args: LiveActionArgs<K>) {
-    setPending(true);
-    setError(null);
-    try {
-      await enqueueLiveAction(kind, args).flushed;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "That didn't save. Try again.");
-    } finally {
-      setPending(false);
-    }
-    router.refresh();
-  }
-
+  // A period's end and start are optimistic writes too, like every
+  // other tap: the break opens at the hooter and the next period starts
+  // at the tap, with or without signal. They used to wait on the save,
+  // so a hooter with no signal sat on "Applying…" while the kids' minutes
+  // ran past the period (round 3, 24 Oct 2026).
   const endHalfAtClient = useCallback(
-    async (elapsed: number) => {
-      setPending(true);
-      await enqueueLiveAction("endSoccerHalf", [auth, game.id, base.currentPeriod, elapsed]).flushed;
-      setPending(false);
-      router.refresh();
+    (elapsed: number) => {
+      setError(null);
+      write(
+        "endSoccerHalf",
+        [auth, game.id, base.currentPeriod, elapsed],
+        liveEvents.periodEnd({ quarter: base.currentPeriod, elapsed_ms: elapsed }),
+      );
     },
-    [auth, game.id, base.currentPeriod, router],
+    [auth, game.id, base.currentPeriod, write],
   );
+  function startFirstPeriod() {
+    setError(null);
+    const mark = queuedStartClockMark(1);
+    write("startSoccerHalf", [auth, game.id, 1], liveEvents.periodStart(1));
+    if (mark) write("recordClockPause", [auth, game.id, mark], liveEvents.clockPause(mark));
+  }
 
   // The hooter: the period ends itself at full time on the clock (not
   // while paused; the coach is stopping on purpose).
@@ -428,20 +425,39 @@ export function SoccerLiveGame({
       return;
     }
     if (hooterFiredRef.current || !running || !base.periodStartedAt) return;
+    // Not before a queued period end from before a reload is drawn: it
+    // would end the period a second time.
+    if (!queueReady) return;
     if (elapsedMs >= periodMs) {
       hooterFiredRef.current = true;
       void endHalfAtClient(periodMs);
     }
-  }, [elapsedMs, isPeriodActive, running, base.periodStartedAt, periodMs, endHalfAtClient]);
+  }, [elapsedMs, isPeriodActive, running, base.periodStartedAt, periodMs, endHalfAtClient, queueReady]);
 
-  /** `batchLeft`: a due batch's swaps still to make after this one (the sub clock waits for them). */
-  function sub(offId: string | null, onId: string, line?: SoccerUnit, batchLeft?: number) {
+  // Pause or resume: a clock_pause event, on screen at once.
+  function toggleClock() {
+    if (!isPeriodActive || hooterFiredRef.current) return;
+    const now = Date.now();
+    const input = clockPauseInput(base.currentPeriod, running, clockAt(now), now);
+    write("recordClockPause", [auth, game.id, input], liveEvents.clockPause(input));
+    // The clock reads now from the tap, not the last tick (a page opened
+    // paused has none yet).
+    setNowMs(now);
+  }
+
+  /**
+   * `batchLeft`: a due batch's swaps still to make after this one (the
+   * sub clock waits for them). `manual`: made by hand, off the
+   * rotation's cadence, so the sub clock doesn't restart (AFL's rule).
+   */
+  function sub(offId: string | null, onId: string, line?: SoccerUnit, opts: { batchLeft?: number; manual?: boolean } = {}) {
     setError(null);
     const input = {
       off_player_id: offId,
       on_player_id: onId,
       ...(line ? { line } : {}),
-      ...(batchLeft ? { batch_left: batchLeft } : {}),
+      ...(opts.batchLeft ? { batch_left: opts.batchLeft } : {}),
+      ...(opts.manual ? { manual: true } : {}),
       ...at(),
     };
     write("recordSoccerSwap", [auth, game.id, input], liveEvents.swap(input));
@@ -490,7 +506,7 @@ export function SoccerLiveGame({
           chrome.showToast(`${chrome.firstName(kid)} → ${words[unit].label}`);
         } else {
           // A bench kid into an empty spot asks first, as AFL's does.
-          chrome.confirmSwap({ offId: null, onId: kid, spotName: words[unit].label, onConfirm: () => sub(null, kid, unit) });
+          chrome.confirmSwap({ offId: null, onId: kid, spotName: words[unit].label, onConfirm: () => sub(null, kid, unit, { manual: true }) });
         }
         setSelectedId(null);
       } else {
@@ -523,7 +539,7 @@ export function SoccerLiveGame({
       const off = aUnit ? first : pid;
       const on = aUnit ? pid : first;
       const spot = (aUnit ?? bUnit)!;
-      chrome.confirmSwap({ offId: off, onId: on, spotName: words[spot].label, onConfirm: () => sub(off, on) });
+      chrome.confirmSwap({ offId: off, onId: on, spotName: words[spot].label, onConfirm: () => sub(off, on, undefined, { manual: true }) });
     } else setSelectedId(pid); // two bench kids: the second is the selection
   }
 
@@ -652,6 +668,7 @@ export function SoccerLiveGame({
       <div ref={liveRootRef}>
         <SoccerBreak
           auth={auth}
+          write={write}
           sport={sport}
           game={game}
           exitHref={exitHref}
@@ -679,7 +696,7 @@ export function SoccerLiveGame({
         // The sub card is the alert while it has pairs (SubDue.tsx); the
         // banner speaks only for a due sub with nothing to suggest.
         banner={
-          isPeriodActive && subDueBannerShows(subDue.due, nextSubs.length) && subAckKey !== subDueKey ? (
+          isPeriodActive && subDueBannerShows(subDue.due, nextSubs.length, (state.lineup?.bench ?? []).some((id) => !injuredSet.has(id) && !loanedSet.has(id))) && subAckKey !== subDueKey ? (
             <SubDueBanner onAcknowledge={() => setSubAckKey(subDueKey)} />
           ) : null
         }
@@ -740,7 +757,7 @@ export function SoccerLiveGame({
             const s = nextSubs[i];
             if (!s) return;
             // One of a due batch: the rest stay due until they're made.
-            sub(s.off_player_id, s.on_player_id, s.line, subDue.due ? nextSubs.length - 1 : undefined);
+            sub(s.off_player_id, s.on_player_id, s.line, { batchLeft: subDue.due ? nextSubs.length - 1 : undefined });
             chrome.swapped(s.off_player_id, s.on_player_id);
           }}
           pending={pending}
@@ -959,7 +976,7 @@ export function SoccerLiveGame({
           loading={pending}
           onStart={() => {
             setStartConfirmOpen(false);
-            void run("startSoccerHalf", [auth, game.id, 1]);
+            startFirstPeriod();
           }}
           onCancel={() => setStartConfirmOpen(false)}
         />
@@ -970,8 +987,8 @@ export function SoccerLiveGame({
           sport={sport}
           periodAbbr={`${periodLetter}${base.currentPeriod}`}
           running={running}
-          onPause={() => setPause((p) => togglePeriodPause(p, Date.now()))}
-          onResume={() => setPause((p) => togglePeriodPause(p, Date.now()))}
+          onPause={toggleClock}
+          onResume={toggleClock}
           onEndEarly={isPeriodActive ? () => setEndConfirmOpen(true) : undefined}
           onClose={() => setClockMenuOpen(false)}
         />
@@ -980,11 +997,14 @@ export function SoccerLiveGame({
       {endConfirmOpen && (
         <ManualEndQuarterConfirm
           quarter={base.currentPeriod}
-          onConfirm={() => {
+          elapsedMs={Math.min(elapsedMs, periodMs)}
+          periodMs={periodMs}
+          onConfirm={(full) => {
             setEndConfirmOpen(false);
-            // Ending early credits the whole period (AFL and league do the
-            // same): the real game ran on while the app's clock stopped.
-            void endHalfAtClient(periodMs);
+            // The time played, or (the game played on while the app's
+            // clock sat paused) the whole period: the coach's choice. It
+            // used to be the whole period, silently (round 3, 24 Oct 2026).
+            endHalfAtClient(full ? periodMs : Math.min(clockAt(Date.now()), periodMs));
           }}
           onCancel={() => setEndConfirmOpen(false)}
           sport={sport}
@@ -1104,7 +1124,7 @@ export function SoccerLiveGame({
             const lu = state.lineup!;
             if (!lu.keeper) return;
             if (soccerUnitOf(lu, pid)) move(lu.keeper, pid, soccerUnitOf(lu, pid)!);
-            else sub(lu.keeper, pid, "gk");
+            else sub(lu.keeper, pid, "gk", { manual: true });
             chrome.swapped(lu.keeper, pid);
           }}
           onCancel={() => setKeeperPickerOpen(false)}
@@ -1124,7 +1144,7 @@ export function SoccerLiveGame({
             const unit = fillUnit;
             setFillUnit(null);
             // A deliberate pick: straight on, with AFL's toast.
-            sub(null, pid, unit);
+            sub(null, pid, unit, { manual: true });
             chrome.swapped(null, pid);
           }}
           onCancel={() => setFillUnit(null)}

@@ -15,6 +15,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
+import { liveEvents } from "@/lib/live/optimisticEvents";
+import type { OptimisticWrite } from "@/lib/live/useOptimisticEvents";
+import { queuedStartClockMark } from "@/lib/live/useClockPause";
 import { useStagedBreakDraft } from "@/lib/live/useStagedBreakDraft";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { hapticTap } from "@/lib/haptics";
@@ -64,6 +67,8 @@ function swapSlots(l: TouchLineup, a: BoardSlot, b: BoardSlot): TouchLineup {
 
 interface Props {
   auth: LiveAuth;
+  /** The live screen's optimistic write: Start shows at once, with or without signal. */
+  write: OptimisticWrite;
   /** Touch or Oztag: its words come from its config. */
   sport: SportId;
   game: Game;
@@ -88,6 +93,7 @@ interface Props {
 
 export function TouchBreak({
   auth,
+  write,
   sport,
   game,
   exitHref,
@@ -254,22 +260,21 @@ export function TouchBreak({
     void run(enqueueLiveAction("markInjury", [auth, game.id, { player_id: pid, injured: true, ...at, reason: "out" }]).flushed);
   }
 
-  async function start() {
-    setPending(true);
+  // Start: the break's lineup, then the period, as optimistic writes
+  // through the live screen's `write`, so the period starts at the tap
+  // with or without signal (round 3: it waited on both saves, and with no
+  // signal it never started). With no signal the clock's start rides
+  // along too (queuedStartClockMark).
+  function start() {
     setError(null);
-    try {
-      // Kids who can't play now start on the bench, places left empty.
-      await enqueueLiveAction("recordTouchLineupSet", [auth, game.id, benchOutInTouchLineup(draft, sidelinedSet), undefined]).flushed;
-      await enqueueLiveAction("startTouchPeriod", [auth, game.id, nextPeriod]).flushed;
-      stagedBreakDraft.clear();
-      void hapticTap("medium");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "That didn't save. Try again.");
-      setPending(false);
-      return;
-    }
-    setPending(false);
-    router.refresh();
+    // Kids who can't play now start on the bench, places left empty.
+    const lineup = benchOutInTouchLineup(draft, sidelinedSet);
+    const mark = queuedStartClockMark(nextPeriod);
+    write("recordTouchLineupSet", [auth, game.id, lineup, undefined], liveEvents.breakLineup(lineup));
+    write("startTouchPeriod", [auth, game.id, nextPeriod], liveEvents.periodStart(nextPeriod));
+    if (mark) write("recordClockPause", [auth, game.id, mark], liveEvents.clockPause(mark));
+    stagedBreakDraft.clear();
+    void hapticTap("medium");
   }
 
   // ── The break screen ────────────────────────────────────────
@@ -385,7 +390,7 @@ export function TouchBreak({
         pending,
         error,
       }}
-      start={{ onStart: () => void start(), pending, cue: getSportConfig(sport).words.startCue, error }}
+      start={{ onStart: start, pending, cue: getSportConfig(sport).words.startCue, error }}
     />
   );
 }

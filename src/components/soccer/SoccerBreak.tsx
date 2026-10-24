@@ -16,6 +16,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
+import { liveEvents } from "@/lib/live/optimisticEvents";
+import type { OptimisticWrite } from "@/lib/live/useOptimisticEvents";
+import { queuedStartClockMark } from "@/lib/live/useClockPause";
 import { useStagedBreakDraft } from "@/lib/live/useStagedBreakDraft";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { hapticTap } from "@/lib/haptics";
@@ -75,6 +78,8 @@ function swapSlots(l: SoccerLineup, a: BoardSlot, b: BoardSlot): SoccerLineup {
 
 interface Props {
   auth: LiveAuth;
+  /** The live screen's optimistic write: Start shows at once, with or without signal. */
+  write: OptimisticWrite;
   /** The team's sport: its line words and keeper rules. */
   sport: SoccerSport;
   game: Game;
@@ -96,6 +101,7 @@ interface Props {
 
 export function SoccerBreak({
   auth,
+  write,
   sport,
   game,
   exitHref,
@@ -297,25 +303,23 @@ export function SoccerBreak({
     void run(enqueueLiveAction("markInjury", [auth, game.id, { player_id: pid, injured: true, ...at, reason: "out" }]).flushed);
   }
 
-  async function start() {
-    setPending(true);
+  // Start: the break's lineup, then the period, as optimistic writes
+  // through the live screen's `write`, so the period starts at the tap
+  // with or without signal (it used to wait on both saves; with no
+  // signal it never started). With no signal the clock's start rides
+  // along too (queuedStartClockMark).
+  function start() {
     setError(null);
-    try {
-      // Kids who can't play now start on the bench, their places left empty.
-      await enqueueLiveAction("recordSoccerLineupSet", [auth, game.id, benchOutInSoccerLineup(draft, sidelinedSet), undefined])
-        .flushed;
-      await enqueueLiveAction("startSoccerHalf", [auth, game.id, nextPeriod]).flushed;
-      stagedBreakDraft.clear();
-      // The kit-up heads-up's job is done once the period starts.
-      writeKitUp(kitUpKey(game.id, period), "");
-      void hapticTap("medium");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "That didn't save. Try again.");
-      setPending(false);
-      return;
-    }
-    setPending(false);
-    router.refresh();
+    // Kids who can't play now start on the bench, their places left empty.
+    const lineup = benchOutInSoccerLineup(draft, sidelinedSet);
+    const mark = queuedStartClockMark(nextPeriod);
+    write("recordSoccerLineupSet", [auth, game.id, lineup, undefined], liveEvents.breakLineup(lineup));
+    write("startSoccerHalf", [auth, game.id, nextPeriod], liveEvents.periodStart(nextPeriod));
+    if (mark) write("recordClockPause", [auth, game.id, mark], liveEvents.clockPause(mark));
+    stagedBreakDraft.clear();
+    // The kit-up heads-up's job is done once the period starts.
+    writeKitUp(kitUpKey(game.id, period), "");
+    void hapticTap("medium");
   }
 
   // ── The break screen ────────────────────────────────────────
@@ -480,7 +484,7 @@ export function SoccerBreak({
         pending,
         error,
       }}
-      start={{ onStart: () => void start(), pending, cue: "whistle goes", error }}
+      start={{ onStart: start, pending, cue: "whistle goes", error }}
     />
   );
 }

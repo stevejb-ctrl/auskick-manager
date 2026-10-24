@@ -321,14 +321,20 @@ export async function finaliseSoccerGame(
   auth: LiveAuth,
   gameId: string,
   elapsedMs: number,
+  /** The same for every retry of one Finish, so a retry can't finalise twice. */
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
   const { ageCfg } = await soccerTeam(w.teamId);
 
-  const finalise = await insertEvent(auth, gameId, "game_finalised", {
-    metadata: { quarter: ageCfg.periodCount, elapsed_ms: elapsedMs },
-  });
+  const finalise = await insertEvent(
+    auth,
+    gameId,
+    "game_finalised",
+    { metadata: { quarter: ageCfg.periodCount, elapsed_ms: elapsedMs } },
+    idempotencyKey,
+  );
   if (!finalise.success) return finalise;
 
   const { error: updateError } = await w.supabase.from("games").update({ status: "completed" }).eq("id", gameId);
@@ -386,6 +392,8 @@ export async function recordSoccerSwap(
     quarter: number;
     elapsed_ms: number;
     batch_left?: number;
+    /** By hand, off the rotation's cadence: the sub clock doesn't restart (lib/live/subAnchor). */
+    manual?: boolean;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {
@@ -407,6 +415,7 @@ export async function recordSoccerSwap(
         quarter: input.quarter,
         elapsed_ms: input.elapsed_ms,
         ...(batchLeft ? { batch_left: batchLeft } : {}),
+        ...(input.manual === true ? { manual: true } : {}),
       },
     },
     idempotencyKey,

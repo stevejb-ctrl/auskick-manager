@@ -63,7 +63,9 @@ type Piece =
   | "undoFlash"
   | "swapConfirm"
   | "settingsInRow"
-  | "optimisticWrites";
+  | "optimisticWrites"
+  | "pauseFromEvents"
+  | "summaryAtTop";
 
 /**
  * Each piece, as a check on a live screen's source. A screen without
@@ -89,6 +91,15 @@ const PIECES: Record<Piece, (s: string) => boolean> = {
   // doesn't count where a screen waits on a save before refreshing.
   optimisticWrites: (s) =>
     (/useLiveGame\(/.test(s) && !/await flushed/.test(s)) || /useOptimisticEvents\(/.test(s),
+  // A pause is a clock_pause event, so a reload or a second phone keeps
+  // it (round 2, 24 Oct 2026): the period's pause comes from the events
+  // (AFL's from the replay's mark), never from the page's own state.
+  pauseFromEvents: (s) =>
+    (/useEventPeriodPause\(/.test(s) || /initialState\.clockPause/.test(s)) &&
+    !/useState<PeriodPause>/.test(s) &&
+    !/usePeriodPause\(/.test(s),
+  // The summary after Finish opens at the top (round 2).
+  summaryAtTop: (s) => /useScrollToTopOnFinish\(/.test(s),
 };
 
 /**
@@ -203,6 +214,21 @@ describe("full time", () => {
       expect(source).not.toMatch(/Score adjustments/);
     });
   }
+
+  // Finish game survives a dropped request: the review stays up, says
+  // "Couldn't save — try again", and a retry can't finalise twice (round
+  // 2, 24 Oct 2026: netball threw "Failed to fetch" into the boundary).
+  it("every sport's Finish goes through the shared, retry-safe useFinishGame", () => {
+    for (const path of [
+      "src/components/live/FullTimeReview.tsx",
+      "src/components/netball/NetballFullTimeReview.tsx",
+      ...Object.keys(reviews),
+    ]) {
+      const source = src(path);
+      expect(source, path).toMatch(/useFinishGame\(/);
+      expect(source, path).not.toMatch(/await finalise\w*Game\(/);
+    }
+  });
 
   it("no one arrives late at a game that's over (the review, not just once it's finished)", () => {
     for (const path of Object.keys(reviews).map((p) => p.replace(/(FullTime|FullTimeReview)\.tsx$/, "LiveGame.tsx"))) {

@@ -18,7 +18,6 @@
 // for share (soccer's family, basketball, touch). The live scorebug's
 // chips and undo strip are gone by now (UX audit 23 Oct 2026).
 
-import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { SFButton } from "@/components/sf";
 import { hapticSiren } from "@/lib/haptics";
@@ -35,6 +34,7 @@ import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { GameEvent, LiveAuth } from "@/lib/types";
 import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { useFinishGame } from "@/components/live/useFinishGame";
 import { BreakScoreEditor, type BreakScoreChip } from "@/components/quarter-break/BreakScoreEditor";
 import { periodLabels } from "@/lib/sports";
 
@@ -111,8 +111,14 @@ export function LeagueFullTimeReview({
   scorePending = false,
 }: LeagueFullTimeReviewProps) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  // A failure keeps this screen up, and Finish is safe to tap again.
+  const { finish: handleFinalise, pending, error } = useFinishGame(
+    (key) => finaliseLeagueGame(auth, gameId, finalisedElapsedMs, key),
+    () => {
+      void hapticSiren();
+      router.refresh();
+    },
+  );
   const periodLabel = periodLabels(sport, ageGroup).label;
   const periodAbbrev = periodLabel.charAt(0).toUpperCase();
   const words = rugbyScoreWords(sport);
@@ -136,19 +142,6 @@ export function LeagueFullTimeReview({
     add("fg", `+${words.fieldGoal.short}`, `a ${words.fieldGoal.label.toLowerCase()}`, on.fieldGoal);
     return out;
   };
-
-  function handleFinalise() {
-    setError(null);
-    startTransition(async () => {
-      const result = await finaliseLeagueGame(auth, gameId, finalisedElapsedMs);
-      if (!result.success) {
-        setError(result.error ?? "Couldn't finalise the game.");
-        return;
-      }
-      void hapticSiren();
-      router.refresh();
-    });
-  }
 
   return (
     <div className="rounded-md border border-hairline bg-surface p-4 shadow-card">

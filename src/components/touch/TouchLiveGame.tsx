@@ -35,7 +35,6 @@
 // counts as a girl or a boy is never drawn on a tile.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { SFButton } from "@/components/sf";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
@@ -55,15 +54,16 @@ import { InjuryReplacementModal, type InjuryReplacementCandidate } from "@/compo
 import { useLiveChrome } from "@/components/live/useLiveChrome";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
-import { enqueueLiveAction, type LiveActionArgs, type LiveActionKind } from "@/lib/live/registerLiveActions";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
 import { liveEvents, optimisticUndo } from "@/lib/live/optimisticEvents";
 import { getSportConfig } from "@/lib/sports/registry";
 import { isGirlsTry, TOUCH_SCORE_EVENT_TYPES, touchTryEventType, touchTryWhat } from "@/lib/sports/touch/scoreEvents";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
+import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import { hapticTap } from "@/lib/haptics";
-import { computePeriodClockMs, togglePeriodPause } from "@/lib/live/periodClock";
-import { usePeriodPause } from "@/lib/live/periodPauseStorage";
+import { computePeriodClockMs } from "@/lib/live/periodClock";
+import { clockPauseInput } from "@/lib/live/clockPause";
+import { queuedStartClockMark, useEventPeriodPause } from "@/lib/live/useClockPause";
 import { resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { countTags, keepsComposition, rollingSubDue } from "@/lib/live/rollingSubs";
@@ -168,7 +168,6 @@ export function TouchLiveGame({
   exitHref,
   seasonLoanMinutes,
 }: TouchLiveGameProps) {
-  const router = useRouter();
   const opponentName = game.opponent || "Opponent";
   const playerById = useMemo(() => new Map(squad.map((p) => [p.id, p])), [squad]);
   const mixed: TouchMixed | undefined = useMemo(
@@ -179,7 +178,8 @@ export function TouchLiveGame({
   const [error, setError] = useState<string | null>(null);
   // The server's events, then the writes it hasn't returned yet.
   const { events, write } = useOptimisticEvents(serverEvents, { gameId: game.id, onError: setError });
-  const [pending, setPending] = useState(false);
+  // Every write is optimistic, so nothing here waits on a save.
+  const pending = false;
   const [clockMenuOpen, setClockMenuOpen] = useState(false);
   const [endConfirmOpen, setEndConfirmOpen] = useState(false);
   const [startConfirmOpen, setStartConfirmOpen] = useState(false);
@@ -202,13 +202,20 @@ export function TouchLiveGame({
   const isAtFinal = base.periodEnded && base.currentPeriod >= ageGroup.periodCount && !base.finalised;
   const isFinished = base.finalised || isAtFinal;
   const isPreStart = base.currentPeriod === 0 && !base.finalised;
+  // The summary after Finish opens at the top: the final score and Copy
+  // for group chat, not the review's scroll (round 2, 24 Oct 2026).
+  useScrollToTopOnFinish(base.finalised, liveRootRef);
 
-  // ── Clock: the shared period clock, its pause saved on the phone ──
+  // ── Clock: the shared period clock, its pause a game event ──
   // Game ms since the period started, less real time paused, scaled by
   // the clock multiplier, held at the period's length: the phone waits
-  // there for the referee's whistle.
+  // there for the referee's whistle. The pause is the period's latest
+  // clock_pause event (lib/live/clockPause), so a reload or a second
+  // phone keeps it.
   const [nowMs, setNowMs] = useState<number | null>(null);
-  const [pause, setPause] = usePeriodPause(game.id, base.currentPeriod);
+  const periodStartedAtMs = base.periodStartedAt ? Date.parse(base.periodStartedAt) : NaN;
+  const startedAtMs = Number.isNaN(periodStartedAtMs) ? null : periodStartedAtMs;
+  const pause = useEventPeriodPause(events, base.currentPeriod, startedAtMs, clockMultiplier);
   const running = pause.pausedAtMs === null;
   useEffect(() => {
     if (!isPeriodActive || !running) return;
@@ -217,23 +224,29 @@ export function TouchLiveGame({
     return () => window.clearInterval(id);
   }, [isPeriodActive, running, base.periodStartedAt]);
 
-  const elapsedMs = useMemo(() => {
-    const fallback = base.periodEnded ? base.periodElapsedMs : 0;
-    if (nowMs == null) return fallback;
-    const startedAtMs = base.periodStartedAt ? Date.parse(base.periodStartedAt) : NaN;
-    const raw = computePeriodClockMs({
-      currentQuarter: base.currentPeriod,
-      quarterEnded: base.periodEnded,
-      finalised: base.finalised,
-      quarterStartedAtMs: Number.isNaN(startedAtMs) ? null : startedAtMs,
-      pausedAtMs: pause.pausedAtMs,
-      accumulatedPauseMs: pause.accumulatedPauseMs,
-      fallbackElapsedMs: fallback,
-      clockMultiplier,
-      nowMs,
-    });
-    return isPeriodActive ? Math.min(raw, periodMs) : raw;
-  }, [nowMs, base, pause, clockMultiplier, isPeriodActive, periodMs]);
+  const clockAt = useCallback(
+    (now: number) => {
+      const raw = computePeriodClockMs({
+        currentQuarter: base.currentPeriod,
+        quarterEnded: base.periodEnded,
+        finalised: base.finalised,
+        quarterStartedAtMs: startedAtMs,
+        pausedAtMs: pause.pausedAtMs,
+        accumulatedPauseMs: pause.accumulatedPauseMs,
+        fallbackElapsedMs: base.periodEnded ? base.periodElapsedMs : 0,
+        clockMultiplier,
+        nowMs: now,
+      });
+      return isPeriodActive ? Math.min(raw, periodMs) : raw;
+    },
+    [base, startedAtMs, pause, clockMultiplier, isPeriodActive, periodMs],
+  );
+  // Until the first tick, a running clock shows the server's render; a
+  // paused one reads its pause, which doesn't move.
+  const elapsedMs = useMemo(
+    () => (nowMs == null && running ? (base.periodEnded ? base.periodElapsedMs : 0) : clockAt(nowMs ?? 0)),
+    [nowMs, running, base, clockAt],
+  );
   const elapsedSecond = Math.floor(elapsedMs / 1000);
 
   // AFL's live chrome: the undo strip's flash, the swap confirm and toast.
@@ -310,9 +323,15 @@ export function TouchLiveGame({
   }, [shape, lineup, fieldSize]);
 
   // ── Subs ────────────────────────────────────────────────────
+  // No sub is due once the clock is out: the phone waits at 0:00 for the
+  // whistle, and the Sub due card and OFF badges stayed up through half
+  // time and full time (round 2, 24 Oct 2026; AFL hides them after the
+  // siren too).
+  const periodClockDone = elapsedMs >= periodMs;
+  const subsOpen = isPeriodActive && !periodClockDone;
   const anchorMs = useMemo(
-    () => (isPeriodActive ? resolveSubAnchorElapsed(events, base.currentPeriod) : null),
-    [events, base.currentPeriod, isPeriodActive],
+    () => (subsOpen ? resolveSubAnchorElapsed(events, base.currentPeriod) : null),
+    [events, base.currentPeriod, subsOpen],
   );
   const subDue = rollingSubDue({
     subIntervalMs: subIntervalSeconds != null ? subIntervalSeconds * 1000 : null,
@@ -322,7 +341,7 @@ export function TouchLiveGame({
   });
   const msUntilDue = subDue.msUntilDue;
   const nextSubs = useMemo(() => {
-    if (!isPeriodActive) return [];
+    if (!subsOpen) return [];
     // A kid who goes off rests a sub interval before coming back on; an
     // empty place (a kid hurt with nobody on) is filled first.
     const opts = { strategy, prefs, season, mixed, restMs: (subIntervalSeconds ?? 0) * 1000, spots: lineCaps };
@@ -335,7 +354,7 @@ export function TouchLiveGame({
     const ahead = replayTouchGame(events, { nowMs: aheadMs });
     return suggestTouchSubs({ state: ahead, nowMs: ahead.completedPeriodMs + aheadMs, ...opts });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPeriodActive, state, events, strategy, prefs, season, mixed, periodMs, subIntervalSeconds, lineCaps, msUntilDue !== null && msUntilDue <= 0, Math.floor((msUntilDue ?? 0) / 5000)]);
+  }, [subsOpen, state, events, strategy, prefs, season, mixed, periodMs, subIntervalSeconds, lineCaps, msUntilDue !== null && msUntilDue <= 0, Math.floor((msUntilDue ?? 0) / 5000)]);
   const subDueKey = subDue.key === null ? null : `${base.currentPeriod}:${subDue.key}`;
   const subDueShowing = isPeriodActive && subDue.due && nextSubs.length > 0 && subAckKey !== subDueKey;
   useSubDueAudioUnlock();
@@ -349,31 +368,27 @@ export function TouchLiveGame({
   }, [subDueShowing]);
 
   // ── Writes ──────────────────────────────────────────────────
-  // A period starting or ending changes the whole screen (the break is
-  // the server's plan), so it waits for the save, with a pending state.
-  // Every other write is optimistic (write).
-  async function run<K extends LiveActionKind>(kind: K, args: LiveActionArgs<K>) {
-    setPending(true);
-    setError(null);
-    try {
-      await enqueueLiveAction(kind, args).flushed;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "That didn't save. Try again.");
-    } finally {
-      setPending(false);
-    }
-    router.refresh();
-  }
-
+  // A period's end and start are optimistic writes too, like every
+  // other tap: the break opens at the whistle and the next period starts
+  // at the tap, with or without signal. They used to wait on the save,
+  // so End H1 with no signal sat on "Applying…" (round 3, 24 Oct 2026).
   const endPeriodAt = useCallback(
-    async (elapsed: number) => {
-      setPending(true);
-      await enqueueLiveAction("endTouchPeriod", [auth, game.id, base.currentPeriod, elapsed]).flushed;
-      setPending(false);
-      router.refresh();
+    (elapsed: number) => {
+      setError(null);
+      write(
+        "endTouchPeriod",
+        [auth, game.id, base.currentPeriod, elapsed],
+        liveEvents.periodEnd({ quarter: base.currentPeriod, elapsed_ms: elapsed }),
+      );
     },
-    [auth, game.id, base.currentPeriod, router],
+    [auth, game.id, base.currentPeriod, write],
   );
+  function startFirstPeriod() {
+    setError(null);
+    const mark = queuedStartClockMark(1);
+    write("startTouchPeriod", [auth, game.id, 1], liveEvents.periodStart(1));
+    if (mark) write("recordClockPause", [auth, game.id, mark], liveEvents.clockPause(mark));
+  }
 
   /**
    * How a swap the coach makes by hand would break the mixed rule ("That
@@ -390,9 +405,21 @@ export function TouchLiveGame({
     return breach.text.startsWith("No ") ? `That leaves no ${breach.text.slice(3)}` : `That puts ${breach.text}`;
   }
 
-  function sub(offId: string | null, onId: string, line?: TouchLine) {
+  // Pause or resume: a clock_pause event, on screen at once.
+  function toggleClock() {
+    if (!isPeriodActive) return;
+    const now = Date.now();
+    const input = clockPauseInput(base.currentPeriod, running, clockAt(now), now);
+    write("recordClockPause", [auth, game.id, input], liveEvents.clockPause(input));
+    // The clock reads now from the tap, not the last tick (a page opened
+    // paused has none yet).
+    setNowMs(now);
+  }
+
+  /** `manual`: made by hand, off the rotation's cadence, so the sub clock doesn't restart (AFL's rule). */
+  function sub(offId: string | null, onId: string, line?: TouchLine, manual = false) {
     setError(null);
-    const input = { off_player_id: offId, on_player_id: onId, ...(line ? { line } : {}), ...at() };
+    const input = { off_player_id: offId, on_player_id: onId, ...(line ? { line } : {}), ...(manual ? { manual } : {}), ...at() };
     write("recordTouchSwap", [auth, game.id, input], liveEvents.swap(input));
   }
   /** A lane in the coach's words ("Wings"), or the field when it plays no lanes. */
@@ -410,7 +437,7 @@ export function TouchLiveGame({
       spotName: spotName(line ?? (offId ? lineOf(offId) : null)),
       ruleWarning: warning,
       onCancel: warning ? () => setSelectedId(reselect) : undefined,
-      onConfirm: () => sub(offId, onId, line),
+      onConfirm: () => sub(offId, onId, line, true),
     });
   }
   function move(a: string, b: string | null, zoneB: TouchLine) {
@@ -552,7 +579,7 @@ export function TouchLiveGame({
   const playsShort = state.lineup ? touchOnField(state.lineup).length - fixOff.length : 0;
   function applyFix() {
     if (fixSubs.length === 0 && fixOff.length === 0) return;
-    for (const s of fixSubs) sub(s.off_player_id, s.on_player_id, s.line);
+    for (const s of fixSubs) sub(s.off_player_id, s.on_player_id, s.line, true);
     if (fixOff.length > 0 && state.lineup) {
       // The subs first, then the boys off with nobody on.
       const swapped = fixSubs.reduce(
@@ -728,6 +755,7 @@ export function TouchLiveGame({
       <div ref={liveRootRef}>
         <TouchBreak
           auth={auth}
+          write={write}
           sport={sport}
           game={game}
           exitHref={exitHref}
@@ -793,7 +821,7 @@ export function TouchLiveGame({
         // banner speaks only for a due sub with nothing to suggest.
         banner={
           <>
-            {isPeriodActive && subDueBannerShows(subDue.due, nextSubs.length) && subAckKey !== subDueKey ? (
+            {isPeriodActive && subDueBannerShows(subDue.due, nextSubs.length, (state.lineup?.bench ?? []).some((id) => canComeOn(id))) && subAckKey !== subDueKey ? (
               <SubDueBanner hint={TOUCH_SUB_DUE_HINT} onAcknowledge={() => setSubAckKey(subDueKey)} />
             ) : null}
             {/* Pinned while the side breaks the mixed rule, as the sub-due
@@ -1085,7 +1113,7 @@ export function TouchLiveGame({
           loading={pending}
           onStart={() => {
             setStartConfirmOpen(false);
-            void run("startTouchPeriod", [auth, game.id, 1]);
+            startFirstPeriod();
           }}
           onCancel={() => setStartConfirmOpen(false)}
         />
@@ -1096,8 +1124,8 @@ export function TouchLiveGame({
           sport={sport}
           periodAbbr={`${periodLetter}${base.currentPeriod}`}
           running={running}
-          onPause={() => setPause((p) => togglePeriodPause(p, Date.now()))}
-          onResume={() => setPause((p) => togglePeriodPause(p, Date.now()))}
+          onPause={toggleClock}
+          onResume={toggleClock}
           onEndEarly={isPeriodActive ? () => setEndConfirmOpen(true) : undefined}
           onClose={() => setClockMenuOpen(false)}
         />
@@ -1106,10 +1134,14 @@ export function TouchLiveGame({
       {endConfirmOpen && (
         <ManualEndQuarterConfirm
           quarter={base.currentPeriod}
-          onConfirm={() => {
+          elapsedMs={elapsedMs}
+          periodMs={periodMs}
+          onConfirm={(full) => {
             setEndConfirmOpen(false);
-            // Ending credits the whole period, as every sport does.
-            void endPeriodAt(periodMs);
+            // The time played, or (the game played on while the app's
+            // clock sat paused) the whole period: the coach's choice. It
+            // used to be the whole period, silently (round 3, 24 Oct 2026).
+            endPeriodAt(full ? periodMs : Math.min(clockAt(Date.now()), periodMs));
           }}
           onCancel={() => setEndConfirmOpen(false)}
           sport={sport}
@@ -1207,7 +1239,7 @@ export function TouchLiveGame({
             const line = fillLine;
             setFillLine(null);
             // A deliberate pick: straight on, with AFL's toast.
-            sub(null, pid, line);
+            sub(null, pid, line, true);
             chrome.swapped(null, pid);
           }}
           onCancel={() => setFillLine(null)}

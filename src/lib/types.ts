@@ -403,7 +403,11 @@ export type GameEventType =
   // Oztag mixed: a try scored by a girl, worth 2 (ITF rule 4.3), both
   // sides. player_id = the scorer on ours.
   | "girls_try"
-  | "opponent_girls_try";
+  | "opponent_girls_try"
+  // Every sport: the clock stopped or started again mid-period.
+  // Metadata: { quarter, paused, elapsed_ms, at_ms } (lib/live/clockPause).
+  // A reload or a second phone rebuilds a paused clock from it.
+  | "clock_pause";
 
 export interface Lineup {
   back: string[];

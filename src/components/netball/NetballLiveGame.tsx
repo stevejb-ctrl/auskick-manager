@@ -32,6 +32,7 @@ import {
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { useHypeSong } from "@/lib/live/useHypeSong";
+import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
@@ -62,6 +63,14 @@ const ManualEndQuarterConfirm = dynamic(
     ),
   { ssr: false },
 );
+// The pieces the game will need with no signal load once the screen is up,
+// while there's signal: a lazy chunk fetched at the siren with none
+// crashed the page to "Loading chunk … failed" (round-3 offline testing,
+// 24 Oct 2026). The bundle on first load stays as lean as before.
+const OFFLINE_CHUNKS = [
+  () => import("@/components/netball/NetballFullTimeReview"),
+  () => import("@/components/live/ManualEndQuarterConfirm"),
+];
 // F2 plan-ahead planner (ROTPLAN-02): the SAME shared GamePlanModal AFL
 // uses, opened on the NEXT period's tab during the final rotation
 // window so the coach can build the upcoming lineup before the break.
@@ -95,6 +104,10 @@ import {
   startNetballGame,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
+import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
+import { liveEvents } from "@/lib/live/optimisticEvents";
+import { clockPauseInput } from "@/lib/live/clockPause";
+import { useEventPeriodPause } from "@/lib/live/useClockPause";
 import { netballPositionLocks, replayLocks, type PlayerLock } from "@/lib/live/locks";
 import { Button } from "@/components/ui/Button";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
@@ -273,16 +286,16 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     availableIds,
     ageGroup,
     quarterLengthSeconds,
-    initialLineup,
-    currentQuarter,
-    quarterElapsedMs: _quarterElapsedMs,
-    quarterStartedAt,
-    teamScore,
-    opponentScore,
-    playerGoals,
-    quarterEnded,
-    finalised,
-    thisGameEvents,
+    initialLineup: serverInitialLineup,
+    currentQuarter: serverQuarter,
+    quarterElapsedMs: serverQuarterElapsedMs,
+    quarterStartedAt: serverQuarterStartedAt,
+    teamScore: serverTeamScore,
+    opponentScore: serverOpponentScore,
+    playerGoals: serverPlayerGoals,
+    quarterEnded: serverQuarterEnded,
+    finalised: serverFinalised,
+    thisGameEvents: serverEvents,
     seasonEvents,
     trackScoring = false,
     clockMultiplier = 1,
@@ -309,6 +322,33 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // reload. Pairs with revalidatePath calls in netball-actions.ts.
   // (Phase 4 deferred items #1 + #2 / 04-EVIDENCE.md §5.)
   const router = useRouter();
+
+  // ─── The game: the server's, then this phone's writes not back yet ──
+  // The clock's pauses and the period's end and start are optimistic
+  // events (useOptimisticEvents): on screen at once, with or without
+  // signal. While any are waiting, the screen replays them over the
+  // server's events, as league's does; otherwise it reads the server's
+  // replay (the page's props). The hooter with no signal used to freeze
+  // the clock at 0:00 with no break, and Start Q2 waited on the save
+  // (round 3, 24 Oct 2026).
+  const { events: thisGameEvents, write: writeEvent, queueReady } = useOptimisticEvents(serverEvents, {
+    gameId: game.id,
+    // A write that can't save comes off the screen, which says so.
+    onError: () => {},
+  });
+  const pendingReplay = useMemo(
+    () => (thisGameEvents === serverEvents ? null : replayNetballGame(thisGameEvents)),
+    [thisGameEvents, serverEvents],
+  );
+  const currentQuarter = pendingReplay?.currentQuarter ?? serverQuarter;
+  const quarterEnded = pendingReplay?.quarterEnded ?? serverQuarterEnded;
+  const finalised = pendingReplay?.finalised ?? serverFinalised;
+  const quarterStartedAt = pendingReplay ? pendingReplay.quarterStartedAt : serverQuarterStartedAt;
+  const _quarterElapsedMs = pendingReplay?.quarterElapsedMs ?? serverQuarterElapsedMs;
+  const teamScore = pendingReplay?.teamScore ?? serverTeamScore;
+  const opponentScore = pendingReplay?.opponentScore ?? serverOpponentScore;
+  const playerGoals = pendingReplay?.playerGoals ?? serverPlayerGoals;
+  const initialLineup = pendingReplay ? pendingReplay.lineup : serverInitialLineup;
 
   // Steve 2026-05-16 (AFL parity): hype song. Same hook AFL uses,
   // same call shape. `hydrated=true` here unconditionally because
@@ -346,18 +386,25 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // current pause (null when running). `accumulatedPauseMs` is the
   // total paused time across all pauses this quarter — subtracted
   // from `Date.now() - quarterStartedAt` so the clock skips paused
-  // intervals. Both are in-memory only (lost on reload), mirroring
-  // AFL's pause model — the comment on liveGameStore.ts explicitly
-  // notes pauses don't survive reload there either.
-  const [pausedAtMs, setPausedAtMs] = useState<number | null>(null);
-  const [accumulatedPauseMs, setAccumulatedPauseMs] = useState(0);
-  // Reset pause state on quarter transition so a fresh quarter
-  // starts unpaused with zero accumulated. Otherwise the
-  // accumulatedPauseMs from Q1 would silently steal time from Q2.
+  // intervals. Both come from the quarter's latest clock_pause event
+  // (lib/live/clockPause), so a reload keeps a pause: before, the
+  // clock came back running from quarter_start, ran past the hooter
+  // and ended the quarter with everyone on full time (round 2, 24 Oct
+  // 2026). A fresh quarter has none, so it starts running. A tap
+  // writes the event optimistically (on screen at once).
+  const quarterStartedAtMs = (() => {
+    if (!quarterStartedAt) return null;
+    const ms = Date.parse(quarterStartedAt);
+    return Number.isNaN(ms) ? null : ms;
+  })();
+  const savedPause = useEventPeriodPause(thisGameEvents, currentQuarter, quarterStartedAtMs, clockMultiplier);
+  // The hooter holds the clock too (below), until quarter_end lands.
+  const [hooterFrozenAtMs, setHooterFrozenAtMs] = useState<number | null>(null);
   useEffect(() => {
-    setPausedAtMs(null);
-    setAccumulatedPauseMs(0);
+    setHooterFrozenAtMs(null);
   }, [currentQuarter]);
+  const pausedAtMs = savedPause.pausedAtMs ?? hooterFrozenAtMs;
+  const accumulatedPauseMs = savedPause.accumulatedPauseMs;
   // Scroll to the top of the page (= top of the scorebug) when a
   // new quarter goes live. Without this the page inherits the
   // Q-break scroll position and the coach lands mid-page as the
@@ -367,6 +414,12 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     if (typeof window === "undefined") return;
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [currentQuarter, quarterEnded, finalised]);
+  // The summary after Finish opens at the top: the final score and Copy
+  // for group chat, not the review's scroll (round 2, 24 Oct 2026).
+  useScrollToTopOnFinish(finalised);
+  useEffect(() => {
+    for (const load of OFFLINE_CHUNKS) void load().catch(() => {});
+  }, []);
   useEffect(() => {
     if (currentQuarter < 1 || quarterEnded || finalised || !quarterStartedAt) {
       return;
@@ -394,11 +447,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // sync. Mirrors AFL's clockMultiplier semantics in LiveGame.tsx.
   // Date.parse returns NaN on malformed input; treat that the same
   // as a null start (falls through to fallbackElapsedMs).
-  const quarterStartedAtMs = (() => {
-    if (!quarterStartedAt) return null;
-    const ms = Date.parse(quarterStartedAt);
-    return Number.isNaN(ms) ? null : ms;
-  })();
   const clockMs = computePeriodClockMs({
     currentQuarter,
     quarterEnded,
@@ -419,14 +467,39 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // server confirmation). The hooter's setPausedAtMs is the
     // freeze anchor; users shouldn't be able to break it.
     if (hooterFiredForQuarterRef.current === currentQuarter) return;
-    if (pausedAtMs !== null) {
-      // Resume: bank the elapsed pause-time and clear the pause anchor.
-      setAccumulatedPauseMs((prev) => prev + (Date.now() - pausedAtMs));
-      setPausedAtMs(null);
-    } else {
-      setPausedAtMs(Date.now());
-    }
-  }, [currentQuarter, quarterEnded, finalised, pausedAtMs]);
+    // Pause (or resume, banking the stoppage): a clock_pause event at
+    // the clock's reading now.
+    const now = Date.now();
+    const input = clockPauseInput(
+      currentQuarter,
+      pausedAtMs === null,
+      computePeriodClockMs({
+        currentQuarter,
+        quarterEnded,
+        finalised,
+        quarterStartedAtMs,
+        pausedAtMs,
+        accumulatedPauseMs,
+        fallbackElapsedMs: _quarterElapsedMs,
+        clockMultiplier,
+        nowMs: now,
+      }),
+      now,
+    );
+    writeEvent("recordClockPause", [auth, game.id, input], liveEvents.clockPause(input));
+  }, [
+    currentQuarter,
+    quarterEnded,
+    finalised,
+    pausedAtMs,
+    quarterStartedAtMs,
+    accumulatedPauseMs,
+    _quarterElapsedMs,
+    clockMultiplier,
+    writeEvent,
+    auth,
+    game.id,
+  ]);
 
   // Quarter length in ms — varies by age group (Set 6min, Go/11u 8min,
   // 12u 10min, 13u 12min, Open 15min). Drives the countdown header and
@@ -507,7 +580,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // below — store the QUARTER NUMBER that already fired so a new
   // quarter automatically becomes fireable again.
   const manualEndFiredForQuarterRef = useRef<number | null>(null);
-  function handleManualEndQuarter() {
+  // `full`: credit the whole quarter (the game played on while the
+  // clock sat paused); otherwise the time the clock saw (round 3: the
+  // whole quarter was the silent default).
+  function handleManualEndQuarter(full: boolean) {
     if (manualEndFiredForQuarterRef.current === currentQuarter) return;
     manualEndFiredForQuarterRef.current = currentQuarter;
     // Block the auto-hooter from also firing when we land on the
@@ -519,13 +595,12 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // Same sirenic haptic as the auto-hooter below — manual-end is
     // still "the quarter is ending" from the player's POV. P1-10.
     void hapticSiren();
-    const { flushed } = enqueueLiveAction("endNetballQuarter", [
-      auth,
-      game.id,
-      currentQuarter,
-      quarterLengthMs,
-    ]);
-    flushed.then(() => startTransition(() => router.refresh()));
+    const elapsed = full ? quarterLengthMs : Math.min(clockMs, quarterLengthMs);
+    writeEvent(
+      "endNetballQuarter",
+      [auth, game.id, currentQuarter, elapsed],
+      liveEvents.periodEnd({ quarter: currentQuarter, elapsed_ms: elapsed }),
+    );
   }
 
   // Pending goal: tap on a GS/GA token doesn't fire the goal directly;
@@ -567,8 +642,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // playerGoals object identity. teamScore/opponentScore are
     // fresh objects each props refresh, so depending on
     // `.goals` keeps the effect from firing on no-op re-renders
-    // where only an unrelated prop changed.
-  }, [teamScore.goals, opponentScore.goals, playerGoals]);
+    // where only an unrelated prop changed. The server's props, not the
+    // replay of this phone's pending writes: that's rebuilt on every
+    // pending pause or period end, and would drop a goal still saving.
+  }, [serverTeamScore.goals, serverOpponentScore.goals, serverPlayerGoals]);
 
   const effectiveTeamScore = useMemo(
     () => ({ goals: teamScore.goals + localScoreDelta.team }),
@@ -610,6 +687,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     if (currentQuarter < 1 || quarterEnded || finalised) return;
     if (remainingMs > 0) return;
     if (hooterFiredForQuarterRef.current === currentQuarter) return;
+    // Not before a queued quarter_end from before a reload is drawn: it
+    // would end the quarter a second time.
+    if (!queueReady) return;
     // Picker-race guard: if the goal-confirm modal is open (coach
     // tapped a player and is mid-confirm), DON'T fire the auto-
     // hooter. Stagehand explore 2026-05-10 caught this in netball
@@ -629,7 +709,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // reported 2026-05-15. Idempotent guard: if the coach manually
     // paused earlier and the hooter then auto-fires, don't overwrite
     // the earlier pause anchor.
-    setPausedAtMs((prev) => prev ?? Date.now());
+    setHooterFrozenAtMs((prev) => prev ?? Date.now());
     // Bump the pulse key so the next render (Q-break score-bug for
     // Q1-3, Q4-end for Q4) shows the brand halo on the clock pill.
     // Re-keys per quarter so the pulse fires once per hooter.
@@ -637,15 +717,12 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // Siren-pattern haptic — quarter end IS the hooter, the same
     // sirenic moment AFL pre-existed and full-time mirrors. P1-10.
     void hapticSiren();
-    const { flushed: hooterFlushed } = enqueueLiveAction("endNetballQuarter", [
-      auth,
-      game.id,
-      currentQuarter,
-      quarterLengthMs,
-    ]);
-    // Chain refresh after the queue flushes so SSR sees the
-    // quarter_end event and renders the Q-break shell.
-    hooterFlushed.then(() => startTransition(() => router.refresh()));
+    // On screen at once (the break opens), saved when there's signal.
+    writeEvent(
+      "endNetballQuarter",
+      [auth, game.id, currentQuarter, quarterLengthMs],
+      liveEvents.periodEnd({ quarter: currentQuarter, elapsed_ms: quarterLengthMs }),
+    );
   }, [
     remainingMs,
     currentQuarter,
@@ -654,8 +731,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     auth,
     game.id,
     quarterLengthMs,
-    router,
+    writeEvent,
     pendingGoal,
+    queueReady,
   ]);
 
   // ─── Injured / loaned — derived from events ─────────────────
@@ -1886,6 +1964,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         {walkthroughOverlay}
         <NetballQuarterBreak
           auth={auth}
+          write={writeEvent}
           gameId={game.id}
           game={game}
           exitHref={exitHref}
@@ -2082,9 +2161,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           quarter={currentQuarter}
           sport="netball"
           clock={isPaused ? "paused" : "running"}
-          onConfirm={() => {
+          elapsedMs={Math.min(clockMs, quarterLengthMs)}
+          periodMs={quarterLengthMs}
+          onConfirm={(full) => {
             setShowManualEndConfirm(false);
-            handleManualEndQuarter();
+            handleManualEndQuarter(full);
           }}
           onCancel={() => setShowManualEndConfirm(false)}
         />

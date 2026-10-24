@@ -16,6 +16,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
+import { liveEvents } from "@/lib/live/optimisticEvents";
+import type { OptimisticWrite } from "@/lib/live/useOptimisticEvents";
+import { queuedStartClockMark } from "@/lib/live/useClockPause";
 import { useStagedBreakDraft } from "@/lib/live/useStagedBreakDraft";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { hapticTap } from "@/lib/haptics";
@@ -54,6 +57,8 @@ const swapSlots = (l: Lineup, a: BoardSlot, b: BoardSlot): Lineup => lineupOf(sw
 
 interface Props {
   auth: LiveAuth;
+  /** The live screen's optimistic write: Start shows at once, with or without signal. */
+  write: OptimisticWrite;
   sport: RugbySport;
   game: Game;
   exitHref?: string;
@@ -75,6 +80,7 @@ interface Props {
 
 export function LeagueBreak({
   auth,
+  write,
   sport,
   game,
   exitHref,
@@ -282,31 +288,25 @@ export function LeagueBreak({
     void run(enqueueLiveAction("markInjury", [auth, game.id, { player_id: pid, injured: true, ...at, reason: "out" }]).flushed);
   }
 
-  async function start() {
-    setPending(true);
+  // Start: the break's lineup, then the period, as optimistic writes
+  // through the live screen's `write`, so the period starts at the tap
+  // with or without signal (round 3: it waited on both saves, and with no
+  // signal it never started). With no signal the clock's start rides
+  // along too (queuedStartClockMark).
+  function start() {
     setError(null);
-    try {
-      // Kids who can't play start on the bench, their places left empty.
-      const lineup = benchSidelinedInLeagueLineup(draft, sidelinedSet);
-      await enqueueLiveAction("recordLeagueLineupSet", [
-        auth,
-        game.id,
-        // Named positions: record each kid's slot (UX plan 5.7).
-        withLeagueSlots(lineup, leaguePlaybook, held),
-        undefined,
-      ]).flushed;
-      await enqueueLiveAction("startLeagueQuarter", [auth, game.id, nextPeriod]).flushed;
-      // This period's plan is used; later planned periods stay (D-14).
-      if (pin) setPlannedRotation(consumePeriodPin(pin, state.currentQuarter));
-      stagedBreakDraft.clear();
-      void hapticTap("medium");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "That didn't save. Try again.");
-      setPending(false);
-      return;
-    }
-    setPending(false);
-    router.refresh();
+    // Kids who can't play start on the bench, their places left empty.
+    // Named positions: record each kid's slot (UX plan 5.7); Repeat keeps
+    // the slot each kid held (round 2).
+    const lineup = withLeagueSlots(benchSidelinedInLeagueLineup(draft, sidelinedSet), leaguePlaybook, held);
+    const mark = queuedStartClockMark(nextPeriod);
+    write("recordLeagueLineupSet", [auth, game.id, lineup, undefined], liveEvents.breakLineup(lineup));
+    write("startLeagueQuarter", [auth, game.id, nextPeriod], liveEvents.periodStart(nextPeriod));
+    if (mark) write("recordClockPause", [auth, game.id, mark], liveEvents.clockPause(mark));
+    // This period's plan is used; later planned periods stay (D-14).
+    if (pin) setPlannedRotation(consumePeriodPin(pin, state.currentQuarter));
+    stagedBreakDraft.clear();
+    void hapticTap("medium");
   }
 
   // ── The break screen ────────────────────────────────────────
@@ -536,7 +536,7 @@ export function LeagueBreak({
             }
           : undefined
       }
-      start={{ onStart: () => void start(), pending, cue: getSportConfig(sport).words.startCue, error }}
+      start={{ onStart: start, pending, cue: getSportConfig(sport).words.startCue, error }}
     />
   );
 }

@@ -43,6 +43,7 @@ const GamePlanModal = dynamic(
 import { SubDueBanner } from "@/components/live/SubDueBanner";
 import { subDueBannerShows } from "@/components/live/SubDue";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
+import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import { hapticTap } from "@/lib/haptics";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
@@ -58,13 +59,11 @@ import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
 import { liveEvents, optimisticUndo } from "@/lib/live/optimisticEvents";
 import { useLiveChrome } from "@/components/live/useLiveChrome";
-import {
-  computePeriodClockMs,
-  togglePeriodPause,
-  RUNNING_CLOCK,
-  type PeriodPause,
-} from "@/lib/live/periodClock";
+import { computePeriodClockMs } from "@/lib/live/periodClock";
+import { clockPauseInput } from "@/lib/live/clockPause";
+import { useEventPeriodPause } from "@/lib/live/useClockPause";
 import { resolveLeagueSubAnchorElapsed } from "@/lib/sports/rugby_league/subAnchor";
+import { leagueSwapPossible } from "@/lib/sports/rugby_league/legalSwap";
 import { finaliseLeagueGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/league-actions";
 import { LeagueField } from "./LeagueField";
 import { LeagueBenchStrip } from "./LeagueBenchStrip";
@@ -212,7 +211,7 @@ export function LeagueLiveGame({
   const [error, setError] = useState<string | null>(null);
   // The server's events, then the writes it hasn't returned yet, and the
   // game they replay to (the server's own replay while nothing's pending).
-  const { events: thisGameEvents, write } = useOptimisticEvents(serverEvents, { gameId: game.id, onError: setError });
+  const { events: thisGameEvents, write, queueReady } = useOptimisticEvents(serverEvents, { gameId: game.id, onError: setError });
   const state = useMemo(
     () => (thisGameEvents === serverEvents ? serverState : replayRugbyGame(thisGameEvents, rugbyPoints(sport))),
     [thisGameEvents, serverEvents, serverState, sport],
@@ -292,13 +291,14 @@ export function LeagueLiveGame({
   // `elapsedMs` (game ms) is netball's period clock: wall-clock time
   // since `state.quarterStartedAt`, less the real time spent paused,
   // scaled by clockMultiplier. A pause freezes it; resuming banks the
-  // stoppage (togglePeriodPause) so the clock carries on from where
-  // it stopped instead of jumping ahead by the paused time. Pause is
-  // CLIENT-ONLY: it doesn't persist across reloads yet — needs a
-  // `quarter_pause` / `quarter_resume` event pair to lock in server-
-  // side. Filed as a follow-up; the UX matches AFL for now.
+  // stoppage so the clock carries on from where it stopped instead of
+  // jumping ahead by the paused time. The pause is the period's latest
+  // clock_pause event (lib/live/clockPause), so a reload or a second
+  // phone keeps it.
   const [nowMs, setNowMs] = useState<number | null>(null);
-  const [pause, setPause] = useState<PeriodPause>(RUNNING_CLOCK);
+  const quarterStartedAtMs = state.quarterStartedAt ? Date.parse(state.quarterStartedAt) : NaN;
+  const startedAtMs = Number.isNaN(quarterStartedAtMs) ? null : quarterStartedAtMs;
+  const pause = useEventPeriodPause(thisGameEvents, state.currentQuarter, startedAtMs, clockMultiplier);
   const running = pause.pausedAtMs === null;
   useEffect(() => {
     if (!state.quarterStartedAt || state.quarterEnded || state.finalised) {
@@ -310,32 +310,28 @@ export function LeagueLiveGame({
     return () => window.clearInterval(id);
   }, [state.quarterStartedAt, state.quarterEnded, state.finalised, running]);
 
-  const elapsedMs = useMemo(() => {
-    // Until the first client tick, show the server's value so the
-    // hydrated clock matches the server render.
-    if (nowMs == null) return state.quarterElapsedMs ?? 0;
-    const startedAtMs = state.quarterStartedAt ? Date.parse(state.quarterStartedAt) : NaN;
-    return computePeriodClockMs({
-      currentQuarter: state.currentQuarter,
-      quarterEnded: state.quarterEnded,
-      finalised: state.finalised,
-      quarterStartedAtMs: Number.isNaN(startedAtMs) ? null : startedAtMs,
-      pausedAtMs: pause.pausedAtMs,
-      accumulatedPauseMs: pause.accumulatedPauseMs,
-      fallbackElapsedMs: state.quarterElapsedMs ?? 0,
-      clockMultiplier,
-      nowMs,
-    });
-  }, [
-    nowMs,
-    state.currentQuarter,
-    state.quarterEnded,
-    state.finalised,
-    state.quarterStartedAt,
-    state.quarterElapsedMs,
-    pause,
-    clockMultiplier,
-  ]);
+  const clockAt = useCallback(
+    (now: number) =>
+      computePeriodClockMs({
+        currentQuarter: state.currentQuarter,
+        quarterEnded: state.quarterEnded,
+        finalised: state.finalised,
+        quarterStartedAtMs: startedAtMs,
+        pausedAtMs: pause.pausedAtMs,
+        accumulatedPauseMs: pause.accumulatedPauseMs,
+        fallbackElapsedMs: state.quarterElapsedMs ?? 0,
+        clockMultiplier,
+        nowMs: now,
+      }),
+    [state.currentQuarter, state.quarterEnded, state.finalised, startedAtMs, state.quarterElapsedMs, pause, clockMultiplier],
+  );
+  // Until the first client tick, a running clock shows the server's
+  // value so the hydrated clock matches the server render; a paused one
+  // reads its pause, which doesn't move.
+  const elapsedMs = useMemo(
+    () => (nowMs == null && running ? state.quarterElapsedMs ?? 0 : clockAt(nowMs ?? 0)),
+    [nowMs, running, state.quarterElapsedMs, clockAt],
+  );
 
   // AFL's live chrome: the undo strip's flash, the swap confirm and
   // toast, and the season's lent minutes on the long-press sheet.
@@ -356,17 +352,19 @@ export function LeagueLiveGame({
   elapsedRef.current = elapsedMs;
   const at = () => ({ quarter: state.currentQuarter, elapsed_ms: elapsedRef.current });
 
-  // Reset pause when the period flips — a fresh quarter starts
-  // running by default, with no stoppages banked.
-  useEffect(() => {
-    setPause(RUNNING_CLOCK);
-  }, [state.currentQuarter, state.quarterEnded]);
-
+  // Pause or resume: a clock_pause event, on screen at once. A fresh
+  // period has none, so it starts running.
   function toggleClock() {
     if (!state.quarterStartedAt || state.quarterEnded || state.finalised) {
       return;
     }
-    setPause((prev) => togglePeriodPause(prev, Date.now()));
+    if (hooterFiredRef.current) return;
+    const now = Date.now();
+    const input = clockPauseInput(state.currentQuarter, running, clockAt(now), now);
+    write("recordClockPause", [auth, game.id, input], liveEvents.clockPause(input));
+    // The clock reads now from the tap, not the last tick (a page opened
+    // paused has none yet).
+    setNowMs(now);
   }
   function handleClockTap() {
     if (!state.quarterStartedAt || state.quarterEnded || state.finalised) {
@@ -378,6 +376,9 @@ export function LeagueLiveGame({
   const hooterFiredRef = useRef(false);
   // Anchor for the DeviceFrame scroll-reset (see handleStartNextPeriod).
   const liveRootRef = useRef<HTMLDivElement>(null);
+  // The summary after Finish opens at the top: the final score and Copy
+  // for group chat, not the review's scroll (round 2, 24 Oct 2026).
+  useScrollToTopOnFinish(state.finalised, liveRootRef);
 
   // ── Period label resolver ─────────────────────────────────────
   const { label: periodLabel, plural: periodLabelPlural } = periodLabels(sport, ageGroup);
@@ -715,19 +716,7 @@ export function LeagueLiveGame({
     setSubAckedAtBaseMs(null);
   }, [state.currentQuarter]);
 
-  // The sub-due banner beeps and buzzes as it appears, as AFL's does
-  // (league and union were silent; a banner is easier to miss than the
-  // modal it replaced).
-  const subDueShowing = subIsDue && subAckedAtBaseMs !== lastSwapOrPeriodElapsed;
   useSubDueAudioUnlock();
-  const subDueShowingRef = useRef(false);
-  useEffect(() => {
-    if (subDueShowing && !subDueShowingRef.current) {
-      playSubDueBeep();
-      void hapticTap("heavy");
-    }
-    subDueShowingRef.current = subDueShowing;
-  }, [subDueShowing]);
 
   // ── Next-sub suggestion ──────────────────────────────────────
   // FR / DH wearers are excluded from the off-candidate pool so the
@@ -811,6 +800,39 @@ export function LeagueLiveGame({
     const filling = new Set(fillSuggestions.map((f) => f.playerId));
     return swapSuggestions.filter((s) => !filling.has(s.on.playerId));
   }, [swapSuggestions, fillSuggestions]);
+
+  // A sub is due only when the laws allow one: with §6 (or the floor)
+  // keeping every kid on, "Sub due — rotate a player off" told the coach
+  // to break the law, as the §6 card below said "Stay on to the hooter"
+  // (round 2, 24 Oct 2026). The laws are mustStayOn's (legalSwap.ts).
+  const swapPossible = useMemo(
+    () =>
+      isPeriodActive &&
+      !!lineup &&
+      leagueSwapPossible({
+        events: thisGameEvents,
+        period: state.currentQuarter,
+        lineup: { forwards: lineup.forwards, backs: lineup.backs, bench: swappableBench.map((p) => p.id) },
+        elapsedMs,
+        laws: subLaws,
+        playbook: leaguePlaybook,
+        keepOn: excludeOff,
+      }),
+    [isPeriodActive, lineup, thisGameEvents, state.currentQuarter, swappableBench, elapsedMs, subLaws, leaguePlaybook, excludeOff],
+  );
+
+  // The sub-due banner beeps and buzzes as it appears, as AFL's does
+  // (league and union were silent; a banner is easier to miss than the
+  // modal it replaced).
+  const subDueShowing = subIsDue && swapPossible && subAckedAtBaseMs !== lastSwapOrPeriodElapsed;
+  const subDueShowingRef = useRef(false);
+  useEffect(() => {
+    if (subDueShowing && !subDueShowingRef.current) {
+      playSubDueBeep();
+      void hapticTap("heavy");
+    }
+    subDueShowingRef.current = subDueShowing;
+  }, [subDueShowing]);
 
   // ── Plan-NEXT-period (F2 / ROTPLAN-02) ───────────────────────
   // RL has no separate break component — the q-break is an inline
@@ -910,20 +932,19 @@ export function LeagueLiveGame({
     setSelectedPlayerId(null);
   }
 
+  // The period's end is an optimistic write, like every other tap: the
+  // break opens at the hooter with or without signal (round 3, 24 Oct
+  // 2026: it waited on the save).
   const endQuarterAtClient = useCallback(
-    async (elapsed: number) => {
-      setPending(true);
-      const { flushed } = enqueueLiveAction("endLeagueQuarter", [
-        auth,
-        game.id,
-        state.currentQuarter,
-        elapsed,
-      ]);
-      await flushed;
-      setPending(false);
-      router.refresh();
+    (elapsed: number) => {
+      setError(null);
+      write(
+        "endLeagueQuarter",
+        [auth, game.id, state.currentQuarter, elapsed],
+        liveEvents.periodEnd({ quarter: state.currentQuarter, elapsed_ms: elapsed }),
+      );
     },
-    [auth, game.id, state.currentQuarter, router],
+    [auth, game.id, state.currentQuarter, write],
   );
 
   useEffect(() => {
@@ -938,6 +959,9 @@ export function LeagueLiveGame({
     // auto-end during a pause; the coach is making a deliberate
     // stop and will resume / end explicitly.
     if (!running) return;
+    // Not before a queued period end from before a reload is drawn: it
+    // would end the period a second time.
+    if (!queueReady) return;
     const periodMs = periodSeconds * 1000;
     if (elapsedMs >= periodMs) {
       hooterFiredRef.current = true;
@@ -951,6 +975,7 @@ export function LeagueLiveGame({
     periodSeconds,
     running,
     endQuarterAtClient,
+    queueReady,
   ]);
 
 
@@ -1113,9 +1138,11 @@ export function LeagueLiveGame({
   }
 
   // A rolling sub: `onId` takes `offId`'s spot, `offId` goes to the bench.
-  function sub(offId: string, onId: string) {
+  // `manual`: made by hand, off the rotation's cadence, so the sub clock
+  // doesn't restart (AFL's rule).
+  function sub(offId: string, onId: string, manual = false) {
     setError(null);
-    const input = { off_player_id: offId, on_player_id: onId, ...at() };
+    const input = { off_player_id: offId, on_player_id: onId, ...(manual ? { manual } : {}), ...at() };
     write("recordLeagueSwap", [auth, game.id, input], liveEvents.swap(input));
   }
 
@@ -1201,7 +1228,7 @@ export function LeagueLiveGame({
       // Never bring a hurt or lent kid on, e.g. one selected before they
       // were lent (Stagehand round 4): this tap starts a new selection.
       if (injuredSet.has(on) || loanedSet.has(on)) return false;
-      chrome.confirmSwap({ offId: off, onId: on, spotName: lineName((firstZone ?? secondZone)!), onConfirm: () => sub(off, on) });
+      chrome.confirmSwap({ offId: off, onId: on, spotName: lineName((firstZone ?? secondZone)!), onConfirm: () => sub(off, on, true) });
       handleClearSelection();
       return true;
     }
@@ -1560,6 +1587,7 @@ export function LeagueLiveGame({
         )}
         <LeagueBreak
           auth={auth}
+          write={write}
           sport={sport}
           game={game}
           exitHref={exitHref}
@@ -1634,7 +1662,7 @@ export function LeagueLiveGame({
         // has pairs (SubDue.tsx); the banner speaks only for a due sub
         // with nothing to suggest.
         banner={
-          subDueShowing && subDueBannerShows(true, isPeriodActive ? nextSubSuggestions.length + fillSuggestions.length : 0) ? (
+          subDueShowing && subDueBannerShows(true, isPeriodActive ? nextSubSuggestions.length + fillSuggestions.length : 0, swapPossible) ? (
             <SubDueBanner onAcknowledge={() => setSubAckedAtBaseMs(lastSwapOrPeriodElapsed)} />
           ) : null
         }
@@ -2289,21 +2317,16 @@ export function LeagueLiveGame({
       {endQConfirmOpen && (
         <ManualEndQuarterConfirm
           quarter={state.currentQuarter}
-          onConfirm={() => {
+          elapsedMs={Math.min(elapsedMs, periodSeconds * 1000)}
+          periodMs={periodSeconds * 1000}
+          onConfirm={(full) => {
             setEndQConfirmOpen(false);
-            // Credit the FULL half / quarter to on-field players on
-            // a manual end-early, NOT the live elapsed time. Mirrors
-            // AFL's `handleEndQuarter({ creditFullQuarter: true })`:
-            // if the coach hits "End H2" after only 5 minutes of a
-            // 10-minute half (paused clock, real game ran on, etc.)
-            // the players actually played the whole half — the
-            // event log should reflect that, not the under-counted
-            // scaled-clock reading. The auto-hooter path above
-            // already passes periodMs; the manual path used to pass
-            // `elapsedMs` (live elapsed), under-crediting time-on
-            // and breaking the F/C/B zone-time bar + unbroken-period
-            // compliance check.
-            void endQuarterAtClient(periodSeconds * 1000);
+            // The time played, or (the game played on while the app's
+            // clock sat paused) the whole half / quarter: the coach's
+            // choice, as AFL's. Crediting the whole period was the
+            // silent default, so a half ended seconds in gave every kid
+            // on the field the full half (round 3, 24 Oct 2026).
+            endQuarterAtClient(full ? periodSeconds * 1000 : Math.min(clockAt(Date.now()), periodSeconds * 1000));
           }}
           onCancel={() => setEndQConfirmOpen(false)}
           sport={sport}

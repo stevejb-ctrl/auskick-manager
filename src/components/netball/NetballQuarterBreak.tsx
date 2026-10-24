@@ -11,6 +11,9 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
+import { liveEvents } from "@/lib/live/optimisticEvents";
+import type { OptimisticWrite } from "@/lib/live/useOptimisticEvents";
+import { queuedStartClockMark } from "@/lib/live/useClockPause";
 import { setNetballOnFieldSize } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { type InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
 import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
@@ -62,6 +65,8 @@ const MODE_OF: Record<BreakStrategy, NetballMode> = {
 
 interface Props {
   auth: LiveAuth;
+  /** The live screen's optimistic write: Start shows at once, with or without signal. */
+  write: OptimisticWrite;
   gameId: string;
   game: Game;
   /** The top bar's Exit. */
@@ -124,6 +129,7 @@ const lineupOf = (s: StagedLineup): GenericLineup => ({ positions: s.groups, ben
 
 export function NetballQuarterBreak({
   auth,
+  write,
   gameId,
   game,
   exitHref,
@@ -567,9 +573,19 @@ export function NetballQuarterBreak({
     // Sidelined kids stay in the game, on the bench: nobody is lost from
     // the lineup, whichever strategy built the draft.
     staged = { ...staged, bench: withSidelined(staged).bench };
+    // Optimistic writes through the live screen's `write`: the quarter
+    // starts at the tap, with or without signal (it used to wait for the
+    // save and a refresh). With no signal the clock's start rides along
+    // too (queuedStartClockMark).
+    const mark = queuedStartClockMark(nextQuarter);
     startTransition(() => {
-      enqueueLiveAction("periodBreakSwap", [auth, gameId, nextQuarter, staged, midQuarterSubs]);
-      const { flushed } = enqueueLiveAction("startNetballQuarter", [auth, gameId, nextQuarter]);
+      write(
+        "periodBreakSwap",
+        [auth, gameId, nextQuarter, staged, midQuarterSubs],
+        liveEvents.netballBreakSwap({ quarter: nextQuarter, lineup: staged, midQuarterSubs }),
+      );
+      write("startNetballQuarter", [auth, gameId, nextQuarter], liveEvents.periodStart(nextQuarter));
+      if (mark) write("recordClockPause", [auth, gameId, mark], liveEvents.clockPause(mark));
       // The staged lineup is now the quarter's: nothing left to restore.
       stagedBreakDraft.clear();
       onStarted();
@@ -579,7 +595,6 @@ export function NetballQuarterBreak({
       }
       // Medium haptic — the "go!" tap, aligned to the umpire's whistle.
       void hapticTap("medium");
-      flushed.then(() => router.refresh());
     });
   }
 
