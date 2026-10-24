@@ -453,7 +453,9 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                   gameId={params.gameId}
                   shareToken={g.share_token}
                   edit={
-                    isUp && role === "admin"
+                    // A finished game's opponent or date can be fixed too
+                    // (round 3: a typo stayed in the history for good).
+                    (isUp || isFinal) && role === "admin"
                       ? {
                           game: {
                             id: g.id,

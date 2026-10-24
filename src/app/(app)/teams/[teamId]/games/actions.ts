@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
 import { newGameDefaults, PERIOD_MINUTES_MAX } from "@/lib/games/newGameDefaults";
+import { gameDateError } from "@/lib/games/gameDates";
 import type { ActionResult } from "@/lib/types";
 
 async function getAuthedAdmin(teamId: string) {
@@ -53,9 +54,8 @@ export async function createGame(
   if (!input.opponent.trim()) {
     return { success: false, error: "Opponent is required." };
   }
-  if (!input.scheduled_at) {
-    return { success: false, error: "Date and time are required." };
-  }
+  const dateError = gameDateError(input.scheduled_at);
+  if (dateError) return { success: false, error: dateError };
 
   // Pre-generate the row UUID server-side so we don't need an
   // `.insert(...).select("id").single()` read-back. Even though
@@ -272,6 +272,17 @@ export async function updateGame(
 ): Promise<ActionResult> {
   const { supabase, error } = await getAuthedAdmin(teamId);
   if (error) return { success: false, error };
+
+  if (patch.opponent !== undefined && !patch.opponent.trim()) {
+    return { success: false, error: "Opponent is required." };
+  }
+  // A new date must be a sane one; a finished game's old date can stay.
+  if (patch.scheduled_at !== undefined) {
+    const { data: current } = await supabase.from("games").select("scheduled_at").eq("id", gameId).eq("team_id", teamId).maybeSingle();
+    const same = current && new Date(current.scheduled_at as string).getTime() === new Date(patch.scheduled_at).getTime();
+    const dateError = same ? null : gameDateError(patch.scheduled_at);
+    if (dateError) return { success: false, error: dateError };
+  }
 
   const { error: updateError } = await supabase
     .from("games")

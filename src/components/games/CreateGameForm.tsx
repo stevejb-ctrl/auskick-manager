@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { createGame, updateGame } from "@/app/(app)/teams/[teamId]/games/actions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { gameDateError, gameDateRange, toLocalInputValue } from "@/lib/games/gameDates";
 
 interface CreateGameFormProps {
   teamId: string;
@@ -27,13 +28,6 @@ interface CreateGameFormProps {
   };
 }
 
-/** ISO timestamp → the local "YYYY-MM-DDTHH:mm" a datetime-local input wants. */
-function toLocalInputValue(iso: string): string {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
 export function CreateGameForm({
   teamId,
   onCancel,
@@ -51,6 +45,18 @@ export function CreateGameForm({
   );
   const [notes, setNotes] = useState(existingGame?.notes ?? "");
   const [serverError, setServerError] = useState<string | null>(null);
+  // The browser stops a typo'd year too; an old game's own date stays
+  // pickable. Set after mount: "now" differs between server and client.
+  const [dateRange, setDateRange] = useState<{ min?: string; max?: string }>({});
+  useEffect(() => {
+    const range = gameDateRange();
+    if (existingGame) {
+      const own = toLocalInputValue(existingGame.scheduled_at);
+      if (own < range.min) range.min = own;
+      if (own > range.max) range.max = own;
+    }
+    setDateRange(range);
+  }, [existingGame]);
   const [isPending, startTransition] = useTransition();
 
   function handleSubmit(e: React.FormEvent) {
@@ -63,6 +69,14 @@ export function CreateGameForm({
     }
     if (!scheduledAt) {
       setServerError("Date and time are required.");
+      return;
+    }
+    // A typo'd year (9999) was accepted. An existing game keeps its own
+    // date even if it's old now; only a changed one is checked.
+    const dateChanged = !existingGame || toLocalInputValue(existingGame.scheduled_at) !== scheduledAt;
+    const dateError = dateChanged ? gameDateError(new Date(scheduledAt).toISOString()) : null;
+    if (dateError) {
+      setServerError(dateError);
       return;
     }
 
@@ -102,7 +116,9 @@ export function CreateGameForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    // noValidate: our checks say why in words ("more than 18 months away");
+    // min/max still grey out the picker's far-off dates.
+    <form onSubmit={handleSubmit} noValidate className="space-y-3">
       <div className="space-y-1">
         <Label htmlFor="opponent">Opponent</Label>
         <Input
@@ -121,6 +137,7 @@ export function CreateGameForm({
           <Input
             id="scheduled-at"
             type="datetime-local"
+            {...dateRange}
             value={scheduledAt}
             onChange={(e) => setScheduledAt(e.target.value)}
             disabled={isPending}
