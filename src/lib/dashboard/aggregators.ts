@@ -455,41 +455,65 @@ export function computeAttendance(
       .map((a) => `${a.game_id}:${a.player_id}`)
   );
 
-  // ATTENDANCE = games the player actually took part in (appeared in a
-  // lineup, field or bench). This is the objective record — it doesn't
-  // depend on the coach diligently toggling availability, which is why
-  // the old availability-based % looked wrong. Steve 2026-07-07.
-  const playedByPlayer = new Map<string, Set<string>>();
+  // ATTENDANCE = games the player actually took part in — from the event
+  // log, not the coach's availability toggle, which is why the old
+  // availability-based % looked wrong. Steve 2026-07-07. Taking part
+  // means getting on: a kid who came but sat on the bench all game
+  // hasn't played (UX round 2, 24 Oct 2026).
+  const gotOn = new Map<string, Set<string>>();
   for (const snap of snapshots) {
-    if (!gameIds.has(snap.gameId)) continue;
-    for (const pid of snap.playerIds) {
-      let set = playedByPlayer.get(pid);
-      if (!set) {
-        set = new Set<string>();
-        playedByPlayer.set(pid, set);
-      }
-      set.add(snap.gameId);
+    const ids = new Set<string>();
+    for (const [pid, zm] of Object.entries(snap.playerZoneMs)) {
+      if (ALL_ZONES.some((z) => zm[z] > 0)) ids.add(pid);
     }
+    gotOn.set(snap.gameId, ids);
   }
 
-  const totalGames = seasonGames.length;
+  return attendanceRows(players, seasonGames, (gid) => gotOn.get(gid), (gid, pid) =>
+    availableSet.has(`${gid}:${pid}`),
+  );
+}
 
+/**
+ * Each active kid's games played out of the games they were on the
+ * squad for, most reliable first. Shared by every sport's attendance
+ * table. A kid added mid-season isn't charged for the games before
+ * they joined (UX round 2, 24 Oct 2026: a newcomer read "1 / 2, 50%"
+ * after his first game); a game they played in counts whenever they
+ * were added.
+ */
+export function attendanceRows(
+  players: Player[],
+  seasonGames: Game[],
+  /** Who got on in each game. */
+  gotOn: (gameId: string) => ReadonlySet<string> | undefined,
+  /** Marked available for the game (a secondary signal). */
+  markedAvailable: (gameId: string, playerId: string) => boolean,
+): AttendanceRow[] {
+  const joinedBy = (player: Player, game: Game) => {
+    const joined = Date.parse(player.created_at);
+    return Number.isNaN(joined) || joined <= Date.parse(game.scheduled_at);
+  };
   return players
     .filter((p) => p.is_active)
     .map((player) => {
-      const gamesAvailable = Array.from(gameIds).filter((gid) =>
-        availableSet.has(`${gid}:${player.id}`)
-      ).length;
-      const gamesPlayed = playedByPlayer.get(player.id)?.size ?? 0;
-
+      let gamesAvailable = 0;
+      let gamesPlayed = 0;
+      let gamesOnSquad = 0;
+      for (const game of seasonGames) {
+        const played = gotOn(game.id)?.has(player.id) ?? false;
+        if (markedAvailable(game.id, player.id)) gamesAvailable++;
+        if (played) gamesPlayed++;
+        if (played || joinedBy(player, game)) gamesOnSquad++;
+      }
       return {
         playerId: player.id,
         playerName: player.full_name,
         jerseyNumber: player.jersey_number,
         gamesAvailable,
         gamesPlayed,
-        attendancePct:
-          totalGames > 0 ? Math.round((gamesPlayed / totalGames) * 100) : 0,
+        gamesOnSquad,
+        attendancePct: gamesOnSquad > 0 ? Math.round((gamesPlayed / gamesOnSquad) * 100) : 0,
       };
     })
     .sort((a, b) => b.attendancePct - a.attendancePct);

@@ -707,3 +707,40 @@ describe("an injury, then its replacement at the same moment (UX round 2, 24 Oct
     expect(noah?.teamGameTimePct).toBe(100);
   });
 });
+
+describe("computeAttendance — games on the squad, and games they got on (UX round 2, 24 Oct 2026)", () => {
+  // Noah joined after game 1 and read "1 / 2, 50%". Max turned up late to
+  // game 1, never got on, and read "2 / 2, 100%".
+  const g1 = { ...makeGame("g1"), scheduled_at: "2025-03-01T09:00:00Z" };
+  const g2 = { ...makeGame("g2"), scheduled_at: "2025-03-08T09:00:00Z" };
+  const joined = (id: string, at: string): Player => ({ ...makePlayer(id, null), created_at: at });
+  const players = [
+    joined("p1", "2025-02-01T00:00:00Z"),
+    joined("max", "2025-02-01T00:00:00Z"),
+    joined("noah", "2025-03-03T00:00:00Z"),
+  ];
+  const lineup = (fwd: string[]) => ({ back: [], hback: [], mid: [], hfwd: [], fwd, bench: [] });
+  _seq = 0;
+  const s1 = replayGame("g1", [
+    makeEvent({ type: "lineup_set", metadata: { lineup: lineup(["p1"]) } }),
+    makeEvent({ type: "quarter_start", metadata: { quarter: 1 } }),
+    makeEvent({ type: "player_arrived", player_id: "max", metadata: { quarter: 1, elapsed_ms: 300_000 } }),
+    makeEvent({ type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 720_000 } }),
+  ]);
+  const s2 = replayGame("g2", [
+    makeEvent({ type: "lineup_set", metadata: { lineup: lineup(["p1", "max", "noah"]) } }),
+    makeEvent({ type: "quarter_start", metadata: { quarter: 1 } }),
+    makeEvent({ type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 720_000 } }),
+  ]);
+  const rows = computeAttendance(players, [g1, g2], [], [s1, s2]);
+  const rowOf = (id: string) => rows.find((r) => r.playerId === id);
+
+  it("counts only the games a newcomer was on the squad for", () => {
+    expect(rowOf("noah")).toMatchObject({ gamesPlayed: 1, gamesOnSquad: 1, attendancePct: 100 });
+  });
+
+  it("doesn't count a game a kid came to but never got on in", () => {
+    expect(rowOf("max")).toMatchObject({ gamesPlayed: 1, gamesOnSquad: 2, attendancePct: 50 });
+    expect(rowOf("p1")).toMatchObject({ gamesPlayed: 2, gamesOnSquad: 2, attendancePct: 100 });
+  });
+});

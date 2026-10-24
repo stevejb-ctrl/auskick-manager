@@ -18,6 +18,7 @@ import {
 import { primaryThirdFor, netballSport } from "@/lib/sports/netball";
 import type { Game, GameEvent, GameAvailability, Player } from "@/lib/types";
 import type { AttendanceRow, Season } from "@/lib/dashboard/types";
+import { attendanceRows } from "@/lib/dashboard/aggregators";
 import { awayMsByPeriod } from "@/lib/playbook/awayTime";
 
 const MS_PER_MIN = 60_000;
@@ -410,37 +411,29 @@ export function computeNetballHeadToHead(
   return Array.from(byOpp.values()).sort((a, b) => b.gamesPlayed - a.gamesPlayed);
 }
 
+/**
+ * Games each kid got on court in, out of the games they were on the
+ * squad for: AFL's rule (attendanceRows). It used to count "marked
+ * available" as played, so a kid who came and never got on read 100%,
+ * and a kid added mid-season was charged for the games before (UX round
+ * 2, 24 Oct 2026). Jersey numbers are null in netball; the column stays.
+ */
 export function computeNetballAttendance(
   players: Player[],
   games: Game[],
   availability: GameAvailability[],
+  snapshots: NetballGameSnapshot[],
 ): AttendanceRow[] {
-  const gameIds = new Set(games.map((g) => g.id));
-  const availBy: Record<string, number> = {};
-  for (const a of availability) {
-    if (!gameIds.has(a.game_id)) continue;
-    if (a.status !== "available") continue;
-    availBy[a.player_id] = (availBy[a.player_id] ?? 0) + 1;
-  }
-  const total = games.length;
-  const rows: AttendanceRow[] = [];
-  for (const p of players) {
-    const avail = availBy[p.id] ?? 0;
-    rows.push({
-      playerId: p.id,
-      playerName: p.full_name,
-      // jerseyNumber on netball players is null — we keep the field
-      // present on the row so AttendanceTable's existing column
-      // header stays consistent (it just renders empty).
-      jerseyNumber: p.jersey_number,
-      gamesAvailable: avail,
-      gamesPlayed: avail, // same — we count "available" as "showed up"
-      attendancePct: total > 0 ? Math.round((avail / total) * 100) : 0,
-    });
-  }
-  // Sort by attendance pct descending so most-reliable players are at
-  // the top.
-  return rows.sort((a, b) => b.attendancePct - a.attendancePct);
+  const marked = new Set(
+    availability.filter((a) => a.status === "available").map((a) => `${a.game_id}:${a.player_id}`),
+  );
+  const gotOn = new Map(
+    snapshots.map((s) => [
+      s.gameId,
+      new Set(Object.entries(s.playerThirdMs).filter(([, t]) => t.attack + t.centre + t.defence > 0).map(([pid]) => pid)),
+    ]),
+  );
+  return attendanceRows(players, games, (gid) => gotOn.get(gid), (gid, pid) => marked.has(`${gid}:${pid}`));
 }
 
 // Helpers used by the dashboard shell.

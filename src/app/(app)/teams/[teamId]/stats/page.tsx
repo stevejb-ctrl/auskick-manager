@@ -325,6 +325,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       players,
       seasonGames,
       (availability ?? []) as import("@/lib/types").GameAvailability[],
+      snapshots,
     );
     const playerNames: Record<string, string> = Object.fromEntries(
       players.map((p) => [p.id, p.full_name]),
@@ -350,7 +351,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         totalGames={seasonGames.length}
         hasPlayData={hasPlayData}
         hasScoringData={hasScoringData}
-        hasAvailabilityData={hasAvailabilityData}
+        hasAvailabilityData={hasAvailabilityData || hasPlayData}
         seasonBalance={seasonBalance}
       />
     );

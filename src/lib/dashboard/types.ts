@@ -140,6 +140,12 @@ export interface AttendanceRow {
   playerName: string;
   jerseyNumber: number | null;
   gamesAvailable: number;
+  /** Games they got on in. */
   gamesPlayed: number;
+  /**
+   * Games they were on the squad for: from when they joined, plus any
+   * earlier one they played in. The % is out of these.
+   */
+  gamesOnSquad: number;
   attendancePct: number;
 }
