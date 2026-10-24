@@ -37,6 +37,12 @@ export type UndoResolution<T> =
   | { kind: "gone"; message: string };
 
 export const UNDO_GONE_MESSAGE = "That score was already taken back on another phone.";
+/**
+ * The named score isn't in the game at all: its write never saved (a tap
+ * made offline that didn't get through). Round 3 (24 Oct 2026): such an
+ * undo used to take back an earlier, saved score instead.
+ */
+export const UNDO_MISSING_MESSAGE = "That score didn't save, so there's nothing to take back.";
 
 /**
  * The undo's target among `rows` (the game's scores and score_undos in
@@ -64,7 +70,8 @@ export function resolveUndoTarget<T extends ScoreRow>(
     const named = rows.find(
       (r) => scoreTypes.has(r.type) && ((eventId !== null && r.id === eventId) || (key !== null && r.idempotency_key === key)),
     );
-    if (!named || !standing.includes(named)) return { kind: "gone", message: UNDO_GONE_MESSAGE };
+    if (!named) return { kind: "gone", message: UNDO_MISSING_MESSAGE };
+    if (!standing.includes(named)) return { kind: "gone", message: UNDO_GONE_MESSAGE };
     return { kind: "target", target: named };
   }
   const fallback = opts.fallbackTypes ?? scoreTypes;
@@ -103,6 +110,11 @@ export type UndoTap =
   | { kind: "undo"; optimistic: OptimisticEventInput; target: UndoTargetRef }
   /** The strip's score was already taken back on the other phone. */
   | { kind: "gone" }
+  /**
+   * The strip's score isn't on screen: its write never saved. Nothing to
+   * take back, and never another score in its place.
+   */
+  | { kind: "missing" }
   /** No score standing. */
   | { kind: "none" };
 
@@ -112,7 +124,8 @@ export type UndoTap =
  * (`namedKey`, its write's key): that one, if it still stands. With
  * nothing named (the strip settled to "Undo last score"), the latest
  * standing score on screen, named exactly so the server takes back the
- * same one.
+ * same one. A named score that isn't on screen never saved: nothing to
+ * do (it used to fall back to the latest, an earlier saved score).
  */
 export function undoTap(events: readonly GameEvent[], scoreTypes: ReadonlySet<string>, namedKey: string | null): UndoTap {
   const sorted = [...events].sort((a, b) => a.created_at.localeCompare(b.created_at));
@@ -124,7 +137,8 @@ export function undoTap(events: readonly GameEvent[], scoreTypes: ReadonlySet<st
   let pick: GameEvent | undefined;
   if (namedKey) {
     const named = sorted.find((e) => scoreTypes.has(e.type) && e.idempotency_key === namedKey);
-    if (named && !standing.includes(named)) return { kind: "gone" };
+    if (!named) return { kind: "missing" };
+    if (!standing.includes(named)) return { kind: "gone" };
     pick = named;
   }
   pick ??= standing[standing.length - 1];

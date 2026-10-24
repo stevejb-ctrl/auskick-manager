@@ -58,7 +58,7 @@ import { InlineAlert } from "@/components/ui/InlineAlert";
 import { enqueueLiveAction, type LiveActionArgs, type LiveActionKind } from "@/lib/live/registerLiveActions";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
 import { liveEvents } from "@/lib/live/optimisticEvents";
-import { UNDO_GONE_MESSAGE, undoTap } from "@/lib/live/undoTarget";
+import { UNDO_GONE_MESSAGE, UNDO_MISSING_MESSAGE, undoTap } from "@/lib/live/undoTarget";
 import { announceLiveNotice } from "@/lib/live/liveSync";
 import { getSportConfig } from "@/lib/sports/registry";
 import { isGirlsTry, TOUCH_SCORE_EVENT_TYPES, touchTryEventType, touchTryWhat } from "@/lib/sports/touch/scoreEvents";
@@ -511,9 +511,12 @@ export function TouchLiveGame({
   // since (UX round 2).
   const undoScore = () => {
     const tap = undoTap(events, TOUCH_SCORE_EVENT_TYPES, chrome.namedScoreKey);
-    if (tap.kind === "gone") {
+    // Its score was taken back on the other phone, or never saved (a tap
+    // offline that didn't get through): nothing to write, and never
+    // another score in its place.
+    if (tap.kind === "gone" || tap.kind === "missing") {
       chrome.undone();
-      announceLiveNotice(UNDO_GONE_MESSAGE);
+      announceLiveNotice(tap.kind === "gone" ? UNDO_GONE_MESSAGE : UNDO_MISSING_MESSAGE);
       return;
     }
     if (tap.kind !== "undo") return;

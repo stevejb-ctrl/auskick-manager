@@ -93,6 +93,13 @@ describe("undoTap", () => {
     expect(undoTap([mine, undoOf(mine)], types, "op-mine")).toEqual({ kind: "gone" });
   });
 
+  it("never falls back to another score when the strip's score never saved (round 3: offline undo)", () => {
+    // Our try saved; the opposition try tapped offline was dropped, so it
+    // isn't on screen any more. Undo must not take back our saved try.
+    const ours = ev("goal", { player_id: "p1", idempotency_key: "op-ours" });
+    expect(undoTap([ours], types, "op-dropped")).toEqual({ kind: "missing" });
+  });
+
   it("with nothing named, names the latest standing score exactly", () => {
     const a = ev("goal");
     const b = ev("opponent_goal");

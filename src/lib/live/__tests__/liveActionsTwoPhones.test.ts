@@ -301,6 +301,13 @@ describe.each(UNDO)("$sport: undo takes back the score its phone named", (u) => 
     expect(undos()).toHaveLength(1);
   });
 
+  it("refuses an undo whose score never saved, says so, and leaves the saved one", async () => {
+    seed(u.sport, "in_progress", scores(u.sport));
+    const r = await u.undo({ key: "op-never-saved" }, "op-undo");
+    expect(r).toMatchObject({ success: false, rejected: true, error: "That score didn't save, so there's nothing to take back." });
+    expect(undos()).toHaveLength(0);
+  });
+
   it("an undo the queue replays is done, not refused", async () => {
     seed(u.sport, "in_progress", scores(u.sport));
     await u.undo({ key: "op-mine" }, "op-undo");

@@ -57,7 +57,7 @@ import { InlineAlert } from "@/components/ui/InlineAlert";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
 import { liveEvents } from "@/lib/live/optimisticEvents";
-import { UNDO_GONE_MESSAGE, undoTap } from "@/lib/live/undoTarget";
+import { UNDO_GONE_MESSAGE, UNDO_MISSING_MESSAGE, undoTap } from "@/lib/live/undoTarget";
 import { announceLiveNotice } from "@/lib/live/liveSync";
 import { useLiveChrome } from "@/components/live/useLiveChrome";
 import {
@@ -1085,9 +1085,12 @@ export function LeagueLiveGame({
   // scored since (UX round 2).
   function handleUndoScore() {
     const tap = undoTap(thisGameEvents, RUGBY_SCORE_EVENT_TYPES, chrome.namedScoreKey);
-    if (tap.kind === "gone") {
+    // Its score was taken back on the other phone, or never saved (a tap
+    // offline that didn't get through): nothing to write, and never
+    // another score in its place.
+    if (tap.kind === "gone" || tap.kind === "missing") {
       chrome.undone();
-      announceLiveNotice(UNDO_GONE_MESSAGE);
+      announceLiveNotice(tap.kind === "gone" ? UNDO_GONE_MESSAGE : UNDO_MISSING_MESSAGE);
       return;
     }
     if (tap.kind !== "undo") return;
