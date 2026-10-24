@@ -87,6 +87,20 @@ function fillInToPlayer(f: FillIn, teamId: string): Player {
 }
 
 /**
+ * When and where the game is, and the squad kids not here, for the Game
+ * plan's copied text, as the game page's plan says them (UX round 2,
+ * 24 Oct 2026: parents had to ask).
+ */
+function gamePlanDetails(g: Game, squad: Player[], availableIds: Set<string> | string[]) {
+  const here = new Set(availableIds);
+  return {
+    scheduledAt: g.scheduled_at,
+    venue: g.location,
+    out: squad.filter((p) => !here.has(p.id)).map((p) => p.full_name.trim().split(/\s+/)[0]),
+  };
+}
+
+/**
  * B1 / AVAIL-01 (UX half): strip every player id not in `availableIds`
  * out of a saved draft lineup so a now-unavailable player visibly drops
  * off the field when the picker hydrates. Structural + recursive so it
@@ -962,6 +976,7 @@ export default async function LivePage({ params }: LivePageProps) {
                 subIntervalSeconds: g.sub_interval_seconds,
                 teamName,
                 opponentName: g.opponent,
+                details: gamePlanDetails(g, (players ?? []) as Player[], availableIds),
                 seasonEvents: leagueSeasonEvents as GameEvent[],
                 chipModeByKey: teamChipModes,
                 leaguePlaybook,
@@ -1270,6 +1285,8 @@ export default async function LivePage({ params }: LivePageProps) {
                   periodMinutes: quarterLengthSeconds / 60,
                   teamName,
                   opponentName: g.opponent,
+                  // When, where and who's out, as the game page's plan.
+                  details: gamePlanDetails(g, (players ?? []) as Player[], availableIds),
                   seasonEvents: seasonEvents as GameEvent[],
                   chipModeByKey: teamChipModes,
                   netballPlaybook,
@@ -1607,6 +1624,7 @@ export default async function LivePage({ params }: LivePageProps) {
             subIntervalSeconds: g.sub_interval_seconds,
             teamName,
             opponentName: g.opponent,
+            details: gamePlanDetails(g, (players ?? []) as Player[], availableIds),
             seasonEvents: (seasonEvents ?? []) as GameEvent[],
             chipModeByKey: teamChipModes,
             aflPlaybook,

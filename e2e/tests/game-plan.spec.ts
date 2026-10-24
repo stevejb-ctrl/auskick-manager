@@ -460,3 +460,79 @@ test("before kickoff, Game plan keeps the later quarters and the break opens on 
   await expect(bench.getByTestId(`player-tile-${fieldKid}`)).toBeVisible();
   await expect(bench.getByTestId(`player-tile-${benchKid}`)).toHaveCount(0);
 });
+
+// UX round 2, 24 Oct 2026: the night-before Game plan on the game page
+// shared a different Q1 from the lineup the coach then started, even
+// after "Save plan & exit" showed "Plan saved", and the text had no date,
+// time, venue or who's out.
+test("AFL game page: the Game plan is the lineup's, saved or not, and says when, where and who's out", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await getOwnerId();
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 16 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Eagles" });
+  await admin.from("games").update({ location: "Ross Reserve" }).eq("id", game.id);
+  const out = players[5];
+  await admin.from("game_availability").insert(
+    players.map((p) => ({
+      game_id: game.id,
+      player_id: p.id,
+      status: p.id === out.id ? ("unavailable" as const) : ("available" as const),
+      updated_by: ownerId,
+    })),
+  );
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+  const ZONE_LABEL: Record<string, string> = { back: "Back", hback: "Half-back", mid: "Centre", hfwd: "Half-forward", fwd: "Forward" };
+
+  /** The game page's plan: Q1's kids in each zone, and resting. */
+  async function gamePagePlanQ1() {
+    await page.goto(`/teams/${team.id}/games/${game.id}`);
+    await page.getByRole("button", { name: /^game plan$/i }).click({ timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: /^game plan$/i })).toBeVisible({ timeout: 10_000 });
+    const q1: Record<string, string[]> = {};
+    for (const card of await page.locator('[data-testid^="game-plan-group-"]').all()) {
+      const zone = ((await card.getAttribute("data-testid")) ?? "").replace("game-plan-group-", "");
+      q1[zone] = await planIds(card);
+    }
+    q1.bench = await planIds(page.getByTestId("game-plan-bench"));
+    const text = (await page.locator("#game-plan-text").textContent()) ?? "";
+    await page.getByRole("button", { name: /^done$/i }).click();
+    return { q1, text };
+  }
+
+  /** The lineup screen's kids in the same zones, and on the bench. */
+  async function lineupQ1(zones: string[]) {
+    const q1: Record<string, string[]> = {};
+    for (const zone of zones) {
+      q1[zone] = await benchIds(page.getByRole("group", { name: ZONE_LABEL[zone], exact: true }), "player-tile-");
+    }
+    q1.bench = await benchIds(page.getByRole("group", { name: "Bench", exact: true }), "player-tile-");
+    return q1;
+  }
+
+  // Before any plan is saved: the plan opens on the lineup's own suggestion.
+  const night = await gamePagePlanQ1();
+  expect(night.text).toContain("Ross Reserve");
+  expect(night.text).toContain(`Out: ${out.full_name.split(" ")[0]}`);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  const zones = Object.keys(night.q1).filter((k) => k !== "bench");
+  expect(await lineupQ1(zones)).toEqual(night.q1);
+
+  // Change the lineup, save it, and the game page's plan follows it.
+  const fieldKid = night.q1[zones[0]][0];
+  const benchKid = night.q1.bench[0];
+  await waitForHydration(page);
+  await page.getByTestId(`player-tile-${fieldKid}`).click();
+  await page.getByTestId(`player-tile-${benchKid}`).click();
+  await expect(page.getByRole("group", { name: "Bench", exact: true }).getByTestId(`player-tile-${fieldKid}`)).toBeVisible();
+  const saved = await lineupQ1(zones);
+  await page.getByRole("button", { name: /save plan/i }).click();
+  await page.waitForURL(new RegExp(`/games/${game.id}$`), { timeout: 15_000 });
+  await expect(page.getByText("Plan saved")).toBeVisible({ timeout: 10_000 });
+  expect((await gamePagePlanQ1()).q1).toEqual(saved);
+});

@@ -26,6 +26,7 @@ import { Guernsey, SegTabs, SFButton, SFCard, SFIcon } from "@/components/sf";
 import {
   periodPositionLabels,
   formatGamePlan,
+  type FormatGamePlanOptions,
   projectGamePlan,
   projectUpcomingRotation,
   swapPlayersInPeriod,
@@ -91,6 +92,8 @@ export interface GamePlanModalProps {
   anchor?: { groups: Record<string, string[]>; bench: string[] };
   /** A line under the title, e.g. that this is a preview to share. */
   note?: string;
+  /** When and where the game is and who's out, for the copied text. */
+  details?: FormatGamePlanOptions["details"];
   /**
    * Adjust the opening plan before it shows (a lineup screen lays over
    * the later quarters the coach planned last time).
@@ -168,6 +171,7 @@ export function GamePlanModal({
   leaguePlaybook,
   anchor,
   note,
+  details,
   adjustInitialPlan,
   initialSeed = 7,
   initialPlan,
@@ -274,8 +278,9 @@ export function GamePlanModal({
         opponentName,
         playerName: displayName,
         positionLabel: (i, id) => positionsByPeriod[i]?.[id],
+        details,
       }),
-    [plan, teamName, opponentName, displayName, positionsByPeriod],
+    [plan, teamName, opponentName, displayName, positionsByPeriod, details],
   );
 
   function handleReshuffle() {

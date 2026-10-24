@@ -16,6 +16,7 @@ import { teamMixedRule } from "@/lib/sports/touch/mixed";
 import { scorersFromEvents, unnamedScoreFromEvents } from "@/lib/results";
 import { getSeasonEvents } from "@/lib/season";
 import { gamePlanPlaybooks } from "@/lib/playbook/planInputs";
+import { gamePlanAnchor } from "@/lib/game-plan/anchor";
 import { FinishedGameSummary } from "@/components/games/FinishedGameSummary";
 import { GamePlanButton } from "@/components/game-plan/GamePlanButton";
 import { HowWePlayedCard } from "@/components/playbook/HowWePlayedCard";
@@ -87,19 +88,22 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
     supabase
       .from("players")
       .select("id, full_name, jersey_number, chip, is_active, mixed_group")
-      .eq("team_id", params.teamId),
+      .eq("team_id", params.teamId)
+      // The lineup screen's order, which its suggestion follows: the
+      // Game plan below opens on the same lineup.
+      .order("jersey_number"),
   ]);
 
   if (!game) notFound();
 
   // Pre-game saved lineup (Phase C). Drives the "Plan saved" chip
   // for upcoming games so the coach knows their armchair plan
-  // persisted. Cleared at startGame.
+  // persisted, and the Game plan opens on it. Cleared at startGame.
   const { data: draftRow } =
     (game as Game).status === "upcoming"
       ? await supabase
           .from("game_lineup_drafts")
-          .select("updated_at")
+          .select("updated_at, lineup, on_field_size, sub_interval_seconds")
           .eq("game_id", params.gameId)
           .maybeSingle()
       : { data: null };
@@ -160,6 +164,12 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   // Basketball skips the game-plan preview too (its plan), and so do
   // touch and Oztag: their engine plans at the lineup and each break
   // (asking gamePlanPlaybooks for them throws by name).
+  //
+  // It's the plan the lineup screen will use (UX round 2, 24 Oct 2026:
+  // the night-before text shared a different Q1 from the lineup, even
+  // after "Plan saved"): its first period is the saved plan's lineup,
+  // else AFL's opening suggestion, and the rest follow from it as the
+  // lineup's own Game plan does. The text says when, where and who's out.
   const planInput = isUp && !isSoccer(sport) && !isBasketball(sport) && !isTouch(sport)
     ? await (async () => {
         const [{ data: avail }, seasonAll] = await Promise.all([
@@ -168,24 +178,44 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
         ]);
         const active = (players ?? []).filter((p) => (p as { is_active?: boolean }).is_active !== false);
         const available = new Set((avail ?? []).filter((a) => a.status === "available").map((a) => a.player_id as string));
+        const planPlayers = available.size > 0 ? active.filter((p) => available.has(p.id)) : active;
         const seasonEvents = seasonAll.filter((e) => e.game_id !== params.gameId);
         const periodSeconds = getEffectiveQuarterSeconds(
           { quarter_length_seconds: (team as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null },
           planAgeCfg,
           { quarter_length_seconds: g.quarter_length_seconds },
         );
+        const playbooks = await gamePlanPlaybooks(
+          supabase,
+          params.teamId,
+          sport,
+          (team as { age_group?: string } | null)?.age_group ?? null,
+          seasonEvents,
+          periodSeconds,
+        );
+        const draft = draftRow as { lineup?: unknown; on_field_size?: number; sub_interval_seconds?: number } | null;
         return {
-          players: available.size > 0 ? active.filter((p) => available.has(p.id)) : active,
+          players: planPlayers,
           seasonEvents,
           periodMinutes: periodSeconds / 60,
-          playbooks: await gamePlanPlaybooks(
-            supabase,
-            params.teamId,
+          playbooks,
+          onFieldSize: draft?.on_field_size ?? g.on_field_size ?? planAgeCfg.defaultOnFieldSize,
+          subIntervalSeconds: draft?.sub_interval_seconds ?? g.sub_interval_seconds,
+          anchor: gamePlanAnchor({
             sport,
-            (team as { age_group?: string } | null)?.age_group ?? null,
+            draftLineup: draft?.lineup ?? null,
+            here: new Set(planPlayers.map((p) => p.id)),
+            players: planPlayers as Player[],
+            thisGame: (scoringEvents ?? []) as GameEvent[],
             seasonEvents,
-            periodSeconds,
-          ),
+            onFieldSize: g.on_field_size,
+            ageGroup: planAgeCfg,
+            fullPeriodMs: periodSeconds * 1000,
+            aflPlaybook: playbooks.aflPlaybook,
+          }),
+          out: available.size > 0
+            ? active.filter((p) => !available.has(p.id)).map((p) => p.full_name.trim().split(/\s+/)[0])
+            : [],
         };
       })()
     : null;
@@ -435,12 +465,15 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                     sport={sport}
                     ageGroup={planAgeCfg}
                     players={planInput.players}
-                    onFieldSize={g.on_field_size ?? planAgeCfg.defaultOnFieldSize}
+                    onFieldSize={planInput.onFieldSize}
                     periodMinutes={planInput.periodMinutes}
-                    subIntervalSeconds={g.sub_interval_seconds}
+                    subIntervalSeconds={planInput.subIntervalSeconds}
                     teamName={teamName}
                     opponentName={g.opponent}
                     seasonEvents={planInput.seasonEvents}
+                    anchor={planInput.anchor ?? undefined}
+                    pinnedPlanGameId={params.gameId}
+                    details={{ scheduledAt: g.scheduled_at, venue: g.location, out: planInput.out }}
                     {...planInput.playbooks}
                     note="A preview to share. Set the lineup on game day."
                     variant="ghost"

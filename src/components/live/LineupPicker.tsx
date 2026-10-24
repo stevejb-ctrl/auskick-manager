@@ -28,11 +28,8 @@ import {
 } from "@/components/sf";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import type { Lineup, Player, PositionModel, Zone } from "@/lib/types";
-import {
-  suggestStartingLineup,
-  zoneCapsFor,
-  type PlayerZoneMinutes,
-} from "@/lib/fairness";
+import { zoneCapsFor, type PlayerZoneMinutes } from "@/lib/fairness";
+import { aflOpeningLineup } from "@/lib/sports/afl/openingLineup";
 import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 
 import { aflRuleCheck, assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
@@ -347,34 +344,17 @@ export function LineupPicker({
         bench: playersForLineup.map((p) => p.id),
       };
     }
-    // Build chip-by-id map from the available players list — picked
-    // up by the suggester's chip-spread / chip-group penalty (Phase D).
-    const chipByPlayerId: Record<string, "a" | "b" | "c" | null | undefined> = {};
-    // Cohort chips retired with How we play (UX plan 5.8): their intent now lives in roles and rules.
-    const pinned: Record<string, Zone> = {};
-    let playbook = aflPlaybook;
-    for (const [pid, hold] of Object.entries(locksRef.current)) {
-      if (hold.kind === "zone") pinned[pid] = hold.zone as Zone;
-      if (hold.kind === "field" && playbook) {
-        const role = playbook.roles[pid] ?? { home: null, also: [], never: [], keepOn: false };
-        playbook = { ...playbook, roles: { ...playbook.roles, [pid]: { ...role, keepOn: true } } };
-      }
-    }
-    return suggestStartingLineup(
-      playersForLineup,
+    // The same opening lineup the game page's Game plan shares.
+    return aflOpeningLineup({
+      players: playersForLineup,
       season,
-      0,
-      zoneCapsFor(size, positionModel),
-      {},
-      pinned,
-      {},
-      {},
-      {},
-      chipByPlayerId,
+      onFieldSize: size,
+      positionModel,
+      locks: locksRef.current,
       chipModeByKey,
       fullPeriodMs,
-      playbook,
-    );
+      aflPlaybook,
+    });
   };
 
   // The suggester targets `onFieldSize` players via zoneCapsFor —
