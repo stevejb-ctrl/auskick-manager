@@ -96,10 +96,10 @@ test("oztag over the boys' cap with no girl on the bench: Fix takes a boy off, t
   await expect(breach).not.toContainText("nobody on the bench can fix it");
   // The boy on longest goes (the four who started; the first of them).
   await breach.getByRole("button", { name: `Fix: take ${nameOf(boys[0])} off — play 7` }).click();
-  await expect
-    .poll(async () => (await lastLineup()).bench.includes(boys[0]), { timeout: 15_000 })
-    .toBe(true);
+  // The new lineup: seven on (the kickoff's had eight).
+  await expect.poll(async () => (await lastLineup()).lines.field.length, { timeout: 15_000 }).toBe(7);
   const after = await lastLineup();
+  expect(after.bench).toContain(boys[0]);
   expect(after.lines.field).toHaveLength(7);
   expect(after.lines.field.filter((pid) => boys.includes(pid))).toHaveLength(4);
   await expect(breach).toHaveCount(0, { timeout: 15_000 });
@@ -115,9 +115,8 @@ test("oztag: the long-press sheet takes a kid off with no replacement", async ({
   await page.getByTestId(`player-tile-${boys[4]}`).click({ delay: 600 });
   const sheet = page.getByRole("dialog");
   await sheet.getByRole("button", { name: /take off, no replacement/i }).click();
-  await expect
-    .poll(async () => (await lastLineup()).bench.includes(boys[4]), { timeout: 15_000 })
-    .toBe(true);
-  expect((await lastLineup()).lines.field).toHaveLength(7);
+  // The new lineup: seven on (the kickoff's had eight, and this boy on its bench).
+  await expect.poll(async () => (await lastLineup()).lines.field.length, { timeout: 15_000 }).toBe(7);
+  expect((await lastLineup()).bench).toContain(boys[4]);
   await expect(page.getByTestId("touch-mixed-breach")).toHaveCount(0, { timeout: 15_000 });
 });
