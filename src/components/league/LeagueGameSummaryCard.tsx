@@ -22,6 +22,7 @@ import type { RugbySport } from "@/lib/sports/registry";
 import type { GameEvent, Player } from "@/lib/types";
 import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
 import { DIDNT_GET_ON, didntGetOn, presentPlayerIds } from "@/lib/live/presentPlayers";
+import { byJerseyThenName } from "@/lib/share/neutralOrder";
 
 interface LeagueGameSummaryCardProps {
   /** The team's rugby sport: its goal names and points. */
@@ -141,13 +142,12 @@ function buildSummary(
   );
   const playerRows = Object.entries(totalMs)
     .filter(([, ms]) => ms >= 1000)
-    .sort((a, b) => b[1] - a[1])
     .map(([id, ms]) => {
       const p = playersById.get(id);
       const name = p ? firstName(p.full_name) : "Unknown";
       const jersey
         = p?.jersey_number != null ? `#${p.jersey_number} ` : "";
-      return `${jersey}${name} — ${fmtMs(ms)}`;
+      return { id, text: `${jersey}${name} — ${fmtMs(ms)}` };
     });
 
   // Kids who were there but never got on stay in the list (Stagehand
@@ -157,12 +157,13 @@ function buildSummary(
     const p = playersById.get(id);
     if (!p) continue;
     const jersey = p.jersey_number != null ? `#${p.jersey_number} ` : "";
-    playerRows.push(`${jersey}${firstName(p.full_name)} — ${DIDNT_GET_ON}`);
+    playerRows.push({ id, text: `${jersey}${firstName(p.full_name)} — ${DIDNT_GET_ON}` });
   }
 
   if (playerRows.length > 0) {
     lines.push(`\n⏱ Game time`);
-    for (const row of playerRows) lines.push(row);
+    // By number, never by minutes: this goes to every parent.
+    for (const row of playerRows.sort(byJerseyThenName((r) => playersById.get(r.id)))) lines.push(row.text);
   }
 
   return lines.join("\n");

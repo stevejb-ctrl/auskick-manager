@@ -6,6 +6,7 @@ import type { Player } from "@/lib/types";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
 import { DIDNT_GET_ON, didntGetOn, playersHeadline } from "@/lib/live/presentPlayers";
+import { byJerseyThenName } from "@/lib/share/neutralOrder";
 
 const ZONE_ABBREV: Record<string, string> = {
   back: "BCK",
@@ -67,7 +68,7 @@ function buildPlayerStats(
       zones,
     });
   }
-  return stats.sort((a, b) => b.totalMs - a.totalMs);
+  return stats;
 }
 
 function buildSummary(
@@ -144,18 +145,18 @@ function buildSummary(
 
   if (playerStats.length > 0 || satOut.length > 0) {
     lines.push(`\n⏱ Game time`);
-    for (const ps of playerStats) {
+    const rows = playerStats.map((ps) => {
       const zoneStr = ps.zones.map((z) => `${z.label} ${z.pct}%`).join(" · ");
       const prefix = ps.number != null ? `#${ps.number} ` : "";
-      lines.push(
-        `${prefix}${ps.name} — ${fmtMs(ps.totalMs)}${zoneStr ? `  (${zoneStr})` : ""}`,
-      );
-    }
+      return { id: ps.id, text: `${prefix}${ps.name} — ${fmtMs(ps.totalMs)}${zoneStr ? `  (${zoneStr})` : ""}` };
+    });
     for (const id of satOut) {
       const p = playersById.get(id)!;
       const prefix = p.jersey_number != null ? `#${p.jersey_number} ` : "";
-      lines.push(`${prefix}${p.full_name.split(" ")[0]} — ${DIDNT_GET_ON}`);
+      rows.push({ id, text: `${prefix}${p.full_name.split(" ")[0]} — ${DIDNT_GET_ON}` });
     }
+    // By number, never by minutes: this goes to every parent.
+    for (const row of rows.sort(byJerseyThenName((r) => playersById.get(r.id)))) lines.push(row.text);
   }
 
   return lines.join("\n");

@@ -20,6 +20,7 @@ import { type PlayerThirdMs, formatMinSec } from "@/lib/sports/netball/fairness"
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
 import { DIDNT_GET_ON, didntGetOn, playersHeadline } from "@/lib/live/presentPlayers";
+import { byJerseyThenName } from "@/lib/share/neutralOrder";
 
 // Permissive subset — buildPlayerTimes only reads id + full_name.
 // Lets the game-detail page pass the slim projection it loads
@@ -165,13 +166,15 @@ function buildSummary(
   lines.push(`\n👟 ${playersHeadline(playedCount, satOut.length)}`);
   if (rows.length > 0 || satOut.length > 0) {
     lines.push(`\n⏱ Game time`);
-    for (const r of rows) {
+    const timeRows = rows.map((r) => {
       const thirdStr = r.thirds.map((t) => `${t.label} ${t.pct}%`).join(" · ");
-      lines.push(
-        `${r.name} — ${formatMinSec(r.totalMs)}${thirdStr ? `  (${thirdStr})` : ""}`,
-      );
-    }
-    for (const id of satOut) lines.push(`${nameOf.get(id)} — ${DIDNT_GET_ON}`);
+      return { id: r.id, text: `${r.name} — ${formatMinSec(r.totalMs)}${thirdStr ? `  (${thirdStr})` : ""}` };
+    });
+    for (const id of satOut) timeRows.push({ id, text: `${nameOf.get(id)} — ${DIDNT_GET_ON}` });
+    // By name (netball has no numbers), never by minutes: this goes to
+    // every parent.
+    const fullName = new Map(squad.map((p) => [p.id, p.full_name]));
+    for (const row of timeRows.sort(byJerseyThenName((r) => ({ full_name: fullName.get(r.id) })))) lines.push(row.text);
   }
 
   return lines.join("\n");
