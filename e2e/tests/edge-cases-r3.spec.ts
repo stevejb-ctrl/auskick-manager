@@ -165,3 +165,44 @@ test("deactivating a kid who's on the field now asks first, and they stay in tha
   await gotoStable(page, `/teams/${team.id}/games/${game.id}/live`);
   await expect(page.getByTestId(`player-tile-${leo.id}`)).toBeVisible({ timeout: 15_000 });
 });
+
+test("a game played with scoring off stays 'Scores not kept' after the team turns scoring on", async ({ page }) => {
+  // UX round 3, 24 Oct 2026: it read "0 drew with 0", and Head-to-head
+  // counted it as a draw.
+  const by = await ownerId();
+  const admin = createAdminClient();
+  const team = await makeTeam(admin, { ownerId: by, sport: "afl", ageGroup: "U10", name: `R3 no scores ${Date.now()}` });
+  await admin.from("teams").update({ track_scoring: false }).eq("id", team.id);
+  const players = await makePlayers(admin, { teamId: team.id, ownerId: by, count: 13 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId: by, opponent: "Crocs" });
+  await admin.from("games").update({ scheduled_at: new Date(Date.now() - 3_600_000).toISOString() }).eq("id", game.id);
+  await allIn(game.id, players.map((p) => p.id), by);
+
+  // Kicked off with scoring off.
+  await skipWalkthroughs(page);
+  await gotoStable(page, `/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  await page.getByRole("button", { name: /^start q1$/i }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click({ timeout: 10_000 });
+  await expect.poll(async () => (await statusOf(game.id))?.status, { timeout: 15_000 }).toBe("in_progress");
+
+  // Played out, then the team turns scoring on.
+  const at = (s: number) => new Date(Date.now() + s * 1000).toISOString();
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 720_000, sport: "afl" }, created_by: by, created_at: at(1) },
+    { game_id: game.id, type: "game_finalised", metadata: { sport: "afl" }, created_by: by, created_at: at(2) },
+  ]);
+  await admin.from("games").update({ status: "completed" }).eq("id", game.id);
+  await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+
+  await gotoStable(page, `/teams/${team.id}/games/${game.id}`);
+  await expect(page.getByTestId("scores-not-kept")).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator("#summary")).not.toContainText("drew with");
+
+  await gotoStable(page, `/teams/${team.id}`);
+  await expect(page.getByRole("region", { name: /last result/i })).toContainText("Scores not kept", { timeout: 15_000 });
+
+  await gotoStable(page, `/teams/${team.id}/stats`);
+  await expect(page.getByText("Scores not kept")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/^\s*1D\s*$/)).toHaveCount(0);
+});

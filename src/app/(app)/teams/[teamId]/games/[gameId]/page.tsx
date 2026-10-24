@@ -13,7 +13,7 @@ import {
 } from "@/components/sf";
 import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isBasketball, isSoccer, isTouch, periodLabels, teamSport } from "@/lib/sports";
 import { teamMixedRule } from "@/lib/sports/touch/mixed";
-import { scorersFromEvents, unnamedScoreFromEvents } from "@/lib/results";
+import { scoresKept, scorersFromEvents, unnamedScoreFromEvents } from "@/lib/results";
 import { getSeasonEvents } from "@/lib/season";
 import { gamePlanPlaybooks } from "@/lib/playbook/planInputs";
 import { gamePlanAnchor } from "@/lib/game-plan/anchor";
@@ -224,6 +224,13 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   // log (already fetched above, in order), and the game's fill-ins: the
   // summary names them as the live screen's does.
   const summaryEvents: GameEvent[] | null = isFinal ? ((scoringEvents ?? []) as GameEvent[]) : null;
+  // Whether THIS game kept score, not the team's switch today.
+  const keptScore = scoresKept(
+    sport,
+    g,
+    (team as { track_scoring?: boolean } | null)?.track_scoring ?? false,
+    (scoringEvents ?? []) as GameEvent[],
+  );
   const { data: fillIns } = isFinal
     ? await supabase.from("game_fill_ins").select("id, full_name, jersey_number, mixed_group").eq("game_id", params.gameId)
     : { data: null };
@@ -581,13 +588,20 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
           dashboard's "Last result" links straight to it. */}
       {isFinal && summaryEvents && (
         <SFCard id="summary">
+          {/* A game played with scoring off says so, whatever the switch
+              says now (UX round 3, 24 Oct 2026: it read "0 drew with 0"). */}
+          {!keptScore && (
+            <p data-testid="scores-not-kept" className="mb-3 text-sm text-ink-dim">
+              Scores not kept
+            </p>
+          )}
           <FinishedGameSummary
             sport={sport}
             events={summaryEvents}
             squad={summarySquad as Player[]}
             teamName={teamName}
             opponentName={g.opponent}
-            trackScoring={(team as { track_scoring?: boolean } | null)?.track_scoring ?? false}
+            trackScoring={keptScore}
             periodSeconds={getEffectiveQuarterSeconds(
               { quarter_length_seconds: (team as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null },
               planAgeCfg,

@@ -7,7 +7,17 @@ interface Props {
 }
 
 export function HeadToHead({ records, hasData }: Props) {
-  if (!hasData || records.length === 0) {
+  // Games played, none with a score kept: they aren't results (UX round
+  // 3, 24 Oct 2026: a scoring-off game counted as a draw).
+  if (hasData && records.length === 0) {
+    return (
+      <EmptyState
+        title="Scores not kept"
+        description="Records against each opponent count the games you kept score in."
+      />
+    );
+  }
+  if (!hasData) {
     return (
       <EmptyState
         title="No completed games yet"
