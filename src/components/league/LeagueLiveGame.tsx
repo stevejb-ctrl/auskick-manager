@@ -706,19 +706,7 @@ export function LeagueLiveGame({
     setSubAckedAtBaseMs(null);
   }, [state.currentQuarter]);
 
-  // The sub-due banner beeps and buzzes as it appears, as AFL's does
-  // (league and union were silent; a banner is easier to miss than the
-  // modal it replaced).
-  const subDueShowing = subIsDue && subAckedAtBaseMs !== lastSwapOrPeriodElapsed;
   useSubDueAudioUnlock();
-  const subDueShowingRef = useRef(false);
-  useEffect(() => {
-    if (subDueShowing && !subDueShowingRef.current) {
-      playSubDueBeep();
-      void hapticTap("heavy");
-    }
-    subDueShowingRef.current = subDueShowing;
-  }, [subDueShowing]);
 
   // ── Next-sub suggestion ──────────────────────────────────────
   // FR / DH wearers are excluded from the off-candidate pool so the
@@ -784,6 +772,39 @@ export function LeagueLiveGame({
     leaguePlaybook,
     subLaws,
   ]);
+
+  // A sub is due only when the laws allow one: with §6 (or the floor)
+  // keeping every kid on, "Sub due — rotate a player off" told the coach
+  // to break the law, as the §6 card below said "Stay on to the hooter"
+  // (round 2, 24 Oct 2026). The laws are mustStayOn's (legalSwap.ts).
+  const swapPossible = useMemo(
+    () =>
+      isPeriodActive &&
+      !!lineup &&
+      leagueSwapPossible({
+        events: thisGameEvents,
+        period: state.currentQuarter,
+        lineup: { forwards: lineup.forwards, backs: lineup.backs, bench: swappableBench.map((p) => p.id) },
+        elapsedMs,
+        laws: subLaws,
+        playbook: leaguePlaybook,
+        keepOn: excludeOff,
+      }),
+    [isPeriodActive, lineup, thisGameEvents, state.currentQuarter, swappableBench, elapsedMs, subLaws, leaguePlaybook, excludeOff],
+  );
+
+  // The sub-due banner beeps and buzzes as it appears, as AFL's does
+  // (league and union were silent; a banner is easier to miss than the
+  // modal it replaced).
+  const subDueShowing = subIsDue && swapPossible && subAckedAtBaseMs !== lastSwapOrPeriodElapsed;
+  const subDueShowingRef = useRef(false);
+  useEffect(() => {
+    if (subDueShowing && !subDueShowingRef.current) {
+      playSubDueBeep();
+      void hapticTap("heavy");
+    }
+    subDueShowingRef.current = subDueShowing;
+  }, [subDueShowing]);
 
   // ── Plan-NEXT-period (F2 / ROTPLAN-02) ───────────────────────
   // RL has no separate break component — the q-break is an inline

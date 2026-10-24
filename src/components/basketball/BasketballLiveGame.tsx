@@ -347,9 +347,15 @@ export function BasketballLiveGame({
   }, [lineup]);
 
   // ── Subs ────────────────────────────────────────────────────
+  // No sub is due once the clock is out: the phone waits at 0:00 for the
+  // buzzer, and the Sub due card and OFF badges stayed up through half
+  // time and full time (round 2, 24 Oct 2026; AFL hides them after the
+  // siren too).
+  const periodClockDone = elapsedMs >= periodMs;
+  const subsOpen = isPeriodActive && !periodClockDone;
   const anchorMs = useMemo(
-    () => (isPeriodActive ? resolveSubAnchorElapsed(events, base.currentPeriod) : null),
-    [events, base.currentPeriod, isPeriodActive],
+    () => (subsOpen ? resolveSubAnchorElapsed(events, base.currentPeriod) : null),
+    [events, base.currentPeriod, subsOpen],
   );
   const subDue = basketballSubDue({
     subIntervalMs: subIntervalSeconds != null ? subIntervalSeconds * 1000 : null,
@@ -360,7 +366,7 @@ export function BasketballLiveGame({
   });
   const msUntilDue = subDue.msUntilDue;
   const nextSubs = useMemo(() => {
-    if (!isPeriodActive) return [];
+    if (!subsOpen) return [];
     const opts = { strategy, prefs, season, foulOutAt: trackFouls ? ageGroup.foulOutAt : 0 };
     const now = suggestBasketballSubs({ state, nowMs: absNowMs, ...opts });
     if (now.length > 0 || msUntilDue === null || msUntilDue <= 0) return now;
@@ -372,7 +378,7 @@ export function BasketballLiveGame({
     const ahead = replayBasketballGame(events, { nowMs: aheadMs });
     return suggestBasketballSubs({ state: ahead, nowMs: ahead.completedPeriodMs + aheadMs, ...opts });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPeriodActive, state, events, strategy, prefs, season, trackFouls, ageGroup.foulOutAt, periodMs, msUntilDue !== null && msUntilDue <= 0, Math.floor((msUntilDue ?? 0) / 5000)]);
+  }, [subsOpen, state, events, strategy, prefs, season, trackFouls, ageGroup.foulOutAt, periodMs, msUntilDue !== null && msUntilDue <= 0, Math.floor((msUntilDue ?? 0) / 5000)]);
   const subDueKey = subDue.key === null ? null : `${base.currentPeriod}:${subDue.key}`;
   const subDueShowing = isPeriodActive && subDue.due && nextSubs.length > 0 && subAckKey !== subDueKey;
   useSubDueAudioUnlock();
