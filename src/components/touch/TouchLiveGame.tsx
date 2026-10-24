@@ -414,6 +414,9 @@ export function TouchLiveGame({
     const now = Date.now();
     const input = clockPauseInput(base.currentPeriod, running, clockAt(now), now);
     write("recordClockPause", [auth, game.id, input], liveEvents.clockPause(input));
+    // The clock reads now from the tap, not the last tick (a page opened
+    // paused has none yet).
+    setNowMs(now);
   }
 
   /** `manual`: made by hand, off the rotation's cadence, so the sub clock doesn't restart (AFL's rule). */

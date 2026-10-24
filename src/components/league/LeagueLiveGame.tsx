@@ -360,6 +360,9 @@ export function LeagueLiveGame({
     const now = Date.now();
     const input = clockPauseInput(state.currentQuarter, running, clockAt(now), now);
     write("recordClockPause", [auth, game.id, input], liveEvents.clockPause(input));
+    // The clock reads now from the tap, not the last tick (a page opened
+    // paused has none yet).
+    setNowMs(now);
   }
   function handleClockTap() {
     if (!state.quarterStartedAt || state.quarterEnded || state.finalised) {
