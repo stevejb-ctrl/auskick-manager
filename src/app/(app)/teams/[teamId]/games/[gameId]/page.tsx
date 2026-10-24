@@ -26,6 +26,8 @@ import { teamSportById } from "@/lib/sports/teamSportById";
 import { teamAgeGroup } from "@/lib/sports/teamAgeGroup";
 import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
 import { distinctFullNames } from "@/lib/names";
+import { isNotPlayed, playedInSiren } from "@/lib/games/notPlayed";
+import { NotPlayedActions } from "@/components/games/NotPlayedGames";
 
 interface GameDetailPageProps {
   params: { teamId: string; gameId: string };
@@ -215,8 +217,11 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
       : undefined;
 
   // How we played (UX plan 4.4): rules kept and season balance, every sport.
+  // A game marked played (not run in Siren) has no events: no summary,
+  // score or report, rather than a 0–0 draw with nobody on.
+  const ranInSiren = summaryEvents !== null && playedInSiren(summaryEvents);
   const howWePlayed =
-    isFinal && summaryEvents
+    isFinal && summaryEvents && ranInSiren
       ? await buildGameReport(
           supabase,
           {
@@ -352,6 +357,12 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 <p className="mt-3 whitespace-pre-wrap text-sm text-ink-dim">
                   {g.notes}
                 </p>
+              )}
+              {/* Well past its start and never run (lib/games/notPlayed). */}
+              {isUp && isNotPlayed(g) && (
+                <div className="mt-4 rounded-md bg-surface-alt p-3" data-testid="not-played">
+                  <NotPlayedActions teamId={params.teamId} gameId={g.id} canEdit={role === "admin"} afterDelete="games" />
+                </div>
               )}
             </div>
           </div>
@@ -543,7 +554,15 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
           text + "Copy for group chat"), so a coach or parent revisiting
           a finished game gets the score and game time here. The
           dashboard's "Last result" links straight to it. */}
-      {isFinal && summaryEvents && (
+      {isFinal && !ranInSiren && (
+        <SFCard id="summary">
+          <p className="text-sm text-ink-dim">
+            Marked as played. It wasn&apos;t run in Siren, so there&apos;s no score or game time for it.
+          </p>
+        </SFCard>
+      )}
+
+      {isFinal && summaryEvents && ranInSiren && (
         <SFCard id="summary">
           <FinishedGameSummary
             sport={sport}

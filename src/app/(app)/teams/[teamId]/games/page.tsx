@@ -95,7 +95,7 @@ export default async function GamesPage({
           </div>
         }
       >
-        <GameList teamId={params.teamId} filter={filter} />
+        <GameList teamId={params.teamId} filter={filter} canEdit={isAdmin} />
       </Suspense>
     </div>
   );

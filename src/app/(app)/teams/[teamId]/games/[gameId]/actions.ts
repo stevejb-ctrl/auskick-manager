@@ -394,5 +394,49 @@ export async function deleteGame(
   invalidateSeasonEvents(teamId);
 
   revalidatePath(`/teams/${teamId}/games`);
+  revalidatePath(`/teams/${teamId}`);
+  return { success: true };
+}
+
+/**
+ * A game the coach never ran in Siren, played without the app (round 3
+ * edge testing, 24 Oct 2026: a past game stayed "Next up" forever). It
+ * moves to Completed with no events, so it has no score or minutes, and
+ * isn't a 0–0 draw in the record (lib/games/notPlayed playedInSiren).
+ */
+export async function markGamePlayed(teamId: string, gameId: string): Promise<ActionResult> {
+  const userId = readValidatedUserId();
+  if (!userId) return { success: false, error: "Unauthenticated." };
+  const membership = await getMembership(teamId, userId);
+  if (!membership || membership.role !== "admin") {
+    return { success: false, error: "Only admins can change a game." };
+  }
+
+  const supabase = createClient();
+  const { data: game } = await supabase
+    .from("games")
+    .select("status")
+    .eq("id", gameId)
+    .eq("team_id", teamId)
+    .maybeSingle();
+  if (!game) return { success: false, error: "Game not found for this team." };
+  if (game.status !== "upcoming") return { success: false, error: "That game was started in Siren." };
+  const { count } = await supabase
+    .from("game_events")
+    .select("id", { count: "exact", head: true })
+    .eq("game_id", gameId);
+  if ((count ?? 0) > 0) return { success: false, error: "That game was started in Siren." };
+
+  const { error: updateError } = await supabase
+    .from("games")
+    .update({ status: "completed" })
+    .eq("id", gameId)
+    .eq("team_id", teamId);
+  if (updateError) return { success: false, error: updateError.message };
+
+  revalidatePath(`/teams/${teamId}`);
+  revalidatePath(`/teams/${teamId}/games`);
+  revalidatePath(`/teams/${teamId}/games/${gameId}`);
+  revalidatePath("/dashboard");
   return { success: true };
 }

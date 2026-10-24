@@ -11,6 +11,8 @@ interface DeleteGameDialogProps {
   teamId: string;
   gameId: string;
   onClose: () => void;
+  /** After the delete, instead of going to the Games list (a list the game was on). */
+  onDeleted?: () => void;
 }
 
 /**
@@ -19,7 +21,7 @@ interface DeleteGameDialogProps {
  * Delete expanded inline, Restart opened a modal). Opened from the
  * game hub's More sheet.
  */
-export function DeleteGameDialog({ teamId, gameId, onClose }: DeleteGameDialogProps) {
+export function DeleteGameDialog({ teamId, gameId, onClose, onDeleted }: DeleteGameDialogProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +32,11 @@ export function DeleteGameDialog({ teamId, gameId, onClose }: DeleteGameDialogPr
       const result = await deleteGame(teamId, gameId);
       if (!result.success) {
         setError(result.error);
+        return;
+      }
+      if (onDeleted) {
+        onClose();
+        onDeleted();
         return;
       }
       router.push(`/teams/${teamId}/games`);
