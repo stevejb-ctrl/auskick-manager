@@ -221,12 +221,18 @@ export interface SuggestSoccerSubInput {
    * before a rolling sub moves them again. 0 or omitted = no guard.
    */
   minStintMs?: number;
+  /**
+   * The cool-down after going off: a kid who went off less than this long
+   * ago isn't brought back on (round 2 usability, 24 Oct 2026: after
+   * Mateo → Ollie the card at once had Mateo back on). 0 or omitted = none.
+   */
+  restMs?: number;
   /** The kids' roles: a kid comes on only for a line they play. */
   prefs?: SoccerKeeperPrefs;
 }
 
 /** Who may come on, who may go off, and how long each has played. */
-function subPools(state: SoccerGameState, nowMs: number, minStintMs: number) {
+function subPools(state: SoccerGameState, nowMs: number, minStintMs: number, restMs = 0) {
   const lu = state.lineup;
   if (!lu) return null;
   const away = new Set([...state.injuredIds, ...state.loanedIds]);
@@ -244,7 +250,9 @@ function subPools(state: SoccerGameState, nowMs: number, minStintMs: number) {
   const justOff = (pid: string) => guard && state.lastSubbedOffMs[pid] !== undefined && nowMs - state.lastSubbedOffMs[pid] < minStintMs;
   const justOn = (pid: string) => guard && nowMs - (state.lastSubbedOnMs[pid] ?? 0) < minStintMs;
 
-  const fit = lu.bench.filter((p) => !away.has(p));
+  const resting = (pid: string) =>
+    restMs > 0 && state.lastSubbedOffMs[pid] !== undefined && nowMs - state.lastSubbedOffMs[pid] < restMs;
+  const fit = lu.bench.filter((p) => !away.has(p) && !resting(p));
   const rested = fit.filter((p) => !justOff(p));
   // Bench kids who haven't rested wait while anyone else has.
   const bench = sortBy(rested.length > 0 ? rested : fit, game);
@@ -269,7 +277,7 @@ const takesPlace = (lu: SoccerLineup, prefs: SoccerKeeperPrefs | undefined, on: 
  * no sub evens their time. A kid held in a line comes on only there.
  */
 export function suggestSoccerRollingSub(input: SuggestSoccerSubInput): SoccerSub | null {
-  const pools = subPools(input.state, input.nowMs, input.minStintMs ?? 0);
+  const pools = subPools(input.state, input.nowMs, input.minStintMs ?? 0, input.restMs ?? 0);
   if (!pools) return null;
   const { lu, bench, field, game, zoneHold } = pools;
   for (const on of bench) {
@@ -304,7 +312,7 @@ export function soccerSubWindowsMs(mode: SoccerSubMode, periodMs: number, clockM
  * only time to sub, so no stint guard.
  */
 export function suggestSoccerWindowBatch(input: Omit<SuggestSoccerSubInput, "minStintMs">): SoccerSub[] {
-  const pools = subPools(input.state, input.nowMs, 0);
+  const pools = subPools(input.state, input.nowMs, 0, input.restMs ?? 0);
   if (!pools) return [];
   const { lu, bench, field, game, zoneHold } = pools;
   const used = new Set<string>();

@@ -322,7 +322,8 @@ export function TouchLiveGame({
   const msUntilDue = subDue.msUntilDue;
   const nextSubs = useMemo(() => {
     if (!isPeriodActive) return [];
-    const opts = { strategy, prefs, season, mixed };
+    // A kid who goes off rests a sub interval before coming back on.
+    const opts = { strategy, prefs, season, mixed, restMs: (subIntervalSeconds ?? 0) * 1000 };
     const now = suggestTouchSubs({ state, nowMs: absNowMs, ...opts });
     if (now.length > 0 || msUntilDue === null || msUntilDue <= 0) return now;
     // Nothing evens time yet, so show the subs due at the next sub time,
@@ -332,7 +333,7 @@ export function TouchLiveGame({
     const ahead = replayTouchGame(events, { nowMs: aheadMs });
     return suggestTouchSubs({ state: ahead, nowMs: ahead.completedPeriodMs + aheadMs, ...opts });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPeriodActive, state, events, strategy, prefs, season, mixed, periodMs, msUntilDue !== null && msUntilDue <= 0, Math.floor((msUntilDue ?? 0) / 5000)]);
+  }, [isPeriodActive, state, events, strategy, prefs, season, mixed, periodMs, subIntervalSeconds, msUntilDue !== null && msUntilDue <= 0, Math.floor((msUntilDue ?? 0) / 5000)]);
   const subDueKey = subDue.key === null ? null : `${base.currentPeriod}:${subDue.key}`;
   const subDueShowing = isPeriodActive && subDue.due && nextSubs.length > 0 && subAckKey !== subDueKey;
   useSubDueAudioUnlock();

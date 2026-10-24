@@ -61,6 +61,12 @@ export interface RollingSubsInput<L extends string = string> {
   justOn?: (id: string) => boolean;
   /** Went off too recently to come back: they wait while anyone else can come on. */
   justOff?: (id: string) => boolean;
+  /**
+   * Went off within the cool-down: not brought back on at all, even with
+   * nobody else to come on (a fix for the rule aside). Round 2 usability,
+   * 24 Oct 2026: 6 s after a hand sub took Zara off, the card had her on.
+   */
+  resting?: (id: string) => boolean;
   /** At most this many subs in one batch; omitted = as many as even time. */
   maxSubs?: number;
 }
@@ -240,7 +246,8 @@ export function suggestRollingSubs<L extends string>(input: RollingSubsInput<L>)
   const used = fixed.usedOff;
   const subs: RollingSub<L>[] = [...fixed.subs];
 
-  const free = input.bench.filter((p) => !fixed.usedOn.has(p));
+  const resting = input.resting ?? (() => false);
+  const free = input.bench.filter((p) => !fixed.usedOn.has(p) && !resting(p));
   const rested = free.filter((p) => !justOff(p));
   // Bench kids who haven't rested wait while anyone else can come on.
   const bench = sortByKeys(rested.length > 0 ? rested : free, (p) => [keepOn(p) ? 0 : 1, gameMs(p)]);

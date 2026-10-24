@@ -294,6 +294,12 @@ export interface SuggestTouchSubsInput {
    * before a sub moves them again. 0 or omitted = no guard.
    */
   minStintMs?: number;
+  /**
+   * The cool-down after going off: a kid who went off less than this long
+   * ago isn't brought back on (the live game passes one sub interval). 0
+   * or omitted = none.
+   */
+  restMs?: number;
   /** At most this many subs in one batch; omitted = as many as even time. */
   maxSubs?: number;
 }
@@ -332,6 +338,7 @@ function touchRollingInput(input: SuggestTouchSubsInput, lu: TouchLineup): Rolli
     ...(mixed ? { tags: mixedTags(mixed.groupOf), constraints: mixedConstraints(mixed.rule), pool: poolOfFor(mixed) } : {}),
     justOn: (p) => guard && nowMs - (state.lastSubbedOnMs[p] ?? 0) < minStint,
     justOff: (p) => guard && state.lastSubbedOffMs[p] !== undefined && nowMs - state.lastSubbedOffMs[p] < minStint,
+    resting: (p) => (input.restMs ?? 0) > 0 && state.lastSubbedOffMs[p] !== undefined && nowMs - state.lastSubbedOffMs[p] < (input.restMs ?? 0),
     maxSubs: input.maxSubs,
   };
 }

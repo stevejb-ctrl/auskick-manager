@@ -330,10 +330,13 @@ export function SoccerLiveGame({
     [events, base.currentPeriod, isPeriodActive],
   );
   const nextSubs = useMemo(() => {
-    const batch = isPeriodActive ? suggestSoccerWindowBatch({ state, nowMs: absNowMs, prefs: keeperPrefs }) : [];
+    // Rolling subs: a kid who goes off rests a sub interval before coming
+    // back on (windows are the only time to sub, so no rest there).
+    const restMs = ageGroup.subMode.kind === "rolling" ? (subIntervalSeconds ?? 0) * 1000 : 0;
+    const batch = isPeriodActive ? suggestSoccerWindowBatch({ state, nowMs: absNowMs, prefs: keeperPrefs, restMs }) : [];
     return batchLeft > 0 ? batch.slice(0, batchLeft) : batch;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPeriodActive, state, keeperPrefs, batchLeft]);
+  }, [isPeriodActive, state, keeperPrefs, batchLeft, subIntervalSeconds, ageGroup.subMode.kind]);
   const subDueKey = subDue.key === null ? null : `${base.currentPeriod}:${subDue.key}`;
   const subDueShowing = isPeriodActive && subDue.due && nextSubs.length > 0 && subAckKey !== subDueKey;
   useSubDueAudioUnlock();
