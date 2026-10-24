@@ -26,7 +26,7 @@ import { breakConfigFor } from "@/lib/sports/break";
 import { buildBoard, placesOf, swapInStaged, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
 import { rotateGroups } from "@/lib/live/break/rotateGroups";
-import { periodLabels, type RugbySport } from "@/lib/sports";
+import { getSportConfig, periodLabels, type RugbySport } from "@/lib/sports";
 import { rugbyForwards } from "@/lib/sports/rugby/lines";
 import { rugbyBreakCheck } from "@/lib/sports/rugby/breakCheck";
 import { assignLeaguePositions, withLeagueSlots, type LeaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
@@ -502,7 +502,7 @@ export function LeagueBreak({
             }
           : undefined
       }
-      start={{ onStart: () => void start(), pending, cue: "siren goes", error }}
+      start={{ onStart: () => void start(), pending, cue: getSportConfig(sport).words.startCue, error }}
     />
   );
 }
