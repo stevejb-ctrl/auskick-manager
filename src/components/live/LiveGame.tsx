@@ -1655,7 +1655,7 @@ export function LiveGame({
           isLive={!isPreGame}
           onHelp={handleOpenWalkthrough}
           banner={
-            subDueBannerShows(subDueOpen, suggestions.length) ? (
+            subDueBannerShows(subDueOpen, suggestions.length, hasSwappableBench) ? (
               <SubDueBanner onAcknowledge={handleSubDueAcknowledge} />
             ) : null
           }

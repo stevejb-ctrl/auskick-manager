@@ -1627,7 +1627,7 @@ export function LeagueLiveGame({
         // has pairs (SubDue.tsx); the banner speaks only for a due sub
         // with nothing to suggest.
         banner={
-          subDueShowing && subDueBannerShows(true, isPeriodActive ? nextSubSuggestions.length : 0) ? (
+          subDueShowing && subDueBannerShows(true, isPeriodActive ? nextSubSuggestions.length : 0, swapPossible) ? (
             <SubDueBanner onAcknowledge={() => setSubAckedAtBaseMs(lastSwapOrPeriodElapsed)} />
           ) : null
         }

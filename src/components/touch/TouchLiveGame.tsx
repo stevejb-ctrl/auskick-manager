@@ -788,7 +788,7 @@ export function TouchLiveGame({
         // banner speaks only for a due sub with nothing to suggest.
         banner={
           <>
-            {isPeriodActive && subDueBannerShows(subDue.due, nextSubs.length) && subAckKey !== subDueKey ? (
+            {isPeriodActive && subDueBannerShows(subDue.due, nextSubs.length, (state.lineup?.bench ?? []).some((id) => canComeOn(id))) && subAckKey !== subDueKey ? (
               <SubDueBanner hint={TOUCH_SUB_DUE_HINT} onAcknowledge={() => setSubAckKey(subDueKey)} />
             ) : null}
             {/* Pinned while the side breaks the mixed rule, as the sub-due

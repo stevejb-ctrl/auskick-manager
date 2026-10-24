@@ -688,7 +688,7 @@ export function SoccerLiveGame({
         // The sub card is the alert while it has pairs (SubDue.tsx); the
         // banner speaks only for a due sub with nothing to suggest.
         banner={
-          isPeriodActive && subDueBannerShows(subDue.due, nextSubs.length) && subAckKey !== subDueKey ? (
+          isPeriodActive && subDueBannerShows(subDue.due, nextSubs.length, (state.lineup?.bench ?? []).some((id) => !injuredSet.has(id) && !loanedSet.has(id))) && subAckKey !== subDueKey ? (
             <SubDueBanner onAcknowledge={() => setSubAckKey(subDueKey)} />
           ) : null
         }

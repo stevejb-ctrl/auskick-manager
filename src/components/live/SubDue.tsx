@@ -15,10 +15,8 @@
 
 import type { ReactNode } from "react";
 
-/** The top-bar banner speaks only for a due sub with no card to show it. */
-export function subDueBannerShows(due: boolean, pairCount: number): boolean {
-  return due && pairCount === 0;
-}
+/** The top-bar banner speaks only for a due sub with no card to show it, and someone to bring on (lib/live/subDueBanner). */
+export { subDueBannerShows } from "@/lib/live/subDueBanner";
 
 /** The card's ring: amber while due, a lift shadow otherwise. */
 export const SUB_DUE_RING = "shadow-[0_0_0_2px_#A8590F,0_8px_24px_rgba(26,30,26,0.18)]";

@@ -786,7 +786,7 @@ export function BasketballLiveGame({
         // The sub card is the alert while it has pairs (SubDue.tsx); the
         // banner speaks only for a due sub with nothing to suggest.
         banner={
-          isPeriodActive && subDueBannerShows(subDue.due, nextSubs.length) && subAckKey !== subDueKey ? (
+          isPeriodActive && subDueBannerShows(subDue.due, nextSubs.length, (state.lineup?.bench ?? []).some((id) => canComeOn(id))) && subAckKey !== subDueKey ? (
             <SubDueBanner onAcknowledge={() => setSubAckKey(subDueKey)} />
           ) : null
         }
