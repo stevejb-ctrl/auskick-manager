@@ -11,6 +11,8 @@ interface MarkAllInButtonProps {
   gameId: string;
   /** Ids of squad players NOT currently marked available. */
   notInIds: string[];
+  /** The button's words, when it's not "Mark all N in" (e.g. "Mark Noah in"). */
+  label?: string;
 }
 
 /**
@@ -25,7 +27,7 @@ interface MarkAllInButtonProps {
  *
  * Hidden when everyone is already In — nothing to do.
  */
-export function MarkAllInButton({ auth, gameId, notInIds }: MarkAllInButtonProps) {
+export function MarkAllInButton({ auth, gameId, notInIds, label }: MarkAllInButtonProps) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
 
@@ -57,7 +59,7 @@ export function MarkAllInButton({ auth, gameId, notInIds }: MarkAllInButtonProps
       } motion-safe:active:scale-[0.97]`}
     >
       {pending && <PulseDot size="sm" />}
-      {pending ? "Marking…" : `Mark all ${notInIds.length} in`}
+      {pending ? "Marking…" : (label ?? `Mark all ${notInIds.length} in`)}
     </button>
   );
 }
