@@ -209,7 +209,7 @@ export function LeagueLiveGame({
   const [error, setError] = useState<string | null>(null);
   // The server's events, then the writes it hasn't returned yet, and the
   // game they replay to (the server's own replay while nothing's pending).
-  const { events: thisGameEvents, write } = useOptimisticEvents(serverEvents, { gameId: game.id, onError: setError });
+  const { events: thisGameEvents, write, queueReady } = useOptimisticEvents(serverEvents, { gameId: game.id, onError: setError });
   const state = useMemo(
     () => (thisGameEvents === serverEvents ? serverState : replayRugbyGame(thisGameEvents, rugbyPoints(sport))),
     [thisGameEvents, serverEvents, serverState, sport],
@@ -942,6 +942,9 @@ export function LeagueLiveGame({
     // auto-end during a pause; the coach is making a deliberate
     // stop and will resume / end explicitly.
     if (!running) return;
+    // Not before a queued period end from before a reload is drawn: it
+    // would end the period a second time.
+    if (!queueReady) return;
     const periodMs = periodSeconds * 1000;
     if (elapsedMs >= periodMs) {
       hooterFiredRef.current = true;
@@ -955,6 +958,7 @@ export function LeagueLiveGame({
     periodSeconds,
     running,
     endQuarterAtClient,
+    queueReady,
   ]);
 
 

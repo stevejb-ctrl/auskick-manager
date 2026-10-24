@@ -331,7 +331,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // replay (the page's props). The hooter with no signal used to freeze
   // the clock at 0:00 with no break, and Start Q2 waited on the save
   // (round 3, 24 Oct 2026).
-  const { events: thisGameEvents, write: writeEvent } = useOptimisticEvents(serverEvents, {
+  const { events: thisGameEvents, write: writeEvent, queueReady } = useOptimisticEvents(serverEvents, {
     gameId: game.id,
     // A write that can't save comes off the screen, which says so.
     onError: () => {},
@@ -687,6 +687,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     if (currentQuarter < 1 || quarterEnded || finalised) return;
     if (remainingMs > 0) return;
     if (hooterFiredForQuarterRef.current === currentQuarter) return;
+    // Not before a queued quarter_end from before a reload is drawn: it
+    // would end the quarter a second time.
+    if (!queueReady) return;
     // Picker-race guard: if the goal-confirm modal is open (coach
     // tapped a player and is mid-confirm), DON'T fire the auto-
     // hooter. Stagehand explore 2026-05-10 caught this in netball
@@ -730,6 +733,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     quarterLengthMs,
     writeEvent,
     pendingGoal,
+    queueReady,
   ]);
 
   // ─── Injured / loaned — derived from events ─────────────────

@@ -48,7 +48,18 @@ export interface OptimisticWrite {
 export function useOptimisticEvents(
   serverEvents: GameEvent[],
   opts: { gameId: string; onError: (message: string) => void },
-): { events: GameEvent[]; write: OptimisticWrite; unsaved: number } {
+): {
+  events: GameEvent[];
+  write: OptimisticWrite;
+  unsaved: number;
+  /**
+   * The write queue a reload left on the phone is in `events`. Until
+   * then the screen shows only the server's game, which may lack a
+   * period end still queued: a hooter that fired before this ended the
+   * period a second time (round 3, 24 Oct 2026).
+   */
+  queueReady: boolean;
+} {
   const router = useRouter();
   const [pending, setPending] = useState<PendingEvent[]>([]);
   const gameId = opts.gameId;
@@ -61,12 +72,15 @@ export function useOptimisticEvents(
   // Writes a reload left in the queue, drawn from it (once the page is
   // on the phone: the server's render has no queue, so the first render
   // matches it).
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const [queueReady, setQueueReady] = useState(false);
+  useEffect(() => {
+    if (useWriteQueue.persist.hasHydrated()) setQueueReady(true);
+    return useWriteQueue.persist.onFinishHydration(() => setQueueReady(true));
+  }, []);
   const queue = useWriteQueue((s) => s.queue);
   const fromQueue = useMemo(
-    () => (mounted ? queuedOptimisticEvents(queue, gameId) : []),
-    [mounted, queue, gameId],
+    () => (queueReady ? queuedOptimisticEvents(queue, gameId) : []),
+    [queueReady, queue, gameId],
   );
 
   // The ones this page didn't write (its own are in `pending`).
@@ -152,5 +166,5 @@ export function useOptimisticEvents(
     [gameId, scheduleRefresh],
   );
 
-  return { events, write, unsaved: pending.filter((p) => !p.flushed).length + leftByReload.length };
+  return { events, write, unsaved: pending.filter((p) => !p.flushed).length + leftByReload.length, queueReady };
 }

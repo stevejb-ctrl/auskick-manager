@@ -209,7 +209,7 @@ export function SoccerLiveGame({
   const liveRootRef = useRef<HTMLDivElement>(null);
   const periodMs = periodSeconds * 1000;
   // The server's events, then the writes it hasn't returned yet.
-  const { events, write } = useOptimisticEvents(serverEvents, { gameId: game.id, onError: setError });
+  const { events, write, queueReady } = useOptimisticEvents(serverEvents, { gameId: game.id, onError: setError });
   // The sport's own words and keeper rules, and the age group's periods
   // ("half" and "H", or hockey's "quarter" and "Q").
   const rules = soccerFamilyRules(sport);
@@ -420,11 +420,14 @@ export function SoccerLiveGame({
       return;
     }
     if (hooterFiredRef.current || !running || !base.periodStartedAt) return;
+    // Not before a queued period end from before a reload is drawn: it
+    // would end the period a second time.
+    if (!queueReady) return;
     if (elapsedMs >= periodMs) {
       hooterFiredRef.current = true;
       void endHalfAtClient(periodMs);
     }
-  }, [elapsedMs, isPeriodActive, running, base.periodStartedAt, periodMs, endHalfAtClient]);
+  }, [elapsedMs, isPeriodActive, running, base.periodStartedAt, periodMs, endHalfAtClient, queueReady]);
 
   // Pause or resume: a clock_pause event, on screen at once.
   function toggleClock() {
