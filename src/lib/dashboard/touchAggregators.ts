@@ -5,6 +5,7 @@
 // or a boy: a girl's try counts in points, not as a kind of try.
 
 import type { GameEvent } from "@/lib/types";
+import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { replayTouchGame, touchGameMs } from "@/lib/sports/touch/replay";
 
 export interface TouchSeasonPlayerStats {
@@ -30,6 +31,7 @@ export interface TouchSeasonAggregate {
     draws: number;
     losses: number;
   };
+  /** Every kid who came, at 0 if they never got on (UX round 2). */
   perPlayer: Record<string, TouchSeasonPlayerStats>;
   /** Tries nobody was named for, and their points: with the kids', points for. */
   noScorer: { tries: number; points: number };
@@ -61,7 +63,7 @@ export function aggregateTouchSeason(
     out.noScorer.tries += state.teamScore.tries - sum(state.playerTries);
     out.noScorer.points += state.teamScore.points - sum(state.playerPoints);
 
-    const ids = new Set([...Object.keys(state.ms), ...Object.keys(state.playerTries)]);
+    const ids = new Set([...presentPlayerIds(eventsOf(game.id)), ...Object.keys(state.ms), ...Object.keys(state.playerTries)]);
     ids.forEach((pid) => {
       const row = (out.perPlayer[pid] ??= {
         playerId: pid,
