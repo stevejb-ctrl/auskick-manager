@@ -65,10 +65,14 @@ import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
 import { touchLineupRuleItems } from "@/lib/sports/touch/ruleCheck";
 import { TouchField } from "./TouchField";
 import { TouchBench } from "./TouchBench";
-import { TOUCH_LINE_ONE, touchStrategyLabel } from "./touchWords";
+import { TOUCH_LINE_LABEL, TOUCH_LINE_ONE, touchStrategyLabel } from "./touchWords";
+import { getSportConfig, type TouchSport } from "@/lib/sports/registry";
+import { squadLoanAverage } from "@/lib/live/liveChrome";
 
 interface TouchLineupPickerProps {
   auth: LiveAuth;
+  /** Touch or Oztag: the start's words come from its config. */
+  sport: TouchSport;
   gameId: string;
   /** Kids here today, in squad order. */
   players: Player[];
@@ -89,10 +93,13 @@ interface TouchLineupPickerProps {
   initialLoanedIds: string[];
   availabilityPanel?: React.ReactNode;
   availabilityHref?: string | null;
+  /** Lent minutes in the season's other games, for the long-press sheet. */
+  seasonLoanMinutes?: Record<string, number>;
 }
 
 export function TouchLineupPicker({
   auth,
+  sport,
   gameId,
   players,
   ageGroup,
@@ -107,6 +114,7 @@ export function TouchLineupPicker({
   initialLoanedIds,
   availabilityPanel,
   availabilityHref,
+  seasonLoanMinutes = {},
 }: TouchLineupPickerProps) {
   const router = useRouter();
   const pickerRootRef = useRef<HTMLDivElement>(null);
@@ -506,11 +514,12 @@ export function TouchLineupPicker({
         <LockModal
           player={actionPlayer}
           currentLock={null}
-          currentZone={null}
+          // The kid's lane, and the season's lent minutes, as in play.
+          currentLine={touchLineOf(lineup, actionPlayer.id) ? TOUCH_LINE_LABEL[touchLineOf(lineup, actionPlayer.id)!] : null}
           isInjured={false}
           isLoaned={loanedIds.has(actionPlayer.id)}
-          seasonLoanMins={0}
-          squadLoanMins={0}
+          seasonLoanMins={seasonLoanMinutes[actionPlayer.id] ?? 0}
+          squadLoanMins={squadLoanAverage(seasonLoanMinutes)}
           onUnlock={() => setActionPlayerId(null)}
           onSwitch={() => {
             setActionPlayerId(null);
@@ -558,7 +567,7 @@ export function TouchLineupPicker({
         <StartQuarterModal
           quarter={1}
           periodLabel={onePeriod ? "period" : "half"}
-          cue="referee starts play"
+          cue={getSportConfig(sport).words.startCue}
           loading={isPending}
           onStart={handleConfirmStart}
           onCancel={() => setStartModalOpen(false)}
