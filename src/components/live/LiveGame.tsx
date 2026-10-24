@@ -114,7 +114,9 @@ import { getSportConfig } from "@/lib/sports/registry";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { useHypeSong } from "@/lib/live/useHypeSong";
 import { isFinalSubWindow, canPlanNextPeriod } from "@/lib/live/subCadence";
-import { subIntervalStartFloor } from "@/lib/live/subDistribution";
+import { mergeSubAnchor, type SubAnchor } from "@/lib/live/subAnchor";
+import { clockPauseInput, storeClockFromMark, withQueuedClockPauseMark } from "@/lib/live/clockPause";
+import { useWriteQueue } from "@/lib/live/writeQueue";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 
 import { assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
@@ -295,6 +297,7 @@ export function LiveGame({
   const playerScores = useLiveGame((s) => s.playerScores);
   const startClock = useLiveGame((s) => s.startClock);
   const pauseClock = useLiveGame((s) => s.pauseClock);
+  const restoreClock = useLiveGame((s) => s.restoreClock);
   const beginNextQuarter = useLiveGame((s) => s.beginNextQuarter);
   const endCurrentQuarter = useLiveGame((s) => s.endCurrentQuarter);
   const basePlayedZoneMs = useLiveGame((s) => s.basePlayedZoneMs);
@@ -375,7 +378,15 @@ export function LiveGame({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [subBaseMs, setSubBaseMs] = useState<number | null>(null);
+  // The sub clock: where the quarter's sub interval started (its last
+  // planned swap) and a due batch's swaps still to make. The events'
+  // anchor seeds it (a reload, a new quarter) and this phone's own swaps
+  // move it (mergeSubAnchor, below).
+  const [subAnchor, setSubAnchor] = useState<SubAnchor | null>(null);
+  // The clock_pause events this phone wrote (by op id), and the last one
+  // the clock was set from: a pause another phone made is applied once.
+  const ownClockOpsRef = useRef(new Set<string>());
+  const appliedClockMarkRef = useRef<string | null>(null);
   // Swaps made on this phone, stamped in the replay's absolute game-ms
   // frame. The recency guard's lastSubbedOn/OffMs come from the server
   // replay, which a mid-quarter swap doesn't refresh — so without these
@@ -560,19 +571,39 @@ export function LiveGame({
       initialState.currentQuarter >= 1 &&
       initialState.quarterStartedAt
     ) {
-      // Game ms, the frame the replay's stint stamps are in.
-      accumulatedMs =
-        Math.max(0, Date.now() - new Date(initialState.quarterStartedAt).getTime()) *
-        clockMultiplier;
-      // Auto-resume only on a fresh mount. On a Q-break advance
-      // (same mount, new initialState), Steve's intent stands:
-      // leave clockStartedAt null so the StartQuarterModal blocks
-      // until the coach taps Start. Page reload / test seed /
-      // hard-refresh hit the fresh-mount branch and get the
-      // clock running immediately, matching the pre-70fda29
-      // behaviour for those flows.
-      if (isFreshMount) {
-        clockStartedAt = Date.now();
+      // The quarter's latest pause or resume (its clock_pause event,
+      // or one still queued from before the reload): the clock is held
+      // at the pause, or runs on from the resume with the stoppage
+      // banked. A rebuild from quarter_start alone counted the paused
+      // seconds as play (round 2, 24 Oct 2026).
+      const mark = isFreshMount
+        ? withQueuedClockPauseMark(
+            initialState.clockPause,
+            useWriteQueue.getState().queue,
+            gameId,
+            initialState.currentQuarter,
+          )
+        : null;
+      if (mark) {
+        const clock = storeClockFromMark(mark, Date.now(), clockMultiplier);
+        accumulatedMs = clock.accumulatedMs;
+        clockStartedAt = clock.running ? Date.now() : null;
+        appliedClockMarkRef.current = mark.key;
+      } else {
+        // Game ms, the frame the replay's stint stamps are in.
+        accumulatedMs =
+          Math.max(0, Date.now() - new Date(initialState.quarterStartedAt).getTime()) *
+          clockMultiplier;
+        // Auto-resume only on a fresh mount. On a Q-break advance
+        // (same mount, new initialState), Steve's intent stands:
+        // leave clockStartedAt null so the StartQuarterModal blocks
+        // until the coach taps Start. Page reload / test seed /
+        // hard-refresh hit the fresh-mount branch and get the
+        // clock running immediately, matching the pre-70fda29
+        // behaviour for those flows.
+        if (isFreshMount) {
+          clockStartedAt = Date.now();
+        }
       }
     }
     init({
@@ -625,22 +656,41 @@ export function LiveGame({
     return () => clearInterval(id);
   }, [clockStartedAt]);
 
+  // A pause or resume another phone made lands with a refresh: put the
+  // clock where its event says. This phone's own are already there.
   useEffect(() => {
+    if (!hydrated) return;
+    const mark = initialState.clockPause;
+    if (!mark || mark.key === appliedClockMarkRef.current) return;
+    appliedClockMarkRef.current = mark.key;
+    if (ownClockOpsRef.current.has(mark.key)) return;
+    if (initialState.currentQuarter !== currentQuarter || quarterEnded || finalised) return;
+    if (quarterEndTriggeredRef.current === currentQuarter) return;
+    const clock = storeClockFromMark(mark, Date.now(), clockMultiplier);
+    restoreClock(clock.accumulatedMs, clock.running);
+  }, [hydrated, initialState, currentQuarter, quarterEnded, finalised, clockMultiplier, restoreClock]);
+
+  // The sub clock from the events: the quarter's last planned swap (0 at
+  // the start), so a reload carries on from it. It used to be re-seeded
+  // on mount by flooring the clock onto the interval grid, before the
+  // clock was back, so a reload just after subbing brought "Sub due —
+  // NOW" straight back (round 2, 24 Oct 2026). The phone's own swaps
+  // win over events that haven't caught up (mergeSubAnchor).
+  const serverHasQuarter = initialState.currentQuarter === currentQuarter && !initialState.quarterEnded;
+  const serverSubAnchorMs = serverHasQuarter ? initialState.subAnchorMs : null;
+  const serverSubBatchLeft = serverHasQuarter ? initialState.subBatchLeft : 0;
+  useEffect(() => {
+    if (!hydrated) return;
     if (currentQuarter >= 1 && !quarterEnded && !finalised) {
-      // Issue 4: seed the sub-interval start by FLOORING the current
-      // clock elapsed onto the interval grid, not to "now". The main
-      // clock recomputes correctly on remount (persisted timestamp), so
-      // the floor is identical before/after a remount — the countdown
-      // resumes from where it was instead of resetting to a full
-      // interval. Both sides are game ms.
-      setSubBaseMs(
-        subIntervalStartFloor({ nowMs: currentElapsedMs(), intervalMs: subIntervalMs }),
+      setSubAnchor((mine) =>
+        mergeSubAnchor(mine, { period: currentQuarter, anchorMs: serverSubAnchorMs, batchLeft: serverSubBatchLeft }),
       );
     } else {
-      setSubBaseMs(null);
+      setSubAnchor(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentQuarter, quarterEnded, finalised]);
+  }, [hydrated, currentQuarter, quarterEnded, finalised, serverSubAnchorMs, serverSubBatchLeft]);
+  const subBaseMs = subAnchor?.period === currentQuarter ? subAnchor.anchorMs : null;
+  const subBatchLeft = subAnchor?.period === currentQuarter ? subAnchor.batchLeft : 0;
 
   function handleTapField(playerId: string, zone: Zone) {
     if (isFinished) return;
@@ -880,9 +930,9 @@ export function LiveGame({
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = currentElapsedMs();
     // Issue 5: a forced injury/lent replacement is off-cadence — it must
-    // NOT reset the sub countdown. Leave subBaseMs alone so the timer
-    // keeps running toward the next scheduled rotation. (Was
-    // setSubBaseMs(currentElapsedMs()) here.)
+    // NOT reset the sub countdown. Leave the sub anchor alone so the
+    // timer keeps running toward the next scheduled rotation (the events
+    // skip it too: lib/live/subAnchor matches it to its injury).
     applyInjurySwap(injuredId, replacementId);
     // Two queue ops, dispatched in order. The queue's FIFO contract
     // means the injury event lands before the swap on the server,
@@ -993,18 +1043,30 @@ export function LiveGame({
   // rotation (the suggested-swap apply) resets the countdown to a full
   // interval (issue 5). A deliberate off-cadence manual swap leaves it
   // running toward the next scheduled rotation (issue 5 open question,
-  // default "keep running"). Forced injury/lent swaps go through their
-  // own path and never reset.
+  // default "keep running"), and says so (`manual`) so the anchor a
+  // reload rebuilds skips it too. Forced injury/lent swaps go through
+  // their own path and never reset.
+  // `batchLeft`: one swap of a due batch, with this many still to make.
+  // The countdown holds (still due) until the batch is done, as soccer's
+  // does; it used to restart and drop the batch's other pair (round 2,
+  // 24 Oct 2026).
   function persistSwap(
     off: string,
     on: string,
     zone: Zone,
     resetSubTimer = true,
+    batchLeft = 0,
   ) {
     setError(null);
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = currentElapsedMs();
-    if (resetSubTimer) setSubBaseMs(elapsed_ms);
+    if (resetSubTimer) {
+      setSubAnchor({
+        period: currentQuarter,
+        anchorMs: batchLeft > 0 ? subBaseMs ?? 0 : elapsed_ms,
+        batchLeft,
+      });
+    }
     const at = initialState.completedQuarterMs + elapsed_ms;
     setLocalSubbedMs((prev) => ({
       on: { ...prev.on, [on]: at },
@@ -1020,6 +1082,8 @@ export function LiveGame({
         zone,
         quarter,
         elapsed_ms,
+        ...(resetSubTimer ? {} : { manual: true }),
+        ...(resetSubTimer && batchLeft > 0 ? { batch_left: batchLeft } : {}),
       },
     ]);
   }
@@ -1032,8 +1096,19 @@ export function LiveGame({
   // the quarter_start timestamp and starts the clock. No
   // separate handler needed here.
 
+  // A pause or resume is saved (clock_pause), so a reload or another
+  // phone keeps it (lib/live/clockPause).
+  function saveClockPause(paused: boolean, elapsedMs: number) {
+    const input = clockPauseInput(Math.max(1, currentQuarter), paused, elapsedMs, Date.now());
+    const { id } = enqueueLiveAction("recordClockPause", [auth, gameId, input]);
+    ownClockOpsRef.current.add(id);
+  }
+
   function handlePause() {
+    if (clockStartedAt === null) return;
+    const elapsed = currentElapsedMs();
     pauseClock();
+    saveClockPause(true, elapsed);
   }
 
   function handleResume() {
@@ -1047,7 +1122,9 @@ export function LiveGame({
     // "apply the same rules globally" — both sports now share the
     // same hooter-fired-locks-resume invariant.
     if (quarterEndTriggeredRef.current === currentQuarter) return;
+    if (clockStartedAt !== null) return;
     startClock();
+    saveClockPause(false, accumulatedMs);
   }
 
   function handleEndQuarter(opts?: { creditFullQuarter?: boolean }) {
@@ -1447,7 +1524,9 @@ export function LiveGame({
     suggestions,
     pastHooterCarry,
   } = resolveDisplaySuggestions({
-    rawSuggestions,
+    // A due batch made one swap at a time: just the swaps it has left,
+    // as soccer's card (lib/live/subAnchor openSubBatch).
+    rawSuggestions: subBatchLeft > 0 ? rawSuggestions.slice(0, subBatchLeft) : rawSuggestions,
     subPastHooter,
     pin: pinForThisGame,
     currentPeriod: currentQuarter,
@@ -1677,7 +1756,15 @@ export function LiveGame({
                   handleSubDueAcknowledge();
                 }}
                 onApplyOne={(s) => {
-                  persistSwap(s.off_player_id, s.on_player_id, s.zone);
+                  // One of a due batch: the rest stay due until they're
+                  // made (the sub clock holds; soccer's rule).
+                  persistSwap(
+                    s.off_player_id,
+                    s.on_player_id,
+                    s.zone,
+                    true,
+                    subState === "due" ? suggestions.length - 1 : 0,
+                  );
                   showSwapToast(
                     `${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`
                   );
