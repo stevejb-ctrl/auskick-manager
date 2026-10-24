@@ -50,6 +50,7 @@ import { replayRugbyGame, rugbyPoints, rugbyScoreWords } from "@/lib/sports/rugb
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
 import type { PlaybookSnapshot } from "@/lib/playbook/types";
+import { gameWriteError } from "@/lib/games/gameWriteError";
 
 // ─── Internal helpers (shape-matched to netball-actions) ──────
 
@@ -393,7 +394,10 @@ export async function startLeagueGame(
     );
     gameUpdate.sub_interval_seconds = clamped;
   }
-  await w.supabase.from("games").update(gameUpdate).eq("id", gameId);
+  const { error: gameError } = await w.supabase.from("games").update(gameUpdate).eq("id", gameId);
+  // A refused write says so (UX round 3: soccer's kick-off went on with
+  // the game still "Upcoming").
+  if (gameError) return { success: false, error: gameWriteError(gameError) };
 
   // Kickoff invalidates any pre-game draft — same contract as
   // AFL `startGame` / netball `startNetballGame`.

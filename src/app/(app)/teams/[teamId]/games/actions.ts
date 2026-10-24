@@ -6,6 +6,9 @@ import { createClient } from "@/lib/supabase/server";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
 import { newGameDefaults, PERIOD_MINUTES_MAX } from "@/lib/games/newGameDefaults";
 import { pinPlayedPeriodLength } from "@/lib/games/pinPlayedPeriodLength";
+import { gameWriteError } from "@/lib/games/gameWriteError";
+import { teamSport } from "@/lib/sports/registry";
+import { onSurfaceLabel } from "@/lib/sports/words";
 import type { ActionResult } from "@/lib/types";
 
 async function getAuthedAdmin(teamId: string) {
@@ -75,6 +78,7 @@ export async function createGame(
     .single();
   const defaults = newGameDefaults(team?.sport, team?.age_group, team?.on_field_size, team?.period_count);
   const gameId = crypto.randomUUID();
+  const onFieldSize = input.on_field_size ?? defaults.on_field_size;
   const { error: insertError } = await supabase
     .from("games")
     .insert({
@@ -85,13 +89,17 @@ export async function createGame(
       location: input.location?.trim() || null,
       round_number: input.round_number ?? null,
       notes: input.notes?.trim() || null,
-      on_field_size: input.on_field_size ?? defaults.on_field_size,
+      on_field_size: onFieldSize,
       sub_interval_seconds: defaults.sub_interval_seconds,
       created_by: user.id,
     });
 
   if (insertError) {
-    return { success: false, error: insertError.message };
+    // In the coach's words, never a constraint's name (UX round 3).
+    return {
+      success: false,
+      error: gameWriteError(insertError, { size: onFieldSize, onSurface: onSurfaceLabel(teamSport(team?.sport)) }),
+    };
   }
 
   // Default: all active players are "available". Coach un-selects

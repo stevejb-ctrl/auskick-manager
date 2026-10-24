@@ -42,6 +42,7 @@ import { isGirlsTry, touchTryEventType } from "@/lib/sports/touch/scoreEvents";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
 import type { PlaybookSnapshot } from "@/lib/playbook/types";
+import { gameWriteError } from "@/lib/games/gameWriteError";
 
 interface Writer {
   supabase: SupabaseClient;
@@ -238,7 +239,10 @@ export async function startTouchGame(
   if (subIntervalSeconds != null) {
     gameUpdate.sub_interval_seconds = Math.round(Math.min(10 * 60, Math.max(60, subIntervalSeconds)));
   }
-  await w.supabase.from("games").update(gameUpdate).eq("id", gameId);
+  const { error: gameError } = await w.supabase.from("games").update(gameUpdate).eq("id", gameId);
+  // A refused write says so (UX round 3: soccer's kick-off went on with
+  // the game still "Upcoming").
+  if (gameError) return { success: false, error: gameWriteError(gameError) };
 
   // The start retires the pre-game draft, as for every sport.
   await w.supabase.from("game_lineup_drafts").delete().eq("game_id", gameId);
