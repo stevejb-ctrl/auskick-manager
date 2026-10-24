@@ -39,6 +39,7 @@ import { AflWalkthroughOffer, LeagueWalkthroughOffer } from "@/components/live/W
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { ParentScoreboard } from "@/components/live/ParentScoreboard";
 import { GameDayAvailabilityPanel } from "@/components/games/GameDayAvailabilityPanel";
+import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
 import {
   replayGame,
   seasonZoneMinutes,
@@ -215,7 +216,7 @@ export default async function LivePage({ params }: LivePageProps) {
       .single(),
     supabase
       .from("teams")
-      .select("name, sport, track_scoring, track_zone_time, age_group, quarter_length_seconds, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
+      .select("name, sport, track_scoring, track_zone_time, age_group, quarter_length_seconds, on_field_size, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
       .eq("id", params.teamId)
       .single(),
     supabase
@@ -1438,7 +1439,9 @@ export default async function LivePage({ params }: LivePageProps) {
           currentOnFieldSize={g.on_field_size}
           minOnFieldSize={ageCfg.minOnFieldSize}
           maxOnFieldSize={ageCfg.maxOnFieldSize}
-          defaultOnFieldSize={ageCfg.defaultOnFieldSize}
+          // A full side is the team's own (its competition's), not the age
+          // group's: a team that plays 6 drew 6 empty slots (UX round 3).
+          defaultOnFieldSize={teamOnFieldSize(ageCfg, (teamRow as { on_field_size?: number | null } | null)?.on_field_size)}
           chipModeByKey={teamChipModes}
           aflPlaybook={aflPlaybook}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}

@@ -41,6 +41,7 @@ import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeco
 import type { LeagueLineup } from "@/lib/types";
 import type { FillIn, Game, GameEvent, LiveAuth, MixedGroup, Player, Sport } from "@/lib/types";
 import { withThirdsToday } from "@/lib/playbook/dayLines";
+import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
 
 export const dynamic = "force-dynamic";
 
@@ -83,7 +84,7 @@ export default async function RunPage({ params }: RunPageProps) {
 
   const { data: teamRow } = await admin
     .from("teams")
-    .select("name, sport, track_scoring, age_group, quarter_length_seconds, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_mode, chip_b_mode, chip_c_mode, chip_a_label, chip_b_label, chip_c_label, track_zone_time")
+    .select("name, sport, track_scoring, age_group, quarter_length_seconds, on_field_size, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_mode, chip_b_mode, chip_c_mode, chip_a_label, chip_b_label, chip_c_label, track_zone_time")
     .eq("id", g.team_id)
     .single();
   // Read with the service client: no row means no such team.
@@ -1072,7 +1073,8 @@ export default async function RunPage({ params }: RunPageProps) {
           currentOnFieldSize={g.on_field_size}
           minOnFieldSize={ageCfgSport.minOnFieldSize}
           maxOnFieldSize={ageCfgSport.maxOnFieldSize}
-          defaultOnFieldSize={ageCfgSport.defaultOnFieldSize}
+          // The team's own full side, as the coach's page.
+          defaultOnFieldSize={teamOnFieldSize(ageCfgSport, (teamRow as { on_field_size?: number | null } | null)?.on_field_size)}
           chipModeByKey={teamChipModes}
           aflPlaybook={aflPlaybook}
           songUrl={songUrl}
