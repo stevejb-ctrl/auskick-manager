@@ -465,6 +465,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                             round_number: g.round_number,
                             notes: g.notes,
                           },
+                          teamName,
                         }
                       : undefined
                   }

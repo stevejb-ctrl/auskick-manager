@@ -19,6 +19,16 @@ export function gameDateError(iso: string, now: number = Date.now()): string | n
   return null;
 }
 
+/**
+ * The opponent has the team's own name ("Saints v Saints": the score
+ * read "Saints 5 def Saints 0", round 3 edge testing). Case, spacing and
+ * punctuation don't count.
+ */
+export function opponentIsTeam(opponent: string, teamName: string | null | undefined): boolean {
+  const norm = (s: string) => s.normalize("NFKC").toLocaleLowerCase().replace(/[\s.,'’"()-]+/g, "");
+  return !!teamName && norm(opponent) !== "" && norm(opponent) === norm(teamName);
+}
+
 /** A datetime-local input's value for a moment, in local time. */
 export function toLocalInputValue(t: number | string): string {
   const d = new Date(t);

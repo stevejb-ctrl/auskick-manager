@@ -27,6 +27,8 @@ interface GameMoreMenuProps {
       round_number: number | null;
       notes: string | null;
     };
+    /** For the same-name opponent warning. */
+    teamName?: string;
   };
   canRestart: boolean;
   canDelete: boolean;
@@ -119,7 +121,7 @@ export function GameMoreMenu({
       )}
       {dialog === "link" && shareToken && <GameDayLinkDialog token={shareToken} onClose={close} />}
       {dialog === "edit" && edit && (
-        <EditGameDialog teamId={teamId} game={edit.game} onClose={close} />
+        <EditGameDialog teamId={teamId} game={edit.game} teamName={edit.teamName} onClose={close} />
       )}
       {dialog === "restart" && (
         <ResetGameDialog auth={{ kind: "team", teamId }} gameId={gameId} onClose={close} />

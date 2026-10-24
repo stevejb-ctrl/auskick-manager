@@ -13,6 +13,8 @@ interface EditGameDialogProps {
     round_number: number | null;
     notes: string | null;
   };
+  /** For the same-name opponent warning. */
+  teamName?: string;
   onClose: () => void;
 }
 
@@ -21,7 +23,7 @@ interface EditGameDialogProps {
  * the game hub's More sheet. Reuses the create form in edit mode so the
  * two never drift; updateGame revalidates the hub so it re-renders.
  */
-export function EditGameDialog({ teamId, game, onClose }: EditGameDialogProps) {
+export function EditGameDialog({ teamId, game, teamName, onClose }: EditGameDialogProps) {
   return (
     <Modal size="md">
       <h2 className="mb-4 text-lg font-semibold text-ink">Edit details</h2>
@@ -29,6 +31,7 @@ export function EditGameDialog({ teamId, game, onClose }: EditGameDialogProps) {
         <CreateGameForm
           teamId={teamId}
           existingGame={game}
+          teamName={teamName}
           onCancel={onClose}
           onCreated={onClose}
         />

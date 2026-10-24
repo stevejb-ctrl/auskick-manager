@@ -43,7 +43,7 @@ export default async function GamesPage({
       : Promise.resolve({ data: null }),
     supabase
       .from("teams")
-      .select("age_group, sport, playhq_url")
+      .select("name, age_group, sport, playhq_url")
       .eq("id", params.teamId)
       .single(),
   ]);
@@ -84,6 +84,7 @@ export default async function GamesPage({
             (team as { playhq_url?: string | null } | null)?.playhq_url ?? ""
           }
           playhqTenant={PLAYHQ_TENANT[sport]}
+          teamName={(team as { name?: string } | null)?.name}
         />
       )}
 

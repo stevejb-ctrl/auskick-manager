@@ -18,6 +18,8 @@ interface GamesStepProps {
   /** The sport's PlayHQ tenant; null where the sport isn't on PlayHQ (league). */
   playhqTenant: string | null;
   games: GameSummary[];
+  /** The team's name, for the same-name opponent warning. */
+  teamName?: string;
 }
 
 export function GamesStep({
@@ -26,6 +28,7 @@ export function GamesStep({
   playhqUrl,
   playhqTenant,
   games,
+  teamName,
 }: GamesStepProps) {
   return (
     <div className="mx-auto max-w-xl space-y-6">
@@ -53,6 +56,7 @@ export function GamesStep({
         initialUrl={playhqUrl}
         playhqTenant={playhqTenant}
         afterCreate="stay"
+        teamName={teamName}
       />
 
       <div className="rounded-lg border border-hairline bg-surface shadow-card">

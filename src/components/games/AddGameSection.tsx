@@ -14,6 +14,8 @@ interface Props {
   playhqTenant: string | null;
   /** What the manual create form does afterwards (see createGame). */
   afterCreate?: "open-game" | "stay";
+  /** The team's name, for the same-name opponent warning. */
+  teamName?: string;
 }
 
 export function AddGameSection({
@@ -22,6 +24,7 @@ export function AddGameSection({
   initialUrl = "",
   playhqTenant,
   afterCreate = "open-game",
+  teamName,
 }: Props) {
   const [showManual, setShowManual] = useState(false);
 
@@ -78,6 +81,7 @@ export function AddGameSection({
               </button>
             </div>
             <CreateGameForm
+              teamName={teamName}
               teamId={teamId}
               onCancel={() => setShowManual(false)}
               afterCreate={afterCreate}

@@ -5,7 +5,7 @@ import { createGame, updateGame } from "@/app/(app)/teams/[teamId]/games/actions
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import { gameDateError, gameDateRange, toLocalInputValue } from "@/lib/games/gameDates";
+import { gameDateError, gameDateRange, opponentIsTeam, toLocalInputValue } from "@/lib/games/gameDates";
 
 interface CreateGameFormProps {
   teamId: string;
@@ -14,6 +14,8 @@ interface CreateGameFormProps {
   afterCreate?: "open-game" | "stay";
   /** Called after a successful create when `afterCreate` is "stay", or after an edit. */
   onCreated?: () => void;
+  /** The team's name: an opponent with the same name gets a warning. */
+  teamName?: string;
   /**
    * Edit an existing game instead of creating one (the game hub's
    * More → Edit details). Prefills the form and saves via updateGame.
@@ -34,6 +36,7 @@ export function CreateGameForm({
   afterCreate = "open-game",
   onCreated,
   existingGame,
+  teamName,
 }: CreateGameFormProps) {
   const [opponent, setOpponent] = useState(existingGame?.opponent ?? "");
   const [scheduledAt, setScheduledAt] = useState(
@@ -128,7 +131,14 @@ export function CreateGameForm({
           onChange={(e) => setOpponent(e.target.value)}
           placeholder="e.g. Merewether Magpies"
           disabled={isPending}
+          aria-describedby={opponentIsTeam(opponent, teamName) ? "opponent-same-name" : undefined}
         />
+        {/* A warning, not a block: same-name clubs from two suburbs meet. */}
+        {opponentIsTeam(opponent, teamName) && (
+          <p id="opponent-same-name" className="text-xs text-warn" aria-live="polite">
+            That&apos;s your team&apos;s name too. Add their suburb or club so the score reads clearly.
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row">

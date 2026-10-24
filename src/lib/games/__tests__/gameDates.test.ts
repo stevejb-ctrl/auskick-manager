@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatGameDateTime, gameDateError, gameDateRange } from "@/lib/games/gameDates";
+import { formatGameDateTime, gameDateError, gameDateRange, opponentIsTeam } from "@/lib/games/gameDates";
 
 const NOW = new Date("2026-10-25T10:00:00+11:00").getTime();
 const DAY = 86_400_000;
@@ -23,6 +23,22 @@ describe("gameDateError", () => {
   it("refuses something that isn't a date", () => {
     expect(gameDateError("", NOW)).toBe("Date and time are required.");
     expect(gameDateError("not a date", NOW)).toBe("Date and time are required.");
+  });
+});
+
+describe("opponentIsTeam", () => {
+  // Round 3: a union team "Saints" v "Saints" read "Saints 5 def Saints 0".
+  it("spots the team's own name, whatever the case or spacing", () => {
+    expect(opponentIsTeam("Saints", "Saints")).toBe(true);
+    expect(opponentIsTeam("  saints ", "Saints")).toBe(true);
+    expect(opponentIsTeam("St. Kilda", "St Kilda")).toBe(true);
+  });
+
+  it("leaves a different club alone", () => {
+    expect(opponentIsTeam("Merewether Saints", "Saints")).toBe(false);
+    expect(opponentIsTeam("Saints", undefined)).toBe(false);
+    expect(opponentIsTeam("", "Saints")).toBe(false);
+    expect(opponentIsTeam("Sharks", "Saints")).toBe(false);
   });
 });
 
