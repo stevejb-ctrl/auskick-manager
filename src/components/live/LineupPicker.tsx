@@ -45,6 +45,7 @@ import { GamePlanButton, type GamePlanButtonProps } from "@/components/game-plan
 import { keepOnIds } from "@/components/playbook/KeepOnMarker";
 import { pinLaterPeriods, withPinnedPeriods } from "@/lib/game-plan";
 import { SUB_MINUTES_MAX, SUB_MINUTES_MIN, subMinutesFrom } from "@/lib/live/subCadence";
+import { squadLoanAverage } from "@/lib/live/liveChrome";
 // Rotations each player gets to sit on the bench over the whole game.
 // Bigger benches → more rotations per player (shorter stints each).
 function restsPerPlayer(benchSize: number): number {
@@ -129,6 +130,8 @@ interface LineupPickerProps {
    * carried into the game.
    */
   initialLocks?: Record<string, PlayerLock>;
+  /** Lent minutes in the season's other games, for the long-press sheet. */
+  seasonLoanMinutes?: Record<string, number>;
   /**
    * Players already flagged as lent in the pre-game flow. Derived
    * from prior `player_loan` events in this game's event log so the
@@ -199,6 +202,7 @@ export function LineupPicker({
   initialLocks,
   initialLoanedIds = [],
   defaultSubMinutes,
+  seasonLoanMinutes = {},
 }: LineupPickerProps) {
   const router = useRouter();
   // Pre-game loaned-player set. Hydrated from any player_loan events
@@ -1152,8 +1156,8 @@ export function LineupPicker({
               currentZone={hold?.kind === "zone" ? (hold.zone as Zone) : zone}
               isInjured={false}
               isLoaned={false}
-              seasonLoanMins={0}
-              squadLoanMins={0}
+              seasonLoanMins={seasonLoanMinutes[pid] ?? 0}
+              squadLoanMins={squadLoanAverage(seasonLoanMinutes)}
               onLockField={zone ? () => { saveHold(pid, { kind: "field" }); close(); } : undefined}
               onLockZone={zone ? () => { saveHold(pid, { kind: "zone", zone }); close(); } : undefined}
               onUnlock={() => { saveHold(pid, null); close(); }}

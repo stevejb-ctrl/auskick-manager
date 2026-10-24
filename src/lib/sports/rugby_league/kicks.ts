@@ -27,10 +27,24 @@
 
 import type { GameEvent } from "@/lib/types";
 import { pairScoreUndos } from "@/lib/live/scoreUndo";
+import { isOptimisticEventId } from "@/lib/live/optimisticEvents";
 
 /** U13+ penalty and field goals (ours and theirs) — scores, not kicks. */
 export const LEAGUE_GOAL_TYPES = ["penalty_goal", "field_goal", "opponent_penalty_goal", "opponent_field_goal"] as const;
 const LEAGUE_GOALS_FROM_PLAY: ReadonlySet<string> = new Set(LEAGUE_GOAL_TYPES);
+
+/**
+ * Every rugby score an undo can take back (undoLeagueScore, and the live
+ * screen's optimistic undo): tries, conversion attempts made or missed,
+ * and the goals, ours and theirs.
+ */
+export const RUGBY_SCORE_EVENT_TYPES: ReadonlySet<string> = new Set([
+  "try",
+  "opponent_try",
+  "conversion_attempt",
+  "opponent_conversion",
+  ...LEAGUE_GOAL_TYPES,
+]);
 
 // ─── Conversion attempts ─────────────────────────────────────
 
@@ -145,12 +159,7 @@ export function unconvertedTryIds(events: GameEvent[]): string[] {
   const sorted = [...events].sort((a, b) =>
     a.created_at.localeCompare(b.created_at),
   );
-  const undone = new Set(
-    pairScoreUndos(
-      sorted,
-      new Set<string>(["try", "opponent_try", "conversion_attempt", "opponent_conversion", ...LEAGUE_GOAL_TYPES]),
-    ).values(),
-  );
+  const undone = new Set(pairScoreUndos(sorted, RUGBY_SCORE_EVENT_TYPES).values());
   const waiting: string[] = [];
   for (const ev of sorted) {
     if (undone.has(ev.id)) continue;
@@ -158,6 +167,17 @@ export function unconvertedTryIds(events: GameEvent[]): string[] {
     else if (ev.type === "conversion_attempt") waiting.shift();
   }
   return waiting;
+}
+
+/**
+ * The try a conversion names: the first waiting, once the server has it.
+ * A try still on its way (on screen, not yet saved) has no row to name,
+ * so the kick names none and the server pairs it with the first try it
+ * has waiting (recordConversionAttempt).
+ */
+export function conversionTryEventId(events: GameEvent[]): string | undefined {
+  const first = unconvertedTryIds(events)[0];
+  return first && !isOptimisticEventId(first) ? first : undefined;
 }
 
 export interface ConversionCycleInfo {

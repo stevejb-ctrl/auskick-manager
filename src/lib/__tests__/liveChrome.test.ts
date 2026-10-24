@@ -13,6 +13,8 @@ import {
   undoMessage,
 } from "@/lib/live/liveChrome";
 import { soccerLikelyScorers } from "@/lib/sports/soccer/scorers";
+import { rugbyScoreWhat } from "@/lib/sports/rugby_league/fairness";
+import { touchTryWhat } from "@/lib/sports/touch/scoreEvents";
 
 describe("undoMessage", () => {
   it("names the team, what was scored and who, as AFL's strip does", () => {
@@ -92,5 +94,25 @@ describe("soccerLikelyScorers (the scorer sheet's order)", () => {
   it("puts a one-line field before the keeper", () => {
     const order = soccerLikelyScorers({ keeper: "gk", lines: { def: [], mid: [], att: [], field: ["f1", "f2"] }, bench: [] });
     expect(order.map((s) => s.id)).toEqual(["f1", "f2", "gk"]);
+  });
+});
+
+describe("what the undo strip says was scored, in rugby's and touch's words", () => {
+  it("names league's and union's scores as each sport calls them", () => {
+    expect(rugbyScoreWhat("rugby_league", "try")).toBe("try");
+    expect(rugbyScoreWhat("rugby_league", "conversion_attempt", true)).toBe("conversion");
+    expect(rugbyScoreWhat("rugby_league", "conversion_attempt", false)).toBe("missed conversion");
+    expect(rugbyScoreWhat("rugby_league", "opponent_conversion")).toBe("conversion");
+    expect(rugbyScoreWhat("rugby_league", "penalty_goal")).toBe("penalty goal");
+    expect(rugbyScoreWhat("rugby_league", "field_goal")).toBe("field goal");
+    expect(rugbyScoreWhat("rugby_union", "opponent_field_goal")).toBe("drop goal");
+    expect(undoMessage({ side: "us", what: rugbyScoreWhat("rugby_union", "try"), teamName: "Rams", opponentName: "Bulls", scorerName: "Kai" })).toBe(
+      "Rams try — Kai",
+    );
+  });
+
+  it("says a girl's try where it counts double", () => {
+    expect(touchTryWhat(false)).toBe("try");
+    expect(touchTryWhat(true)).toBe("girl's try");
   });
 });

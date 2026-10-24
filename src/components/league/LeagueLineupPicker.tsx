@@ -78,6 +78,8 @@ import { SUB_MINUTES_MAX, SUB_MINUTES_MIN, subMinutesFrom } from "@/lib/live/sub
 import { getSportConfig, periodLabels, type RugbySport } from "@/lib/sports";
 import { onSurfaceLabel } from "@/lib/sports/words";
 import { rugbyForwards } from "@/lib/sports/rugby/lines";
+import { seasonLoanMinutes } from "@/lib/fairness";
+import { squadLoanAverage } from "@/lib/live/liveChrome";
 // Sub-minute formula from the previous picker — kept inline so the
 // spike doesn't fan-out into shared modules until we know it
 // sticks. RL §6 lock minutes are subtracted from rotateable time
@@ -359,6 +361,8 @@ export function LeagueLineupPicker({
     if (backIds.includes(id)) return "back";
     return null;
   };
+  // The long-press sheet's lent minutes: the season's other games.
+  const loanMins = useMemo(() => seasonLoanMinutes(seasonEvents), [seasonEvents]);
 
   // Pre-game vest preview (no events yet — just the period-1
   // picks) so LeagueField can render the FR/DH badges.
@@ -1461,11 +1465,13 @@ export function LeagueLineupPicker({
         <LockModal
           player={actionPlayer}
           currentLock={null}
-          currentZone={null}
+          // The kid's line (on the field), and the season's lent minutes,
+          // as the live sheet has.
+          currentLine={zoneOf(actionPlayer.id) ? (zoneOf(actionPlayer.id) === "forward" ? "Forwards" : "Backs") : null}
           isInjured={false}
           isLoaned={false}
-          seasonLoanMins={0}
-          squadLoanMins={0}
+          seasonLoanMins={loanMins[actionPlayer.id] ?? 0}
+          squadLoanMins={squadLoanAverage(loanMins)}
           onUnlock={() => setActionSheetPlayerId(null)}
           onSwitch={handleActionSwitch}
           // "Move to {Forwards/Backs}" hidden from the long-press

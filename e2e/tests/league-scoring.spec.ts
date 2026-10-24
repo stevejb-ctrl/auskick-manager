@@ -203,10 +203,11 @@ test("U13 records penalty and field goals for both sides, and Undo takes one bac
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await expect(page.getByRole("button", { name: /^clock — h1, /i })).toBeVisible({ timeout: 15_000 });
 
-  // Ours from the scorebug: +PG asks who kicked it.
+  // Ours from the scorebug: +PG asks who scored it (the shared sheet).
   await page.getByRole("button", { name: "Record a penalty goal for our team" }).click();
-  const picker = page.getByRole("dialog", { name: /who kicked the penalty goal/i });
+  const picker = page.getByRole("dialog", { name: "Who scored?" });
   await expect(picker).toBeVisible();
+  await expect(picker).toContainText(/penalty goal/i);
   await picker.getByRole("button", { name: new RegExp(players[1].full_name) }).click();
   await expectWrite.poll(async () => (await eventsOfType(admin, game.id, "penalty_goal")).length).toBe(1);
   expect((await eventsOfType(admin, game.id, "penalty_goal"))[0].player_id).toBe(players[1].id);
@@ -252,8 +253,9 @@ test("U13 records penalty and field goals for both sides, and Undo takes one bac
   }
   await expect(page.getByRole("button", { name: /finish game/i })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText("0T · 0C · 1PG · 1FG").first()).toBeVisible();
-  await expect(page.getByRole("button", { name: /^\+ PG$/ })).toHaveCount(2);
-  await expect(page.getByRole("button", { name: /^\+ FG$/ })).toHaveCount(2);
+  // One of each a side, naming its team (the shared score editor).
+  await expect(page.getByRole("button", { name: /^Add a penalty goal, / })).toHaveCount(2);
+  await expect(page.getByRole("button", { name: /^Add a field goal, / })).toHaveCount(2);
 
   // The share text carries the goals and who kicked them. It appears once
   // Finish game has saved (the review's table shows the same score line,

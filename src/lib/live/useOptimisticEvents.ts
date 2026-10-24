@@ -2,9 +2,10 @@
 
 // ─── useOptimisticEvents ─────────────────────────────────────
 // For the live screens that replay the game's events (soccer's family,
-// basketball): every in-game write goes through `write`, which queues
-// the server action and puts the event it will insert on screen at once
-// (optimisticEvents.ts). The screen replays `events` (the server's, then
+// basketball, touch's family, rugby): every in-game write goes through
+// `write`, which queues the server action and puts the event it will
+// insert on screen at once (optimisticEvents.ts). The screen replays
+// `events` (the server's, then
 // the writes not yet back), so a goal, an undo or a sub shows the moment
 // it's tapped, as AFL's store does, and never waits on the server
 // (UX audit 23 Oct 2026, package C).

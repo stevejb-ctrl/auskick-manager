@@ -483,6 +483,8 @@ export default async function RunPage({ params }: RunPageProps) {
       weight: howWePlay.balance === "off" ? 0 : seasonBalanceWeight(sport, howWePlay.balance),
       periodMs: periodSecondsT * 1000,
     };
+    // Lent minutes in the season's other games, for the long-press sheet.
+    const seasonLoanMinsT = seasonLoanMinutes((seasonRaw ?? []) as GameEvent[]);
 
     if (!hasStarted) {
       const { data: draftRow } = await admin
@@ -518,6 +520,7 @@ export default async function RunPage({ params }: RunPageProps) {
           ) : (
             <TouchLineupPicker
               auth={auth}
+              sport={sport}
               gameId={g.id}
               players={availablePlayers}
               ageGroup={ageCfgT}
@@ -540,6 +543,7 @@ export default async function RunPage({ params }: RunPageProps) {
                 .filter(([, v]) => v.loaned)
                 .map(([id]) => id)}
               availabilityHref={`/run/${params.token}`}
+              seasonLoanMinutes={seasonLoanMinsT}
             />
           )}
         </div>
@@ -569,6 +573,7 @@ export default async function RunPage({ params }: RunPageProps) {
           // A runner token can run the whole game, as in the other sports.
           isAdmin
           exitHref={`/run/${params.token}`}
+          seasonLoanMinutes={seasonLoanMinsT}
         />
       </div>
     );

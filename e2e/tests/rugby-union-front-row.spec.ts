@@ -181,9 +181,10 @@ test("union live: a coach's swap that puts an unpicked kid at hooker gets a warn
   await waitForHydration(page);
   const tile = (pid: string) => page.getByTestId(`league-player-tile-${pid}`);
   await expect(tile(ids[1]).getByText("HK2", { exact: true })).toBeVisible({ timeout: 15_000 });
-  // The hooker off, kid 15 (no role) on in their spot.
+  // The hooker off, kid 15 (no role) on in their spot (AFL's confirm first).
   await tile(ids[1]).click();
   await tile(ids[15]).click();
+  await page.getByRole("dialog", { name: /manually sub/i }).getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByTestId("front-row-warning")).toContainText(`${nameOf(ids[15])} is at HK2 but isn't picked to play there`, {
     timeout: 15_000,
   });

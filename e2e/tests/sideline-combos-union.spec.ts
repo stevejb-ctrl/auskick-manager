@@ -95,18 +95,23 @@ test("rugby union at 15 a side: lend, fill, hurt and replaced, a late arrival, t
   await page.getByRole("button", { name: /lend to opposition/i }).click();
   await landed((evs) => evs.some((e) => e.type === "player_loan" && e.player_id === lent.id));
 
-  // Bring a bench kid into the gap.
+  // Bring a bench kid into the gap: AFL's confirm, then its toast.
   await tile(filler.id).click();
   await page.getByRole("button", { name: /move selected player to forwards/i }).click();
+  await page.getByRole("dialog", { name: `Move ${filler.full_name} to Forwards?` }).getByRole("button", { name: "Confirm" }).click();
+  await expect(page.getByTestId("swap-toast")).toContainText(`${filler.full_name} on`);
   await landed((evs) => evs.filter((e) => e.type === "lineup_set").length === 2);
 
-  // A back is hurt; the other bench kid comes on.
+  // A back is hurt; the other bench kid comes on. The sheet knows the
+  // back is on the field (Switch swaps places, or subs a bench kid on).
   await tile(hurt.id).click({ delay: 600 });
+  await expect(page.getByRole("button", { name: /switch player/i })).toContainText(/bench player to sub off/i);
   await page.getByRole("button", { name: /mark injured/i }).click();
   await page
     .getByRole("dialog", { name: /who comes on at/i })
     .getByRole("button", { name: new RegExp(replacement.full_name, "i") })
     .click();
+  await expect(page.getByTestId("swap-toast")).toContainText(`${hurt.full_name} → ${replacement.full_name}`);
   await landed((evs) => evs.some((e) => e.type === "swap" && (e.metadata as { on_player_id?: string }).on_player_id === replacement.id));
 
   // A late arrival joins the bench.

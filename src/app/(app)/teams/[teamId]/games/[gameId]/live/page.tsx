@@ -658,6 +658,8 @@ export default async function LivePage({ params }: LivePageProps) {
       weight: howWePlay.balance === "off" ? 0 : seasonBalanceWeight(sport, howWePlay.balance),
       periodMs: periodSecondsT * 1000,
     };
+    // Lent minutes in the season's other games, for the long-press sheet.
+    const seasonLoanMinsT = seasonLoanMinutes(seasonEvents as GameEvent[]);
 
     if (!events.some((e) => e.type === "lineup_set")) {
       const { data: draftRow } = await supabase
@@ -707,6 +709,7 @@ export default async function LivePage({ params }: LivePageProps) {
               // Suggest again when who's here changes.
               key={Array.from(availableIds).sort().join(",")}
               auth={{ kind: "team", teamId: params.teamId }}
+              sport={sport}
               gameId={params.gameId}
               players={availablePlayers}
               ageGroup={ageCfgT}
@@ -720,6 +723,7 @@ export default async function LivePage({ params }: LivePageProps) {
               initialDraft={initialDraft}
               initialLoanedIds={initialLoanedIds}
               availabilityPanel={touchAvailabilityPanel}
+              seasonLoanMinutes={seasonLoanMinsT}
             />
           )}
         </div>
@@ -748,6 +752,7 @@ export default async function LivePage({ params }: LivePageProps) {
           season={season}
           isAdmin={isAdmin}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
+          seasonLoanMinutes={seasonLoanMinsT}
         />
       </div>
     );
@@ -1605,6 +1610,7 @@ export default async function LivePage({ params }: LivePageProps) {
           roleSheet={coachRoleSheet(isAdmin, playbook, playbookPrefs)}
           initialLoanedIds={initialLoanedIds}
           initialLocks={replayLocks((thisGameEvents ?? []) as GameEvent[])}
+          seasonLoanMinutes={seasonLoanMinutes((seasonEvents ?? []) as GameEvent[])}
         />
       )}
     </div>

@@ -43,7 +43,7 @@ import {
   conversionCycle,
   kickoffCycle,
   unconvertedTryIds,
-  LEAGUE_GOAL_TYPES,
+  RUGBY_SCORE_EVENT_TYPES,
 } from "@/lib/sports/rugby_league/kicks";
 import { takeUndoTarget } from "@/lib/live/scoreUndo";
 import { replayRugbyGame, rugbyPoints, rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
@@ -913,7 +913,7 @@ export async function undoLeagueScore(
     .from("game_events")
     .select("id, type, metadata, player_id")
     .eq("game_id", gameId)
-    .in("type", ["try", "opponent_try", "conversion_attempt", "opponent_conversion", ...LEAGUE_GOAL_TYPES, "score_undo"])
+    .in("type", [...Array.from(RUGBY_SCORE_EVENT_TYPES), "score_undo"])
     .order("created_at", { ascending: true });
   type ScoreRow = { id: string; type: string; metadata: unknown; player_id: string | null };
   const standing: ScoreRow[] = [];

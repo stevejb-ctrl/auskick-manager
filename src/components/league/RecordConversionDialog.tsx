@@ -13,45 +13,36 @@
 // goal even if they've already kicked this cycle. Off by default
 // so the rotation rule is enforced by default; coach has to
 // consciously flip it on.
+//
+// The kick goes to the live screen (onRecord), which shows it at once and
+// queues it, as every score is (optimistic events, UX audit 23 Oct 2026).
+// The server checks the same rules; a kick it refuses comes off the
+// screen and the live screen says why.
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { SFButton, Guernsey } from "@/components/sf";
 import { InlineAlert } from "@/components/ui/InlineAlert";
-import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import {
   conversionCycle,
   nextEligibleConversionKickers,
   totalConversionAttemptsByPlayer,
   unconvertedTryIds,
 } from "@/lib/sports/rugby_league/kicks";
-import type { GameEvent, LiveAuth, Player } from "@/lib/types";
+import type { GameEvent, Player } from "@/lib/types";
 import { Modal } from "@/components/ui/Modal";
 
 interface RecordConversionDialogProps {
-  auth: LiveAuth;
-  gameId: string;
   /** All squad players — used to look up names for the rows. */
   squad: Player[];
   /** Currently on-field player ids. The rotation pool. */
   onFieldPlayerIds: string[];
+  /** The game's events, with any on their way to the server. */
   events: GameEvent[];
-  /** Current quarter / half — passed through to the server event. */
-  quarter: number;
-  /** Live clock elapsed ms — written into the event metadata. */
-  elapsedMs: number;
+  /** Made or Missed tapped: the live screen records the kick. */
+  onRecord: (kickerId: string, made: boolean, force: boolean) => void;
   /** Tapped Cancel or backdrop — closes the dialog without writing. */
   onClose: () => void;
-  /**
-   * Optional: id of the `try` event that triggered this dialog.
-   * Forwarded as metadata.try_event_id so future audits can pair
-   * each conversion attempt with its try.
-   */
-  tryEventId?: string;
-  /**
-   * Opened by a try just recorded. `events` are server props and may
-   * not hold that try until the refresh lands, so trust the caller.
-   */
+  /** Opened by a try just recorded: there's a try to convert. */
   afterTry?: boolean;
   /**
    * The junior goal-kick rotation (§15). Off under international laws
@@ -61,22 +52,15 @@ interface RecordConversionDialogProps {
 }
 
 export function RecordConversionDialog({
-  auth,
-  gameId,
   squad,
   onFieldPlayerIds,
   events,
-  quarter,
-  elapsedMs,
+  onRecord,
   onClose,
-  tryEventId,
   afterTry = false,
   rotation = true,
 }: RecordConversionDialogProps) {
-  const router = useRouter();
-  const [pendingKickerId, setPendingKickerId] = useState<string | null>(null);
   const [force, setForce] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const cycle = conversionCycle(events, onFieldPlayerIds);
   const eligible = new Set(
@@ -116,28 +100,8 @@ export function RecordConversionDialog({
     && onFieldPlayerIds.length > 0
     && events.some((e) => e.type === "conversion_attempt");
 
-  async function commit(kickerId: string, made: boolean) {
-    setPendingKickerId(kickerId);
-    setError(null);
-    const { flushed } = enqueueLiveAction("recordConversionAttempt", [
-      auth,
-      gameId,
-      kickerId,
-      made,
-      quarter,
-      elapsedMs,
-      { force, tryEventId: tryEventId ?? waitingTries[0] },
-    ]);
-    try {
-      await flushed;
-    } catch (e) {
-      // Refused under a rule (no try, already kicked): say why.
-      setPendingKickerId(null);
-      setError(e instanceof Error ? e.message : "Couldn't record that kick.");
-      return;
-    }
-    setPendingKickerId(null);
-    router.refresh();
+  function commit(kickerId: string, made: boolean) {
+    onRecord(kickerId, made, force);
     onClose();
   }
 
@@ -164,7 +128,6 @@ export function RecordConversionDialog({
 
         {/* Alerts + scrollable player list */}
         <div className="flex-1 overflow-y-auto px-4">
-          {error && <InlineAlert kind="danger">{error}</InlineAlert>}
           {!hasTryToConvert && (
             <InlineAlert kind="warn">
               {rotation
@@ -207,7 +170,6 @@ export function RecordConversionDialog({
                 : !canPick && everKicked
                   ? `Kicked ${totalAttemptsForPlayer}× this game — fresh sub-on goes first`
                   : null;
-              const isPending = pendingKickerId === p.id;
               return (
                 <div
                   key={p.id}
@@ -236,7 +198,7 @@ export function RecordConversionDialog({
                     <SFButton
                       size="sm"
                       variant="primary"
-                      disabled={!canPick || isPending}
+                      disabled={!canPick}
                       onClick={() => commit(p.id, true)}
                     >
                       Made
@@ -244,7 +206,7 @@ export function RecordConversionDialog({
                     <SFButton
                       size="sm"
                       variant="ghost"
-                      disabled={!canPick || isPending}
+                      disabled={!canPick}
                       onClick={() => commit(p.id, false)}
                     >
                       Missed
