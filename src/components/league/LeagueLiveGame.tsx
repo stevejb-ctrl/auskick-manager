@@ -985,7 +985,8 @@ export function LeagueLiveGame({
   // ── Score ───────────────────────────────────────────────────
   // A score goes up the moment it's tapped (optimistic), and the undo
   // strip flashes what was recorded, as AFL's does.
-  function recordTryForPlayer(playerId: string) {
+  // A null scorer: "Not sure who" (the try counts without a name).
+  function recordTryForPlayer(playerId: string | null) {
     // Defensive gate — even if a stale dock / cached client action
     // fires a try while track_scoring is off (U6/U7 tag rugby),
     // short-circuit before the server write. The UI shouldn't
@@ -1522,6 +1523,10 @@ export function LeagueLiveGame({
           onPick={(pid) => {
             setScorerPickerOpen(false);
             recordTryForPlayer(pid);
+          }}
+          onNoScorer={() => {
+            setScorerPickerOpen(false);
+            recordTryForPlayer(null);
           }}
         />
       )}
