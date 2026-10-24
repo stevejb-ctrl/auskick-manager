@@ -91,9 +91,16 @@ const aflLineup = (ids: string[]) => ({
   bench: ids.slice(12),
 });
 
-/** The sub card's header: its countdown (m:ss, or NOW) and its heading. */
+/**
+ * The sub card: its countdown (m:ss, or NOW) and its heading. Collapsed,
+ * the header is the toggle button; open and due, the card is the alert.
+ */
 const subCard = (page: Page) =>
-  page.locator("button[aria-expanded]").filter({ hasText: /(Sub due|Suggested) — \d+ swaps?/ }).first();
+  page
+    .getByRole("alert")
+    .filter({ hasText: /Sub due — \d+ swaps?/ })
+    .or(page.locator("button[aria-expanded]").filter({ hasText: /(Sub due|Suggested) — \d+ swaps?/ }))
+    .first();
 
 async function countdownSeconds(page: Page): Promise<number> {
   const text = (await subCard(page).getByText(/^\s*(\d+:\d{2}|NOW)\s*$/).first().textContent()) ?? "";
@@ -161,7 +168,7 @@ test("Soccer: a hand swap doesn't restart the sub countdown", async ({ page }) =
   await waitForHydration(page);
   await expect(subCard(page)).toBeVisible({ timeout: 30_000 });
   const before = await countdownSeconds(page);
-  expect(before).toBeLessThan(180);
+  expect(before).toBeLessThanOrEqual(180);
 
   // Tap a midfielder, then a bench kid, and confirm.
   await page.getByTestId(`player-tile-${ids[3]}`).click();

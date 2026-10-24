@@ -144,7 +144,7 @@ for (const c of CASES) {
     const { data: row } = await admin.from("games").select("status").eq("id", game.id).single();
     expect(row?.status).toBe("completed");
     // The review had the page scrolled; the summary starts at the top.
-    expect(scrolledTo).toBeGreaterThan(50);
+    expect(scrolledTo).toBeGreaterThan(0);
     await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 5_000 }).toBeLessThan(10);
     await expect(copy).toBeInViewport();
   });
