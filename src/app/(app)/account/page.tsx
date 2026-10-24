@@ -140,7 +140,13 @@ export default async function AccountPage() {
                     <Badge variant={t.role}>{ROLE_LABEL[t.role]}</Badge>
                     {/* Parents have no Team tab, so this is where anyone can
                         leave a team. */}
-                    <LeaveTeamButton teamId={t.id} teamName={t.name} size="sm" labelWithTeam />
+                    <LeaveTeamButton
+                      teamId={t.id}
+                      teamName={t.name}
+                      size="sm"
+                      labelWithTeam
+                      soleCoach={soleAdminIds.has(t.id)}
+                    />
                   </span>
                 </li>
               ))}

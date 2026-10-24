@@ -223,7 +223,7 @@ export function TeamSongSettings({
         ) : (
           <p className="text-sm text-ink-mute">No team song set up yet.</p>
         )}
-        <p className="mt-2 text-xs text-ink-mute">Only admins can change the song.</p>
+        <p className="mt-2 text-xs text-ink-mute">Only the coach can change the song.</p>
       </div>
     );
   }

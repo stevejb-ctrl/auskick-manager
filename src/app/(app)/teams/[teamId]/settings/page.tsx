@@ -31,6 +31,7 @@ import { soccerFamilyAgeGroup, soccerFamilyAgeGroupForTeam, soccerFamilyRules } 
 import { PeriodFormatSettings } from "@/components/team/PeriodFormatSettings";
 import { TrackFoulsToggle } from "@/components/team/TrackFoulsToggle";
 import { centreVest } from "@/lib/sports/rugby/zoneTime";
+import { ReadOnlyNote, MANAGER_CAN } from "@/components/team/ReadOnlyNote";
 import type { Sport, TeamRole } from "@/lib/types";
 
 interface SettingsPageProps {
@@ -177,6 +178,11 @@ export default async function SettingsPage({ params, searchParams }: SettingsPag
   // game-day extras, and the danger zone — instead of one long stack.
   return (
     <div className="space-y-8">
+      {!isAdmin && (
+        <ReadOnlyNote>
+          Only the coach can change the team&rsquo;s settings. {MANAGER_CAN}
+        </ReadOnlyNote>
+      )}
       <TeamNameSettings
         teamId={params.teamId}
         currentName={team.name}
@@ -360,7 +366,12 @@ export default async function SettingsPage({ params, searchParams }: SettingsPag
       </SettingsSection>
 
       <SettingsSection title="Danger zone" tone="danger">
-        <DangerZone teamId={params.teamId} teamName={team.name} isAdmin={isAdmin} />
+        <DangerZone
+          teamId={params.teamId}
+          teamName={team.name}
+          isAdmin={isAdmin}
+          soleCoach={isAdmin && members.filter((m) => m.role === "admin").length <= 1}
+        />
       </SettingsSection>
     </div>
   );
