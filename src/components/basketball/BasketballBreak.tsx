@@ -21,6 +21,7 @@ import { PeriodBreak, type BreakPlayer, type BreakStrategy } from "@/components/
 import { breakConfigFor } from "@/lib/sports/break";
 import { buildBoard, placesOf, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
+import { useBreakReplan } from "@/lib/live/break/useBreakReplan";
 import { awayMsSoFar } from "@/lib/live/break/floor";
 import { rotateGroups } from "@/lib/live/break/rotateGroups";
 import { BASKETBALL_POSITION_DEFS } from "@/lib/sports/basketball";
@@ -183,9 +184,13 @@ export function BasketballBreak({
     s === "suggested" ? suggested : s === "rotate" ? rotated : s === "repeat" ? repeat : manual;
   const [draft, setDraft] = useState<BasketballLineup>(() => forStrategy(initialMode));
   const lastApplied = useRef<BreakStrategy>(initialMode);
+  // A kid back at the break gets the strategy's lineup again, unless the
+  // coach has placed kids by hand (lib/live/break/useBreakReplan).
+  const replan = useBreakReplan(healthy, () => setDraft(forStrategy(strategy)));
   useEffect(() => {
     if (lastApplied.current === strategy) return;
     lastApplied.current = strategy;
+    replan.strategyApplied();
     setDraft(forStrategy(strategy));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [strategy]);
@@ -201,6 +206,7 @@ export function BasketballBreak({
     staged,
     mode: strategy,
     onRestore: (restored) => {
+      replan.placedByHand();
       setDraft(lineupOf(restored));
       const mode = restored.mode as BreakStrategy;
       if (["suggested", "rotate", "repeat", "manual"].includes(mode)) {
@@ -235,6 +241,7 @@ export function BasketballBreak({
     void run(enqueueLiveAction("addLateArrival", [auth, game.id, { player_id: pid, ...at }]).flushed);
   }
   function markOut(pid: string, replacementId: string | null) {
+    if (replacementId) replan.placedByHand();
     setDraft((d) => {
       const line = basketballLineOf(d, pid);
       const benched = benchOutInBasketballLineup(d, new Set([pid]));
@@ -343,7 +350,10 @@ export function BasketballBreak({
       scores={scores}
       tags={tags}
       sidelined={sidelined}
-      onSwap={(a, b) => setDraft((d) => swapSlots(d, a, b))}
+      onSwap={(a, b) => {
+        replan.placedByHand();
+        setDraft((d) => swapSlots(d, a, b));
+      }}
       strategy={strategy}
       onStrategy={(next) => {
         setStrategy(next);

@@ -26,6 +26,7 @@ import { breakConfigFor } from "@/lib/sports/break";
 import { buildBoard, placesOf, swapInStaged, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
 import { awayMsSoFar } from "@/lib/live/break/floor";
+import { useBreakReplan } from "@/lib/live/break/useBreakReplan";
 import { getSportConfig, periodLabels, type RugbySport } from "@/lib/sports";
 import { rugbyForwards } from "@/lib/sports/rugby/lines";
 import { rugbyBreakCheck } from "@/lib/sports/rugby/breakCheck";
@@ -194,9 +195,13 @@ export function LeagueBreak({
   // A pinned plan for this period opens the break (F2 / D-12).
   const [draft, setDraft] = useState<Lineup>(() => seeded ?? forStrategy(initialMode));
   const lastApplied = useRef<BreakStrategy>(initialMode);
+  // A kid back at the break gets the strategy's lineup again, unless the
+  // coach has placed kids by hand (lib/live/break/useBreakReplan).
+  const replan = useBreakReplan(healthy, () => setDraft(forStrategy(strategy)));
   useEffect(() => {
     if (lastApplied.current === strategy) return;
     lastApplied.current = strategy;
+    replan.strategyApplied();
     setDraft(forStrategy(strategy));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [strategy]);
@@ -208,7 +213,9 @@ export function LeagueBreak({
   useEffect(() => {
     if (!seeded || shaped.current) return;
     shaped.current = true;
+    replan.placedByHand();
     setDraft(seeded);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seeded]);
 
   const staged = useMemo(() => stagedOf(draft), [draft]);
@@ -223,6 +230,7 @@ export function LeagueBreak({
     mode: strategy,
     onRestore: (restored) => {
       shaped.current = true;
+      replan.placedByHand();
       setDraft(lineupOf(restored));
       const mode = restored.mode as BreakStrategy;
       if (["suggested", "rotate", "repeat", "manual"].includes(mode)) {
@@ -260,6 +268,7 @@ export function LeagueBreak({
   // Out (reason "out"); a replacement takes their line in the staged
   // lineup, committed with it at Start.
   function markOut(pid: string, replacementId: string | null) {
+    if (replacementId) replan.placedByHand();
     setDraft((d) => {
       const line = d.forwards.includes(pid) ? "forwards" : d.backs.includes(pid) ? "backs" : null;
       const off = benchOut(d, pid);
@@ -449,6 +458,7 @@ export function LeagueBreak({
       sidelined={sidelined}
       onSwap={(a, b) => {
         shaped.current = true;
+        replan.placedByHand();
         setDraft((d) => swapSlots(d, a, b));
       }}
       strategy={strategy}

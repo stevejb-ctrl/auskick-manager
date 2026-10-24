@@ -25,6 +25,7 @@ import { getSportConfig } from "@/lib/sports/registry";
 import type { RuleCheckItem } from "@/lib/playbook/ruleCheck";
 import { buildBoard, placesOf, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
+import { useBreakReplan } from "@/lib/live/break/useBreakReplan";
 import { awayMsSoFar } from "@/lib/live/break/floor";
 import { rotateGroups } from "@/lib/live/break/rotateGroups";
 import { normalizeTouchLineup, touchLineOf, touchOnField, type TouchLineup } from "@/lib/sports/touch/lineup";
@@ -185,9 +186,13 @@ export function TouchBreak({
     s === "suggested" ? suggested : s === "rotate" ? rotated : s === "repeat" ? repeat : manual;
   const [draft, setDraft] = useState<TouchLineup>(() => forStrategy(initialMode));
   const lastApplied = useRef<BreakStrategy>(initialMode);
+  // A kid back at the break gets the strategy's lineup again, unless the
+  // coach has placed kids by hand (lib/live/break/useBreakReplan).
+  const replan = useBreakReplan(healthy, () => setDraft(forStrategy(strategy)));
   useEffect(() => {
     if (lastApplied.current === strategy) return;
     lastApplied.current = strategy;
+    replan.strategyApplied();
     setDraft(forStrategy(strategy));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [strategy]);
@@ -203,6 +208,7 @@ export function TouchBreak({
     staged,
     mode: strategy,
     onRestore: (restored) => {
+      replan.placedByHand();
       setDraft(lineupOf(restored));
       const mode = restored.mode as BreakStrategy;
       if (["suggested", "rotate", "repeat", "manual"].includes(mode)) {
@@ -239,6 +245,7 @@ export function TouchBreak({
   // Out: recorded as an injury (reason "out"); a replacement takes the
   // spot in the staged plan, committed with it at Start.
   function markOut(pid: string, replacementId: string | null) {
+    if (replacementId) replan.placedByHand();
     setDraft((d) => {
       const line = touchLineOf(d, pid);
       const benched = benchOutInTouchLineup(d, new Set([pid]));
@@ -338,7 +345,10 @@ export function TouchBreak({
       gameMs={gameMs}
       scores={scores}
       sidelined={sidelined}
-      onSwap={(a, b) => setDraft((d) => swapSlots(d, a, b))}
+      onSwap={(a, b) => {
+        replan.placedByHand();
+        setDraft((d) => swapSlots(d, a, b));
+      }}
       strategy={strategy}
       onStrategy={(next) => {
         setStrategy(next);
