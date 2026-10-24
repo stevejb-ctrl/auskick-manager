@@ -64,7 +64,9 @@ import {
   type LiveActionKind,
 } from "@/lib/live/registerLiveActions";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
-import { liveEvents, optimisticUndo } from "@/lib/live/optimisticEvents";
+import { liveEvents } from "@/lib/live/optimisticEvents";
+import { UNDO_GONE_MESSAGE, undoTap } from "@/lib/live/undoTarget";
+import { announceLiveNotice } from "@/lib/live/liveSync";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
 import { hapticTap } from "@/lib/haptics";
 import {
@@ -531,28 +533,36 @@ export function SoccerLiveGame({
     if (!trackScoring) return;
     setSelectedId(null);
     setError(null);
-    write(
+    const key = write(
       "recordSoccerGoal",
       [auth, game.id, scorerId, base.currentPeriod, elapsedRef.current],
       liveEvents.score("goal", scorerId, at()),
     );
     void hapticTap("light");
-    chrome.scored({ side: "us", what: "goal", scorerId });
+    chrome.scored({ side: "us", what: "goal", scorerId, key });
   }
   const opponentGoal = () => {
     setError(null);
-    write(
+    const key = write(
       "recordSoccerOpponentGoal",
       [auth, game.id, base.currentPeriod, elapsedRef.current],
       liveEvents.score("opponent_goal", null, at()),
     );
-    chrome.scored({ side: "them", what: "goal" });
+    chrome.scored({ side: "them", what: "goal", key });
   };
+  // Takes back the goal the strip names (this phone's last), or with
+  // none named the latest on screen — never whatever the other phone
+  // scored since (UX round 2).
   const undoGoal = () => {
-    const undo = optimisticUndo(events, SOCCER_SCORE_TYPES);
-    if (!undo) return;
+    const tap = undoTap(events, SOCCER_SCORE_TYPES, chrome.namedScoreKey);
+    if (tap.kind === "gone") {
+      chrome.undone();
+      announceLiveNotice(UNDO_GONE_MESSAGE);
+      return;
+    }
+    if (tap.kind !== "undo") return;
     setError(null);
-    write("undoSoccerScore", [auth, game.id], undo);
+    write("undoSoccerScore", [auth, game.id, tap.target], tap.optimistic);
     chrome.undone();
   };
 

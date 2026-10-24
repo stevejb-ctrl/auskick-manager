@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { liveGameStorage } from "./persistStorage";
 import { isNative } from "@/lib/platform";
+import { noteLiveResult } from "./liveSync";
 
 // ─── Durable write queue for live-game server actions ─────────
 //
@@ -42,7 +43,7 @@ import { isNative } from "@/lib/platform";
  * straight away and its `flushed` rejects with the error, rather than
  * pausing the lane (which would stall every score behind it).
  */
-export type ActionResult = { success: boolean; error?: string; rejected?: boolean };
+export type ActionResult = { success: boolean; error?: string; rejected?: boolean; stale?: boolean };
 
 /**
  * Every live-game action shares one lane, so a game's events land in the
@@ -433,6 +434,8 @@ async function dispatchOp(op: QueueOp): Promise<void> {
       // (auth rejected, validation error) leaves the optimistic
       // flip spinning forever. Reject BEFORE popping the queue so
       // the .catch() can read consistent state.
+      // Refused because another phone moved the game on: say so.
+      noteLiveResult(result);
       const reject = flushedRejecters.get(op.id);
       if (reject) {
         flushedResolvers.delete(op.id);

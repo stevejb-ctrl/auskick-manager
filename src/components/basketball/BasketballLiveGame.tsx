@@ -60,7 +60,9 @@ import {
   type LiveActionKind,
 } from "@/lib/live/registerLiveActions";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
-import { liveEvents, optimisticUndo, type OptimisticEventInput } from "@/lib/live/optimisticEvents";
+import { liveEvents, type OptimisticEventInput } from "@/lib/live/optimisticEvents";
+import { UNDO_GONE_MESSAGE, undoTap } from "@/lib/live/undoTarget";
+import { announceLiveNotice } from "@/lib/live/liveSync";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
 import { hapticTap } from "@/lib/haptics";
 import { computePeriodClockMs, togglePeriodPause } from "@/lib/live/periodClock";
@@ -495,12 +497,12 @@ export function BasketballLiveGame({
   const canScore = isPeriodActive;
   function recordBasket(side: "ours" | "theirs", points: Points, playerId: string | null) {
     setError(null);
-    write(
+    const key = write(
       "recordBasketballScore",
       [auth, game.id, { side, points, player_id: playerId, ...at() }],
       liveEvents.score(basketballScoreEventType(side, points), side === "ours" ? playerId : null, at()),
     );
-    chrome.scored({ side: side === "ours" ? "us" : "them", what: basketballPointsWords(points), scorerId: playerId });
+    chrome.scored({ side: side === "ours" ? "us" : "them", what: basketballPointsWords(points), scorerId: playerId, key });
   }
   function teamScore(points: Points, scorerId: string | null) {
     if (!trackScoring) return;
@@ -511,11 +513,19 @@ export function BasketballLiveGame({
   const teamPoints = state.teamScore.points;
   const opponentPoints = state.opponentScore.points;
   const playerPoints = state.playerPoints;
+  // Takes back the basket the strip names (this phone's last), or with
+  // none named the latest on screen — never whatever the other phone
+  // scored since (UX round 2).
   const undoScore = () => {
-    const undo = optimisticUndo(events, BASKETBALL_SCORE_EVENT_TYPES);
-    if (!undo) return;
+    const tap = undoTap(events, BASKETBALL_SCORE_EVENT_TYPES, chrome.namedScoreKey);
+    if (tap.kind === "gone") {
+      chrome.undone();
+      announceLiveNotice(UNDO_GONE_MESSAGE);
+      return;
+    }
+    if (tap.kind !== "undo") return;
     setError(null);
-    write("undoBasketballScore", [auth, game.id], undo);
+    write("undoBasketballScore", [auth, game.id, tap.target], tap.optimistic);
     chrome.undone();
   };
 

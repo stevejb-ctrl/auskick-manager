@@ -57,7 +57,9 @@ import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { enqueueLiveAction, type LiveActionArgs, type LiveActionKind } from "@/lib/live/registerLiveActions";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
-import { liveEvents, optimisticUndo } from "@/lib/live/optimisticEvents";
+import { liveEvents } from "@/lib/live/optimisticEvents";
+import { UNDO_GONE_MESSAGE, undoTap } from "@/lib/live/undoTarget";
+import { announceLiveNotice } from "@/lib/live/liveSync";
 import { getSportConfig } from "@/lib/sports/registry";
 import { isGirlsTry, TOUCH_SCORE_EVENT_TYPES, touchTryEventType, touchTryWhat } from "@/lib/sports/touch/scoreEvents";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
@@ -483,12 +485,17 @@ export function TouchLiveGame({
   function recordTry(side: "ours" | "theirs", playerId: string | null, girl: boolean) {
     setError(null);
     const girlsTry = isGirlsTry({ girlsTryDouble, side, playerId, girl, groupOf: (id) => mixed?.groupOf(id) });
-    write(
+    const key = write(
       "recordTouchScore",
       [auth, game.id, { side, player_id: playerId, ...(girl ? { girl: true } : {}), ...at() }],
       liveEvents.score(touchTryEventType(side, girlsTry), side === "ours" ? playerId : null, at()),
     );
-    chrome.scored({ side: side === "ours" ? "us" : "them", what: touchTryWhat(girlsTry), scorerId: side === "ours" ? playerId : null });
+    chrome.scored({
+      side: side === "ours" ? "us" : "them",
+      what: touchTryWhat(girlsTry),
+      scorerId: side === "ours" ? playerId : null,
+      key,
+    });
   }
   function teamScore(scorerId: string | null, girl = false) {
     if (!trackScoring) return;
@@ -499,11 +506,19 @@ export function TouchLiveGame({
   const teamPoints = state.teamScore.points;
   const opponentPoints = state.opponentScore.points;
   const playerTries = state.playerTries;
+  // Takes back the try the strip names (this phone's last), or with none
+  // named the latest on screen — never whatever the other phone scored
+  // since (UX round 2).
   const undoScore = () => {
-    const undo = optimisticUndo(events, TOUCH_SCORE_EVENT_TYPES);
-    if (!undo) return;
+    const tap = undoTap(events, TOUCH_SCORE_EVENT_TYPES, chrome.namedScoreKey);
+    if (tap.kind === "gone") {
+      chrome.undone();
+      announceLiveNotice(UNDO_GONE_MESSAGE);
+      return;
+    }
+    if (tap.kind !== "undo") return;
     setError(null);
-    write("undoTouchScore", [auth, game.id], undo);
+    write("undoTouchScore", [auth, game.id, tap.target], tap.optimistic);
     chrome.undone();
   };
 

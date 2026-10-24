@@ -31,8 +31,9 @@ import {
   type PendingEvent,
 } from "@/lib/live/optimisticEvents";
 
+/** Queues a write and shows its event; returns the write's op id (its idempotency key). */
 export interface OptimisticWrite {
-  <K extends LiveActionKind>(kind: K, args: LiveActionArgs<K>, optimistic: OptimisticEventInput | null): void;
+  <K extends LiveActionKind>(kind: K, args: LiveActionArgs<K>, optimistic: OptimisticEventInput | null): string;
 }
 
 export function useOptimisticEvents(
@@ -93,6 +94,7 @@ export function useOptimisticEvents(
           onErrorRef.current(e instanceof Error ? e.message : "That didn't save. Try again.");
           scheduleRefresh();
         });
+      return id;
     },
     [gameId, scheduleRefresh],
   );

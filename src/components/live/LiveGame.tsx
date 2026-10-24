@@ -119,6 +119,7 @@ import { LiveTopBar } from "@/components/live/LiveTopBar";
 
 import { assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
 import { UndoStrip } from "@/components/live/UndoStrip";
+import { requestLiveSync } from "@/lib/live/liveSync";
 // YT IFrame API + playSong logic lives in `@/lib/live/useHypeSong`
 // since 2026-05-16 (extracted for AFL/netball parity). The hook
 // owns the refs, lifecycle, and trigger function.
@@ -211,6 +212,12 @@ type LastScore = {
   playerId: string | null;
   playerName: string | null;
   quarter: number;
+  /**
+   * The score's write (its op id, the event's idempotency key): Undo
+   * takes back this one, never "the latest", which may be the other
+   * phone's (UX round 2).
+   */
+  key: string;
 };
 
 /** Per player, the later of the server's and this phone's stamp. */
@@ -786,18 +793,19 @@ export function LiveGame({
     // for now because light haptic is gentle and a behind is
     // worth acknowledging too.
     void hapticTap("light");
+    const { id: key } = enqueueLiveAction(kind === "goal" ? "recordGoal" : "recordBehind", [
+      auth,
+      gameId,
+      { player_id: playerId, quarter, elapsed_ms },
+    ]);
     startUndoToast({
       kind,
       forTeam: "us",
       playerId,
       playerName: p ? p.full_name.trim().split(/\s+/)[0] : null,
       quarter,
+      key,
     });
-    enqueueLiveAction(kind === "goal" ? "recordGoal" : "recordBehind", [
-      auth,
-      gameId,
-      { player_id: playerId, quarter, elapsed_ms },
-    ]);
   }
 
   // Unattributed goal: the coach saw it go through but not who kicked
@@ -812,18 +820,19 @@ export function LiveGame({
     incTeam("goals");
     playSong();
     void hapticTap("light");
+    const { id: key } = enqueueLiveAction("recordGoal", [
+      auth,
+      gameId,
+      { player_id: null, quarter, elapsed_ms, unattributed: true },
+    ]);
     startUndoToast({
       kind: "goal",
       forTeam: "us",
       playerId: null,
       playerName: null,
       quarter,
+      key,
     });
-    enqueueLiveAction("recordGoal", [
-      auth,
-      gameId,
-      { player_id: null, quarter, elapsed_ms, unattributed: true },
-    ]);
   }
 
   // Rushed behind: ball deflects through off the opposition (or
@@ -833,18 +842,19 @@ export function LiveGame({
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = currentElapsedMs();
     incTeam("behinds");
+    const { id: key } = enqueueLiveAction("recordBehind", [
+      auth,
+      gameId,
+      { player_id: null, quarter, elapsed_ms, rushed: true },
+    ]);
     startUndoToast({
       kind: "behind",
       forTeam: "us",
       playerId: null,
       playerName: null,
       quarter,
+      key,
     });
-    enqueueLiveAction("recordBehind", [
-      auth,
-      gameId,
-      { player_id: null, quarter, elapsed_ms, rushed: true },
-    ]);
   }
 
   function handleScore(kind: "goal" | "behind") {
@@ -949,17 +959,17 @@ export function LiveGame({
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = currentElapsedMs();
     incOpponent(kind === "goal" ? "goals" : "behinds");
-    startUndoToast({ kind, forTeam: "opponent", playerId: null, playerName: null, quarter });
-    enqueueLiveAction("recordOpponentScore", [
+    const { id: key } = enqueueLiveAction("recordOpponentScore", [
       auth,
       gameId,
       { kind, quarter, elapsed_ms },
     ]);
+    startUndoToast({ kind, forTeam: "opponent", playerId: null, playerName: null, quarter, key });
   }
 
   function handleUndo() {
     if (!lastScore) return;
-    const { kind, forTeam, playerId, quarter } = lastScore;
+    const { kind, forTeam, playerId, quarter, key } = lastScore;
 
     if (forTeam === "us") {
       undoTeamScore(kind === "goal" ? "goals" : "behinds");
@@ -981,12 +991,17 @@ export function LiveGame({
         : kind === "goal" ? "opponent_goal" : "opponent_behind";
 
     // On the game's write-queue lane, so it can't overtake its score.
+    // It names the score (its write's key). Refused because the other
+    // phone already took it back: the store catches up from the server.
     const { flushed } = enqueueLiveAction("undoLastScore", [
       auth,
       gameId,
-      { kind: serverKind, quarter, playerId: playerId ?? null },
+      { kind: serverKind, quarter, playerId: playerId ?? null, target: { key } },
     ]);
-    flushed.catch((e: unknown) => setError(e instanceof Error ? e.message : "Couldn't undo that score."));
+    flushed.catch((e: unknown) => {
+      setError(e instanceof Error ? e.message : "Couldn't undo that score.");
+      requestLiveSync();
+    });
   }
 
   // `resetSubTimer` = was this the PLANNED rotation tick? A scheduled

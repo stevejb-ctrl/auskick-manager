@@ -3,7 +3,11 @@
 interface UndoStripProps {
   /** Just scored: the strip flashes dark with what was recorded. */
   flashing: boolean;
-  /** What was recorded, shown while flashing ("Roos goal — Mia"). */
+  /**
+   * What was recorded ("Roos goal — Mia"): bold while flashing, then
+   * quiet. It stays named, so it's clear which score Undo takes back
+   * when two phones are scoring (UX round 2). Empty: "Undo last score".
+   */
   message: string;
   onUndo: () => void;
   disabled?: boolean;
@@ -12,7 +16,7 @@ interface UndoStripProps {
 /**
  * The undo strip above the sticky score bar (UX plan Phase 6: one
  * undo toast for every sport). Flashes for a few seconds after a score
- * with what was recorded, then settles to a quiet "Undo last score".
+ * with what was recorded, then settles quietly, still naming it.
  */
 export function UndoStrip({ flashing, message, onUndo, disabled = false }: UndoStripProps) {
   return (
@@ -25,7 +29,7 @@ export function UndoStrip({ flashing, message, onUndo, disabled = false }: UndoS
       data-testid="undo-strip"
     >
       <span className={`text-xs ${flashing ? "text-warm/80" : "text-ink-dim"}`}>
-        {flashing ? message : "Undo last score"}
+        {message || "Undo last score"}
       </span>
       <button
         type="button"

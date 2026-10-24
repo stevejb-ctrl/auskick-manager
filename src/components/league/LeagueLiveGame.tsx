@@ -56,7 +56,9 @@ import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
-import { liveEvents, optimisticUndo } from "@/lib/live/optimisticEvents";
+import { liveEvents } from "@/lib/live/optimisticEvents";
+import { UNDO_GONE_MESSAGE, undoTap } from "@/lib/live/undoTarget";
+import { announceLiveNotice } from "@/lib/live/liveSync";
 import { useLiveChrome } from "@/components/live/useLiveChrome";
 import {
   computePeriodClockMs,
@@ -996,13 +998,13 @@ export function LeagueLiveGame({
       return;
     }
     setError(null);
-    write(
+    const key = write(
       "recordTry",
       [auth, game.id, playerId, state.currentQuarter, elapsedRef.current],
       liveEvents.score("try", playerId, at()),
     );
     void hapticTap("light");
-    chrome.scored({ side: "us", what: rugbyScoreWhat(sport, "try"), scorerId: playerId });
+    chrome.scored({ side: "us", what: rugbyScoreWhat(sport, "try"), scorerId: playerId, key });
     handleClearSelection();
     // The kicker picker follows the try (a conversion needs one first).
     if (kickingAllowed) {
@@ -1021,12 +1023,12 @@ export function LeagueLiveGame({
 
   function handleRecordOpponentTry() {
     setError(null);
-    write(
+    const key = write(
       "recordOpponentTry",
       [auth, game.id, state.currentQuarter, elapsedRef.current],
       liveEvents.score("opponent_try", null, at()),
     );
-    chrome.scored({ side: "them", what: rugbyScoreWhat(sport, "opponent_try") });
+    chrome.scored({ side: "them", what: rugbyScoreWhat(sport, "opponent_try"), key });
   }
 
   function handleOpenConversionDialog() {
@@ -1037,12 +1039,12 @@ export function LeagueLiveGame({
 
   function handleRecordOpponentConversion() {
     setError(null);
-    write(
+    const key = write(
       "recordOpponentConversion",
       [auth, game.id, state.currentQuarter, elapsedRef.current],
       liveEvents.score("opponent_conversion", null, at()),
     );
-    chrome.scored({ side: "them", what: rugbyScoreWhat(sport, "opponent_conversion") });
+    chrome.scored({ side: "them", what: rugbyScoreWhat(sport, "opponent_conversion"), key });
   }
 
   // Our kick at goal after a try, from the conversion dialog. It names
@@ -1052,12 +1054,12 @@ export function LeagueLiveGame({
   function recordConversion(kickerId: string, made: boolean, force: boolean) {
     setError(null);
     const tryEventId = conversionTryEventId(thisGameEvents);
-    write(
+    const key = write(
       "recordConversionAttempt",
       [auth, game.id, kickerId, made, state.currentQuarter, elapsedRef.current, { force, tryEventId }],
       liveEvents.conversion({ kicker_id: kickerId, made, force, try_event_id: tryEventId, ...at() }),
     );
-    chrome.scored({ side: "us", what: rugbyScoreWhat(sport, "conversion_attempt", made), scorerId: kickerId });
+    chrome.scored({ side: "us", what: rugbyScoreWhat(sport, "conversion_attempt", made), scorerId: kickerId, key });
   }
 
   // U13+ (international laws): penalty goal 2, field goal 1. Ours name
@@ -1068,20 +1070,28 @@ export function LeagueLiveGame({
   ) {
     setError(null);
     const ours = !kind.startsWith("opponent_");
-    write(
+    const key = write(
       "recordLeagueGoal",
       [auth, game.id, kind, kickerId, state.currentQuarter, elapsedRef.current],
       liveEvents.score(kind, ours ? kickerId : null, at()),
     );
-    chrome.scored({ side: ours ? "us" : "them", what: rugbyScoreWhat(sport, kind), scorerId: ours ? kickerId : null });
+    chrome.scored({ side: ours ? "us" : "them", what: rugbyScoreWhat(sport, kind), scorerId: ours ? kickerId : null, key });
     handleClearSelection();
   }
 
+  // Takes back the score the strip names (this phone's last), or with
+  // none named the latest on screen — never whatever the other phone
+  // scored since (UX round 2).
   function handleUndoScore() {
-    const undo = optimisticUndo(thisGameEvents, RUGBY_SCORE_EVENT_TYPES);
-    if (!undo) return;
+    const tap = undoTap(thisGameEvents, RUGBY_SCORE_EVENT_TYPES, chrome.namedScoreKey);
+    if (tap.kind === "gone") {
+      chrome.undone();
+      announceLiveNotice(UNDO_GONE_MESSAGE);
+      return;
+    }
+    if (tap.kind !== "undo") return;
     setError(null);
-    write("undoLeagueScore", [auth, game.id], undo);
+    write("undoLeagueScore", [auth, game.id, tap.target], tap.optimistic);
     chrome.undone();
   }
 

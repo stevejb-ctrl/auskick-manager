@@ -992,20 +992,21 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // goal is recorded a "[Team] goal — Player · Undo" chip appears for
   // 8 seconds (toast); after the toast fades the chip stays as a
   // muted "Undo last score" affordance until another goal is
-  // recorded (which replaces it). Tap fires score_undo; the replay
-  // engine pops the LIFO undo stack so the latest score is reverted.
+  // recorded (which replaces it). Tap fires score_undo naming this
+  // phone's goal (`key`, its write's op id): with two phones scoring,
+  // "the latest goal" may be the other phone's (UX round 2).
   const [lastScore, setLastScore] = useState<
-    | { kind: "team" | "opp"; playerName: string | null }
+    | { kind: "team" | "opp"; playerName: string | null; key: string | null }
     | null
   >(null);
   const [undoToastVisible, setUndoToastVisible] = useState(false);
   const undoToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startUndoToast = useCallback(
-    (kind: "team" | "opp", playerName: string | null) => {
+    (kind: "team" | "opp", playerName: string | null, key: string | null) => {
       if (undoToastTimerRef.current !== null) {
         clearTimeout(undoToastTimerRef.current);
       }
-      setLastScore({ kind, playerName });
+      setLastScore({ kind, playerName, key });
       setUndoToastVisible(true);
       undoToastTimerRef.current = setTimeout(() => {
         setUndoToastVisible(false);
@@ -1016,6 +1017,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const handleUndoLastScore = useCallback(() => {
     if (!lastScore) return;
     const undoKind = lastScore.kind;
+    const undoKey = lastScore.key;
     setLastScore(null);
     setUndoToastVisible(false);
     if (undoToastTimerRef.current !== null) {
@@ -1033,10 +1035,18 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         ? { ...prev, team: prev.team - 1 }
         : { ...prev, opp: prev.opp - 1 },
     );
-    const { flushed } = enqueueLiveAction("undoNetballScore", [auth, game.id]);
+    const { flushed } = enqueueLiveAction("undoNetballScore", [auth, game.id, undoKey ? { key: undoKey } : null]);
     // Refresh after flush so the rolled-back goal disappears from
-    // the scorebug + PositionToken chip on the next render.
-    flushed.then(() => startTransition(() => router.refresh()));
+    // the scorebug + PositionToken chip on the next render. Refused
+    // (the other phone already took it back): put the goal back.
+    flushed
+      .then(() => startTransition(() => router.refresh()))
+      .catch(() => {
+        setLocalScoreDelta((prev) =>
+          undoKind === "team" ? { ...prev, team: prev.team + 1 } : { ...prev, opp: prev.opp + 1 },
+        );
+        startTransition(() => router.refresh());
+      });
   }, [lastScore, auth, game.id, router]);
   // Reset the undo state if the user transitions out of LIVE play
   // (Q-break, finalised) so a stale chip doesn't carry across phases.
@@ -1312,7 +1322,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       team: prev.team + 1,
       player: { ...prev.player, [playerId]: (prev.player[playerId] ?? 0) + 1 },
     }));
-    const { flushed } = enqueueLiveAction("recordNetballGoal", [
+    const { id: goalKey, flushed } = enqueueLiveAction("recordNetballGoal", [
       auth,
       game.id,
       playerId,
@@ -1321,7 +1331,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     ]);
     flushed.then(() => startTransition(() => router.refresh()));
     setPendingGoal(null);
-    startUndoToast("team", playerName);
+    startUndoToast("team", playerName, goalKey);
     // Light haptic tap — confirms the goal recorded. P1-10 mirror
     // of AFL `15b0a7c`. Fire-and-forget; the bridge no-ops on web.
     void hapticTap("light");
@@ -1338,14 +1348,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // 2026-05-17 audit fix). Reset via the score-prop refresh
     // useEffect.
     setLocalScoreDelta((prev) => ({ ...prev, opp: prev.opp + 1 }));
-    const { flushed } = enqueueLiveAction("recordNetballOpponentGoal", [
+    const { id: goalKey, flushed } = enqueueLiveAction("recordNetballOpponentGoal", [
       auth,
       game.id,
       currentQuarter,
       clockMs,
     ]);
     flushed.then(() => startTransition(() => router.refresh()));
-    startUndoToast("opp", null);
+    startUndoToast("opp", null, goalKey);
     // Light haptic — opponent goal still counts as a registered tap.
     // P1-10 mirror of AFL `15b0a7c`.
     void hapticTap("light");
@@ -2509,7 +2519,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                   [playerId]: (prev.player[playerId] ?? 0) + 1,
                 },
               }));
-              const { flushed } = enqueueLiveAction("recordNetballGoal", [
+              const { id: goalKey, flushed } = enqueueLiveAction("recordNetballGoal", [
                 auth,
                 game.id,
                 playerId,
@@ -2517,7 +2527,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                 clockMs,
               ]);
               flushed.then(() => startTransition(() => router.refresh()));
-              startUndoToast("team", playerName);
+              startUndoToast("team", playerName, goalKey);
               // Same light-tap haptic as the court flow's
               // handleConfirmGoal so coaches feel the same
               // confirmation regardless of entry point.
