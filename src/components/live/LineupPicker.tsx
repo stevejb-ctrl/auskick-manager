@@ -46,6 +46,7 @@ import { keepOnIds } from "@/components/playbook/KeepOnMarker";
 import { pinLaterPeriods, withPinnedPeriods } from "@/lib/game-plan";
 import { SUB_MINUTES_MAX, SUB_MINUTES_MIN, subMinutesFrom } from "@/lib/live/subCadence";
 import { squadLoanAverage } from "@/lib/live/liveChrome";
+import { useKeptSetting } from "@/components/lineup/useKeptSetting";
 // Rotations each player gets to sit on the bench over the whole game.
 // Bigger benches → more rotations per player (shorter stints each).
 function restsPerPlayer(benchSize: number): number {
@@ -288,7 +289,11 @@ export function LineupPicker({
   // If the coach saved a plan ahead of game day, those values seed
   // the picker. Otherwise we fall back to the age-group default
   // (size) and the suggester (lineup) at first render.
-  const [onFieldSize, setOnFieldSize] = useState(
+  // Kept through a Who's here change (useKeptSetting): the picker is
+  // remounted with a fresh suggestion, not the game's settings.
+  const [onFieldSize, setOnFieldSize] = useKeptSetting(
+    gameId,
+    "onFieldSize",
     initialDraft?.on_field_size ?? defaultOnFieldSize,
   );
 
@@ -299,7 +304,7 @@ export function LineupPicker({
   // build the lineup themselves position-by-position. Either mode
   // is fully editable via tap-tap-to-swap; the toggle just decides
   // the starting point.
-  const [lineupMode, setLineupMode] = useState<"suggested" | "manual">("suggested");
+  const [lineupMode, setLineupMode] = useKeptSetting<"suggested" | "manual">(gameId, "lineupMode", "suggested");
 
   // Mirror the local choice into the live store so QuarterBreak
   // picks it up as its default for every subsequent break. Steve's
@@ -387,7 +392,7 @@ export function LineupPicker({
           fwd: initialDraft.lineup.fwd ?? [],
           bench: initialDraft.lineup.bench ?? [],
         }
-      : buildLineup("suggested", defaultOnFieldSize),
+      : buildLineup(lineupMode, onFieldSize),
   );
 
   function handleSizeChange(next: number) {
@@ -414,7 +419,9 @@ export function LineupPicker({
   const [savedAt, setSavedAt] = useState<string | null>(
     initialDraft?.updated_at ?? null,
   );
-  const [subMinInput, setSubMinInput] = useState<string | null>(
+  const [subMinInput, setSubMinInput] = useKeptSetting<string | null>(
+    gameId,
+    "subMinutes",
     initialDraft ? String(initialDraft.sub_interval_seconds / 60) : null,
   );
 

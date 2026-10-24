@@ -34,6 +34,7 @@
 // the squad page.
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useKeptSetting } from "@/components/lineup/useKeptSetting";
 import { useRouter } from "next/navigation";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
 import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
@@ -218,7 +219,9 @@ export function LeagueLineupPicker({
 
   // ── Game settings collapsible state ─────────────────────────
   const [gameSettingsOpen, setGameSettingsOpen] = useState(false);
-  const [onFieldSize, setOnFieldSize] = useState(defaultOnFieldSize);
+  // Kept through a Who's here change (useKeptSetting): the picker
+  // remounts with a fresh suggestion at the coach's size.
+  const [onFieldSize, setOnFieldSize] = useKeptSetting(gameId, "onFieldSize", defaultOnFieldSize);
   const [lineupMode, setLineupMode] = useState<"suggested" | "manual">(() =>
     initialDraft ? "manual" : "suggested",
   );
@@ -240,8 +243,8 @@ export function LeagueLineupPicker({
     () =>
       suggestLeagueLineup({
         players: playersForLineup,
-        defaultOnFieldSize,
-        forwardCount: rugbyForwards(ageGroup, defaultOnFieldSize),
+        defaultOnFieldSize: onFieldSize,
+        forwardCount: rugbyForwards(ageGroup, onFieldSize),
         seasonEvents,
         requiredUnbrokenPeriods: requiredUnbroken,
         vestRequirements: reqs,
@@ -313,7 +316,9 @@ export function LeagueLineupPicker({
       gameMinutes,
       unbrokenLockedMinutes,
     );
-  const [subMinInput, setSubMinInput] = useState<string>(
+  const [subMinInput, setSubMinInput] = useKeptSetting<string>(
+    gameId,
+    "subMinutes",
     String(suggestedSubMin),
   );
   const subIntervalSeconds = Math.round(subMinutesFrom(subMinInput, suggestedSubMin) * 60);

@@ -15,6 +15,7 @@
 // or the shape suggests again.
 
 import { useMemo, useRef, useState, useTransition } from "react";
+import { useKeptSetting } from "@/components/lineup/useKeptSetting";
 import { useRouter } from "next/navigation";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
 import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
@@ -114,9 +115,11 @@ export function BasketballLineupPicker({
   const periodWord = ageGroup.periodCount === 4 ? "quarter" : "half";
 
   const clampSize = (n: number) => Math.max(ageGroup.minOnFieldSize, Math.min(ageGroup.maxOnFieldSize, n));
-  const [onCourtSize, setOnCourtSize] = useState(() => clampSize(initialSize));
+  // Settings are kept through a Who's here change (useKeptSetting): the
+  // picker remounts with a fresh suggestion in the coach's size and shape.
+  const [onCourtSize, setOnCourtSize] = useKeptSetting(gameId, "onFieldSize", () => clampSize(initialSize));
   const playing = useMemo(() => players.filter((p) => !loanedIds.has(p.id)).map((p) => p.id), [players, loanedIds]);
-  const [shapeId, setShapeId] = useState<string | null>(null);
+  const [shapeId, setShapeId] = useKeptSetting<string | null>(gameId, "shape", null);
   const size = Math.min(onCourtSize, playing.length || onCourtSize);
   const shape = basketballShapeFor(strategy, size, shapeId);
   const lineShapes = usesBasketballLines(strategy) && !usesBasketballPositions(strategy) ? basketballShapes(size) : [];
@@ -140,7 +143,7 @@ export function BasketballLineupPicker({
         ...(slots ? { slots } : {}),
       };
     }
-    return suggest(clampSize(initialSize), null, players.map((p) => p.id).filter((id) => !initialLoanedIds.includes(id))).lineup;
+    return suggest(onCourtSize, shapeId, players.map((p) => p.id).filter((id) => !initialLoanedIds.includes(id))).lineup;
   });
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -150,7 +153,7 @@ export function BasketballLineupPicker({
   const [startModalOpen, setStartModalOpen] = useState(false);
   const [savePending, setSavePending] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(initialDraft?.updated_at ?? null);
-  const [subMinInput, setSubMinInput] = useState(String(defaultSubMinutes));
+  const [subMinInput, setSubMinInput] = useKeptSetting(gameId, "subMinutes", String(defaultSubMinutes));
   const subIntervalSeconds = Math.round(subMinutesFrom(subMinInput, defaultSubMinutes) * 60);
 
   const courtIds = basketballOnCourt(lineup);
