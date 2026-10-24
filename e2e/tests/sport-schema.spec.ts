@@ -52,7 +52,8 @@ async function addEvent(admin: SupabaseClient, gameId: string, type: string, own
 // What each sport's live actions write (live/actions.ts,
 // netball-actions.ts, league-actions.ts). A new event type lands here
 // and in a migration together.
-const SHARED = ["lineup_set", "quarter_start", "quarter_end", "game_finalised", "player_arrived", "injury", "player_loan", "score_undo"];
+// clock_pause (0073): a pause or resume, in every sport.
+const SHARED = ["lineup_set", "quarter_start", "quarter_end", "game_finalised", "player_arrived", "injury", "player_loan", "score_undo", "clock_pause"];
 const EVENT_TYPES: Record<Sport, string[]> = {
   afl: [...SHARED, "swap", "field_zone_swap", "player_lock", "roster_shrink", "goal", "behind", "opponent_goal", "opponent_behind"],
   netball: [...SHARED, "period_break_swap", "player_lock", "goal", "opponent_goal"],
