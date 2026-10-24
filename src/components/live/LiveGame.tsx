@@ -8,7 +8,7 @@ import {
   clockElapsedMs,
   useLiveGame,
 } from "@/lib/stores/liveGameStore";
-import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
+import { enqueueLiveAction, pendingWriteCount } from "@/lib/live/registerLiveActions";
 import { aflStoreLocks, type PlayerLock } from "@/lib/live/locks";
 import { hapticTap, hapticSiren } from "@/lib/haptics";
 import { LongPressHint } from "@/components/live/LongPressHint";
@@ -94,7 +94,7 @@ import {
   type ZoneCaps,
   type ZoneMinutes,
 } from "@/lib/fairness";
-import type { Game, Player, PositionModel, Zone } from "@/lib/types";
+import type { Game, Lineup, Player, PositionModel, Zone } from "@/lib/types";
 import {
   projectUpcomingRotation,
   withPinnedPeriods,
@@ -204,6 +204,35 @@ interface LiveGameProps {
    * Existing scalar props (quarterMs, subIntervalSeconds, positionModel, defaultOnFieldSize)
    * are intentionally KEPT alongside this — collapsing the redundancy is deferred (D-01b). */
   ageGroup: AgeGroupConfig;
+}
+
+/**
+ * The store shows what the server's replay does: the same quarter and
+ * phase, score and who's where. A difference with nothing of this phone's
+ * in flight is the other phone's doing.
+ */
+function storeMatchesServer(
+  store: {
+    currentQuarter: number;
+    quarterEnded: boolean;
+    finalised: boolean;
+    teamScore: { goals: number; behinds: number };
+    opponentScore: { goals: number; behinds: number };
+    lineup: Lineup;
+    injuredIds: string[];
+    loanedIds: string[];
+  },
+  server: GameState,
+): boolean {
+  if (store.currentQuarter !== server.currentQuarter) return false;
+  if (store.quarterEnded !== server.quarterEnded || store.finalised !== server.finalised) return false;
+  if (store.teamScore.goals !== server.teamScore.goals || store.teamScore.behinds !== server.teamScore.behinds) return false;
+  if (store.opponentScore.goals !== server.opponentScore.goals || store.opponentScore.behinds !== server.opponentScore.behinds) return false;
+  const same = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((id) => b.includes(id));
+  if (!same(store.injuredIds, server.injuredIds) || !same(store.loanedIds, server.loanedIds)) return false;
+  if (!server.lineup) return true;
+  const zones: (keyof Lineup)[] = ["back", "hback", "mid", "hfwd", "fwd", "bench"];
+  return zones.every((z) => same(store.lineup[z] ?? [], server.lineup?.[z] ?? []));
 }
 
 type LastScore = {
@@ -541,10 +570,24 @@ export function LiveGame({
     // second run then falls through and re-inits with
     // clockStartedAt=null, silently pausing the freshly-started
     // clock. Steve 2026-05-20 demo clock-auto-resume fix.
+    // Another phone on this game (a parent's game-day link, a co-manager)
+    // moved it on — scored, subbed, started or ended a quarter, finished —
+    // and LiveSync refreshed the page with it. The store only follows its
+    // own taps, so the coach's phone kept the old score and quarter until
+    // a reload (UX round 2). With nothing of this phone's still on its way
+    // to the server, the server's replay is the game: take it, keeping
+    // this phone's clock in the quarter they share.
+    const otherPhoneMovedOn =
+      initedGameIdRef.current === gameId &&
+      fullStoreState.activeGameId === gameId &&
+      !storeAheadOfServer &&
+      pendingWriteCount() === 0 &&
+      !storeMatchesServer(fullStoreState, initialState);
     if (
       fullStoreState.activeGameId === gameId &&
       !storeAheadOfServer &&
-      lineupHasAnyPlayer
+      lineupHasAnyPlayer &&
+      !otherPhoneMovedOn
     ) {
       setHydrated(true);
       return;
@@ -580,6 +623,16 @@ export function LiveGame({
       // behaviour for those flows.
       if (isFreshMount) {
         clockStartedAt = Date.now();
+      }
+      if (otherPhoneMovedOn) {
+        if (initialState.currentQuarter === storeQuarter && !fullStoreState.quarterEnded) {
+          // The quarter this phone is already timing: its clock stands.
+          clockStartedAt = fullStoreState.clockStartedAt;
+          accumulatedMs = fullStoreState.accumulatedMs;
+        } else {
+          // The other phone started it: it's running.
+          clockStartedAt = Date.now();
+        }
       }
     }
     init({
@@ -1360,6 +1413,8 @@ export function LiveGame({
   ) : null;
 
   if (isBetweenQuarters) {
+    // The quarter this break follows.
+    const breakQuarter = currentQuarter;
     return (
       <div className="ui-nonselect">
         {walkthroughOverlay}
@@ -1384,7 +1439,11 @@ export function LiveGame({
           chipModeByKey={chipModeByKey}
           aflPlaybook={aflPlaybook}
           periodCount={ageGroup.periodCount}
-          onStarted={() => beginNextQuarter()}
+          onStarted={() => {
+            // The page may already have caught up to this quarter (the
+            // start's refresh landing first re-inits the store into it).
+            if (useLiveGame.getState().currentQuarter <= breakQuarter) beginNextQuarter();
+          }}
           onPrimeAudio={primeSong}
         />
       </div>
