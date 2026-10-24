@@ -21,6 +21,17 @@
 // due swap fell off the card (soccer audit, 23 Oct 2026). A swap with no
 // `batch_left` (every swap before this, other sports') re-anchors as
 // it always has.
+//
+// A swap the coach makes by hand (tap a kid, tap another) says so
+// (`manual: true`) and doesn't move the anchor either: AFL's rule, now
+// every sport's. A hand swap is off the rotation's cadence, so the clock
+// keeps running toward the next planned sub (round-2 usability test,
+// 24 Oct 2026: soccer's countdown jumped from 3:15 to 3:58 on one).
+//
+// AFL's live screen keeps its sub clock on the phone too, since its
+// swaps don't refresh the page: mergeSubAnchor folds the events' anchor
+// into it, so a reload picks up the last planned sub instead of
+// guessing from the clock.
 
 import type { GameEvent } from "@/lib/types";
 
@@ -30,6 +41,8 @@ interface SwapMeta {
   off_player_id?: string;
   /** Swaps of the due batch still to make after this one. */
   batch_left?: number;
+  /** Made by hand, off the rotation's cadence. */
+  manual?: boolean;
 }
 interface InjuryMeta {
   quarter?: number;
@@ -76,7 +89,7 @@ const batchLeft = (meta: SwapMeta): number => (typeof meta.batch_left === "numbe
 
 /**
  * This period's planned swaps, newest first, then its quarter_start.
- * Forced swaps are left out.
+ * Forced swaps and hand swaps are left out.
  */
 function plannedSwapsAndStart(events: readonly GameEvent[], currentQuarter: number): { ev: GameEvent; meta: SwapMeta }[] {
   const out: { ev: GameEvent; meta: SwapMeta }[] = [];
@@ -103,6 +116,7 @@ function plannedSwapsAndStart(events: readonly GameEvent[], currentQuarter: numb
       ) {
         continue; // forced swap — doesn't re-anchor the rotation clock
       }
+      if (meta.manual === true) continue; // by hand, off the cadence
       out.push({ ev, meta });
     }
     if (ev.type === "quarter_start") {
@@ -111,4 +125,34 @@ function plannedSwapsAndStart(events: readonly GameEvent[], currentQuarter: numb
     }
   }
   return out;
+}
+
+/** A period's sub clock: where its interval started, and the due batch's swaps still to make. */
+export interface SubAnchor {
+  period: number;
+  /** Game ms into the period of the last planned sub (0 at the start). */
+  anchorMs: number;
+  batchLeft: number;
+}
+
+/**
+ * AFL's sub clock on the phone, given what the events say
+ * (resolveSubAnchorElapsed / openSubBatch for `events.period`, null
+ * before the server has the period). A period the phone hasn't seen (a
+ * reload, a new quarter) takes the events' anchor, or the period start.
+ * In the same period the phone's own wins (its swaps don't refresh the
+ * page, so the events lag it) unless the events have a newer planned
+ * sub: another phone's.
+ */
+export function mergeSubAnchor(
+  mine: SubAnchor | null,
+  events: { period: number; anchorMs: number | null; batchLeft: number },
+): SubAnchor {
+  if (!mine || mine.period !== events.period) {
+    return { period: events.period, anchorMs: events.anchorMs ?? 0, batchLeft: events.batchLeft };
+  }
+  if (events.anchorMs !== null && events.anchorMs > mine.anchorMs) {
+    return { period: events.period, anchorMs: events.anchorMs, batchLeft: events.batchLeft };
+  }
+  return mine;
 }

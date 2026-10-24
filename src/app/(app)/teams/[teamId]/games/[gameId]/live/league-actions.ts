@@ -548,6 +548,8 @@ export async function recordLeagueSwap(
     on_player_id: string;
     quarter: number;
     elapsed_ms: number;
+    /** By hand, off the rotation's cadence: the sub clock doesn't restart (lib/live/subAnchor). */
+    manual?: boolean;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {

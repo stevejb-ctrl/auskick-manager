@@ -382,6 +382,8 @@ export async function recordTouchSwap(
     line?: TouchLine;
     quarter: number;
     elapsed_ms: number;
+    /** By hand, off the rotation's cadence: the sub clock doesn't restart (lib/live/subAnchor). */
+    manual?: boolean;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {
@@ -398,6 +400,7 @@ export async function recordTouchSwap(
         ...(line ? { line } : {}),
         quarter: input.quarter,
         elapsed_ms: input.elapsed_ms,
+        ...(input.manual === true ? { manual: true } : {}),
       },
     },
     idempotencyKey,

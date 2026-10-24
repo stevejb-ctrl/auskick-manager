@@ -21,6 +21,7 @@ import {
   recordSwap,
   recordFieldZoneSwap,
   recordPlayerLock,
+  recordClockPause,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 
 import {
@@ -124,6 +125,8 @@ const actions = {
   recordLineupSet,
   recordSwap,
   recordFieldZoneSwap,
+  // A clock pause or resume, every sport (lib/live/clockPause).
+  recordClockPause,
 
   // ── Netball ─────────────────────────────────────────────────
   periodBreakSwap,

@@ -67,6 +67,8 @@ const GAME_LANE = new Set([
   "recordLineupSet",
   "recordSwap",
   "recordFieldZoneSwap",
+  // Every sport: a clock pause or resume
+  "recordClockPause",
   // Netball
   "periodBreakSwap",
   "startNetballQuarter",

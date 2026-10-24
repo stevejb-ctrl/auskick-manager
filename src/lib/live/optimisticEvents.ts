@@ -13,6 +13,7 @@
 
 import type { GameEvent } from "@/lib/types";
 import { takeUndoTarget } from "@/lib/live/scoreUndo";
+import type { ClockPauseInput } from "@/lib/live/clockPause";
 
 /** An event as a write would insert it (the server stamps the rest). */
 export interface OptimisticEventInput {
@@ -140,7 +141,9 @@ type At = { quarter: number; elapsed_ms: number };
  */
 export const liveEvents = {
   /** recordSoccerSwap / recordBasketballSwap / recordTouchSwap / recordLeagueSwap. */
-  swap(input: { off_player_id: string | null; on_player_id: string; line?: string; batch_left?: number } & At): OptimisticEventInput {
+  swap(
+    input: { off_player_id: string | null; on_player_id: string; line?: string; batch_left?: number; manual?: boolean } & At,
+  ): OptimisticEventInput {
     return {
       type: "swap",
       player_id: input.on_player_id,
@@ -151,6 +154,7 @@ export const liveEvents = {
         quarter: input.quarter,
         elapsed_ms: input.elapsed_ms,
         ...(input.batch_left ? { batch_left: input.batch_left } : {}),
+        ...(input.manual ? { manual: true } : {}),
       },
     };
   },
@@ -244,6 +248,14 @@ export const liveEvents = {
       type: "roster_shrink",
       player_id: null,
       metadata: { on_field_size: input.on_field_size, quarter: input.quarter, elapsed_ms: input.elapsed_ms },
+    };
+  },
+  /** recordClockPause: the clock stopped, or started again (lib/live/clockPause). */
+  clockPause(input: ClockPauseInput): OptimisticEventInput {
+    return {
+      type: "clock_pause",
+      player_id: null,
+      metadata: { quarter: input.quarter, paused: input.paused, elapsed_ms: input.elapsed_ms, at_ms: input.at_ms },
     };
   },
 };
