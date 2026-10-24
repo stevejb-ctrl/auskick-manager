@@ -61,13 +61,24 @@ export interface RollingSubsInput<L extends string = string> {
   justOn?: (id: string) => boolean;
   /** Went off too recently to come back: they wait while anyone else can come on. */
   justOff?: (id: string) => boolean;
+  /**
+   * Went off within the cool-down: not brought back on at all, even with
+   * nobody else to come on (a fix for the rule aside). Round 2 usability,
+   * 24 Oct 2026: 6 s after a hand sub took Zara off, the card had her on.
+   */
+  resting?: (id: string) => boolean;
+  /**
+   * Empty places on the field, by line (a kid hurt with nobody on for
+   * them): filled first, a bench kid on with nobody off.
+   */
+  open?: readonly L[];
   /** At most this many subs in one batch; omitted = as many as even time. */
   maxSubs?: number;
 }
 
-/** A suggested sub: the kid going off, the kid coming on, and the line they take. */
+/** A suggested sub: the kid going off (null: into an empty place), the kid coming on, and the line they take. */
 export interface RollingSub<L extends string = string> {
-  off: string;
+  off: string | null;
   on: string;
   line: L;
 }
@@ -188,7 +199,7 @@ function fixComposition<L extends string>(
   while (totalDistance(counts, constraints) > 0) {
     if (input.maxSubs !== undefined && subs.length >= input.maxSubs) break;
     const before = totalDistance(counts, constraints);
-    let fix: RollingSub<L> | null = null;
+    let fix: { off: string; on: string; line: L } | null = null;
     for (const on of bench) {
       if (usedOn.has(on)) continue;
       const only = input.onlyLine?.(on) ?? null;
@@ -216,7 +227,8 @@ function fixComposition<L extends string>(
 
 /**
  * A sub-due batch: first any subs that bring a field outside a
- * constraint back inside it (compositionFixes), then the bench, least
+ * constraint back inside it (compositionFixes), then the empty places
+ * (open), filled with nobody off, then the bench, least
  * time this game first, on for the kids on the field with the most,
  * while each sub evens their time and keeps to the lines, pools and
  * constraints. Ranked in the order they should be made. Empty when the
@@ -240,7 +252,8 @@ export function suggestRollingSubs<L extends string>(input: RollingSubsInput<L>)
   const used = fixed.usedOff;
   const subs: RollingSub<L>[] = [...fixed.subs];
 
-  const free = input.bench.filter((p) => !fixed.usedOn.has(p));
+  const resting = input.resting ?? (() => false);
+  const free = input.bench.filter((p) => !fixed.usedOn.has(p) && !resting(p));
   const rested = free.filter((p) => !justOff(p));
   // Bench kids who haven't rested wait while anyone else can come on.
   const bench = sortByKeys(rested.length > 0 ? rested : free, (p) => [keepOn(p) ? 0 : 1, gameMs(p)]);
@@ -250,8 +263,26 @@ export function suggestRollingSubs<L extends string>(input: RollingSubsInput<L>)
     (p) => [justOn(p) ? 1 : 0, -gameMs(p)],
   );
 
+  // Empty places first, nobody off, keeping the constraints (round 3
+  // edge cases, 24 Oct 2026: a short side was only ever offered swaps,
+  // and following one benched a kid off a side already short).
+  const filled = new Set<string>();
+  for (const line of input.open ?? []) {
+    if (input.maxSubs !== undefined && subs.length >= input.maxSubs) break;
+    const on = bench.find((p) => {
+      if (filled.has(p)) return false;
+      const only = input.onlyLine?.(p) ?? null;
+      return (!only || only === line) && plays(p, line) && keepsComposition(counts, null, p, tags, constraints);
+    });
+    if (!on) continue;
+    filled.add(on);
+    for (const t of tags(on)) if (t in counts) counts[t]++;
+    subs.push({ off: null, on, line });
+  }
+
   for (const on of bench) {
     if (input.maxSubs !== undefined && subs.length >= input.maxSubs) break;
+    if (filled.has(on)) continue;
     const only = input.onlyLine?.(on) ?? null;
     const candidates = court.filter((off) => {
       if (used.has(off)) return false;

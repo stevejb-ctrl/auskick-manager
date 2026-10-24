@@ -77,6 +77,8 @@ export interface PeriodBreakProps {
    * tile's tag in the zone's colour, as a netball bib is.
    */
   positions?: Readonly<Record<string, string>>;
+  /** Named positions: the position each kid held last period, for "From BF6". */
+  previousPositions?: Readonly<Record<string, string>>;
   /** Kids who can't play, and why: "Injured", "Lent", "Fouled out". */
   sidelined: Readonly<Record<string, string>>;
   onSwap: (a: BoardSlot, b: BoardSlot) => void;
@@ -224,7 +226,9 @@ export function PeriodBreak(props: PeriodBreakProps) {
       name: p?.name ?? "Player",
       score: props.scores?.[id],
       tags: props.tags?.[id],
-      movement: why ?? movementText(prev, slot.group, places),
+      movement:
+        why ??
+        movementText(prev, slot.group, places, props.positions ? { from: props.previousPositions?.[id], to: bib } : undefined),
       fromColor: places[prev]?.color ?? "bench",
       time: clock(ms),
       lowTime: !why && isLowTime(ms, average, config.lowTimeMs),

@@ -2054,18 +2054,16 @@ export function playerZoneMsOnField(
 
 /**
  * Season balance's line time (audit, 23 Oct 2026): ms per player in the
- * forwards and the backs, vest time in its own line — the First
- * Receiver a back, the Dummy Half a forward, as the vest spots stand on
- * the field (LeagueField). The tiles' bar keeps vest time as its centre
- * (playerZoneMsOnField); balance has no centre line to owe, so vest
- * time used to drop out of it. Completed periods only.
+ * forwards and the backs, vest time in the line the lineup has the kid
+ * in, where the field draws them (arrangeLeagueField). The tiles' bar
+ * keeps vest time as its centre (playerZoneMsOnField); balance has no
+ * centre line to owe, so vest time used to drop out of it. It then went
+ * to the vest's nominal line (FR a back, DH a forward), which the field
+ * contradicted (round 2 usability, 24 Oct 2026). Completed periods only.
  */
 export function playerLineMsOnField(events: GameEvent[]): Record<string, { forwards: number; backs: number }> {
   return walkLeagueStints(events, Number.MAX_SAFE_INTEGER, 0).lines;
 }
-
-/** The line a vest's time counts in: the line its spot stands in. */
-const VEST_LINE: Record<"fr" | "dh", "forwards" | "backs"> = { fr: "backs", dh: "forwards" };
 
 /**
  * Named positions (5.7): ms per player per position key, from the
@@ -2106,7 +2104,7 @@ function walkLeagueStints(
     row[bucket] += ms;
     total[pid] = row;
   };
-  // Line time rides along, a vest's time in its spot's line.
+  // Line time rides along, a vest's time in the kid's own line.
   const lineTotal: Record<string, { forwards: number; backs: number }> = {};
   const addLineMs = (pid: string, line: "forwards" | "backs", ms: number) => {
     if (ms <= 0) return;
@@ -2172,7 +2170,7 @@ function walkLeagueStints(
     if (s.vest) addMs(pid, "centre", dur);
     else if (s.zone === "forward") addMs(pid, "forwards", dur);
     else addMs(pid, "backs", dur);
-    addLineMs(pid, s.vest ? VEST_LINE[s.vest] : s.zone === "forward" ? "forwards" : "backs", dur);
+    addLineMs(pid, s.zone === "forward" ? "forwards" : "backs", dur);
     addSlotMs(pid, dur);
   };
   const closeStint = (pid: string, endMs: number) => {

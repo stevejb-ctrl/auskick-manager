@@ -71,10 +71,11 @@ import type { Game, GameEvent, LiveAuth, MixedGroup, Player } from "@/lib/types"
 import type { TouchSport } from "@/lib/sports";
 import { normalizeTouchLineup, touchLineOf, touchOnField, type TouchLineup } from "@/lib/sports/touch/lineup";
 import { replayTouchGame, touchCanPlay, touchGameMs, type TouchGameState } from "@/lib/sports/touch/replay";
+import { benchInTouchLineup, swapInTouchLineup } from "@/lib/sports/touch/live";
 import {
   suggestTouchSubs,
   touchFieldPlan,
-  touchMixFixSubs,
+  touchMixFix,
   touchShapeFor,
   touchShapeIdOf,
   type TouchMixed,
@@ -322,7 +323,9 @@ export function TouchLiveGame({
   const msUntilDue = subDue.msUntilDue;
   const nextSubs = useMemo(() => {
     if (!isPeriodActive) return [];
-    const opts = { strategy, prefs, season, mixed };
+    // A kid who goes off rests a sub interval before coming back on; an
+    // empty place (a kid hurt with nobody on) is filled first.
+    const opts = { strategy, prefs, season, mixed, restMs: (subIntervalSeconds ?? 0) * 1000, spots: lineCaps };
     const now = suggestTouchSubs({ state, nowMs: absNowMs, ...opts });
     if (now.length > 0 || msUntilDue === null || msUntilDue <= 0) return now;
     // Nothing evens time yet, so show the subs due at the next sub time,
@@ -332,7 +335,7 @@ export function TouchLiveGame({
     const ahead = replayTouchGame(events, { nowMs: aheadMs });
     return suggestTouchSubs({ state: ahead, nowMs: ahead.completedPeriodMs + aheadMs, ...opts });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPeriodActive, state, events, strategy, prefs, season, mixed, periodMs, msUntilDue !== null && msUntilDue <= 0, Math.floor((msUntilDue ?? 0) / 5000)]);
+  }, [isPeriodActive, state, events, strategy, prefs, season, mixed, periodMs, subIntervalSeconds, lineCaps, msUntilDue !== null && msUntilDue <= 0, Math.floor((msUntilDue ?? 0) / 5000)]);
   const subDueKey = subDue.key === null ? null : `${base.currentPeriod}:${subDue.key}`;
   const subDueShowing = isPeriodActive && subDue.due && nextSubs.length > 0 && subAckKey !== subDueKey;
   useSubDueAudioUnlock();
@@ -531,25 +534,54 @@ export function TouchLiveGame({
 
   // A side that breaks the mixed rule (a hand sub the coach swapped
   // anyway): pinned under the top bar until it's fixed, with the subs
-  // that fix it (the suggestions lead with the same ones).
+  // that fix it (the suggestions lead with the same ones), or, over the
+  // boys' cap with no girl to swap in, the boy to take off so the side
+  // plays short at the size the rule allows (round 2 usability, 24 Oct
+  // 2026: the strip said "nobody on the bench can fix it").
   const breach = useMemo(
     () => (mixed && state.lineup && isPeriodActive ? mixedFieldBreach(touchOnField(state.lineup), mixed.rule, mixed.groupOf) : null),
     [mixed, state.lineup, isPeriodActive],
   );
-  const fixSubs = useMemo(
-    () => (breach ? touchMixFixSubs({ state, nowMs: absNowMs, strategy, prefs, season, mixed }) : []),
+  const mixFix = useMemo(
+    () => (breach ? touchMixFix({ state, nowMs: absNowMs, strategy, prefs, season, mixed }) : { subs: [], off: [] }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [breach, state.lineup, state.injuredIds, state.loanedIds, strategy, prefs, season, mixed],
+    [breach, state.lineup, state.injuredIds, state.loanedIds, state.locks, strategy, prefs, season, mixed],
   );
+  const fixSubs = mixFix.subs;
+  const fixOff = mixFix.off;
+  const playsShort = state.lineup ? touchOnField(state.lineup).length - fixOff.length : 0;
   function applyFix() {
-    if (fixSubs.length === 0) return;
+    if (fixSubs.length === 0 && fixOff.length === 0) return;
     for (const s of fixSubs) sub(s.off_player_id, s.on_player_id, s.line);
+    if (fixOff.length > 0 && state.lineup) {
+      // The subs first, then the boys off with nobody on.
+      const swapped = fixSubs.reduce(
+        (lu, s) => (s.off_player_id ? swapInTouchLineup(lu, s.off_player_id, s.on_player_id) : lu),
+        state.lineup,
+      );
+      takeOff(fixOff, swapped);
+      return;
+    }
     if (fixSubs.length === 1) chrome.swapped(fixSubs[0].off_player_id, fixSubs[0].on_player_id);
     else chrome.showToast(`${fixSubs.length} subs made`);
   }
-  const fixLabel = fixSubs
-    .map((s) => `${playerById.get(s.on_player_id)?.full_name ?? "a player"} on for ${playerById.get(s.off_player_id)?.full_name ?? "a player"}`)
-    .join(", ");
+  const fullName = (id: string) => playerById.get(id)?.full_name ?? "a player";
+  const fixLabel = [
+    ...fixSubs.map((s) => `${fullName(s.on_player_id)} on for ${s.off_player_id ? fullName(s.off_player_id) : "a player"}`),
+    ...(fixOff.length > 0 ? [`take ${fixOff.map(fullName).join(" and ")} off — play ${playsShort}`] : []),
+  ].join(", ");
+  /**
+   * Kids off the field with nobody on ("Take off, no replacement"): the
+   * side plays short, recorded as the lineup with them on the bench.
+   */
+  function takeOff(pids: readonly string[], from: TouchLineup | null = state.lineup) {
+    if (!from || pids.length === 0) return;
+    setError(null);
+    const lineup = pids.reduce((lu, pid) => benchInTouchLineup(lu, pid), from);
+    const when = at();
+    write("recordTouchLineupSet", [auth, game.id, lineup, when], liveEvents.lineupSet({ lineup, ...when }));
+    chrome.showToast(`${pids.map((id) => chrome.firstName(id)).join(" and ")} off — playing ${touchOnField(lineup).length}`);
+  }
 
   function markInjured(pid: string, injured: boolean) {
     setError(null);
@@ -602,7 +634,7 @@ export function TouchLiveGame({
   const swapOns = new Map<string, { pair: number; line: TouchLine }>();
   if (!selectedId && isPeriodActive) {
     nextSubs.forEach((s, i) => {
-      swapOffs.set(s.off_player_id, i + 1);
+      if (s.off_player_id) swapOffs.set(s.off_player_id, i + 1);
       swapOns.set(s.on_player_id, { pair: i + 1, line: s.line });
     });
   }
@@ -702,6 +734,7 @@ export function TouchLiveGame({
           squad={squad}
           ageGroup={ageGroup}
           state={base}
+          events={events}
           periodMs={periodMs}
           strategy={strategy}
           prefs={prefs}
@@ -776,9 +809,17 @@ export function TouchLiveGame({
                 </span>
                 <p className="min-w-0 flex-1 text-sm text-ink">
                   <strong className="font-semibold">{breach.short}</strong>
-                  {fixSubs.length === 0 && <span className="text-ink-dim"> — nobody on the bench can fix it</span>}
+                  {fixSubs.length === 0 && fixOff.length > 0 && (
+                    <span className="text-ink-dim">
+                      {" "}
+                      — take {fixOff.length === 1 ? "a boy" : `${fixOff.length} boys`} off: play {playsShort}
+                    </span>
+                  )}
+                  {fixSubs.length === 0 && fixOff.length === 0 && (
+                    <span className="text-ink-dim"> — nobody on the bench can fix it</span>
+                  )}
                 </p>
-                {fixSubs.length > 0 && (
+                {(fixSubs.length > 0 || fixOff.length > 0) && (
                   <SFButton
                     size="md"
                     variant="ghost"
@@ -1119,18 +1160,34 @@ export function TouchLiveGame({
             setSelectedId(actionPlayer.id);
           }}
           extraActions={
-            isPeriodActive && actionLine && actionLine !== "field"
-              ? TOUCH_LANES.filter((l) => l !== actionLine).map((l) => ({
-                  label: `Move to ${TOUCH_LINE_LABEL[l].toLowerCase()}`,
-                  hint: `Plays ${TOUCH_LINE_ONE[l]} from now`,
-                  testId: `touch-move-${l}`,
-                  onClick: () => {
-                    const pid = actionPlayer.id;
-                    setActionPlayerId(null);
-                    move(pid, null, l);
-                    chrome.showToast(`${chrome.firstName(pid)} → ${TOUCH_LINE_LABEL[l]}`);
+            isPeriodActive && actionLine
+              ? [
+                  ...(actionLine !== "field"
+                    ? TOUCH_LANES.filter((l) => l !== actionLine).map((l) => ({
+                        label: `Move to ${TOUCH_LINE_LABEL[l].toLowerCase()}`,
+                        hint: `Plays ${TOUCH_LINE_ONE[l]} from now`,
+                        testId: `touch-move-${l}`,
+                        onClick: () => {
+                          const pid = actionPlayer.id;
+                          setActionPlayerId(null);
+                          move(pid, null, l);
+                          chrome.showToast(`${chrome.firstName(pid)} → ${TOUCH_LINE_LABEL[l]}`);
+                        },
+                      }))
+                    : []),
+                  // Off with nobody on: the side plays one short (a mixed
+                  // side over the boys' cap with no girl to bring on).
+                  {
+                    label: "Take off, no replacement",
+                    hint: "The side plays one short until you sub someone on",
+                    testId: "touch-take-off",
+                    onClick: () => {
+                      const pid = actionPlayer.id;
+                      setActionPlayerId(null);
+                      takeOff([pid]);
+                    },
                   },
-                }))
+                ]
               : undefined
           }
           onClose={() => setActionPlayerId(null)}

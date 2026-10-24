@@ -37,6 +37,16 @@ export interface GameReportInput {
    * boys under a cap) has a lower floor. The text names no kid's group.
    */
   mixedGroupOf?: (playerId: string) => string | null | undefined;
+  /**
+   * A mixed team: ms per period the field broke its rule (mixedBreachMsByPeriod).
+   * Any time over it is a missed rule.
+   */
+  mixedBreachMs?: Record<number, number>;
+  /**
+   * League's Law 6: unbroken periods each kid got, and how many the age
+   * group needs. A kid who missed time (late, hurt, lent) is exempt.
+   */
+  unbroken?: { required: number; done: Record<string, number>; periodWord: string };
   rules: RuleInstance[];
   name: (playerId: string) => string;
   homeLine?: Record<string, string | null>;
@@ -140,6 +150,42 @@ export function gameReport(input: GameReportInput): GameReport {
           text: `${joinNames(short.map(input.name))} played under ${input.minGameTimePct}%${ofTheirTime}`,
         },
   );
+
+  // Law 6 (league): the Must How we play shows locked, judged as the
+  // floor is (round 2 usability, 24 Oct 2026: a kid on one unbroken
+  // quarter of two read only "played under 50%").
+  if (input.unbroken && input.unbroken.required > 0) {
+    const { required: n, done, periodWord } = input.unbroken;
+    const units = `${n} unbroken ${periodWord}${n === 1 ? "" : "s"}`;
+    const missed = players.filter((pid) => !missedTime(pid) && (done[pid] ?? 0) < n);
+    items.push(
+      missed.length
+        ? { id: "unbroken-periods", status: "fail", text: `${joinNames(missed.map(input.name))} didn't get ${units} (Law 6)` }
+        : { id: "unbroken-periods", status: "ok", text: `${anyMissedTime ? "Everyone who could play all game" : "Everyone"} played ${units}` },
+    );
+  }
+
+  // A mixed team's rule: any stretch the field broke it (round 2: a half
+  // with 5 boys on for three minutes read "Rules kept").
+  if (input.mixedBreachMs) {
+    const over = Object.entries(input.mixedBreachMs)
+      .map(([p, ms]) => ({ period: Number(p), ms }))
+      .filter((b) => b.period <= Math.max(1, periodsPlayed) && b.ms >= 1000)
+      .sort((a, b) => a.period - b.period);
+    const clock = (ms: number) => {
+      const s = Math.round(ms / 1000);
+      return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    };
+    items.push(
+      over.length
+        ? {
+            id: "mixed-rule",
+            status: "fail",
+            text: `Mixed rule broken for ${joinNames(over.map((b) => `${clock(b.ms)} in ${input.periodLabel(b.period)}`))}`,
+          }
+        : { id: "mixed-rule", status: "ok", text: "Mixed rule kept all game" },
+    );
+  }
 
   for (const rule of input.rules) {
     const ids = rule.params.playerIds ?? [];

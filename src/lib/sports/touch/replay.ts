@@ -263,8 +263,16 @@ export function replayTouchGame(events: GameEvent[], opts: ReplayTouchOptions = 
         for (const pid of Object.keys(vacated)) delete vacated[pid];
         state.lineup = next;
         if (inPlay()) openAll(next, elapsed);
-        for (const pid of TOUCH_LINES.flatMap((l) => next.lines[l])) {
+        const after = new Set(TOUCH_LINES.flatMap((l) => next.lines[l]));
+        after.forEach((pid) => {
           if (!before.has(pid)) state.lastSubbedOnMs[pid] = absolute;
+        });
+        // Taken off mid-period ("Take off, no replacement"): they rest
+        // like a kid subbed off.
+        if (inPlay()) {
+          before.forEach((pid) => {
+            if (!after.has(pid)) state.lastSubbedOffMs[pid] = absolute;
+          });
         }
         break;
       }

@@ -21,7 +21,7 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
-import { startFromBreak } from "../helpers/break";
+import { pickBreakStrategy, startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "serial" });
 
@@ -276,6 +276,21 @@ test("futsal: a Wings-only kid starts the diamond on a wing; half-time breaks no
   await expect(page.getByTestId("break-broken-rule").filter({ hasText: /can't reach/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^start 2nd half/i })).not.toContainText(/rule/);
   await expect(page.getByRole("group", { name: "Wings" }).locator("[data-testid^='player-tile-']")).toHaveCount(2);
+
+  // Round 2 usability, 24 Oct 2026 (futsal P2): Rotate moved the
+  // Wings-only kid to Back, with no rule check. Rotate keeps them on the
+  // wings (or the bench); put at Back by hand, it's a broken rule.
+  await pickBreakStrategy(page, "Rotate");
+  await expect(wingsOrBench).toBeVisible();
+  await expect(page.getByTestId("break-broken-rule").filter({ hasText: /plays Wings only/ })).toHaveCount(0);
+  const backKid = await page.getByRole("group", { name: "Back" }).locator("[data-testid^='player-tile-']").first().getAttribute("data-testid");
+  await page.getByTestId(`player-tile-${wings.id}`).click();
+  await page.getByTestId(backKid!).click();
+  await expect(page.getByRole("group", { name: "Back" }).getByTestId(`player-tile-${wings.id}`)).toBeVisible();
+  const playsAs = page.getByTestId("break-broken-rule").filter({ hasText: `${wings.full_name} plays Wings only` });
+  await expect(playsAs).toBeVisible();
+  await playsAs.getByRole("button", { name: "Fix" }).click();
+  await expect(page.getByRole("group", { name: "Back" }).getByTestId(`player-tile-${wings.id}`)).toHaveCount(0);
 
   expect(errors).toEqual([]);
 });

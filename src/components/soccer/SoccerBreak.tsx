@@ -28,6 +28,7 @@ import { periodLabels, type SoccerSport } from "@/lib/sports";
 import { soccerFamilyRules } from "@/lib/sports/soccer/family";
 import { buildBoard, placesOf, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
+import { useBreakReplan } from "@/lib/live/break/useBreakReplan";
 import { rotateGroups } from "@/lib/live/break/rotateGroups";
 import { soccerOnField, soccerUnitOf, type SoccerLineup } from "@/lib/sports/soccer/lineup";
 import { soccerGameMs, type SoccerGameState } from "@/lib/sports/soccer/replay";
@@ -40,6 +41,7 @@ import {
   type SoccerAgeGroupConfig,
   type SoccerFormation,
   type SoccerKeeperStrategy,
+  type SoccerLine,
   type SoccerUnit,
 } from "@/lib/sports/soccer/types";
 import type { Game, LiveAuth, Player } from "@/lib/types";
@@ -163,7 +165,7 @@ export function SoccerBreak({
   );
   // Rotate: the half-time plan's keeper goes in goal; everyone else moves
   // up a line (defence → midfield → attack → defence), the shape kept,
-  // least-played on.
+  // least-played on, each kid only to a line their "Plays as" names.
   const rotatedPlan = useMemo<SoccerLineup>(() => {
     const keeper = plan.formation.keeper ? plan.lineup.keeper : null;
     const shape = plan.formation.lines;
@@ -180,9 +182,10 @@ export function SoccerBreak({
         }),
       ),
       sidelinedIds: sidelinedInGame,
+      plays: (pid, line) => line === "field" || !keeperPrefs?.notInLine?.[pid]?.includes(line as SoccerLine),
     });
     return lineupOf({ groups: { ...out.groups, gk: keeper ? [keeper] : [] }, bench: out.bench });
-  }, [plan, healthy, state.ms, gameMs, previousLineup, sidelinedInGame]);
+  }, [plan, healthy, state.ms, gameMs, previousLineup, sidelinedInGame, keeperPrefs]);
   // Every plan but Manual puts the kit-up keeper in goal.
   const {
     suggested,
@@ -215,9 +218,13 @@ export function SoccerBreak({
   // A strategy only re-derives the plan when the coach picks it, never
   // when the suggestion recomputes underneath their edits.
   const lastApplied = useRef<BreakStrategy>(initialMode);
+  // A kid back at the break gets the strategy's lineup again, unless the
+  // coach has placed kids by hand (lib/live/break/useBreakReplan).
+  const replan = useBreakReplan(healthy, () => setDraft(forStrategy(strategy)));
   useEffect(() => {
     if (lastApplied.current === strategy) return;
     lastApplied.current = strategy;
+    replan.strategyApplied();
     setDraft(forStrategy(strategy));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [strategy]);
@@ -243,6 +250,7 @@ export function SoccerBreak({
     staged,
     mode: strategy,
     onRestore: (restored) => {
+      replan.placedByHand();
       shaped.current = true;
       setDraft(lineupOf(restored));
       const mode = restored.mode as BreakStrategy;
@@ -280,6 +288,7 @@ export function SoccerBreak({
   // Out: recorded as an injury (reason "out"); a replacement takes the
   // spot in the staged plan, committed with it at Start.
   function markOut(pid: string, replacementId: string | null) {
+    if (replacementId) replan.placedByHand();
     setDraft((d) => {
       const unit = soccerUnitOf(d, pid);
       const benched = benchOutInSoccerLineup(d, new Set([pid]));
@@ -392,6 +401,7 @@ export function SoccerBreak({
       sidelined={sidelined}
       onSwap={(a, b) => {
         shaped.current = true;
+        replan.placedByHand();
         setDraft((d) => swapSlots(d, a, b));
       }}
       strategy={strategy}

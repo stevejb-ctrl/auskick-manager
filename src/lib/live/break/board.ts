@@ -125,12 +125,21 @@ export function placeIndex(zones: readonly BreakZoneDef[]): Record<string, Place
 /**
  * A tile's movement line: "Stays", "From bench" or "From Fwd" (netball:
  * "From GS"), against where the kid ended last period. A kid who wasn't
- * in last period's lineup comes from the bench.
+ * in last period's lineup comes from the bench. With named positions
+ * (rugby), the position they held and the one they're dealt: a kid moved
+ * within their line reads "From BF6", not "Stays" (round 2 usability,
+ * 24 Oct 2026: union's Repeat reshuffled positions under "Stays").
  */
-export function movementText(previous: string | undefined, now: string, places: Record<string, PlaceInfo>): string {
+export function movementText(
+  previous: string | undefined,
+  now: string,
+  places: Record<string, PlaceInfo>,
+  position?: { from?: string; to?: string },
+): string {
   const prev = previous ?? BENCH;
+  if (prev === BENCH) return prev === now ? "Stays" : "From bench";
+  if (position?.from && position.to && now !== BENCH) return position.from === position.to ? "Stays" : `From ${position.from}`;
   if (prev === now) return "Stays";
-  if (prev === BENCH) return "From bench";
   return `From ${places[prev]?.short ?? prev}`;
 }
 

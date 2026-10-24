@@ -177,7 +177,7 @@ describe("suggestSoccerRollingSub", () => {
     for (let minute = 2; minute < 20; minute += 2) {
       const state = replaySoccerGame(g.events, { nowMs: minute * MIN });
       const sub = suggestSoccerRollingSub({ state, nowMs: minute * MIN, minStintMs: 4 * MIN });
-      if (sub) g.swap(sub.off_player_id, sub.on_player_id, minute);
+      if (sub) g.swap(sub.off_player_id!, sub.on_player_id, minute);
     }
     g.end(1, 20);
     const s = replaySoccerGame(g.events);
@@ -220,7 +220,7 @@ describe("suggestSoccerWindowBatch", () => {
     expect(batch.map((s) => s.on_player_id)).toEqual(["b1", "m3"]);
     for (const sub of batch) {
       expect(sub.off_player_id).not.toBe("k");
-      expect(soccerUnitOf(live.state.lineup as SoccerLineup, sub.off_player_id)).toBe(sub.line);
+      expect(soccerUnitOf(live.state.lineup as SoccerLineup, sub.off_player_id!)).toBe(sub.line);
     }
     expect(new Set(batch.map((s) => s.off_player_id)).size).toBe(2);
   });

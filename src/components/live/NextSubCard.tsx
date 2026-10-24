@@ -19,7 +19,12 @@ import type { Player } from "@/lib/types";
 import { SUB_DUE_RING, SUB_IDLE_SHADOW, SubDueHeading, SubDueRoot } from "@/components/live/SubDue";
 
 export interface NextSubPair {
-  offId: string;
+  /**
+   * The kid coming off, or null: on into an empty spot, nobody off
+   * (round 3 edge cases, 24 Oct 2026: a short side was only ever
+   * offered swaps).
+   */
+  offId: string | null;
   onId: string;
   /** Where the kid coming on plays, e.g. "FWD", "DEF". */
   label: string;
@@ -136,14 +141,14 @@ export function NextSubCard({
     if (due) setOpen(true);
   }, [due]);
 
-  // Skip any pair with a missing player (defensive).
+  // Skip any pair with a missing player (defensive). A fill has nobody off.
   const valid = pairs
     .map((s, index) => {
-      const off = playerById.get(s.offId);
+      const off = s.offId === null ? null : playerById.get(s.offId);
       const on = playerById.get(s.onId);
-      return off && on ? { s, off, on, index } : null;
+      return off !== undefined && on ? { s, off, on, index } : null;
     })
-    .filter((x): x is { s: NextSubPair; off: Player; on: Player; index: number } => x !== null);
+    .filter((x): x is { s: NextSubPair; off: Player | null; on: Player; index: number } => x !== null);
   if (valid.length === 0) return null;
 
   const timerActive
@@ -194,7 +199,7 @@ export function NextSubCard({
           hint={dueHint}
           summary={
             <span className="truncate">
-              {valid.map(({ off, on }) => `${first(off.full_name)}→${first(on.full_name)}`).join(" · ")}
+              {valid.map(({ off, on }) => `${off ? first(off.full_name) : "Empty"}→${first(on.full_name)}`).join(" · ")}
             </span>
           }
         />
@@ -236,12 +241,18 @@ export function NextSubCard({
                   {s.label}
                 </span>
                 <span className="flex min-w-0 flex-auto items-center gap-1.5">
-                  <span className="hidden h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-white/10 font-mono text-[8px] font-bold text-warm/70 sm:flex">
-                    {initials(off.full_name)}
-                  </span>
-                  <span className="truncate text-xs font-semibold text-warm/70">
-                    {first(off.full_name)}
-                  </span>
+                  {off ? (
+                    <>
+                      <span className="hidden h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-white/10 font-mono text-[8px] font-bold text-warm/70 sm:flex">
+                        {initials(off.full_name)}
+                      </span>
+                      <span className="truncate text-xs font-semibold text-warm/70">
+                        {first(off.full_name)}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="truncate text-xs italic text-warm/50">Empty spot</span>
+                  )}
                   <span className="text-warm/40">→</span>
                   <span className="hidden h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-brand-600/40 font-mono text-[8px] font-bold text-brand-200 sm:flex">
                     {initials(on.full_name)}
@@ -264,7 +275,7 @@ export function NextSubCard({
                     }}
                     className="ml-auto flex-shrink-0 rounded-sm bg-brand-600 px-2.5 py-1 font-mono text-[11px] font-bold text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
                   >
-                    {pending ? "…" : "Make swap"}
+                    {pending ? "…" : off ? "Make swap" : "Put on"}
                   </button>
                 )}
               </li>

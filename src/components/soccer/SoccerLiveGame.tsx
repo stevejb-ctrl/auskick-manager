@@ -330,10 +330,15 @@ export function SoccerLiveGame({
     [events, base.currentPeriod, isPeriodActive],
   );
   const nextSubs = useMemo(() => {
-    const batch = isPeriodActive ? suggestSoccerWindowBatch({ state, nowMs: absNowMs, prefs: keeperPrefs }) : [];
+    // Rolling subs: a kid who goes off rests a sub interval before coming
+    // back on (windows are the only time to sub, so no rest there).
+    const restMs = ageGroup.subMode.kind === "rolling" ? (subIntervalSeconds ?? 0) * 1000 : 0;
+    // An empty goal or spot (a kid hurt with nobody on) is filled first.
+    const spots = { keeper: shape.keeper, lines: shape.lines };
+    const batch = isPeriodActive ? suggestSoccerWindowBatch({ state, nowMs: absNowMs, prefs: keeperPrefs, restMs, spots }) : [];
     return batchLeft > 0 ? batch.slice(0, batchLeft) : batch;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPeriodActive, state, keeperPrefs, batchLeft]);
+  }, [isPeriodActive, state, keeperPrefs, batchLeft, subIntervalSeconds, ageGroup.subMode.kind, shape]);
   const subDueKey = subDue.key === null ? null : `${base.currentPeriod}:${subDue.key}`;
   const subDueShowing = isPeriodActive && subDue.due && nextSubs.length > 0 && subAckKey !== subDueKey;
   useSubDueAudioUnlock();
@@ -614,7 +619,7 @@ export function SoccerLiveGame({
   const swapOns = new Map<string, { pair: number; unit: SoccerUnit }>();
   if (!selectedId && isPeriodActive) {
     nextSubs.forEach((s, i) => {
-      swapOffs.set(s.off_player_id, i + 1);
+      if (s.off_player_id) swapOffs.set(s.off_player_id, i + 1);
       swapOns.set(s.on_player_id, { pair: i + 1, unit: s.line });
     });
   }
@@ -681,6 +686,20 @@ export function SoccerLiveGame({
       />
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
+
+      {/* An empty goal (the keeper hurt with nobody on): the top alert
+          until someone's in it (round 3 edge cases, 24 Oct 2026: hockey
+          played on with no keeper and nothing said so). */}
+      {isPeriodActive && shape.keeper && state.lineup && !state.lineup.keeper && (
+        <InlineAlert kind="danger" className="font-medium">
+          <span data-testid="no-keeper" className="flex items-center justify-between gap-3">
+            <span>No keeper: put someone in goal.</span>
+            <SFButton size="sm" variant="ghost" onClick={() => setFillUnit("gk")} disabled={pending}>
+              Pick
+            </SFButton>
+          </span>
+        </InlineAlert>
+      )}
 
       {isPeriodActive && chrome.toast}
 
