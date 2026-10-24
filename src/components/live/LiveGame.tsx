@@ -2128,9 +2128,14 @@ export function LiveGame({
           quarter={currentQuarter}
           sport="afl"
           clock={running ? "running" : "paused"}
-          onConfirm={() => {
+          elapsedMs={displayNowMs}
+          periodMs={quarterMs}
+          onConfirm={(full) => {
             setShowManualEndConfirm(false);
-            handleEndQuarter({ creditFullQuarter: true });
+            // The time played, or (the game played on while the app's
+            // clock sat paused) the whole period: the coach's choice. It
+            // used to be the whole period, silently (round 3, 24 Oct 2026).
+            handleEndQuarter({ creditFullQuarter: full });
           }}
           onCancel={() => setShowManualEndConfirm(false)}
         />

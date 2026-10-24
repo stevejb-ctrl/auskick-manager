@@ -975,11 +975,14 @@ export function SoccerLiveGame({
       {endConfirmOpen && (
         <ManualEndQuarterConfirm
           quarter={base.currentPeriod}
-          onConfirm={() => {
+          elapsedMs={Math.min(elapsedMs, periodMs)}
+          periodMs={periodMs}
+          onConfirm={(full) => {
             setEndConfirmOpen(false);
-            // Ending early credits the whole period (AFL and league do the
-            // same): the real game ran on while the app's clock stopped.
-            void endHalfAtClient(periodMs);
+            // The time played, or (the game played on while the app's
+            // clock sat paused) the whole period: the coach's choice. It
+            // used to be the whole period, silently (round 3, 24 Oct 2026).
+            endHalfAtClient(full ? periodMs : Math.min(clockAt(Date.now()), periodMs));
           }}
           onCancel={() => setEndConfirmOpen(false)}
           sport={sport}

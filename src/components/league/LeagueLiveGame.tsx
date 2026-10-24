@@ -2276,21 +2276,16 @@ export function LeagueLiveGame({
       {endQConfirmOpen && (
         <ManualEndQuarterConfirm
           quarter={state.currentQuarter}
-          onConfirm={() => {
+          elapsedMs={Math.min(elapsedMs, periodSeconds * 1000)}
+          periodMs={periodSeconds * 1000}
+          onConfirm={(full) => {
             setEndQConfirmOpen(false);
-            // Credit the FULL half / quarter to on-field players on
-            // a manual end-early, NOT the live elapsed time. Mirrors
-            // AFL's `handleEndQuarter({ creditFullQuarter: true })`:
-            // if the coach hits "End H2" after only 5 minutes of a
-            // 10-minute half (paused clock, real game ran on, etc.)
-            // the players actually played the whole half — the
-            // event log should reflect that, not the under-counted
-            // scaled-clock reading. The auto-hooter path above
-            // already passes periodMs; the manual path used to pass
-            // `elapsedMs` (live elapsed), under-crediting time-on
-            // and breaking the F/C/B zone-time bar + unbroken-period
-            // compliance check.
-            void endQuarterAtClient(periodSeconds * 1000);
+            // The time played, or (the game played on while the app's
+            // clock sat paused) the whole half / quarter: the coach's
+            // choice, as AFL's. Crediting the whole period was the
+            // silent default, so a half ended seconds in gave every kid
+            // on the field the full half (round 3, 24 Oct 2026).
+            endQuarterAtClient(full ? periodSeconds * 1000 : Math.min(clockAt(Date.now()), periodSeconds * 1000));
           }}
           onCancel={() => setEndQConfirmOpen(false)}
           sport={sport}

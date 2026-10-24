@@ -569,7 +569,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // below — store the QUARTER NUMBER that already fired so a new
   // quarter automatically becomes fireable again.
   const manualEndFiredForQuarterRef = useRef<number | null>(null);
-  function handleManualEndQuarter() {
+  // `full`: credit the whole quarter (the game played on while the
+  // clock sat paused); otherwise the time the clock saw (round 3: the
+  // whole quarter was the silent default).
+  function handleManualEndQuarter(full: boolean) {
     if (manualEndFiredForQuarterRef.current === currentQuarter) return;
     manualEndFiredForQuarterRef.current = currentQuarter;
     // Block the auto-hooter from also firing when we land on the
@@ -581,10 +584,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // Same sirenic haptic as the auto-hooter below — manual-end is
     // still "the quarter is ending" from the player's POV. P1-10.
     void hapticSiren();
+    const elapsed = full ? quarterLengthMs : Math.min(clockMs, quarterLengthMs);
     writeEvent(
       "endNetballQuarter",
-      [auth, game.id, currentQuarter, quarterLengthMs],
-      liveEvents.periodEnd({ quarter: currentQuarter, elapsed_ms: quarterLengthMs }),
+      [auth, game.id, currentQuarter, elapsed],
+      liveEvents.periodEnd({ quarter: currentQuarter, elapsed_ms: elapsed }),
     );
   }
 
@@ -2142,9 +2146,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           quarter={currentQuarter}
           sport="netball"
           clock={isPaused ? "paused" : "running"}
-          onConfirm={() => {
+          elapsedMs={Math.min(clockMs, quarterLengthMs)}
+          periodMs={quarterLengthMs}
+          onConfirm={(full) => {
             setShowManualEndConfirm(false);
-            handleManualEndQuarter();
+            handleManualEndQuarter(full);
           }}
           onCancel={() => setShowManualEndConfirm(false)}
         />

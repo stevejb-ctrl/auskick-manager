@@ -1107,11 +1107,14 @@ export function BasketballLiveGame({
       {endConfirmOpen && (
         <ManualEndQuarterConfirm
           quarter={base.currentPeriod}
-          onConfirm={() => {
+          elapsedMs={elapsedMs}
+          periodMs={periodMs}
+          onConfirm={(full) => {
             setEndConfirmOpen(false);
-            // Ending credits the whole period, as every sport does: the
-            // real game ran on while the phone's clock waited or stopped.
-            void endPeriodAt(periodMs);
+            // The time played, or (the game played on while the app's
+            // clock sat paused) the whole period: the coach's choice. It
+            // used to be the whole period, silently (round 3, 24 Oct 2026).
+            endPeriodAt(full ? periodMs : Math.min(clockAt(Date.now()), periodMs));
           }}
           onCancel={() => setEndConfirmOpen(false)}
           sport="basketball"

@@ -78,8 +78,8 @@ function sharedCopy(sport: SportConfig, ag: AgeGroupConfig): string[] {
   for (let n = 1; n <= ag.periodCount; n++) {
     out.push(periodEndLine(sport.id, label, n, ag.periodCount));
     for (const clock of CLOCKS) {
-      const c = endPeriodEarlyCopy({ sport: sport.id, periodLabel: label, period: n, clock });
-      out.push(c.title, c.body, c.confirm);
+      const c = endPeriodEarlyCopy({ sport: sport.id, periodLabel: label, period: n, clock, elapsedMs: 65_000, periodMs: 600_000 });
+      out.push(c.title, c.body, c.confirm, c.confirmFull ?? "");
     }
   }
   if (isRugby(sport.id)) {
@@ -129,26 +129,54 @@ describe("the clock menu and the end-early confirm", () => {
   });
 
   it("fits a running clock, a paused one and the hooter, and starts with a capital", () => {
-    const running = endPeriodEarlyCopy({ sport: "soccer", periodLabel: "half", period: 1, clock: "running" });
+    const at = { elapsedMs: 65_000, periodMs: 600_000 };
+    const running = endPeriodEarlyCopy({ sport: "soccer", periodLabel: "half", period: 1, clock: "running", ...at });
     expect(running.title).toBe("End H1 now?");
     expect(running.confirm).toBe("End H1");
     expect(running.body).not.toMatch(/paused/);
     expect(running.body).toMatch(/whistle/);
 
-    const paused = endPeriodEarlyCopy({ sport: "netball", periodLabel: "quarter", period: 3, clock: "paused" });
+    const paused = endPeriodEarlyCopy({ sport: "netball", periodLabel: "quarter", period: 3, clock: "paused", ...at });
     expect(paused.title).toBe("End Q3 now?");
     expect(paused.body).toMatch(/paused/);
     expect(paused.body).toMatch(/court/);
 
-    const hooter = endPeriodEarlyCopy({ sport: "basketball", periodLabel: "half", period: 2, clock: "hooter" });
+    const hooter = endPeriodEarlyCopy({ sport: "basketball", periodLabel: "half", period: 2, clock: "hooter", elapsedMs: 600_000, periodMs: 600_000 });
     expect(hooter.body).not.toMatch(/paused|beats/);
 
     for (const sport of ALL_SPORTS) {
       for (const clock of CLOCKS) {
-        const { body } = endPeriodEarlyCopy({ sport: sport.id, periodLabel: sport.periodLabel, period: 1, clock });
+        const { body } = endPeriodEarlyCopy({ sport: sport.id, periodLabel: sport.periodLabel, period: 1, clock, ...at });
         expect(body.charAt(0), `${sport.id} ${clock}`).toBe(body.charAt(0).toUpperCase());
       }
     }
+  });
+
+  // Round 3 (24 Oct 2026, P1): ending a half 6 s after it started
+  // credited everyone on the court the full 20:00, the confirm never said
+  // how much had been played, and the only way back was Restart. The time
+  // played is now the default; the full period is the second choice.
+  it("shows the time played and credits it, with the full period as the explicit second choice", () => {
+    const early = endPeriodEarlyCopy({
+      sport: "basketball",
+      periodLabel: "half",
+      period: 2,
+      clock: "running",
+      elapsedMs: 6_000,
+      periodMs: 20 * 60_000,
+    });
+    expect(early.body).toMatch(/0:06 of the 20:00 half/);
+    expect(early.body).toMatch(/credits everyone on the court with the 0:06 played/);
+    expect(early.confirm).toBe("End H2");
+    expect(early.confirmFull).toBe("The game played on: credit the full 20:00");
+
+    const paused = endPeriodEarlyCopy({ sport: "afl", periodLabel: "quarter", period: 1, clock: "paused", elapsedMs: 65_000, periodMs: 12 * 60_000 });
+    expect(paused.body).toMatch(/paused at 1:05 of the 12:00 quarter/);
+    expect(paused.confirmFull).toBe("The game played on: credit the full 12:00");
+
+    // At the hooter the time played is the whole period: one choice.
+    const timeUp = endPeriodEarlyCopy({ sport: "touch", periodLabel: "half", period: 1, clock: "hooter", elapsedMs: 600_000, periodMs: 600_000 });
+    expect(timeUp.confirmFull).toBeNull();
   });
 });
 
