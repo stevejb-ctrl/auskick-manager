@@ -18,6 +18,7 @@ import {
 import { primaryThirdFor, netballSport } from "@/lib/sports/netball";
 import type { Game, GameEvent, GameAvailability, Player } from "@/lib/types";
 import type { AttendanceRow, Season } from "@/lib/dashboard/types";
+import { awayMsByPeriod } from "@/lib/playbook/awayTime";
 
 const MS_PER_MIN = 60_000;
 const ALL_POSITIONS = ["gs", "ga", "wa", "c", "wd", "gd", "gk"] as const;
@@ -47,6 +48,12 @@ export interface NetballGameSnapshot {
   /** Full game length (4 × quarterLengthMs). */
   gameLengthMs: number;
   /**
+   * Per-player time they could play: the game less the time before a
+   * late arrival, injured, or lent (awayMsByPeriod, as How we played and
+   * AFL's stats count it). Kids never away get the whole game.
+   */
+  playerAvailableMs: Record<string, number>;
+  /**
    * Pairs of players who shared a third for some duration this game.
    * Drives the chemistry section. Key is a sorted "a:b" pair.
    */
@@ -68,7 +75,7 @@ export interface NetballPlayerSeasonStats {
   /** Per-position ms across the season; sums to totalMs. */
   positionMs: Partial<Record<NetballPosition, number>>;
   goals: number;
-  /** % of total possible on-court time across games they played. */
+  /** % of the on-court time they could play, across the games they were at. */
   teamGameTimePct: number;
 }
 
@@ -232,6 +239,14 @@ export function replayNetballGameForStats(
     }
   }
 
+  const gameLengthMs = quarterLengthMs * 4;
+  const away = awayMsByPeriod(sorted, () => quarterLengthMs, 4);
+  const playerAvailableMs: Record<string, number> = {};
+  playerIds.forEach((pid) => {
+    const awayMs = Object.values(away[pid] ?? {}).reduce((a, b) => a + b, 0);
+    playerAvailableMs[pid] = Math.max(0, gameLengthMs - awayMs);
+  });
+
   return {
     gameId,
     playerThirdMs: playerThirdMsRecord,
@@ -241,7 +256,8 @@ export function replayNetballGameForStats(
     teamGoalsByQtr,
     oppGoalsByQtr,
     quarterLengthMs,
-    gameLengthMs: quarterLengthMs * 4,
+    gameLengthMs,
+    playerAvailableMs,
     pairThirdMs,
     playerIds: Array.from(playerIds),
   };
@@ -293,10 +309,12 @@ export function computeNetballPlayerStats(
         row.thirdMs.attack += t.attack;
         row.thirdMs.centre += t.centre;
         row.thirdMs.defence += t.defence;
-        // Capacity: full game length per game they played in. Used
-        // for the % team game time below.
-        row.onCourtCapacityMs += snap.gameLengthMs;
       }
+      // Capacity: the time they could play in every game they were at
+      // (UX round 2, 24 Oct 2026: a kid hurt at 6:29 read 16%, a late
+      // arrival 50% of a game she was only there for three quarters of).
+      // A kid who sat on the bench all game was still there, at 0%.
+      row.onCourtCapacityMs += snap.playerAvailableMs?.[pid] ?? snap.gameLengthMs;
       const counts = snap.playerPositionCounts[pid] ?? {};
       for (const [pos, n] of Object.entries(counts)) {
         const p = pos as NetballPosition;
