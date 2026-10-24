@@ -948,7 +948,8 @@ export default async function LivePage({ params }: LivePageProps) {
               gameId={params.gameId}
               players={availablePlayers}
               ageGroup={ageCfgL}
-              defaultOnFieldSize={ageCfgL.defaultOnFieldSize}
+              // The game's own size, as AFL's and every picker's.
+              defaultOnFieldSize={g.on_field_size}
               minOnFieldSize={ageCfgL.minOnFieldSize}
               maxOnFieldSize={ageCfgL.maxOnFieldSize}
               defaultSubMinutes={g.sub_interval_seconds / 60}
@@ -1582,11 +1583,17 @@ export default async function LivePage({ params }: LivePageProps) {
           gameId={params.gameId}
           players={availablePlayers}
           season={season}
-          defaultOnFieldSize={ageCfg.defaultOnFieldSize}
+          // The game's own size (the team's, its competition's, when it
+          // was made or since), as the runner's lineup and every other
+          // sport's picker start from: it said 12 after Settings said 11
+          // (UX round 2, 24 Oct 2026).
+          defaultOnFieldSize={g.on_field_size}
           minOnFieldSize={ageCfg.minOnFieldSize}
           maxOnFieldSize={ageCfg.maxOnFieldSize}
           positionModel={positionModel}
-          gameMinutes={(ageCfg.periodSeconds * ageCfg.periodCount) / 60}
+          // This game's length, not the age group's: the sub-interval
+          // explainer said "over 48 min" for a 40-minute game.
+          gameMinutes={(quarterMs * ageCfg.periodCount) / 60_000}
           defaultSubMinutes={g.sub_interval_seconds / 60}
           fullPeriodMs={quarterMs}
           backHref={`/teams/${params.teamId}/games/${params.gameId}`}

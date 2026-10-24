@@ -758,7 +758,8 @@ export default async function RunPage({ params }: RunPageProps) {
               gameId={g.id}
               players={availablePlayers}
               ageGroup={ageCfgL}
-              defaultOnFieldSize={ageCfgL.defaultOnFieldSize}
+              // The game's own size, as the coach's page.
+              defaultOnFieldSize={g.on_field_size}
               minOnFieldSize={ageCfgL.minOnFieldSize}
               maxOnFieldSize={ageCfgL.maxOnFieldSize}
               // The game's own interval (see the AFL runner lineup page).

@@ -303,15 +303,21 @@ export async function setTeamAgeGroup(
  * (competitions differ by state). New games start from it; NULL (or the
  * age group's own) = the age group's default. It must be inside the age
  * group's range.
+ *
+ * Games already scheduled that are still on the team's old size take the
+ * new one, as a period-length change reaches them; a game given its own
+ * size keeps it. The lineup for a fixtured game said "12 on field" after
+ * Settings said 11 (UX round 2, 24 Oct 2026). `data.scheduled` is how
+ * many games moved.
  */
 export async function setTeamOnFieldSize(
   teamId: string,
   size: number | null,
-): Promise<ActionResult> {
+): Promise<ActionResult<{ scheduled: number }>> {
   const { supabase, error } = await getAuthedAdmin(teamId);
   if (error) return { success: false, error };
 
-  const { data: team } = await supabase.from("teams").select("sport, age_group").eq("id", teamId).single();
+  const { data: team } = await supabase.from("teams").select("sport, age_group, on_field_size").eq("id", teamId).single();
   if (!team) return { success: false, error: "Team not found." };
   const sport = teamSport((team as { sport?: Sport | null }).sport);
   const ageCfg = getAgeGroupConfig(sport, (team as { age_group?: string | null }).age_group ?? null);
@@ -328,9 +334,23 @@ export async function setTeamOnFieldSize(
     .eq("id", teamId);
   if (updateError) return { success: false, error: updateError.message };
 
+  const before = teamOnFieldSize(ageCfg, (team as { on_field_size?: number | null }).on_field_size);
+  const after = teamOnFieldSize(ageCfg, size);
+  let scheduled = 0;
+  if (before !== after) {
+    const { count, error: gamesError } = await supabase
+      .from("games")
+      .update({ on_field_size: after }, { count: "exact" })
+      .eq("team_id", teamId)
+      .eq("status", "upcoming")
+      .eq("on_field_size", before);
+    if (gamesError) return { success: false, error: gamesError.message };
+    scheduled = count ?? 0;
+  }
+
   revalidatePath(`/teams/${teamId}/settings`);
-  revalidatePath(`/teams/${teamId}/games`);
-  return { success: true };
+  revalidatePath(`/teams/${teamId}/games`, "layout");
+  return { success: true, data: { scheduled } };
 }
 
 /** Team › Danger zone › Leave team — removes the caller's own membership. */
