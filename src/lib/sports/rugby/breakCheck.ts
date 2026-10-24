@@ -9,6 +9,10 @@
 //   - League's unbroken-period law (Law 6), where the age group has it:
 //     a kid who can no longer get their unbroken periods is a broken
 //     rule.
+//   - A kid on the bench who now needs every period left, for Law 6 or
+//     the floor, is a warning: one more sit and they can't (round 2
+//     usability, 24 Oct 2026: U9 Tyler was benched at Q3 with no word,
+//     then again at Q4).
 //   - Named positions with restricted spots (union's front row): a kid
 //     dealt one they aren't picked for, while a kid who is sits out or
 //     plays elsewhere, is a broken rule; with nobody picked to hand, a
@@ -16,6 +20,7 @@
 
 import { checkRules, type RuleCheckItem } from "@/lib/playbook/ruleCheck";
 import type { RuleInstance } from "@/lib/playbook/rules";
+import { leaguePeriodsOwed } from "@/lib/sports/rugby/breakSuggestion";
 import { validateRugbyLineup } from "@/lib/sports/rugby/lineup";
 import {
   assignLeaguePositions,
@@ -47,6 +52,8 @@ export interface RugbyBreakCheckInput {
   unbroken?: { required: number; done: Record<string, number> };
   /** Named positions: the lineup's positions are dealt from these, as Start records them. */
   positions?: LeaguePlaybookInput;
+  /** ms each kid couldn't play so far (late, hurt, lent): their floor is over the rest. */
+  awayMs?: Readonly<Record<string, number>>;
 }
 
 const joinNames = (names: string[]) =>
@@ -84,6 +91,7 @@ export function rugbyBreakCheck(c: RugbyBreakCheckInput): RuleCheckItem[] {
       minGameTimePct: c.minGameTimePct ?? 50,
       rules: c.rules ?? [],
       homeLine: c.homeLine,
+      awayMs: c.awayMs,
     }),
   );
 
@@ -102,6 +110,30 @@ export function rugbyBreakCheck(c: RugbyBreakCheckInput): RuleCheckItem[] {
         text: `${joinNames(short.map(name))} can't get ${n} unbroken ${c.periodWord}${n === 1 ? "" : "s"} now`,
         rule: `Everyone plays ${n} unbroken ${c.periodWord}${n === 1 ? "" : "s"} (Law 6)`,
         playerIds: short,
+      });
+    }
+  }
+  const remainingAfter = c.ageGroup.periodCount - c.period;
+  if (remainingAfter >= 1 && c.lineup.bench.length > 0) {
+    const total = (pid: string) => Object.values(c.playedThisGame[pid] ?? {}).reduce((a, b) => a + b, 0);
+    const owed = leaguePeriodsOwed({
+      ids: c.lineup.bench,
+      left: remainingAfter,
+      periodCount: c.ageGroup.periodCount,
+      periodMs: c.periodMs,
+      msByPlayer: Object.fromEntries(c.lineup.bench.map((pid) => [pid, total(pid)])),
+      minGameTimePct: c.minGameTimePct ?? 50,
+      unbroken: c.unbroken,
+      awayMs: c.awayMs,
+    });
+    const tight = c.lineup.bench.filter((pid) => owed[pid] > 0 && owed[pid] === remainingAfter);
+    if (tight.length > 0) {
+      const rest = remainingAfter === 1 ? c.periodWord : `${remainingAfter} ${c.periodWord}s`;
+      items.push({
+        id: "must-play-out",
+        status: "warn",
+        text: `${joinNames(tight.map(name))} must play all of the last ${rest}`,
+        playerIds: tight,
       });
     }
   }

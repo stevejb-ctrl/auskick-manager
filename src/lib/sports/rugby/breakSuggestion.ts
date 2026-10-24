@@ -1,26 +1,43 @@
 // ─── Rugby (league and union): the break's "Suggested" ───────
-// The next period of the planner's own projection (the "Suggested" the
-// plan-ahead modal offers), anchored to the period just played, the
-// kids who can't play at the end of the bench. Lines split by the kids'
-// roles: How we play goes to the planner (UX audit, 23 Oct 2026: it
-// didn't, so a union side with named positions had eight of fifteen
-// kids moved across lines at half time).
+// Who plays the next period, and in which line, from the game as it
+// stands. It used to be the planner's cold projection of the next period
+// (the plan-ahead modal's), given no events or minutes, so after live
+// subs it broke the rules its own check enforces (round 2 usability,
+// 24 Oct 2026, league P1): at U10 half time it benched two kids who
+// still owed their unbroken half and kept on two who'd had theirs; at
+// U9 it benched Tyler at Q3 and again at Q4 (8:00 of 32); it benched
+// the kid planned to wear the DH vest.
+//
+// Now, in order:
+//   1. Kids a Must can't wait for: their unbroken periods (Law 6) or
+//      their game-time floor need every period left.
+//   2. The next period's planned vest wearers.
+//   3. Kids How we play keeps on.
+//   4. The least slack: periods a kid can still sit and keep both rules.
+//   5. Kids who sat out the last period, then the least time this game.
+// If that order would leave a later break no legal lineup, the least
+// slack goes first instead (least slack first always finds one when
+// there is one). A restricted spot in force (union's front row) keeps a
+// kid picked for it on, as the planner does. Lines split by the kids'
+// roles (How we play), ties evening each kid's forwards and backs time.
+// The kids who can't play go at the end of the bench.
 
-import { availablePlayersForPlan } from "@/lib/game-plan/availableForPlan";
-import { projectUpcomingRotation } from "@/lib/game-plan/live";
 import { benchSidelinedInLeagueLineup } from "@/lib/live/lineupOps";
-import type { LeaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
+import { rugbyForwards } from "@/lib/sports/rugby/lines";
+import {
+  assignLeagueLines,
+  canPlayPosition,
+  restrictedKeysInForce,
+  type LeaguePlaybookInput,
+} from "@/lib/sports/rugby_league/engine";
 import type { RugbySport } from "@/lib/sports/registry";
 import type { AgeGroupConfig } from "@/lib/sports/types";
-import type { ChipKey, ChipMode } from "@/lib/chips";
-import type { PlayerChip } from "@/lib/types";
 
 type Lineup = { forwards: string[]; backs: string[]; bench: string[] };
 
 export interface LeagueBreakSuggestionInput {
   sport: RugbySport;
   ageGroup: AgeGroupConfig;
-  squad: { id: string; chip?: PlayerChip | null }[];
   /** The lineup at the end of the period just played. */
   previousLineup: Lineup;
   injured: ReadonlySet<string>;
@@ -28,39 +45,139 @@ export interface LeagueBreakSuggestionInput {
   onFieldSize: number;
   /** The period just played (1-based). */
   currentQuarter: number;
-  chipModes?: Partial<Record<ChipKey, ChipMode>>;
   leaguePlaybook?: LeaguePlaybookInput;
-  /** The planner's seed (the break uses 7). */
-  seed?: number;
+  /** Game time so far, ms. */
+  msByPlayer: Readonly<Record<string, number>>;
+  /** Time so far in each line, ms: ties go to the line a kid has played less. */
+  lineMs?: Readonly<Record<string, { forwards: number; backs: number }>>;
+  periodMs: number;
+  /** Law 6: completed unbroken periods per kid, and how many the age group needs. */
+  unbroken?: { required: number; done: Readonly<Record<string, number>> };
+  /** The next period's planned vest wearers (vest_assigned for it). */
+  vests?: { fr?: string; dh?: string };
+  /** ms each kid couldn't play so far (late, hurt, lent): their floor is over the rest. */
+  awayMs?: Readonly<Record<string, number>>;
+  /** The game-time floor, %. Defaults to How we play's, else 50. */
+  minGameTimePct?: number;
+}
+
+/**
+ * Whole periods each kid still has to play, out of the `left` to come,
+ * for Law 6 and the game-time floor (the larger), counting only the
+ * rules they can still keep.
+ */
+export function leaguePeriodsOwed(input: {
+  ids: readonly string[];
+  left: number;
+  periodCount: number;
+  periodMs: number;
+  msByPlayer: Readonly<Record<string, number>>;
+  minGameTimePct: number;
+  unbroken?: { required: number; done: Readonly<Record<string, number>> };
+  awayMs?: Readonly<Record<string, number>>;
+}): Record<string, number> {
+  const out: Record<string, number> = {};
+  const gameMs = input.periodCount * input.periodMs;
+  for (const pid of input.ids) {
+    const unbroken = input.unbroken ? Math.max(0, input.unbroken.required - (input.unbroken.done[pid] ?? 0)) : 0;
+    const could = Math.max(0, gameMs - (input.awayMs?.[pid] ?? 0));
+    const shortMs = (input.minGameTimePct / 100) * could - (input.msByPlayer[pid] ?? 0);
+    const floor = shortMs > 0 && input.periodMs > 0 ? Math.ceil(shortMs / input.periodMs - 1e-9) : 0;
+    out[pid] = Math.max(unbroken <= input.left ? unbroken : 0, floor <= input.left ? floor : 0);
+  }
+  return out;
+}
+
+/**
+ * Whether `capacity` places a period over `periods` periods can give
+ * every kid the periods they still owe: in the first j periods, each
+ * kid needs at least what the last ones can't give them.
+ */
+function feasible(owed: readonly number[], periods: number, capacity: number): boolean {
+  if (owed.some((n) => n > periods)) return false;
+  for (let j = 1; j <= periods; j++) {
+    const need = owed.reduce((s, n) => s + Math.max(0, n - (periods - j)), 0);
+    if (need > capacity * j) return false;
+  }
+  return true;
 }
 
 export function leagueBreakSuggestion(input: LeagueBreakSuggestionInput): Lineup {
-  const { previousLineup, injured, loaned } = input;
+  const { previousLineup, injured, loaned, ageGroup, leaguePlaybook: pb } = input;
   const sidelined = new Set([...Array.from(injured), ...Array.from(loaned)]);
   const inGame = [...previousLineup.forwards, ...previousLineup.backs, ...previousLineup.bench];
   const healthy = inGame.filter((id) => !sidelined.has(id));
   const sidelinedInGame = inGame.filter((id) => sidelined.has(id));
-  const repeat = benchSidelinedInLeagueLineup(previousLineup, sidelined);
-  const players = availablePlayersForPlan(input.squad, new Set(inGame), injured, loaned);
-  if (players.length === 0) return repeat;
-  const nextPeriod = input.currentQuarter + 1;
-  const plan = projectUpcomingRotation({
-    sport: input.sport,
-    ageGroup: input.ageGroup,
-    players,
-    onFieldSize: input.onFieldSize,
-    seed: input.seed ?? 7,
-    chipModeByKey: input.chipModes,
-    leaguePlaybook: input.leaguePlaybook,
-    fromPeriodIndex: Math.max(0, input.currentQuarter - 1),
-    currentGroups: { forwards: previousLineup.forwards, backs: previousLineup.backs },
-    currentBench: previousLineup.bench,
+  if (healthy.length === 0) return benchSidelinedInLeagueLineup(previousLineup, sidelined);
+
+  const onCount = Math.min(input.onFieldSize, healthy.length);
+  const left = Math.max(1, ageGroup.periodCount - input.currentQuarter);
+  const owed = leaguePeriodsOwed({
+    ids: healthy,
+    left,
+    periodCount: ageGroup.periodCount,
+    periodMs: input.periodMs,
+    msByPlayer: input.msByPlayer,
+    minGameTimePct: input.minGameTimePct ?? pb?.minGameTimePct ?? 50,
+    unbroken: input.unbroken,
+    awayMs: input.awayMs,
   });
-  const next = plan.periods.find((p) => p.period === nextPeriod) ?? plan.periods[1];
-  if (!next) return repeat;
-  const group = (id: string) => next.groups.find((g) => g.groupId === id)?.playerIds ?? [];
-  const forwards = group("forwards");
-  const backs = group("backs");
+  const slack = (pid: string) => left - owed[pid];
+  const vested = new Set([input.vests?.fr, input.vests?.dh].filter((id): id is string => !!id));
+  const keepOn = (pid: string) => pb?.roles[pid]?.keepOn === true;
+  const satLast = new Set(previousLineup.bench);
+  const ms = (pid: string) => input.msByPlayer[pid] ?? 0;
+  const at = new Map(healthy.map((pid, i) => [pid, i]));
+  const rank = (keys: (pid: string) => number[]) =>
+    [...healthy].sort((a, b) => {
+      const ka = keys(a);
+      const kb = keys(b);
+      for (let i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return ka[i] - kb[i];
+      return (at.get(a) ?? 0) - (at.get(b) ?? 0);
+    });
+  const must = (pid: string) => (slack(pid) <= 0 ? 0 : 1);
+  const vest = (pid: string) => (vested.has(pid) ? 0 : 1);
+  const kept = (pid: string) => (keepOn(pid) ? 0 : 1);
+  const sat = (pid: string) => (satLast.has(pid) ? 0 : 1);
+  const preferred = rank((pid) => [must(pid), vest(pid), kept(pid), slack(pid), sat(pid), ms(pid)]);
+  const leastSlack = rank((pid) => [slack(pid), vest(pid), kept(pid), sat(pid), ms(pid)]);
+  const laterOk = (order: string[]) => {
+    const on = new Set(order.slice(0, onCount));
+    return feasible(
+      healthy.map((pid) => Math.max(0, owed[pid] - (on.has(pid) ? 1 : 0))),
+      left - 1,
+      onCount,
+    );
+  };
+  const order = laterOk(preferred) || !laterOk(leastSlack) ? preferred : leastSlack;
+  const onField = order.slice(0, onCount);
+  const bench = order.slice(onCount);
+
+  // A restricted spot in force (union's front row) keeps a kid picked for
+  // it on: if none is on and one sits out, they swap with the last kid in
+  // who isn't picked for any and no rule holds on.
+  if (pb?.positions) {
+    const inForce = restrictedKeysInForce(pb);
+    const pickedFor = (id: string, key: string) => canPlayPosition(pb, id, key, inForce);
+    const held = (id: string) => slack(id) <= 0 || vested.has(id) || keepOn(id);
+    inForce.forEach((key) => {
+      if (onField.some((id) => pickedFor(id, key))) return;
+      const sub = bench.find((id) => pickedFor(id, key));
+      if (!sub) return;
+      const out = [...onField].reverse().find((id) => !held(id) && !Array.from(inForce).some((k) => pickedFor(id, k)));
+      if (!out) return;
+      onField[onField.indexOf(out)] = sub;
+      bench[bench.indexOf(sub)] = out;
+    });
+  }
+
+  // Lines: by the kids' roles; a tie to the line the kid has played less.
+  const fwdCount = Math.min(onField.length, rugbyForwards(ageGroup, input.onFieldSize));
+  const lean = (pid: string) => (input.lineMs?.[pid]?.forwards ?? 0) - (input.lineMs?.[pid]?.backs ?? 0);
+  const starters = [...onField].sort((a, b) => lean(a) - lean(b) || (at.get(a) ?? 0) - (at.get(b) ?? 0));
+  const { forwards, backs } = pb
+    ? assignLeagueLines(starters, fwdCount, onField.length - fwdCount, pb)
+    : { forwards: starters.slice(0, fwdCount), backs: starters.slice(fwdCount) };
   const placed = new Set([...forwards, ...backs]);
   return { forwards, backs, bench: [...healthy.filter((id) => !placed.has(id)), ...sidelinedInGame] };
 }

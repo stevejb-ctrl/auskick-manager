@@ -1541,7 +1541,6 @@ export function LeagueLiveGame({
           loaned={loanedSet}
           msByPlayer={totalMsByPlayer}
           leaguePlaybook={leaguePlaybook}
-          chipModes={chipModes}
           isAdmin={isAdmin}
           scoreEditor={
             trackScoring ? (
