@@ -16,9 +16,10 @@ import { Label } from "@/components/ui/Label";
  * accept-invite landing pattern set up in earlier work, so a fresh
  * parent always lands on the schedule view).
  */
-export function JoinTeamForm() {
+export function JoinTeamForm({ needsName = false }: { needsName?: boolean }) {
   const router = useRouter();
   const [code, setCode] = useState("");
+  const [name, setName] = useState("");
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -31,12 +32,13 @@ export function JoinTeamForm() {
       return;
     }
     startTransition(async () => {
-      const res = await joinTeamByCode(trimmed);
+      const res = await joinTeamByCode(trimmed, needsName ? name : undefined);
       if (!res.success) {
         setError(res.error);
         return;
       }
-      router.push(`/teams/${res.teamId}/games`);
+      // The team layout's JoinedNotice says they joined as a Parent.
+      router.push(`/teams/${res.teamId}/games${res.alreadyMember ? "" : "?joined=parent"}`);
       router.refresh();
     });
   }
@@ -66,6 +68,21 @@ export function JoinTeamForm() {
           data-testid="join-code-input"
         />
       </div>
+
+      {needsName && (
+        <div className="space-y-2">
+          <Label htmlFor="join-your-name">Your name</Label>
+          <Input
+            id="join-your-name"
+            autoComplete="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={isPending}
+            placeholder="First and last name"
+          />
+          <p className="text-xs text-ink-mute">So your coach knows who joined.</p>
+        </div>
+      )}
 
       {error && (
         <p className="text-sm text-danger" role="alert">

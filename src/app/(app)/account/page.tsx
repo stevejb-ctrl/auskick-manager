@@ -7,6 +7,7 @@ import { MotionPreferenceSettings } from "@/components/preferences/MotionPrefere
 import { UsageDataSettings } from "@/components/preferences/UsageDataSettings";
 import { LeaveTeamButton } from "@/components/team/LeaveTeamButton";
 import { DeleteAccountSection } from "@/components/account/DeleteAccountSection";
+import { DisplayNameForm } from "@/components/account/DisplayNameForm";
 import { ROLE_LABEL } from "@/lib/roles";
 import type { TeamRole } from "@/lib/types";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -113,10 +114,8 @@ export default async function AccountPage() {
             <dt className="font-mono text-[11px] font-semibold uppercase tracking-micro text-ink-dim">
               Name
             </dt>
-            <dd className="mt-1 text-ink">
-              {profile?.full_name || (
-                <span className="text-ink-mute">Not set</span>
-              )}
+            <dd>
+              <DisplayNameForm initialName={profile?.full_name?.trim() || null} />
             </dd>
           </div>
         </dl>
