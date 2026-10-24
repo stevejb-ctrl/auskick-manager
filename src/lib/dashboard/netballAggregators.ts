@@ -17,6 +17,7 @@ import {
 } from "@/lib/sports/netball/fairness";
 import { primaryThirdFor, netballSport } from "@/lib/sports/netball";
 import type { Game, GameEvent, GameAvailability, Player } from "@/lib/types";
+import { takeUndoTarget } from "@/lib/live/scoreUndo";
 import type { AttendanceRow, Season } from "@/lib/dashboard/types";
 
 const MS_PER_MIN = 60_000;
@@ -143,8 +144,9 @@ export function replayNetballGameForStats(
   const pairThirdMs: Record<string, number> = {};
   const playerIds = new Set<string>();
 
-  // Track score-undo via LIFO stack.
-  const undoStack: Array<{ kind: "team-anon" | "opp" } | { kind: "team-player"; player: string }> = [];
+  // Track score-undo: an undo takes back the goal it names (two phones
+  // can score: "the latest" may be the other's), else the latest.
+  const undoStack: Array<({ kind: "team-anon" | "opp" } | { kind: "team-player"; player: string }) & { id: string }> = [];
   let currentQuarter = 0;
 
   // Per-pair time tally: walk the lineup_set + period_break_swap
@@ -202,15 +204,15 @@ export function replayNetballGameForStats(
       teamGoalsByQtr[currentQuarter] = (teamGoalsByQtr[currentQuarter] ?? 0) + 1;
       if (ev.player_id) {
         playerGoals[ev.player_id] = (playerGoals[ev.player_id] ?? 0) + 1;
-        undoStack.push({ kind: "team-player", player: ev.player_id });
+        undoStack.push({ id: ev.id, kind: "team-player", player: ev.player_id });
       } else {
-        undoStack.push({ kind: "team-anon" });
+        undoStack.push({ id: ev.id, kind: "team-anon" });
       }
     } else if (ev.type === "opponent_goal") {
       oppGoalsByQtr[currentQuarter] = (oppGoalsByQtr[currentQuarter] ?? 0) + 1;
-      undoStack.push({ kind: "opp" });
+      undoStack.push({ id: ev.id, kind: "opp" });
     } else if (ev.type === "score_undo" && undoStack.length > 0) {
-      const last = undoStack.pop();
+      const last = takeUndoTarget(undoStack, ev.metadata);
       if (!last) continue;
       if (last.kind === "opp") {
         oppGoalsByQtr[currentQuarter] = Math.max(

@@ -42,6 +42,7 @@ import { normalizeLeagueLineup, leagueOnField } from "@/lib/types";
 import { getSportConfig, type RugbySport } from "@/lib/sports/registry";
 import type { ScoreTypeDef } from "@/lib/sports/types";
 import { chipZone } from "./positions";
+import { takeUndoTarget } from "@/lib/live/scoreUndo";
 
 /**
  * One side's rugby score. `points` = each score times the sport's
@@ -243,7 +244,10 @@ export function replayRugbyGame(events: GameEvent[], points: RugbyPoints): Leagu
     | { kind: "conversion"; player: string; made: boolean }
     | { kind: "opp_conversion" }
     | { kind: "goal"; side: "team" | "opponent"; goal: "penalty" | "field"; player: string | null };
-  const undoStack: UndoOp[] = [];
+  // Each entry keeps its score's id: an undo takes back the score it
+  // names (two phones can score; "the latest" may be the other's), else
+  // the latest (takeUndoTarget, as the server and the score log do).
+  const undoStack: (UndoOp & { id: string })[] = [];
 
   // SUB-01/B4: absolute game-elapsed timeline for lastSubbedOnMs.
   // `elapsed_ms` is per-quarter, so accumulate each completed quarter's
@@ -372,14 +376,14 @@ export function replayRugbyGame(events: GameEvent[], points: RugbyPoints): Leagu
           state.playerTries[ev.player_id] =
             (state.playerTries[ev.player_id] ?? 0) + 1;
         }
-        undoStack.push({ kind: "try", player: ev.player_id });
+        undoStack.push({ id: ev.id, kind: "try", player: ev.player_id });
         break;
       }
 
       case "opponent_try": {
         state.opponentScore.tries++;
         state.opponentScore.points += points.try;
-        undoStack.push({ kind: "opp_try" });
+        undoStack.push({ id: ev.id, kind: "opp_try" });
         break;
       }
 
@@ -400,6 +404,7 @@ export function replayRugbyGame(events: GameEvent[], points: RugbyPoints): Leagu
         // rotation logic in Phase 5 will use this to roll back the
         // cycle.
         undoStack.push({
+          id: ev.id,
           kind: "conversion",
           player: kicker ?? "",
           made,
@@ -410,7 +415,7 @@ export function replayRugbyGame(events: GameEvent[], points: RugbyPoints): Leagu
       case "opponent_conversion": {
         state.opponentScore.conversions++;
         state.opponentScore.points += points.conversion;
-        undoStack.push({ kind: "opp_conversion" });
+        undoStack.push({ id: ev.id, kind: "opp_conversion" });
         break;
       }
 
@@ -429,12 +434,12 @@ export function replayRugbyGame(events: GameEvent[], points: RugbyPoints): Leagu
           state.playerGoals[player] ??= { penalty: 0, field: 0 };
           state.playerGoals[player][goal]++;
         }
-        undoStack.push({ kind: "goal", side, goal, player });
+        undoStack.push({ id: ev.id, kind: "goal", side, goal, player });
         break;
       }
 
       case "score_undo": {
-        const op = undoStack.pop();
+        const op = takeUndoTarget(undoStack, ev.metadata);
         if (!op) break;
         switch (op.kind) {
           case "try": {
@@ -1484,7 +1489,8 @@ export function rugbyScoreByPeriod(
       | { kind: "conv"; period: number; made: boolean }
       | { kind: "opp_conv"; period: number }
       | { kind: "goal"; period: number; side: "team" | "opponent"; goal: "penalty" | "field" };
-  const stack: Op[] = [];
+  // With each score's id, so an undo takes back the one it names.
+  const stack: (Op & { id: string })[] = [];
 
   for (const ev of sorted) {
     const meta = (ev.metadata ?? {}) as { quarter?: number; made?: boolean };
@@ -1506,22 +1512,22 @@ export function rugbyScoreByPeriod(
     if (ev.type === "try") {
       out[period].team.tries += 1;
       out[period].team.points += points.try;
-      stack.push({ kind: "try", period });
+      stack.push({ id: ev.id, kind: "try", period });
     } else if (ev.type === "opponent_try") {
       out[period].opponent.tries += 1;
       out[period].opponent.points += points.try;
-      stack.push({ kind: "opp_try", period });
+      stack.push({ id: ev.id, kind: "opp_try", period });
     } else if (ev.type === "conversion_attempt") {
       const made = meta.made === true;
       if (made) {
         out[period].team.conversions += 1;
         out[period].team.points += points.conversion;
       }
-      stack.push({ kind: "conv", period, made });
+      stack.push({ id: ev.id, kind: "conv", period, made });
     } else if (ev.type === "opponent_conversion") {
       out[period].opponent.conversions += 1;
       out[period].opponent.points += points.conversion;
-      stack.push({ kind: "opp_conv", period });
+      stack.push({ id: ev.id, kind: "opp_conv", period });
     } else if (
       ev.type === "penalty_goal"
       || ev.type === "field_goal"
@@ -1534,9 +1540,9 @@ export function rugbyScoreByPeriod(
       if (goal === "penalty") slot.penaltyGoals += 1;
       else slot.fieldGoals += 1;
       slot.points += goalPoints(points, goal);
-      stack.push({ kind: "goal", period, side, goal });
+      stack.push({ id: ev.id, kind: "goal", period, side, goal });
     } else if (ev.type === "score_undo") {
-      const op = stack.pop();
+      const op = takeUndoTarget(stack, ev.metadata);
       if (!op) continue;
       if (op.kind === "goal") {
         const slot = out[op.period][op.side];
