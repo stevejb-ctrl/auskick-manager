@@ -760,6 +760,19 @@ export function LineupPicker({
     }
     return out;
   }, [season]);
+  // Each kid's season total, beside their tile's zone bar: PlayerTile
+  // draws the bar only with a total, so after game 1 the "Season time in
+  // zone" key sat over tiles with no bars (UX round 2, 24 Oct 2026). Only
+  // once anyone has history, as the key.
+  const seasonTotalMsByPlayer = useMemo(() => {
+    if (!anySeasonHistory) return undefined;
+    const out: Record<string, number> = {};
+    for (const p of players) {
+      const z = seasonMsByPlayer[p.id];
+      out[p.id] = z ? z.back + z.hback + z.mid + z.hfwd + z.fwd : 0;
+    }
+    return out;
+  }, [anySeasonHistory, players, seasonMsByPlayer]);
 
   const playingShortHanded = onFieldSize < defaultOnFieldSize;
 
@@ -1121,6 +1134,7 @@ export function LineupPicker({
           onLongPress={setHoldPlayerId}
           lockedIds={holds.lockedIds}
           zoneLockedPlayers={holds.zoneLockedPlayers}
+          totalMsByPlayer={seasonTotalMsByPlayer}
           zoneMsByPlayer={seasonMsByPlayer}
           zoneCaps={displayZoneCaps}
           displayZoneCaps={displayZoneCaps}
@@ -1138,6 +1152,7 @@ export function LineupPicker({
           onLongPress={setHoldPlayerId}
           lockedIds={holds.lockedIds}
           zoneLockedPlayers={holds.zoneLockedPlayers}
+          totalMsByPlayer={seasonTotalMsByPlayer}
           zoneMsByPlayer={seasonMsByPlayer}
           chipModeByKey={chipModeByKey}
           keepOnIds={keepOnIds(roles.roles)}
