@@ -43,6 +43,23 @@ describe("basketball", () => {
     } as Parameters<typeof suggestBasketballSubs>[0]);
     expect(subs).toEqual([{ off_player_id: null, on_player_id: "archie", line: "court" }]);
   });
+
+  it("fills only spots of the lineup's own kind (lines, or the court)", () => {
+    // Guards and forwards on court, but the spots given are the court's:
+    // nothing to fill there, so no kid is put in a line nobody plays.
+    const g = basketballGame();
+    g.lineup({ lines: { guard: ["a", "b"], forward: ["c", "d"], court: [] }, bench: ["archie"] });
+    g.start(1);
+    const nowMs = 2 * MIN;
+    const subs = suggestBasketballSubs({
+      state: replayBasketballGame(g.events, { nowMs }),
+      nowMs,
+      strategy: "minutes",
+      foulOutAt: 0,
+      spots: { guard: 0, forward: 0, court: 5 },
+    } as Parameters<typeof suggestBasketballSubs>[0]);
+    expect(subs.filter((s) => s.off_player_id === null)).toEqual([]);
+  });
 });
 
 describe("soccer family (hockey)", () => {

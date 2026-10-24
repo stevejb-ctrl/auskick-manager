@@ -414,7 +414,12 @@ export function suggestBasketballSubs(input: SuggestBasketballSubsInput): Basket
   // like, their home line) fills only there.
   const fills: BasketballSub[] = [];
   const filled = new Set<string>();
-  for (const line of BASKETBALL_LINES) {
+  // Only when the spots are the lineup's own kind (lines, or the court).
+  const courtSpots = (input.spots?.court ?? 0) > 0;
+  const sameKind = courtSpots
+    ? lu.lines.guard.length + lu.lines.forward.length === 0
+    : lu.lines.court.length === 0;
+  for (const line of sameKind ? BASKETBALL_LINES : []) {
     for (let open = (input.spots?.[line] ?? 0) - lu.lines[line].length; open > 0; open--) {
       if (input.maxSubs !== undefined && fills.length >= input.maxSubs) break;
       const on = bench.find((p) => {
