@@ -442,7 +442,13 @@ test("'Make all swaps' can be undone from the toast", async ({ page }) => {
   await makeAll.click();
   const toast = page.getByTestId("swap-toast");
   await expect(toast).toContainText(`${n} subs made`);
-  await toast.getByRole("button", { name: "Undo swaps" }).click();
+  // WebKit's actionability check reads the toast as "not stable" for its
+  // whole six seconds (sampled: it sits still once its slide-in ends),
+  // so tap after the slide without that check.
+  const undo = toast.getByRole("button", { name: "Undo swaps" });
+  await expect(undo).toBeVisible();
+  await page.waitForTimeout(400);
+  await undo.click({ force: true });
   await expect(toast).toContainText("Swaps undone");
 
   type Swap = { off_player_id: string; on_player_id: string };
