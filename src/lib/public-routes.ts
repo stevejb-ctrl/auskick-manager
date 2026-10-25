@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { MARKETING_SPORTS, sportPagePath } from "@/lib/sports/marketing-sports";
 
 // ─── Public routes: what's indexed, what's private ───────────
 // One list feeds sitemap.ts, robots.ts and the Google Analytics gate
@@ -7,6 +8,9 @@ import type { MetadataRoute } from "next";
 // page is in none of the lists below, so a new page has to pick one.
 
 type ChangeFrequency = NonNullable<MetadataRoute.Sitemap[number]["changeFrequency"]>;
+
+/** When the sport pages last changed. */
+const SPORT_PAGES_LAST_MODIFIED = "2026-10-25";
 
 export interface IndexableRoute {
   path: string;
@@ -19,9 +23,17 @@ export interface IndexableRoute {
 
 /** Public pages we want found. Each is a sitemap entry. */
 export const INDEXABLE_ROUTES: readonly IndexableRoute[] = [
-  { path: "/", priority: 1.0, changeFrequency: "monthly", lastModified: "2026-10-21" },
-  { path: "/demo", priority: 0.9, changeFrequency: "monthly", lastModified: "2026-10-21" },
+  { path: "/", priority: 1.0, changeFrequency: "monthly", lastModified: "2026-10-25" },
+  { path: "/demo", priority: 0.9, changeFrequency: "monthly", lastModified: "2026-10-25" },
   { path: "/why-siren", priority: 0.8, changeFrequency: "monthly", lastModified: "2026-10-21" },
+
+  // One page per sport (/netball, /afl, …), from the marketing sports.
+  ...MARKETING_SPORTS.map((sport) => ({
+    path: sportPagePath(sport),
+    priority: 0.9,
+    changeFrequency: "monthly" as const,
+    lastModified: SPORT_PAGES_LAST_MODIFIED,
+  })),
 
   // Help hub
   { path: "/help", priority: 0.8, changeFrequency: "monthly", lastModified: "2026-10-21" },

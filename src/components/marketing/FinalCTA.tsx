@@ -8,7 +8,7 @@ interface FinalCTAProps {
   /** Brand copy to render — server pages pass the host-resolved
    *  brand's copy; the multi-sport homepage's client wrapper passes
    *  per-active-sport copy. */
-  copy: BrandCopy;
+  copy: Pick<BrandCopy, "finalCtaEyebrow" | "finalCtaTitle" | "finalCtaBody">;
   /** Whether the AppStoreBadge should render. iOS app is footy-only
    *  in v1 (see mobile/capacitor.config.ts) so callers pass `true`
    *  only when this copy refers to AFL. */

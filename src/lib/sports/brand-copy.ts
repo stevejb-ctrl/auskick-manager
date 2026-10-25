@@ -142,7 +142,3 @@ const TOUR_COPY: Record<SportId, BrandCopy | null> = {
 export function sportTourCopy(id: SportId): BrandCopy | null {
   return TOUR_COPY[id];
 }
-
-/** The homepage picker's union and soccer copy, until the picker goes. */
-export const UNION_MARKETING_COPY = unionJson as BrandCopy;
-export const SOCCER_MARKETING_COPY = soccerJson as BrandCopy;

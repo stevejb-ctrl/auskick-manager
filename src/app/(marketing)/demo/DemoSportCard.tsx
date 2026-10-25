@@ -185,5 +185,8 @@ function FieldForSport({ sport }: { sport: MarketingSportConfig }) {
       return <RugbyUnionField accent={sport.accent} tintOpacity={0} />;
     case "football":
       return <SoccerPitchField accent={sport.accent} tintOpacity={0} />;
+    // The demo picker lists only sports with a demo (hasDemo).
+    default:
+      return null;
   }
 }

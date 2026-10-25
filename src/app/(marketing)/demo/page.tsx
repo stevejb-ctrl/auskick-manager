@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { unstable_noStore as noStore } from "next/cache";
 import { MARKETING_SPORTS } from "@/lib/sports/marketing-sports";
-import { DemoSportCard, DemoSportCardDisabled } from "./DemoSportCard";
+import { DemoSportCard } from "./DemoSportCard";
 import { runDemoGame } from "./actions";
+
+const DEMO_SPORTS = MARKETING_SPORTS.filter((s) => s.hasDemo);
 
 export const dynamic = "force-dynamic";
 
@@ -56,25 +58,19 @@ export default function DemoPage() {
       </div>
 
       {/* Picker grid — 2 cols on phone (an odd last card spans both),
-          3 from sm, all five in a row on lg+. Active sports render
-          through DemoSportCard (form + useFormStatus loader);
-          coming-soon sports use the lightweight server-only disabled
-          variant. */}
+          3 from sm, all five in a row on lg+. Only the sports with a
+          seeded demo team (hasDemo; /api/admin/seed-demo) are listed. */}
       <div className="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
-        {MARKETING_SPORTS.map((sport, index) => (
+        {DEMO_SPORTS.map((sport, index) => (
           <div
             key={sport.id}
             className={
-              MARKETING_SPORTS.length % 2 === 1 && index === MARKETING_SPORTS.length - 1
+              DEMO_SPORTS.length % 2 === 1 && index === DEMO_SPORTS.length - 1
                 ? "col-span-2 sm:col-span-1"
                 : undefined
             }
           >
-            {sport.comingSoon ? (
-              <DemoSportCardDisabled sport={sport} />
-            ) : (
-              <DemoSportCard sport={sport} action={runDemoGame} />
-            )}
+            <DemoSportCard sport={sport} action={runDemoGame} />
           </div>
         ))}
       </div>
