@@ -460,36 +460,6 @@ export async function fixFinishedScore(teamId: string, gameId: string, fix: Scor
 }
 
 /**
- * Is the game still there? An open live screen (or the game-day link)
- * asks now and then, and on coming back to the tab: round 3 edge testing
- * (24 Oct 2026) found a deleted game's live screen carried on, recording
- * into nothing, until a reload. Only a game that's definitely gone says
- * false; anything uncertain (offline, a hiccup) says true.
- */
-export async function gameStillExists(auth: LiveAuth, gameId: string): Promise<{ exists: boolean }> {
-  try {
-    if (auth.kind === "token") {
-      const { data, error } = await createAdminClient()
-        .from("games")
-        .select("id")
-        .eq("id", gameId)
-        .eq("share_token", auth.token)
-        .maybeSingle();
-      return { exists: !!data || !!error };
-    }
-    const { data, error } = await createClient()
-      .from("games")
-      .select("id")
-      .eq("id", gameId)
-      .eq("team_id", auth.teamId)
-      .maybeSingle();
-    return { exists: !!data || !!error };
-  } catch {
-    return { exists: true };
-  }
-}
-
-/**
  * A game the coach never ran in Siren, played without the app (round 3
  * edge testing, 24 Oct 2026: a past game stayed "Next up" forever). It
  * moves to Completed with no events, so it has no score or minutes, and

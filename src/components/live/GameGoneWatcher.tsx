@@ -6,10 +6,11 @@
 // clock and "Select team for Q2" running until a reload; a game-day link
 // on a parent's phone would have kept recording into nothing. It asks
 // every few seconds, and on coming back to the tab, and when the game is
-// gone it covers the screen with where to go instead.
+// gone it covers the screen with where to go instead. It asks a GET
+// route (live/exists, run/[token]/exists), not a server action: actions
+// run one at a time, and a poll mustn't hold up a coach's write.
 
 import { useEffect, useRef, useState } from "react";
-import { gameStillExists } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
 import { Modal } from "@/components/ui/Modal";
 import { SFButton } from "@/components/sf";
 import type { LiveAuth } from "@/lib/types";
@@ -27,8 +28,14 @@ export function GameGoneWatcher({ auth, gameId, exitHref }: { auth: LiveAuth; ga
       if (typeof navigator !== "undefined" && navigator.onLine === false) return;
       checking.current = true;
       try {
-        const { exists } = await gameStillExists(auth, gameId);
-        if (!stopped && !exists) setGone(true);
+        const url =
+          auth.kind === "token"
+            ? `/run/${encodeURIComponent(auth.token)}/exists`
+            : `/teams/${auth.teamId}/games/${gameId}/live/exists`;
+        const res = await fetch(url, { cache: "no-store" });
+        // Only a clear answer counts (a sign-in redirect or a hiccup doesn't).
+        const body = res.ok ? ((await res.json()) as { exists?: unknown }) : null;
+        if (!stopped && body?.exists === false) setGone(true);
       } catch {
         // Offline or a hiccup: not proof the game's gone.
       } finally {
