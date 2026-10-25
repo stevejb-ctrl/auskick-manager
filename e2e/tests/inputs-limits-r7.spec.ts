@@ -391,7 +391,7 @@ test("a finished game's scores can be fixed from More, and the summary follows",
 
   // Change who scored.
   await dialog.getByRole("button", { name: new RegExp(`^Change who scored: ${kai.full_name}`) }).click();
-  await dialog.getByLabel("Who scored").selectOption({ label: b.full_name });
+  await dialog.getByRole("combobox", { name: "Who scored" }).selectOption({ label: b.full_name });
   await dialog.getByRole("button", { name: "Save" }).click();
   await expect(dialog.getByTestId("fix-score-row").first()).toContainText(b.full_name, { timeout: 15_000 });
 
@@ -402,8 +402,8 @@ test("a finished game's scores can be fixed from More, and the summary follows",
 
   // Add a missed three.
   await dialog.getByRole("button", { name: "+ Add a missed score" }).click();
-  await dialog.getByLabel("Score", { exact: true }).selectOption({ label: `Three (${team.name})` });
-  await dialog.getByLabel("Who scored").selectOption({ label: kai.full_name });
+  await dialog.getByRole("combobox", { name: "Score", exact: true }).selectOption({ label: `Three (${team.name})` });
+  await dialog.getByRole("combobox", { name: "Who scored" }).selectOption({ label: kai.full_name });
   await dialog.getByRole("button", { name: "Add", exact: true }).click();
   await expect(dialog.getByTestId("fix-scores-total")).toHaveText(/5 – 0/, { timeout: 15_000 });
   await dialog.getByRole("button", { name: "Done" }).click();
