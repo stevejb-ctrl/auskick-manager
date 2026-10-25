@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { mixedRuleColumns } from "@/lib/sports/touch/mixed";
+import { TOUCH_MIXED_RULE } from "@/lib/sports/touch";
+import { OZTAG_MIXED_RULE } from "@/lib/sports/oztag";
 
 // Reuse CRON_SECRET for lightweight admin-only access.
 //
@@ -39,23 +42,11 @@ async function handle(req: NextRequest) {
   // Seed each sport's demo in turn. The seedDemoTeam helper is
   // per-sport so callers can reseed individually too if needed.
   try {
-    const aflResult = await seedDemoTeam(admin, superAdmin.id, "afl");
-    const netballResult = await seedDemoTeam(admin, superAdmin.id, "netball");
-    const leagueResult = await seedDemoTeam(
-      admin,
-      superAdmin.id,
-      "rugby_league",
-    );
-    const unionResult = await seedDemoTeam(admin, superAdmin.id, "rugby_union");
-    const soccerResult = await seedDemoTeam(admin, superAdmin.id, "soccer");
-    return NextResponse.json({
-      ok: true,
-      afl: aflResult,
-      netball: netballResult,
-      rugby_league: leagueResult,
-      rugby_union: unionResult,
-      soccer: soccerResult,
-    });
+    const results: Partial<Record<SeedableSport, SeedResult>> = {};
+    for (const sport of Object.keys(SPORT_SEED) as SeedableSport[]) {
+      results[sport] = await seedDemoTeam(admin, superAdmin.id, sport);
+    }
+    return NextResponse.json({ ok: true, ...results });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : String(e) },
@@ -76,10 +67,20 @@ interface SeedResult {
   players?: number;
 }
 
-type SeedableSport = "afl" | "netball" | "rugby_league" | "rugby_union" | "soccer";
+type SeedableSport =
+  | "afl"
+  | "netball"
+  | "rugby_league"
+  | "rugby_union"
+  | "soccer"
+  | "basketball"
+  | "touch"
+  | "oztag"
+  | "hockey"
+  | "futsal";
 
-// Per-sport seed config. Centralised so adding a fourth sport (e.g.
-// Rugby Union when it launches) is one entry, not a new branch.
+// Per-sport seed config. Centralised so adding a sport is one entry,
+// not a new branch.
 const SPORT_SEED: Record<
   SeedableSport,
   {
@@ -91,8 +92,17 @@ const SPORT_SEED: Record<
     settings: {
       track_zone_time?: boolean;
       enforce_unbroken_periods?: boolean;
+      // Touch and Oztag mixed teams: the sport's boys' cap.
+      mixed_max_boys?: number | null;
+      mixed_min_girls?: number | null;
+      mixed_min_boys?: number | null;
     };
-    players: ReadonlyArray<{ name: string; jersey: number | null }>;
+    players: ReadonlyArray<{
+      name: string;
+      jersey: number | null;
+      // Who the kid counts as under a mixed team's rule.
+      mixedGroup?: "girl" | "boy";
+    }>;
   }
 > = {
   // ─── AFL ────────────────────────────────────────────────────
@@ -244,6 +254,116 @@ const SPORT_SEED: Record<
       { name: "Theo Barker", jersey: 10 },
     ],
   },
+
+  // ─── Basketball ─────────────────────────────────────────────
+  // U10: 5 on court, 2 × 20-min halves on a running clock, no
+  // 3-pointers. 9 players (= 5 + 4 bench), so every rotation has
+  // kids coming off. Names distinct from the other demos.
+  basketball: {
+    teamName: "Demo Basketball",
+    ageGroup: "U10",
+    settings: {},
+    players: [
+      { name: "Jayden Cruz", jersey: 4 },
+      { name: "Imogen Hart", jersey: 5 },
+      { name: "Marcus Odum", jersey: 6 },
+      { name: "Priya Shah", jersey: 7 },
+      { name: "Declan Frost", jersey: 8 },
+      { name: "Layla Mendes", jersey: 9 },
+      { name: "Hugo Brandt", jersey: 10 },
+      { name: "Aria Novak", jersey: 11 },
+      { name: "Kobe Ellis", jersey: 12 },
+    ],
+  },
+
+  // ─── Touch football ─────────────────────────────────────────
+  // U10 mixed: 5 on the field, 2 × 15-min halves, on touch's mixed
+  // rule (at most 3 boys, at least 1 girl and 1 boy), so a visitor
+  // sees the boys' cap at work. 10 players (= 5 + 5 interchange),
+  // five girls and five boys.
+  touch: {
+    teamName: "Demo Touch",
+    ageGroup: "U10",
+    settings: mixedRuleColumns(TOUCH_MIXED_RULE),
+    players: [
+      { name: "Matilda Rees", jersey: 1, mixedGroup: "girl" },
+      { name: "Lucas Ferreira", jersey: 2, mixedGroup: "boy" },
+      { name: "Evie Callaghan", jersey: 3, mixedGroup: "girl" },
+      { name: "Oscar Lindsay", jersey: 4, mixedGroup: "boy" },
+      { name: "Willow Tran", jersey: 5, mixedGroup: "girl" },
+      { name: "Max Delaney", jersey: 6, mixedGroup: "boy" },
+      { name: "Poppy Ashford", jersey: 7, mixedGroup: "girl" },
+      { name: "Zac Mahoney", jersey: 8, mixedGroup: "boy" },
+      { name: "Lily Sorensen", jersey: 9, mixedGroup: "girl" },
+      { name: "Jett Holloway", jersey: 10, mixedGroup: "boy" },
+    ],
+  },
+
+  // ─── Oztag ──────────────────────────────────────────────────
+  // U10 mixed: 8 on the field, 2 × 15-min halves, on Oztag's mixed rule (at
+  // most 4 boys, at least 1 girl). A girl's try counts 2, the sport's
+  // default. 12 players (= 8 + 4 interchange), six girls and six boys.
+  oztag: {
+    teamName: "Demo Oztag",
+    ageGroup: "U10",
+    settings: mixedRuleColumns(OZTAG_MIXED_RULE),
+    players: [
+      { name: "Scarlett Byers", jersey: 1, mixedGroup: "girl" },
+      { name: "Ryder Collins", jersey: 2, mixedGroup: "boy" },
+      { name: "Harriet Vu", jersey: 3, mixedGroup: "girl" },
+      { name: "Flynn Morrow", jersey: 4, mixedGroup: "boy" },
+      { name: "Ivy Pemberton", jersey: 5, mixedGroup: "girl" },
+      { name: "Beau Kennedy", jersey: 6, mixedGroup: "boy" },
+      { name: "Georgia Lam", jersey: 7, mixedGroup: "girl" },
+      { name: "Austin Greer", jersey: 8, mixedGroup: "boy" },
+      { name: "Maya Iqbal", jersey: 9, mixedGroup: "girl" },
+      { name: "Spencer Wade", jersey: 10, mixedGroup: "boy" },
+      { name: "Olive Chambers", jersey: 11, mixedGroup: "girl" },
+      { name: "Hunter Bligh", jersey: 12, mixedGroup: "boy" },
+    ],
+  },
+
+  // ─── Hockey ─────────────────────────────────────────────────
+  // U10 half-field: 7 a side with a keeper, 2 × 20-min halves, and
+  // turns in goal, so the keeper top changes hands at half-time.
+  // 10 players (= 7 + 3 bench).
+  hockey: {
+    teamName: "Demo Hockey",
+    ageGroup: "U10",
+    settings: {},
+    players: [
+      { name: "Elsie Marsh", jersey: 1 },
+      { name: "Rohan Kapoor", jersey: 2 },
+      { name: "Tilly Beaumont", jersey: 3 },
+      { name: "Callum Pryce", jersey: 4 },
+      { name: "Quinn Albright", jersey: 5 },
+      { name: "Nina Sato", jersey: 6 },
+      { name: "Patrick Ung", jersey: 7 },
+      { name: "Frankie Dunn", jersey: 8 },
+      { name: "Sophie Laing", jersey: 9 },
+      { name: "Arlo Whitfield", jersey: 10 },
+    ],
+  },
+
+  // ─── Futsal ─────────────────────────────────────────────────
+  // U10: 5 on court with a keeper, 2 × 20-min halves, turns in goal
+  // and flying subs. 9 players (= 5 + 4 bench).
+  futsal: {
+    teamName: "Demo Futsal",
+    ageGroup: "U10",
+    settings: {},
+    players: [
+      { name: "Mateo Silva", jersey: 1 },
+      { name: "Lucia Romano", jersey: 2 },
+      { name: "Yusuf Demir", jersey: 3 },
+      { name: "Clara Novotny", jersey: 4 },
+      { name: "Dante Ricci", jersey: 5 },
+      { name: "Amira Saleh", jersey: 6 },
+      { name: "Sami Aziz", jersey: 7 },
+      { name: "Rosa Baptiste", jersey: 8 },
+      { name: "Tobias Engel", jersey: 9 },
+    ],
+  },
 };
 
 async function seedDemoTeam(
@@ -300,6 +420,7 @@ async function seedDemoTeam(
       team_id: team.id,
       full_name: p.name,
       jersey_number: p.jersey,
+      mixed_group: p.mixedGroup ?? null,
       is_active: true,
       created_by: ownerId,
     })),

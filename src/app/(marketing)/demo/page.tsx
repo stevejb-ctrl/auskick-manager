@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Try Siren — pick a sport",
   description:
-    "Run a sped-up junior demo game in AFL, rugby league, rugby union, netball or football (soccer). See Siren handle rotations, scoring, and breaks in a couple of minutes.",
+    "Run a sped-up junior demo game in any of ten sports: netball, AFL, rugby league, football (soccer), basketball, rugby union, touch football, Oztag, hockey or futsal. See Siren handle rotations, scoring, and breaks in a couple of minutes.",
   alternates: { canonical: "/demo" },
 };
 
@@ -32,11 +32,9 @@ export const metadata: Metadata = {
  *   - A disabled (coming-soon) card stays server-rendered — no form,
  *     no client JS needed. Every sport is open today.
  *
- * Visual styling intentionally mirrors the homepage
- * MultiSportSection card grid (same field illustrations cropped
- * bottom-right, same accent-fill on active) but on the cream
- * surface background instead of the dark plate — per Steve's
- * "use the same buttons but not on the dark background".
+ * Each card is filled with the sport's accent and carries its field
+ * drawing (SportFieldGlyph, as on the homepage tiles and the Sports
+ * menu) cropped bottom-right, on the cream surface background.
  */
 export default function DemoPage() {
   noStore();
@@ -57,16 +55,16 @@ export default function DemoPage() {
         </p>
       </div>
 
-      {/* Picker grid — 2 cols on phone (an odd last card spans both),
-          3 from sm, all five in a row on lg+. Only the sports with a
+      {/* Picker grid — 2 cols on phone and tablet (an odd last card
+          spans both), two rows of five on lg+. Only the sports with a
           seeded demo team (hasDemo; /api/admin/seed-demo) are listed. */}
-      <div className="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
+      <div className="mt-12 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
         {DEMO_SPORTS.map((sport, index) => (
           <div
             key={sport.id}
             className={
               DEMO_SPORTS.length % 2 === 1 && index === DEMO_SPORTS.length - 1
-                ? "col-span-2 sm:col-span-1"
+                ? "col-span-2 lg:col-span-1"
                 : undefined
             }
           >
