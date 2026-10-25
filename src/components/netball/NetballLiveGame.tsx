@@ -2413,8 +2413,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
 
       <p className="text-center text-xs text-ink-dim">
         {trackScoring
-          ? "Tap GS or GA to score (with confirm). Long-press any player for actions. The quarter ends automatically when the clock reaches zero."
-          : "Long-press any player for actions. The quarter ends automatically when the clock reaches zero."}
+          ? "Tap GS or GA to score (with confirm), or for their actions. Tap any other player for actions. The quarter ends automatically when the clock reaches zero."
+          : "Tap any player for actions. The quarter ends automatically when the clock reaches zero."}
       </p>
 
       {/* Player actions — the shared LockModal, as AFL's (UX audit

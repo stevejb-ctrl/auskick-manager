@@ -82,11 +82,11 @@ export function buildLeagueWalkthroughSteps(opts: {
     },
     {
       emoji: "👇",
-      title: "Long-press for player actions",
+      title: "Tap for player actions",
       // Only the actions the rugby sheet has: no keep-on, no line move.
-      body: `Press and hold a player tile to open the actions sheet. From here you can Switch player${
+      body: `Tap a player, then Player actions at the bottom of the screen to open the actions sheet. From here you can Switch player${
         vested ? ", Replace the vest wearer" : ""
-      }, Mark injured (slot stays empty for a replacement), or Lend to opposition. One gesture, same options across field and bench.`,
+      }, Mark injured (slot stays empty for a replacement), or Lend to opposition.`,
     },
   ];
 

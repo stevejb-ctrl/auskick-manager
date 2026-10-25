@@ -76,7 +76,7 @@
       "id": "flexibility",
       "eyebrow": "Full control",
       "title": { "before": "Handle anything the game ", "italic": "throws", "after": " at you." },
-      "body": "Long-press any player to lock them to a zone, flag an injury, or lend them to the opposition. Siren adapts mid-game without losing track of the rotation.",
+      "body": "Tap any player, then Player actions, to lock them to a zone, flag an injury, or lend them to the opposition. Siren adapts mid-game without losing track of the rotation.",
       "bullets": [
         "Lock a player always-on or to a specific zone",
         "Injured players skip the rotation automatically",

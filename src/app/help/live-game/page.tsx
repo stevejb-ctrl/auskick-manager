@@ -35,7 +35,7 @@ export default function LiveGamePage() {
         has none of them. Football keeps its keeper in goal for the whole
         half: at half-time Siren plans the next half, starting with who takes
         the keeper top, and <strong className="text-ink">Replace keeper</strong>{" "}
-        (long-press the keeper) changes it mid-half. Basketball subs at a dead
+        (tap the keeper, then Player actions) changes it mid-half. Basketball subs at a dead
         ball through the table, tracks each kid&apos;s fouls (five and
         they&apos;re out), and its clock waits at 0:00 for the real hooter,
         since the stadium clock stops in the last minutes. Touch football and
@@ -46,7 +46,7 @@ export default function LiveGamePage() {
           Rotations
         </Link>
         . Every sport has a lineup
-        picker, scoring buttons and a long-press player-actions sheet.
+        picker, scoring buttons and a player-actions sheet.
       </p>
       <p className="mt-2 text-sm leading-relaxed text-ink-dim">
         Futsal runs on football&apos;s live screen, drawn on a court, with
@@ -79,7 +79,8 @@ export default function LiveGamePage() {
             and from the bench.
           </li>
           <li>
-            League from Under 8: long-press a player on the field and tap{" "}
+            League from Under 8: tap a player on the field, then Player
+            actions, and tap{" "}
             <strong className="text-ink">Make First Receiver</strong> (or{" "}
             <strong className="text-ink">Make Dummy Half</strong> from Under
             9) to pick who wears the vest first. The{" "}
@@ -241,7 +242,8 @@ export default function LiveGamePage() {
         <p className="mt-2 text-sm text-ink-dim">
           Netball subs at the quarter break. If your team has turned on{" "}
           <strong className="text-ink">Allow mid-quarter subs</strong> (Team ›
-          How we play), long-press a player on court, tap{" "}
+          How we play), tap a player on court (for GS or GA with scoring on,
+          then Player actions), tap{" "}
           <strong className="text-ink">Switch player</strong>, then pick who
           comes on.
         </p>
@@ -286,9 +288,10 @@ export default function LiveGamePage() {
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Player actions: keep on, injury, loan</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          Long-press a player tile to open the player-actions sheet (or tap
-          the player, then <strong className="text-ink">Player actions</strong>).
-          What&apos;s on it depends on your sport:
+          Tap a player, then <strong className="text-ink">Player actions</strong>{" "}
+          at the bottom of the screen, to open the player-actions sheet (in
+          netball, a tap opens it straight away). What&apos;s on it depends on
+          your sport:
         </p>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
