@@ -17,7 +17,7 @@ test("futsal: the wizard makes a U10 team with futsal's rules, and every team pa
 
   await gotoStable(page, "/teams/new");
   await waitForHydration(page);
-  const pill = page.getByRole("button", { name: "Junior Futsal" });
+  const pill = page.getByRole("radio", { name: "Junior Futsal" });
   await expect(pill).toContainText("Beta");
   await pill.click();
   const teamName = `FUT-WIZ-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
