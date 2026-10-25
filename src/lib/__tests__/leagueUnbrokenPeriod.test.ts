@@ -452,3 +452,37 @@ describe("unbroken periods through sideline combinations", () => {
     expect(result.p3.unbrokenPeriods).toEqual([]);
   });
 });
+
+// Review of the round-3 "Undo swaps" (25 Oct 2026): Undo after "Make all
+// swaps" swaps each kid back within seconds, and the walk still counted
+// the kid's period as broken.
+describe("unbrokenPeriodCompliance — a swap undone straight away", () => {
+  const at = (off: string, on: string, ms: number) =>
+    ev("swap", { off_player_id: off, on_player_id: on, quarter: 1, elapsed_ms: ms });
+
+  it("isn't a break when the kid is back within seconds", () => {
+    reset();
+    const events = [lineupSet(["p1", "p2"], ["p3"]), qStart(1), at("p1", "p3", 60_000), at("p3", "p1", 64_000), qEnd(1)];
+    expect(unbrokenPeriodCompliance(events, 1).p1.unbrokenPeriods).toEqual([1]);
+  });
+
+  it("is a break when the kid sat out a while", () => {
+    reset();
+    const events = [lineupSet(["p1", "p2"], ["p3"]), qStart(1), at("p1", "p3", 60_000), at("p3", "p1", 180_000), qEnd(1)];
+    expect(unbrokenPeriodCompliance(events, 1).p1.unbrokenPeriods).toEqual([]);
+  });
+
+  it("doesn't undo an earlier break", () => {
+    reset();
+    const events = [
+      lineupSet(["p1", "p2"], ["p3", "p4"]),
+      qStart(1),
+      at("p1", "p3", 30_000),
+      at("p4", "p1", 120_000),
+      at("p1", "p4", 200_000),
+      at("p4", "p1", 203_000),
+      qEnd(1),
+    ];
+    expect(unbrokenPeriodCompliance(events, 1).p1.unbrokenPeriods).toEqual([]);
+  });
+});
