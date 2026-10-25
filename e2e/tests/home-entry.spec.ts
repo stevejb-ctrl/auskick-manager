@@ -21,44 +21,60 @@ test.describe("unauthenticated entry", () => {
   // chromium project and never exercise the unauth branch.
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test("the homepage picker shows Siren in football (soccer) mode, with soccer's own features", async ({ page }) => {
+  test("the homepage lists all ten sports in popularity order, each a link to its page", async ({ page }) => {
+    // The front door for ten sports (design canvas, 22 Oct 2026): no
+    // carousel, no picker that re-skins the page, no Beta labels.
     await page.goto("/");
-    // The picker opens on AFL, spelt as an acronym.
-    await expect(page.getByRole("heading", { name: "See Siren in AFL mode." })).toBeVisible();
-    const card = page.getByTestId("sport-card-football");
-    // Soccer is in beta (src/lib/siren-facts.ts), and says so.
-    await expect(card).toHaveAttribute("aria-label", "Show Siren in Football (soccer) mode (beta)");
-    await expect(card).toContainText(/beta/i);
-    await expect(page.getByTestId("sport-card-afl")).not.toContainText(/beta/i);
-    // "RL", not the NRL's trade mark (Siren isn't affiliated).
-    await expect(page.getByTestId("sport-card-league")).toContainText("RL");
-    await expect(page.getByTestId("sport-card-league")).not.toContainText("NRL");
-    await card.click();
-    await expect(card).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByRole("heading", { name: /see siren in football mode/i })).toBeVisible();
-    // Soccer's own copy (content/marketing/brands/soccer.json), not AFL's.
-    await expect(page.getByText("Everyone gets a").first()).toBeAttached();
-    await expect(page.getByText("Not always stuck at the").first()).toBeAttached();
+    await expect(page.getByRole("heading", { level: 1, name: "Run game day. Keep your head up." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ten sports. Each one by its own rules." })).toBeVisible();
+
+    const order = ["netball", "afl", "league", "football", "basketball", "union", "touch", "oztag", "hockey", "futsal"];
+    const tiles = page.locator('[data-testid^="sport-tile-"]');
+    await expect(tiles).toHaveCount(10);
+    expect(await tiles.evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")))).toEqual(
+      order.map((id) => `sport-tile-${id}`),
+    );
+    const chips = page.getByRole("navigation", { name: "I coach" }).getByRole("link");
+    await expect(chips).toHaveCount(10);
+    await expect(chips.first()).toHaveText("Netball");
+    await expect(page.locator("main")).not.toContainText(/\bbeta\b/i);
+
+    // Each tile says one thing Siren knows about that sport's rules.
+    await expect(page.getByTestId("sport-tile-oztag")).toContainText("a girl's try counts two");
+    await page.getByTestId("sport-tile-touch").click();
+    await expect(page).toHaveURL(/\/touch-football$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Mixed teams, kept legal." })).toBeVisible();
   });
 
-  test("the homepage only claims features the app has", async ({ request }) => {
+  test("the homepage's six features each name the sport they show", async ({ page }) => {
+    await page.goto("/");
+    const features = page.locator("#features li");
+    await expect(features).toHaveCount(6);
+    for (const shown of ["Shown in AFL", "Shown in football (soccer)", "Shown in basketball", "Shown in rugby league", "Every sport", "Shown in netball"]) {
+      await expect(page.locator("#features")).toContainText(shown);
+    }
+  });
+
+  test("the marketing pages only claim features the app has", async ({ request }) => {
     // The breaks show a rule check, not a fairness number, and PlayHQ
-    // import brings fixtures, not results (copy audit, 21 Oct 2026).
-    const html = await (await request.get("/")).text();
-    expect(html).not.toMatch(/fairness score/i);
-    expect(html).not.toMatch(/results synced|results stay in sync/i);
-    expect(html).toContain("Rule check updates as you swap players");
+    // import brings fixtures, not results (copy audit, 21 Oct 2026). The
+    // AFL page carries AFL's feature tour, which said both once.
+    for (const path of ["/", "/afl"]) {
+      const html = await (await request.get(path)).text();
+      expect(html, path).not.toMatch(/fairness score/i);
+      expect(html, path).not.toMatch(/results synced|results stay in sync/i);
+    }
+    expect(await (await request.get("/afl")).text()).toContain("Rule check updates as you swap players");
   });
 
   test("unauthenticated GET / renders the marketing hero", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveURL(/\/$/);
-    // MarketingHeader renders the Siren wordmark + a Sign in link.
-    // Asserting on the Sign in CTA is the most stable marketing-shell
-    // signal — copy on the hero shifts between brand variants.
-    await expect(
-      page.getByRole("link", { name: /sign in/i }).first()
-    ).toBeVisible();
+    // The hero's web sign-in is the most stable marketing-shell signal.
+    // (On a phone the header has no room for its own Sign in; Start
+    // free goes to the same page.)
+    await expect(page.getByRole("link", { name: /^sign in via web$/i })).toBeVisible();
+    await expect(page.getByRole("banner").getByRole("link", { name: "Start free" })).toBeVisible();
   });
 
   test("AFL marketing page links to the iOS app on the App Store", async ({

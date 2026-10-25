@@ -6,6 +6,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { MARKETING_SPORTS, sportPagePath } from "@/lib/sports/marketing-sports";
 import {
   INDEXABLE_ROUTES,
   UNLISTED_ANALYTICS_PATHS,
@@ -33,7 +34,8 @@ function pagePaths(dir = APP_DIR, segments: string[] = []): string[] {
 const indexable = INDEXABLE_ROUTES.map((r) => r.path);
 
 describe("public routes", () => {
-  const pages = pagePaths();
+  // The sport pages are one dynamic route, built for each marketing sport.
+  const pages = pagePaths().flatMap((p) => (p === "/[sport]" ? MARKETING_SPORTS.map(sportPagePath) : [p]));
 
   it("finds the app's pages", () => {
     expect(pages).toContain("/");

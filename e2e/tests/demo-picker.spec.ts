@@ -153,9 +153,8 @@ test.describe("Demo picker", () => {
       await expect(card).toHaveAttribute("aria-label", /start.*demo/i);
       await expect(card).not.toContainText(/coming soon/i);
     }
-    // Soccer is in beta (src/lib/siren-facts.ts), and says so.
-    await expect(page.getByTestId("demo-card-football")).toContainText(/beta/i);
-    await expect(page.getByTestId("demo-card-afl")).not.toContainText(/beta/i);
+    // No sport is in beta any more (src/lib/siren-facts.ts).
+    await expect(page.getByTestId("demo-card-football")).not.toContainText(/beta/i);
   });
 
   for (const sport of ["afl", "league", "netball", "union", "football"] as const) {

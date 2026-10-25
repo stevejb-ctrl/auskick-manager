@@ -33,7 +33,7 @@ test("the sitemap lists every public page, and each opens signed out", async ({ 
   const paths = Array.from(xml.matchAll(/<loc>([^<]+)<\/loc>/g), (m) => new URL(m[1]).pathname);
 
   expect(paths).toEqual(
-    expect.arrayContaining(["/", "/demo", "/why-siren", "/support", "/help", "/help/faq"]),
+    expect.arrayContaining(["/", "/demo", "/why-siren", "/support", "/help", "/help/faq", "/netball", "/futsal"]),
   );
   // A sign-in form has little to index (it stays crawlable).
   expect(paths).not.toContain("/login");
@@ -47,11 +47,24 @@ test("the sitemap lists every public page, and each opens signed out", async ({ 
 
 test("the homepage names every sport, in its title, description and server HTML", async ({ page, request }) => {
   // AI crawlers don't run JavaScript, so the sports must be in the HTML
-  // the server sends, not just behind the sport picker.
+  // the server sends: each as a link to its own page, with a line on
+  // what Siren knows about it.
   const html = await (await request.get("/")).text();
-  expect(html).toContain(
-    "One app, ten sports: junior AFL, netball, rugby league and rugby union, plus football (soccer), basketball, futsal, hockey, touch football and Oztag in beta.",
-  );
+  for (const path of [
+    "/netball",
+    "/afl",
+    "/rugby-league",
+    "/soccer",
+    "/basketball",
+    "/rugby-union",
+    "/touch-football",
+    "/oztag",
+    "/hockey",
+    "/futsal",
+  ]) {
+    expect(html, path).toContain(`href="${path}"`);
+  }
+  expect(html).toContain("a girl&#x27;s try counts two");
 
   await page.goto("/");
   await expect(page).toHaveTitle("Siren: fair rotations and subs for junior footy, netball, league and more");
@@ -66,7 +79,7 @@ test("the homepage names every sport, in its title, description and server HTML"
     "futsal",
     "hockey",
     "touch football",
-    "Oztag in beta",
+    "Oztag",
   ]) {
     expect(description, sport).toContain(sport);
   }
@@ -118,7 +131,8 @@ test("llms.txt is public plain text: what Siren is, its sports and its pages", a
   expect(res.headers()["content-type"]).toContain("text/plain");
   const txt = await res.text();
   expect(txt).toMatch(/^# Siren\n\n> Siren is a game-day app for junior sport coaches/);
-  expect(txt).toContain("- Basketball (beta)");
+  expect(txt).toContain("- Basketball\n");
+  expect(txt).not.toMatch(/\(beta\)/);
   expect(txt).toMatch(/\]\(https:\/\/www\.siren[a-z]+\.com\.au\/help\/faq\)/);
 });
 
@@ -191,7 +205,7 @@ test("the home page tells search engines who makes Siren and that it's an app", 
     applicationCategory: "SportsApplication",
     offers: { "@type": "Offer", price: "0", priceCurrency: "AUD" },
     installUrl: expect.stringContaining("apps.apple.com"),
-    description: expect.stringContaining("plus football (soccer), basketball, futsal, hockey, touch football and Oztag in beta"),
+    description: expect.stringContaining("football (soccer), basketball, futsal, hockey, touch football and Oztag"),
   });
   expect((app?.featureList as string[]).length).toBeGreaterThan(3);
   // No ratings until they're real ones from a review source.

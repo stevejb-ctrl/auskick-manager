@@ -8,7 +8,8 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { heroSportsSentence } from "@/lib/marketing/homeContent";
+import { HOME_CONTENT } from "@/lib/marketing/homeContent";
+import { sportPageCopy } from "@/lib/marketing/sportPages";
 import { MARKETING_SPORTS } from "@/lib/sports/marketing-sports";
 import { ALL_SPORT_IDS, getSportConfig } from "@/lib/sports/registry";
 import {
@@ -92,22 +93,15 @@ describe("Siren facts", () => {
     }
   });
 
-  it("marks the six newest sports as beta, and only them", () => {
-    expect(SIREN_SPORTS.filter((s) => s.beta).map((s) => s.id)).toEqual([
-      "soccer",
-      "basketball",
-      "futsal",
-      "hockey",
-      "touch",
-      "oztag",
-    ]);
-    expect(isBetaSport("soccer")).toBe(true);
+  it("has no sport in beta (they all left it with the ten-sport homepage)", () => {
+    expect(SIREN_SPORTS.filter((s) => s.beta).map((s) => s.id)).toEqual([]);
+    expect(isBetaSport("soccer")).toBe(false);
     expect(isBetaSport("afl")).toBe(false);
   });
 
-  it("says the sports in one sentence, beta ones last", () => {
+  it("says the sports in one sentence", () => {
     expect(sportsSentence()).toBe(
-      "AFL, netball, rugby league and rugby union, plus football (soccer), basketball, futsal, hockey, touch football and Oztag in beta",
+      "AFL, netball, rugby league, rugby union, football (soccer), basketball, futsal, hockey, touch football and Oztag",
     );
     expect(SPORT_COUNT_WORD).toBe("ten");
     expect(sirenOneLiner()).toContain(sportsSentence());
@@ -121,8 +115,16 @@ describe("marketing copy agrees with the facts", () => {
     expect(PAGE_SOURCE.map((p) => p.file)).toContain("src/app/help/faq/page.tsx");
   });
 
-  it("opens the homepage hero with the facts' sports", () => {
-    expect(heroSportsSentence()).toBe(`One app, ten sports: junior ${sportsSentence()}.`);
+  it("counts the sports in the homepage's facts strip", () => {
+    const sports = HOME_CONTENT.trustBand.find((entry) => entry.label === "Junior sports");
+    expect(sports?.stat).toBe(String(SIREN_SPORTS.length));
+  });
+
+  it("gives every sport on the public site its own page copy", () => {
+    expect(MARKETING_SPORTS.map((s) => s.sport).sort()).toEqual([...ALL_SPORT_IDS].sort());
+    for (const { sport } of MARKETING_SPORTS) {
+      expect(sportPageCopy(sport).knows, sport).toHaveLength(3);
+    }
   });
 
   it("counts the sports right", () => {

@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { HeroCarousel } from "@/components/marketing/HeroCarousel";
-import { MultiSportHomeContent } from "@/components/marketing/MultiSportHomeContent";
+import { FinalCTA } from "@/components/marketing/FinalCTA";
+import { HomeHero } from "@/components/marketing/HomeHero";
 import { NativeMarketingBounce } from "@/components/marketing/NativeMarketingBounce";
+import { SharedFeatures } from "@/components/marketing/SharedFeatures";
+import { SportDirectory } from "@/components/marketing/SportDirectory";
+import { TrustBand } from "@/components/marketing/TrustBand";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { getBrand } from "@/lib/brand";
+import { HOME_CONTENT } from "@/lib/marketing/homeContent";
 import { siteUrl } from "@/lib/seo";
 import { PRICE, sportsSentence } from "@/lib/siren-facts";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
@@ -30,6 +34,18 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
+/**
+ * The homepage: the front door to ten sports (design canvas, 22 Oct
+ * 2026). It pitches what's the same in every sport and sends each coach
+ * to their own sport's page (/netball, /afl, …), where that sport's
+ * rules and feature tour live. It used to be one sport's page with a
+ * picker that re-skinned it in the browser, which at ten sports hid
+ * most of the content from crawlers and put five rows of cards on a
+ * phone before any of it.
+ *
+ * All server-rendered: the hero, a strip of true facts, the sport
+ * directory, the six shared features, and the sign-up section.
+ */
 export default async function Home() {
   // Authenticated users skip the marketing site entirely — the
   // app should feel native, not "marketing page with an app
@@ -66,30 +82,15 @@ export default async function Home() {
           component bounces them to /login client-side. Becomes
           dead code once Build 2+ replaces every Build 1 install. */}
       <NativeMarketingBounce />
-      {/* HeroCarousel replaces the previous host-resolved <Hero />
-          on the unified homepage — auto-rotates AFL → League →
-          Union → Netball every ~4.5s with shared headline / sub /
-          CTAs and a per-sport eyebrow + phone-mock screenshot.
-          Pauses on hover, hides auto-rotate for prefers-reduced-
-          motion. Dedicated brand sites (sirenfooty.com.au etc.)
-          could swap this back to the host-resolved <Hero /> via a
-          branch on getBrand() if a per-host hero ever needs to
-          return. */}
-      <HeroCarousel />
-      {/* All sport-aware content below the hero lives inside
-          MultiSportHomeContent — a single client island that owns the
-          active-sport state (with localStorage persistence) and
-          threads it through:
-            • MultiSportSection (the picker itself)
-            • TrustBand          (per-sport stats)
-            • ScrollingFeatures  (per-sport feature scroll)
-            • FinalCTA           (per-sport closing CTA + AppStoreBadge)
-          The hero above stays server-rendered + host-resolved —
-          sirenfooty.com.au lands on the AFL hero, sirennetball.com.au
-          on the netball hero. The picker is for visitors exploring
-          "what does Siren look like in OTHER sports", not for
-          swapping their landed-on context. */}
-      <MultiSportHomeContent />
+      <HomeHero />
+      <TrustBand entries={HOME_CONTENT.trustBand} />
+      <SportDirectory />
+      <SharedFeatures
+        eyebrow="Whatever you coach"
+        heading={{ before: "Everything you need to make game day a ", accent: "breeze", after: "." }}
+        intro="The same six things in every sport. Shown here in five of them."
+      />
+      <FinalCTA copy={HOME_CONTENT.finalCta} showAppStoreBadge />
     </main>
   );
 }

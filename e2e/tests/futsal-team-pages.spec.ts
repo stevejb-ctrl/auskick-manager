@@ -1,6 +1,6 @@
 // ─── Futsal: a coach makes a team and every page opens ──────────
 // Four-sports plan, track A. The setup wizard offers Junior Futsal,
-// marked Beta (open to every coach, as soccer was); a U10 team starts
+// open to every coach; a U10 team starts
 // with the scoreboard on and futsal's own How we play (keeper turns,
 // FIFA's flying subs), never soccer's MiniRoos rules; and none of the
 // team's pages stops for futsal or borrows another sport's screen.
@@ -18,7 +18,8 @@ test("futsal: the wizard makes a U10 team with futsal's rules, and every team pa
   await gotoStable(page, "/teams/new");
   await waitForHydration(page);
   const pill = page.getByRole("button", { name: "Junior Futsal" });
-  await expect(pill).toContainText("Beta");
+  // Every sport left beta with the ten-sport homepage.
+  await expect(pill).not.toContainText("Beta");
   await pill.click();
   const teamName = `FUT-WIZ-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   await page.getByLabel(/team name/i).fill(teamName);

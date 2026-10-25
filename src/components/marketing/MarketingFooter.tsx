@@ -2,54 +2,63 @@ import Link from "next/link";
 import { SirenWordmark } from "@/components/marketing/SirenWordmark";
 import { getBrand } from "@/lib/brand";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
+import { MARKETING_SPORTS, sportPagePath } from "@/lib/sports/marketing-sports";
 
-// Site footer aligned with the marketing handoff: three loose columns
-// on desktop (brand + tagline / link row / "Built in Australia"),
-// stacked on phones. Hairline top, warm bg.
+const SIREN_LINKS = [
+  { href: "/why-siren", label: "Why Siren" },
+  { href: "/demo", label: "Demo" },
+  { href: "/help", label: "Help" },
+  { href: "/contact", label: "Contact" },
+  { href: "/support", label: "Support" },
+  { href: "/privacy", label: "Privacy" },
+  { href: "/terms", label: "Terms" },
+];
+
+const heading = "font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-ink-dim";
+const link = "text-ink transition-colors duration-fast ease-out-quart hover:text-brand-700";
+
 export function MarketingFooter() {
   const year = new Date().getFullYear();
   const brand = getBrand();
   const copy = getBrandCopy(brand.id);
   return (
     <footer className="border-t border-hairline">
-      <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-10 sm:px-6 md:flex-row md:items-center md:justify-between md:gap-6">
+      <div className="mx-auto flex max-w-6xl flex-wrap gap-x-12 gap-y-10 px-4 py-12 sm:px-6">
         {/* Brand + tagline + copyright */}
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-3">
-            <SirenWordmark size="sm" />
-            <span className="text-xs text-ink-dim sm:text-sm">{copy.tagline}</span>
-          </div>
-          <span className="font-mono text-[11px] tracking-[0.08em] text-ink-mute">
+        <div className="flex min-w-0 flex-[1_1_15rem] flex-col gap-2">
+          <SirenWordmark size="sm" />
+          <span className="text-sm text-ink-dim">{copy.tagline} Built in Australia.</span>
+          <span className="mt-4 font-mono text-[11px] tracking-[0.08em] text-ink-dim">
             © {year} {copy.productName}
           </span>
         </div>
 
-        {/* Centred link row */}
-        <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-ink-dim">
-          {[
-            { href: "/why-siren", label: "Why Siren" },
-            { href: "/#features", label: "Features" },
-            { href: "/demo", label: "Demo" },
-            { href: "/help", label: "Help" },
-            { href: "/contact", label: "Contact" },
-            { href: "/support", label: "Support" },
-            { href: "/privacy", label: "Privacy" },
-            { href: "/terms", label: "Terms" },
-          ].map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className="transition-colors duration-fast ease-out-quart hover:text-ink"
-            >
-              {l.label}
-            </Link>
-          ))}
+        {/* Every sport's page, in popularity order: five down, then five. */}
+        <nav aria-label="Sports" className="min-w-0 flex-[2_1_20rem]">
+          <p className={heading}>Sports</p>
+          <ul className="mt-3.5 grid grid-flow-col grid-cols-2 grid-rows-5 gap-x-6 gap-y-2.5 text-[15px]">
+            {MARKETING_SPORTS.map((sport) => (
+              <li key={sport.id}>
+                <Link href={sportPagePath(sport)} className={link}>
+                  {sport.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
         </nav>
 
-        {/* Locale tag, desktop only — keeps phone footer compact */}
-        <span className="hidden font-mono text-[11px] uppercase tracking-[0.16em] text-ink-mute md:inline">
-          Built in Australia
-        </span>
+        <nav aria-label="Siren" className="min-w-0 flex-[1_1_10rem]">
+          <p className={heading}>Siren</p>
+          <ul className="mt-3.5 flex flex-col gap-2.5 text-[15px]">
+            {SIREN_LINKS.map((l) => (
+              <li key={l.href}>
+                <Link href={l.href} className={link}>
+                  {l.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
       </div>
     </footer>
   );

@@ -1,5 +1,7 @@
 import { HELP_PAGES } from "@/lib/help/pages";
+import { sportPageCopy } from "@/lib/marketing/sportPages";
 import { INDEXABLE_ROUTES } from "@/lib/public-routes";
+import { MARKETING_SPORTS, sportPagePath } from "@/lib/sports/marketing-sports";
 import {
   APP_STORE_SINCE,
   FEATURES,
@@ -36,6 +38,7 @@ const PAGE_BLURBS: Record<string, { title: string; blurb: string }> = {
 /** Where each sitemap page goes in the file. */
 const SECTIONS = [
   { heading: "Pages", paths: ["/", "/demo", "/why-siren"] },
+  { heading: "Sport pages", paths: MARKETING_SPORTS.map(sportPagePath) },
   { heading: "Help", paths: INDEXABLE_ROUTES.map((r) => r.path).filter((p) => p.startsWith("/help")) },
   { heading: "Optional", paths: ["/support", "/contact", "/privacy", "/terms"] },
 ];
@@ -51,7 +54,15 @@ function formatDate(iso: string): string {
 
 function linkLine(siteUrl: string, path: string): string {
   const help = HELP_PAGES.find((p) => p.href === path);
-  const page = help ? { title: help.title, blurb: help.description } : PAGE_BLURBS[path];
+  const sport = MARKETING_SPORTS.find((s) => sportPagePath(s) === path);
+  const page = help
+    ? { title: help.title, blurb: help.description }
+    : sport
+      ? {
+          title: `Junior ${SIREN_SPORTS.find((s) => s.id === sport.sport)?.name ?? sport.label}`,
+          blurb: sportPageCopy(sport.sport).tileLine,
+        }
+      : PAGE_BLURBS[path];
   if (!page) throw new Error(`llms.txt: no title for ${path}`);
   return `- [${page.title}](${siteUrl}${path}): ${page.blurb}`;
 }

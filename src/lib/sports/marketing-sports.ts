@@ -1,167 +1,221 @@
-// Multi-sport homepage data — independent of the brand resolver
-// (lib/brand.ts) and the in-app sport configs (lib/sports/index.ts).
-// The brand resolver is host-based ("which Siren am I?"); this file
-// powers the interactive sport-picker on the marketing homepage
-// ("Show me Siren in a different sport").
+// The sports as the public site shows them: the homepage's sport
+// directory and hero chips, the header's Sports menu, the footer, the
+// sport pages (/netball, /afl, …) and the demo picker.
 //
-// Stays a tiny pure-data module so client + server can both import
-// without pulling React. Order here is the order the sports render
-// in the picker on the homepage.
+// Pure data, so client and server components (and the middleware, via
+// public-routes.ts) can import it without pulling in the sport engines.
+// Each sport's words for its page live in content/marketing/sports.json
+// (src/lib/marketing/sportPages.ts); its long-form feature tour, where
+// it has one, in content/marketing/brands/*.json.
+//
+// Order is Steve's popularity order (25 Oct 2026), used everywhere the
+// site lists sports: netball, AFL, rugby league, football (soccer),
+// basketball, rugby union, touch football, Oztag, hockey, futsal.
 
 import type { SportId } from "@/lib/sports/types";
 
-export type MarketingSportId = "afl" | "league" | "union" | "netball" | "football";
+export type MarketingSportId =
+  | "netball"
+  | "afl"
+  | "league"
+  | "football"
+  | "basketball"
+  | "union"
+  | "touch"
+  | "oztag"
+  | "hockey"
+  | "futsal";
 
 export interface MarketingSportConfig {
+  /** The site's id for the sport: the demo form's value and the test ids. */
   id: MarketingSportId;
-  /** The app's sport. Its facts (beta or not) come from
-   *  src/lib/siren-facts.ts by this id. */
+  /** The app's sport. Its facts come from src/lib/siren-facts.ts. */
   sport: SportId;
-  /** Small uppercase code that runs above each picker-card name
-   *  ("AFL" / "RL" / "RU" / "NB"). Not "NRL": that's the league's
-   *  trade mark, and Siren isn't affiliated with it. */
+  /** The sport page's path, without the slash: /netball. */
+  slug: string;
+  /** Small uppercase code on the demo cards ("AFL", "RL"). Not "NRL":
+   *  that's the league's trade mark, and Siren isn't affiliated. */
   code: string;
-  /** Short label used in pill / chip labels. */
-  short: string;
-  /** Full sport name shown as the picker-card headline. */
+  /** The sport's name as a heading or a menu item. */
   label: string;
-  /** Word that drops into "See Siren in __ mode." Lower case
-   *  unless it's an acronym ("AFL mode"). */
-  modeWord: string;
-  /** Period descriptor for the small top-right "AFL · 4 QUARTERS"
-   *  label inside the dark section. */
-  periods: string;
-  /** Hex accent — the only colour that changes when this sport is
-   *  picked. Cascades to picker active-fill, headline word, and any
-   *  consumer reading `var(--sport-accent)`. */
+  /** Short name for chips: "Football", "Touch". */
+  short: string;
+  /** The sport's colour: its dot, its page's accent word and field
+   *  drawing. Text in it is large type only (some are under 4.5:1). */
   accent: string;
-  /** Soft accent (light pill backgrounds, etc.) — exported for
-   *  parity with the design handoff. */
+  /** The same hue, pale: panels on the sport page. */
   accentSoft: string;
-  /** Field tint opacity on the picker-card background. 0.10 default
-   *  — quiet enough that the field reads as decoration, loud enough
-   *  to telegraph "this is a different sport". */
-  fieldTintOpacity: number;
-  /** Phone-mock screenshot path for the hero carousel. `null` when
-   *  a sport-specific screenshot doesn't exist yet — HeroCarousel
-   *  falls back to a placeholder card matching Claude Design's
-   *  "real <sport> screenshot lands here" pattern. */
-  heroScreenshot: string | null;
-  /** Alt text for the hero screenshot when present. */
-  heroScreenshotAlt: string;
+  /** A phone screenshot of the live game in this sport. */
+  liveScreenshot: string;
+  liveScreenshotAlt: string;
+  /** The demo picker (/demo) can start a game in this sport. */
+  hasDemo: boolean;
   /**
-   * Sport hasn't shipped yet. Picker renders a disabled card with a
-   * "Coming soon" subtitle; HeroCarousel filters the sport out of
-   * its rotation entirely (no pagination dot, never auto-advances
-   * to it); MultiSportHomeContent ignores a localStorage value
-   * that resolves to a coming-soon sport and falls back to the
-   * default. Flip to `false` (or omit) once the sport launches.
+   * The sport page's feature tour:
+   *  - "own": the brand JSON's features, each with its own screenshot;
+   *  - "live": the brand JSON's features, over the sport's live
+   *    screenshot (its feature images were borrowed from AFL);
+   *  - "shared": no feature copy of its own yet, so the page shows the
+   *    homepage's six features, each labelled with the sport it shows.
    */
-  comingSoon?: boolean;
+  tour: "own" | "live" | "shared";
 }
 
-// Hero headline / subtitle / trust line + per-sport eyebrows live in
-// content/marketing/home.json (CMS-editable via Pages CMS). See
-// @/lib/marketing/homeContent for the typed loader.
+const SHOTS = "/marketing/screenshots";
 
 export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
   {
+    id: "netball",
+    sport: "netball",
+    slug: "netball",
+    code: "NB",
+    label: "Netball",
+    short: "Netball",
+    accent: "#7C3F8C",
+    accentSoft: "#EFE2F2",
+    liveScreenshot: `${SHOTS}/netball/live.png`,
+    liveScreenshotAlt: "Netball live court, all seven positions filled, mid-game",
+    hasDemo: true,
+    tour: "own",
+  },
+  {
     id: "afl",
     sport: "afl",
+    slug: "afl",
     code: "AFL",
-    short: "AFL",
     label: "AFL",
-    modeWord: "AFL",
-    periods: "4 quarters",
-    // Brand's alarm-orange — matches `bg-brand-600` (#D9442D) so the
-    // AFL accent reads as the existing Siren brand colour.
+    short: "AFL",
     accent: "#D9442D",
     accentSoft: "#FBE7DF",
-    fieldTintOpacity: 0.10,
-    heroScreenshot: "/marketing/screenshots/live-game.png",
-    heroScreenshotAlt: "AFL live game view — Fitzroy Falcons rotation",
+    liveScreenshot: `${SHOTS}/afl/live.png`,
+    liveScreenshotAlt: "AFL live game on the oval, forwards, centres and backs with their time bars",
+    hasDemo: true,
+    tour: "own",
   },
   {
     id: "league",
     sport: "rugby_league",
+    slug: "rugby-league",
     code: "RL",
-    short: "League",
-    label: "Rugby League",
-    modeWord: "league",
-    periods: "2 halves",
-    // Junior rugby league leafy green — distinct from AFL alarm
-    // orange and netball purple. Union below is a darker forest
-    // green.
+    label: "Rugby league",
+    short: "Rugby league",
     accent: "#2F8C45",
     accentSoft: "#DEEFE3",
-    fieldTintOpacity: 0.10,
-    heroScreenshot: "/marketing/screenshots/league/live-game.png",
-    heroScreenshotAlt:
-      "Rugby League live game — Bangles JRL U10 vs Stockton Seahawks, half 1",
+    liveScreenshot: `${SHOTS}/rugby-league/live.png`,
+    liveScreenshotAlt: "Rugby league live game, the field and the bench, mid-game",
+    hasDemo: true,
+    tour: "own",
   },
-  // Netball sits in slot 3 and Union, the newest, in slot 4.
   {
-    id: "netball",
-    sport: "netball",
-    code: "NB",
-    short: "Netball",
-    label: "Netball",
-    modeWord: "netball",
-    periods: "4 quarters",
-    accent: "#7C3F8C",
-    accentSoft: "#EFE2F2",
-    fieldTintOpacity: 0.10,
-    heroScreenshot: "/marketing/screenshots/netball/live-game.png",
-    heroScreenshotAlt: "Netball live court view — Bondi Bandits Q4",
+    id: "football",
+    sport: "soccer",
+    slug: "soccer",
+    code: "FB",
+    label: "Football (soccer)",
+    short: "Football",
+    accent: "#1F5FA8",
+    accentSoft: "#DFE8F4",
+    liveScreenshot: `${SHOTS}/soccer/live.png`,
+    liveScreenshotAlt: "Football (soccer) live game with the keeper in goal and suggested swaps",
+    hasDemo: true,
+    tour: "live",
+  },
+  {
+    id: "basketball",
+    sport: "basketball",
+    slug: "basketball",
+    code: "BB",
+    label: "Basketball",
+    short: "Basketball",
+    accent: "#B86E0F",
+    accentSoft: "#F6E7D3",
+    liveScreenshot: `${SHOTS}/basketball/live.png`,
+    liveScreenshotAlt: "Basketball live game, guards and forwards on the court and suggested swaps",
+    hasDemo: false,
+    tour: "live",
   },
   {
     id: "union",
     sport: "rugby_union",
+    slug: "rugby-union",
     code: "RU",
-    short: "Union",
-    label: "Rugby Union",
-    modeWord: "union",
-    periods: "2 halves",
+    label: "Rugby union",
+    short: "Rugby union",
     accent: "#2F6B3E",
     accentSoft: "#DFEAE0",
-    fieldTintOpacity: 0.12,
-    heroScreenshot: null,
-    heroScreenshotAlt: "Rugby union live game view",
+    liveScreenshot: `${SHOTS}/rugby-union/live.png`,
+    liveScreenshotAlt: "Rugby union live game, the field and the bench, mid-game",
+    hasDemo: true,
+    tour: "live",
   },
-  // Football (soccer), the newest (17 Oct 2026; in beta in the app).
   {
-    id: "football",
-    sport: "soccer",
-    code: "FB",
-    short: "Football",
-    label: "Football (soccer)",
-    modeWord: "football",
-    periods: "2 halves",
-    // A pitch-line blue, apart from AFL's orange, league's and union's
-    // greens and netball's purple.
-    accent: "#1F5FA8",
-    accentSoft: "#DFE8F4",
-    fieldTintOpacity: 0.10,
-    heroScreenshot: "/marketing/screenshots/soccer/live-game.png",
-    heroScreenshotAlt:
-      "Football (soccer) live game — Kingsway United U9 vs Coogee Crabs, half 1, with the keeper in goal",
+    id: "touch",
+    sport: "touch",
+    slug: "touch-football",
+    code: "TF",
+    label: "Touch football",
+    short: "Touch",
+    accent: "#B0306A",
+    accentSoft: "#F6DFEA",
+    liveScreenshot: `${SHOTS}/touch-football/live.png`,
+    liveScreenshotAlt: "Touch football live game for a mixed team, mid-game",
+    hasDemo: false,
+    tour: "shared",
+  },
+  {
+    id: "oztag",
+    sport: "oztag",
+    slug: "oztag",
+    code: "OZ",
+    label: "Oztag",
+    short: "Oztag",
+    accent: "#5E6B0F",
+    accentSoft: "#ECEFD6",
+    liveScreenshot: `${SHOTS}/oztag/live.png`,
+    liveScreenshotAlt: "Oztag live game for a mixed team, mid-game",
+    hasDemo: false,
+    tour: "shared",
+  },
+  {
+    id: "hockey",
+    sport: "hockey",
+    slug: "hockey",
+    code: "HK",
+    label: "Hockey",
+    short: "Hockey",
+    accent: "#3F4FB0",
+    accentSoft: "#E3E6F5",
+    liveScreenshot: `${SHOTS}/hockey/live.png`,
+    liveScreenshotAlt: "Hockey live game with the keeper, mid-game",
+    hasDemo: false,
+    tour: "shared",
+  },
+  {
+    id: "futsal",
+    sport: "futsal",
+    slug: "futsal",
+    code: "FS",
+    label: "Futsal",
+    short: "Futsal",
+    accent: "#0E7C86",
+    accentSoft: "#DDF0F1",
+    liveScreenshot: `${SHOTS}/futsal/live.png`,
+    liveScreenshotAlt: "Futsal live game on the court with the keeper, mid-game",
+    hasDemo: false,
+    tour: "shared",
   },
 ] as const;
 
 export function getMarketingSport(id: MarketingSportId): MarketingSportConfig {
-  const s = MARKETING_SPORTS.find((m) => m.id === id);
-  if (!s) {
-    // Defensive fallback — shouldn't happen since id is type-narrowed
-    // to MarketingSportId, but a future SSR + bad localStorage read
-    // could land here. AFL is always safe.
-    return MARKETING_SPORTS[0];
-  }
-  return s;
+  return MARKETING_SPORTS.find((m) => m.id === id) ?? MARKETING_SPORTS[0];
 }
 
-export const DEFAULT_MARKETING_SPORT: MarketingSportId = "afl";
+/** The sport whose page is at /<slug>, if any. */
+export function marketingSportBySlug(slug: string): MarketingSportConfig | undefined {
+  return MARKETING_SPORTS.find((m) => m.slug === slug);
+}
 
-/** Used by the picker to validate values read from localStorage. */
-export function isMarketingSportId(value: unknown): value is MarketingSportId {
-  return MARKETING_SPORTS.some((s) => s.id === value);
+/** The sport page's path: "/netball". */
+export function sportPagePath(sport: MarketingSportConfig): string {
+  return `/${sport.slug}`;
 }
