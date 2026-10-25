@@ -18,6 +18,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { setTeamPeriodCount } from "@/app/(app)/teams/[teamId]/settings/actions";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { useRadioGroup } from "@/components/ui/useRadioGroup";
 
 interface PeriodFormatSettingsProps {
   teamId: string;
@@ -50,7 +51,7 @@ export function PeriodFormatSettings({
   const [isPending, startTransition] = useTransition();
 
   function choose(next: Count) {
-    if (!isAdmin || next === count) return;
+    if (!isAdmin || isPending || next === count) return;
     const before = count;
     setError(null);
     setSaved(false);
@@ -78,6 +79,14 @@ export function PeriodFormatSettings({
           { value: 4, label: "Quarters", detail: `4 × ${halfMinutes / 2} min` },
         ];
   const title = format === "one-period" ? "Halves or one period" : "Halves or quarters";
+  // Not disabled while saving: an arrow key's choice would drop the
+  // keyboard focus off a disabled radio. The arrows (and `choose`) wait.
+  const { radioProps } = useRadioGroup<Count>({
+    values: options.map((o) => o.value),
+    value: count,
+    onChange: choose,
+    disabled: !isAdmin || isPending,
+  });
 
   return (
     <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
@@ -87,10 +96,11 @@ export function PeriodFormatSettings({
         {options.map((o) => (
           <button
             key={o.value}
+            {...radioProps(o.value)}
             type="button"
             role="radio"
             aria-checked={count === o.value}
-            disabled={isPending || !isAdmin}
+            disabled={!isAdmin}
             onClick={() => choose(o.value)}
             className={`flex flex-1 flex-col items-center rounded-md border px-3 py-2 text-sm transition-colors duration-fast ease-out-quart disabled:opacity-60 ${
               count === o.value ? "border-ink bg-ink text-warm" : "border-hairline bg-surface text-ink hover:bg-surface-alt"

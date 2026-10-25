@@ -22,6 +22,7 @@ import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { RadioChips } from "@/components/ui/RadioChips";
 import { SFButton } from "@/components/sf";
 import { LockModal } from "@/components/live/LockModal";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
@@ -329,27 +330,15 @@ export function BasketballLineupPicker({
             {lineShapes.length > 1 && (
               <div className="space-y-2">
                 <Label className="text-xs">Guards and forwards</Label>
-                <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Guards and forwards">
-                  {lineShapes.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={s.id === shape.id}
-                      onClick={() => {
-                        setShapeId(s.id);
-                        resuggest(onCourtSize, s.id);
-                      }}
-                      className={`rounded-full border px-3 py-1 font-mono text-xs font-semibold ${
-                        s.id === shape.id
-                          ? "border-ink bg-ink text-warm"
-                          : "border-hairline bg-surface text-ink-dim hover:bg-surface-alt"
-                      }`}
-                    >
-                      {s.lines.guard} G · {s.lines.forward} F
-                    </button>
-                  ))}
-                </div>
+                <RadioChips
+                  label="Guards and forwards"
+                  options={lineShapes.map((s) => ({ id: s.id, label: `${s.lines.guard} G · ${s.lines.forward} F` }))}
+                  value={shape.id}
+                  onChange={(id) => {
+                    setShapeId(id);
+                    resuggest(onCourtSize, id);
+                  }}
+                />
               </div>
             )}
             <div className="space-y-2">
