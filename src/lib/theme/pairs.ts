@@ -54,6 +54,10 @@ export const PAIRS: Pair[] = [
   ...textOn("fill:zone-b-dark", ["fill:ink"], "BACK label on the sub card"),
   ...textOn("fill:due-dark", ["fill:ink"], "amber words on the sub card"),
   ...uiOn("fill:mint", ["fill:ink"], "running-clock dot, countdown ring"),
+  // A swap row on the sub card lifts the chrome with white at 6%.
+  ...textOn("fill:zone-f-dark", [{ over: "#FFFFFF", alpha: 0.06, under: "fill:ink" }], "FWD label in a sub card swap row"),
+  ...textOn("fill:zone-c-dark", [{ over: "#FFFFFF", alpha: 0.06, under: "fill:ink" }], "CEN label in a sub card swap row"),
+  ...textOn("fill:zone-b-dark", [{ over: "#FFFFFF", alpha: 0.06, under: "fill:ink" }], "BACK label in a sub card swap row"),
 
   // ── White words on strong fills ───────────────────────────────
   ...textOn(WHITE, ["fill:brand-700"], "Confirm buttons"),

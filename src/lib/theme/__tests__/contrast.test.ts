@@ -98,7 +98,7 @@ describe("palette shape", () => {
 
   it("emits a variable for every role of every token", () => {
     const vars = themeVars("dark", "afl");
-    expect(vars["--c-ink"]).toBe("43 50 45");
+    expect(vars["--c-ink"]).toBe("36 42 38");
     expect(vars["--t-ink"]).toBe("238 236 230");
     expect(vars["--l-brand-600"]).toBeDefined();
     expect(vars["--c-focus"]).toBeDefined();

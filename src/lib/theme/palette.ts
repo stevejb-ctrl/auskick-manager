@@ -56,7 +56,7 @@ export const TOKENS = {
   warm: { light: "#F7F5F1", dark: "#0F1311", darkText: "#F4F2EC", darkLine: "#3A423D" },
   surface: { light: "#FFFFFF", dark: "#181D1A" },
   "surface-alt": { light: "#EFECE6", dark: "#232925" },
-  ink: { light: "#1A1E1A", dark: "#2B322D", darkText: "#EEECE6", darkLine: "#8E978F" },
+  ink: { light: "#1A1E1A", dark: "#242A26", darkText: "#EEECE6", darkLine: "#8E978F" },
   "ink-dim": { light: "#5E6860", dark: "#5E6860", darkText: "#B8BFB9", darkLine: "#7D877F" },
   // R6 (UX round 3, e4): was #8A948C, which failed AA everywhere.
   "ink-mute": { light: "#646D66", dark: "#646D66", darkText: "#9CA59E", darkLine: "#7D877F" },
@@ -69,7 +69,7 @@ export const TOKENS = {
   // on the page). The fills, chips and rings keep the old colour.
   alarm: { light: "#D9442D", lightText: "#BF3820", dark: "#C23A25", darkText: "#FF8E78", darkLine: "#F0705A" },
   "alarm-soft": { light: "#FBE7DF", dark: "#3A1E18" },
-  warn: { light: "#C8751F", lightText: "#985610", dark: "#A8590F", darkText: "#F2A65A", darkLine: "#E0913F" },
+  warn: { light: "#C8751F", lightText: "#985610", dark: "#96500D", darkText: "#F2A65A", darkLine: "#E0913F" },
   "warn-soft": { light: "#F5E5D2", dark: "#36291A" },
   danger: { light: "#B4393A", dark: "#B4393A", darkText: "#F79A97", darkLine: "#E2706E" },
   ok: { light: "#4C8B63", lightText: "#3C7651", dark: "#3F7653", darkText: "#86D09E", darkLine: "#6DBA86" },
