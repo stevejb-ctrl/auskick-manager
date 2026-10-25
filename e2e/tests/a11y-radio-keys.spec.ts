@@ -8,7 +8,7 @@
 
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
-import { makeTeam } from "../fixtures/factories";
+import { makeGame, makePlayers, makeTeam } from "../fixtures/factories";
 import { ownerOf, skipHints, unionGame } from "../helpers/a11y";
 import { waitForHydration } from "../helpers/navigation";
 
@@ -67,6 +67,30 @@ test("the Team tab's How kids rotate and Season balance", async ({ page }) => {
   await expect(rotate).toBeVisible({ timeout: 15_000 });
   await expectRadioKeys(page, rotate);
   await expectRadioKeys(page, page.getByRole("radiogroup", { name: "Season balance" }));
+});
+
+test("a kid's In / Out is a radio pair: one Tab stop, the arrows flip it and it saves", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await ownerOf(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl", name: `A11Y-RK-AV ${Date.now() % 100000}` });
+  const [kid] = await makePlayers(admin, { teamId: team.id, ownerId, count: 1 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await page.goto(`/teams/${team.id}/games/${game.id}/availability`);
+  await waitForHydration(page);
+  const group = page.getByRole("radiogroup", { name: `${kid.full_name} availability` });
+  await expect(group).toBeVisible({ timeout: 15_000 });
+  expect(await tabStops(group)).toBe(1);
+  // Unanswered reads Out for the coach; ArrowLeft (wrapping) says In.
+  await group.getByRole("radio", { name: "Out" }).focus();
+  await page.keyboard.press("ArrowLeft");
+  await expectChecked(page, group.getByRole("radio", { name: "In" }));
+  await expect
+    .poll(async () => (await admin.from("game_availability").select("status").eq("game_id", game.id).eq("player_id", kid.id).maybeSingle()).data?.status)
+    .toBe("available");
+  // The arrows wait while the save is in flight, then move again.
+  await expect(group.getByRole("radio", { name: "In" })).not.toHaveAttribute("aria-disabled", "true");
+  await page.keyboard.press("End");
+  await expectChecked(page, group.getByRole("radio", { name: "Out" }));
 });
 
 test("the setup wizard's sports are a radio group", async ({ page }) => {

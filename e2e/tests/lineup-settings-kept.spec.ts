@@ -47,7 +47,7 @@ async function gameWithOneOut(sport: "basketball" | "afl", ageGroup: string, cou
  */
 async function markIn(page: Page, name: string, id: string) {
   await page.getByRole("button", { name: /who's here/i }).click();
-  await page.getByRole("group", { name: `${name} availability` }).getByRole("button", { name: /^in$/i }).click();
+  await page.getByRole("radiogroup", { name: `${name} availability` }).getByRole("radio", { name: /^in$/i }).click();
   await expect(page.getByTestId(`player-tile-${id}`).first()).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: /game settings/i }).click();
 }

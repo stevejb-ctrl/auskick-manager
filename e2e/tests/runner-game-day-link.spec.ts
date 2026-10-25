@@ -74,9 +74,9 @@ test("touch: the runner's first screen names the game, and a no-show can be mark
   const noShow = players[players.length - 1];
   await runner.getByRole("link", { name: /update availability/i }).click();
   await expect(runner).toHaveURL(new RegExp(`/run/${game.share_token}\\?step=availability$`));
-  const row = runner.getByRole("group", { name: `${noShow.full_name} availability` });
-  await row.getByRole("button", { name: "Out" }).click();
-  await expect(row.getByRole("button", { name: "Out" })).toHaveAttribute("aria-pressed", "true");
+  const row = runner.getByRole("radiogroup", { name: `${noShow.full_name} availability` });
+  await row.getByRole("radio", { name: "Out" }).click();
+  await expect(row.getByRole("radio", { name: "Out" })).toHaveAttribute("aria-checked", "true");
   await expect
     .poll(async () => {
       const { data } = await admin
