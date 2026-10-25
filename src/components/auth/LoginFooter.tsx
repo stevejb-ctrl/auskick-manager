@@ -9,12 +9,15 @@ import Link from "next/link";
  * once we have a build-time variable for it.
  */
 export function LoginFooter() {
+  // Wraps: at 320 px with 200% text the links ran 20 px off the screen
+  // (R6 follow-up, 25 Oct 2026). The links go under the stamp, and onto
+  // their own lines, when a row can't hold them.
   return (
-    <div className="flex items-center justify-between border-t border-hairline pt-3 text-xs text-ink-dim">
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-hairline pt-3 text-xs text-ink-dim">
       <span className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-ink-mute">
         SF / V0.4
       </span>
-      <div className="flex gap-4">
+      <div className="flex flex-wrap gap-x-4 gap-y-2">
         <FooterLink href="/help">Help</FooterLink>
         <FooterLink href="/privacy">Privacy</FooterLink>
         <FooterLink href="/terms">Terms</FooterLink>
