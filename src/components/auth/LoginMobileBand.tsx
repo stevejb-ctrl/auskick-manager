@@ -18,7 +18,7 @@ import { getBrand } from "@/lib/brand";
 export function LoginMobileBand() {
   const brand = getBrand();
   return (
-    <div className="flex items-center justify-between border-b border-hairline bg-surface px-5 py-4 md:hidden">
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-hairline bg-surface px-5 py-4 md:hidden">
       <SirenWordmark size="sm" />
       <span className="font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-ink-mute">
         {brand.brand.audience} · Team management

@@ -74,9 +74,9 @@ test("touch: the runner's first screen names the game, and a no-show can be mark
   const noShow = players[players.length - 1];
   await runner.getByRole("link", { name: /update availability/i }).click();
   await expect(runner).toHaveURL(new RegExp(`/run/${game.share_token}\\?step=availability$`));
-  const row = runner.getByRole("group", { name: `${noShow.full_name} availability` });
-  await row.getByRole("button", { name: "Out" }).click();
-  await expect(row.getByRole("button", { name: "Out" })).toHaveAttribute("aria-pressed", "true");
+  const row = runner.getByRole("radiogroup", { name: `${noShow.full_name} availability` });
+  await row.getByRole("radio", { name: "Out" }).click();
+  await expect(row.getByRole("radio", { name: "Out" })).toHaveAttribute("aria-checked", "true");
   await expect
     .poll(async () => {
       const { data } = await admin
@@ -152,10 +152,10 @@ test("netball: the runner's picker starts from the coach's saved plan, as the co
   const runner = await runnerPhone(browser);
   await runner.goto(`/run/${game.share_token}`);
   for (const phone of [page, runner]) {
-    await expect(phone.getByRole("button", { name: new RegExp(`^Goal Shooter,\\s*${players[8].full_name}`, "i") })).toBeVisible({
+    await expect(phone.getByRole("button", { name: new RegExp(`^${players[8].full_name}, Goal Shooter`, "i") })).toBeVisible({
       timeout: 15_000,
     });
-    await expect(phone.getByRole("button", { name: new RegExp(`^Goal Attack,\\s*${players[7].full_name}`, "i") })).toBeVisible();
+    await expect(phone.getByRole("button", { name: new RegExp(`^${players[7].full_name}, Goal Attack`, "i") })).toBeVisible();
   }
   await runner.context().close();
 });

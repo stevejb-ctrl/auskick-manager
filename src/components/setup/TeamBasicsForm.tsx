@@ -7,6 +7,7 @@ import { updateTeamBasics } from "@/app/(app)/teams/[teamId]/setup/actions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { useRadioGroup, type RadioProps } from "@/components/ui/useRadioGroup";
 import { getSportConfig, isTouch, periodLabels } from "@/lib/sports";
 import { Toggle } from "@/components/ui/Toggle";
 import { mixedRuleSummary } from "@/lib/sports/touch/mixed";
@@ -59,6 +60,20 @@ const NAME_EXAMPLE: Record<Sport, string> = {
 // id in the catalog — most clubs start at U10 for AFL and both rugbys,
 // and at NetSetGO "go" for netball. Soccer isn't a pill yet (phase 2
 // adds it); U10 is MiniRoos' 9 a side.
+/** The sport pills, in the order they're shown. */
+const SPORT_ORDER: readonly Sport[] = [
+  "afl",
+  "netball",
+  "rugby_league",
+  "rugby_union",
+  "soccer",
+  "basketball",
+  "futsal",
+  "hockey",
+  "touch",
+  "oztag",
+];
+
 const DEFAULT_AGE: Record<Sport, string> = {
   afl: "U10",
   netball: "go",
@@ -130,6 +145,9 @@ export function TeamBasicsForm({
     followAge(nextCfg, false);
   }
 
+  // The sports are one radio group: a Tab stop, arrow keys between them.
+  const sportRadio = useRadioGroup<Sport>({ values: SPORT_ORDER, value: sport, onChange: handleSportChange, disabled: isPending });
+
   function handleAgeChange(next: string) {
     setAgeGroup(next);
     followAge(cfg.ageGroups.find((a) => a.id === next) ?? cfg.ageGroups[0], true);
@@ -187,10 +205,11 @@ export function TeamBasicsForm({
             scannable shape on a thumb. Two by two at sm+ so an iPad /
             browser shows the four choices at a glance.
           */}
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div role="radiogroup" aria-label="Sport" className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <SportPill
               active={sport === "afl"}
               onClick={() => handleSportChange("afl")}
+              radio={sportRadio.radioProps("afl")}
               disabled={isPending}
               title="Junior AFL"
               subtitle="U8–U17. Manage subs, zones or positions, scoring and more."
@@ -198,6 +217,7 @@ export function TeamBasicsForm({
             <SportPill
               active={sport === "netball"}
               onClick={() => handleSportChange("netball")}
+              radio={sportRadio.radioProps("netball")}
               disabled={isPending}
               title="Junior Netball"
               subtitle="Set–Open. Manage subs, rotations through the thirds and 7 positions, scoring and more."
@@ -205,6 +225,7 @@ export function TeamBasicsForm({
             <SportPill
               active={sport === "rugby_league"}
               onClick={() => handleSportChange("rugby_league")}
+              radio={sportRadio.radioProps("rugby_league")}
               disabled={isPending}
               title="Junior Rugby League"
               subtitle="U6–U17. Manage subs, vest + kick rotations, scoring and more."
@@ -212,6 +233,7 @@ export function TeamBasicsForm({
             <SportPill
               active={sport === "rugby_union"}
               onClick={() => handleSportChange("rugby_union")}
+              radio={sportRadio.radioProps("rugby_union")}
               disabled={isPending}
               title="Junior Rugby Union"
               subtitle="U6–U18. Manage subs, forwards and backs or named positions, scoring and more."
@@ -220,6 +242,7 @@ export function TeamBasicsForm({
             <SportPill
               active={sport === "soccer"}
               onClick={() => handleSportChange("soccer")}
+              radio={sportRadio.radioProps("soccer")}
               disabled={isPending}
               title="Junior Football (soccer)"
               subtitle="MiniRoos to U17. Manage subs, a fair turn in goal, lines, scoring and more."
@@ -229,6 +252,7 @@ export function TeamBasicsForm({
             <SportPill
               active={sport === "basketball"}
               onClick={() => handleSportChange("basketball")}
+              radio={sportRadio.radioProps("basketball")}
               disabled={isPending}
               title="Junior Basketball"
               subtitle="U8–U18. Manage subs at the table, guard and forward rotations, fouls, scoring and more."
@@ -238,6 +262,7 @@ export function TeamBasicsForm({
             <SportPill
               active={sport === "futsal"}
               onClick={() => handleSportChange("futsal")}
+              radio={sportRadio.radioProps("futsal")}
               disabled={isPending}
               title="Junior Futsal"
               subtitle="U6–U17. Manage flying subs, a fair turn in goal, back, wings and front, scoring and more."
@@ -247,6 +272,7 @@ export function TeamBasicsForm({
             <SportPill
               active={sport === "hockey"}
               onClick={() => handleSportChange("hockey")}
+              radio={sportRadio.radioProps("hockey")}
               disabled={isPending}
               title="Junior Hockey"
               subtitle="U7–U17. Manage subs, keeper turns at the breaks, halves or quarters, scoring and more."
@@ -256,6 +282,7 @@ export function TeamBasicsForm({
             <SportPill
               active={sport === "touch"}
               onClick={() => handleSportChange("touch")}
+              radio={sportRadio.radioProps("touch")}
               disabled={isPending}
               title="Junior Touch football"
               subtitle="U6–U17. Manage rolling subs, middle, link and wing rotations, the mixed rule, scoring and more."
@@ -264,6 +291,7 @@ export function TeamBasicsForm({
             <SportPill
               active={sport === "oztag"}
               onClick={() => handleSportChange("oztag")}
+              radio={sportRadio.radioProps("oztag")}
               disabled={isPending}
               title="Junior Oztag"
               subtitle="U6–U17. Manage rolling subs from the sub box, the mixed rule and girls' tries, scoring and more."
@@ -381,7 +409,8 @@ export function TeamBasicsForm({
 }
 
 // ─── Sport pill ──────────────────────────────────────────────
-// Radio-ish button with title + one-line capsule. The parent wraps
+// A radio (it was a pressed button) with title + one-line capsule. The
+// parent's radiogroup gives the arrow keys (useRadioGroup). It wraps
 // these in a responsive 1-up (mobile) / 2-up (sm+) grid so all four
 // sports — AFL, Netball, Rugby League, Rugby Union — are scannable at
 // a glance.
@@ -392,6 +421,7 @@ function SportPill({
   title,
   subtitle,
   badge,
+  radio,
 }: {
   active: boolean;
   onClick: () => void;
@@ -400,13 +430,16 @@ function SportPill({
   subtitle: string;
   /** A small tag beside the title, e.g. "Beta". */
   badge?: string;
+  radio: RadioProps;
 }) {
   return (
     <button
+      {...radio}
       type="button"
+      role="radio"
       onClick={onClick}
       disabled={disabled}
-      aria-pressed={active}
+      aria-checked={active}
       aria-label={title}
       className={[
         "rounded-md border p-3 text-left text-sm transition-colors",

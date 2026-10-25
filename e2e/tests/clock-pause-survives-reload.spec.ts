@@ -164,7 +164,7 @@ async function clockSeconds(page: Page): Promise<number> {
 async function kidSeconds(page: Page, sport: Sport, kid: { id: string; full_name: string }): Promise<number> {
   const tile =
     sport === "netball"
-      ? page.getByRole("button", { name: new RegExp(`^[^,]+, ${kid.full_name}\\b`) }).first()
+      ? page.getByRole("button", { name: new RegExp(`^${kid.full_name}, `) }).first()
       : page.getByTestId(`player-tile-${kid.id}`).first();
   return mmss(await tile.getByText(/^\s*\d+:\d{2}\s*$/).first().textContent());
 }

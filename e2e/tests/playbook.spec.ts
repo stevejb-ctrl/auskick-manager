@@ -1210,9 +1210,10 @@ test("netball Carnival day: a kid gets the third they haven't played today", asy
     } catch {}
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  const kidToken = page.getByRole("button", { name: new RegExp(`, ${players[6].full_name}$`) });
+  // A court token reads the kid first, then the bib (tileName).
+  const kidToken = page.getByRole("button", { name: new RegExp(`^${players[6].full_name}, `) });
   await expect(kidToken).toBeVisible({ timeout: 15_000 });
-  await expect(kidToken).toHaveAccessibleName(/^(Goal Shooter|Goal Attack),/);
+  await expect(kidToken).toHaveAccessibleName(new RegExp(`^${players[6].full_name}, (Goal Shooter|Goal Attack)(,|$)`));
 
   // Round 5 (carnival-day-netball): before kickoff nothing showed who
   // still needs which third today — the rule check only appeared at the

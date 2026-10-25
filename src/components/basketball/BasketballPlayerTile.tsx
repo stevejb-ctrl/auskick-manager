@@ -10,7 +10,8 @@
 // fouling out; none at no fouls), OUT for a foul-out, points as "n PTS",
 // and a sit-out's countdown.
 
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useId, useRef, useState } from "react";
+import { tileName } from "@/components/live/tileName";
 import type { Player } from "@/lib/types";
 import type { BasketballLine } from "@/lib/sports/basketball/types";
 import { BASKETBALL_LINE_ZONE } from "@/lib/sports/basketball";
@@ -182,6 +183,32 @@ function BasketballPlayerTileImpl({
 
   const lineLabel = positionLabel ?? (line ? BASKETBALL_LINE_SHORT[line] || null : null);
 
+  // One accessible name, read once: kid, line or position, number,
+  // time, chips (tileName). The time at guard and forward is the description.
+  const splitId = useId();
+  const lineSplit =
+    totalMs !== undefined && lineMs
+      ? BAR_ORDER.filter((u) => (lineMs[u] ?? 0) > 0)
+          .map((u) => `${BASKETBALL_LINE_LABEL[u]} ${formatMinSec(lineMs[u] ?? 0)}`)
+          .join(", ") || null
+      : null;
+  const spokenName = tileName({
+    name: player.full_name,
+    place: positionLabel ?? (line && BASKETBALL_LINE_SHORT[line] ? BASKETBALL_LINE_LABEL[line] : null),
+    number: player.jersey_number,
+    time: totalMs !== undefined ? formatMinSec(totalMs) : null,
+    states: [
+      isOn && `Going on${swap?.line && swap.line !== "court" ? ` to ${BASKETBALL_LINE_LABEL[swap.line]}` : ""}, pair ${swap?.pair}`,
+      isOff && `Coming off next, pair ${swap?.pair}`,
+      fouledOut ? "Fouled out" : injured && "Injured",
+      loaned && !injured && !fouledOut && "Lent to opposition",
+      sittingOut && !injured && !fouledOut && `Sitting out, ${formatMinSec(sitOutMsLeft ?? 0)} left`,
+      fouls !== null && foulCount > 0 && !fouledOut && `${foulCount} ${foulCount === 1 ? "foul" : "fouls"}`,
+      !!lockMode && !away && (lockMode === "field" ? "Kept on" : "Line locked"),
+      hasPoints && !isOff && `${points} ${points === 1 ? "point" : "points"}`,
+    ],
+  });
+
   // The swap handover, as AFL's tile: a tile marked OFF that receives
   // the kid coming on pops a green ✓ and rolls the names.
   const prevRef = useRef({ id: player.id, name: displayName, wasOff: !!isOff });
@@ -210,6 +237,8 @@ function BasketballPlayerTileImpl({
       <button
         type="button"
         data-testid={`player-tile-${player.id}`}
+        aria-label={spokenName}
+        aria-describedby={lineSplit ? splitId : undefined}
         onClick={handleClick}
         {...longPressHandlers}
         disabled={!onClick && !onLongPress}
@@ -372,6 +401,12 @@ function BasketballPlayerTileImpl({
           )}
         </div>
       </button>
+      {/* The time at guard and forward, outside the tile so it isn't the tile's text. */}
+      {lineSplit && (
+        <span id={splitId} hidden>
+          {lineSplit}
+        </span>
+      )}
     </SirenPulseHalo>
   );
 }

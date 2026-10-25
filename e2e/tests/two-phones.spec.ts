@@ -127,7 +127,7 @@ test("netball: each phone shows the other's goal without a reload", async ({ pag
   await expect(score(page, "them")).toHaveText("1", SYNC);
 
   // The coach scores a GS goal: the runner's phone shows it.
-  await page.getByRole("button", { name: new RegExp(`^Goal Shooter,\\s*${players[0].full_name}`, "i") }).click();
+  await page.getByRole("button", { name: new RegExp(`^${players[0].full_name}, Goal Shooter`, "i") }).click();
   await page.getByRole("button", { name: /^(\+\s*goal|record goal|confirm goal)$/i }).click();
   await expect(score(page, "us")).toHaveText("1");
   await expect(score(runner, "us")).toHaveText("1", SYNC);
@@ -292,7 +292,7 @@ test("netball: undo on the runner's phone takes back its own goal, not the coach
   // The runner scores for the opposition; then the coach scores, later.
   await runner.getByRole("button", { name: `Add goal, ${OPPONENT}` }).click();
   await expect.poll(async () => (await events(admin, game.id, "opponent_goal")).length, SYNC).toBe(1);
-  await page.getByRole("button", { name: new RegExp(`^Goal Shooter,\\s*${players[0].full_name}`, "i") }).click();
+  await page.getByRole("button", { name: new RegExp(`^${players[0].full_name}, Goal Shooter`, "i") }).click();
   await page.getByRole("button", { name: /^(\+\s*goal|record goal|confirm goal)$/i }).click();
   await expect.poll(async () => (await events(admin, game.id, "goal")).length, SYNC).toBe(1);
 

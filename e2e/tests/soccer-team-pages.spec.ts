@@ -17,7 +17,7 @@ test("soccer: the wizard makes a U9 team with MiniRoos rules, and every team pag
 
   await gotoStable(page, "/teams/new");
   await waitForHydration(page);
-  const pill = page.getByRole("button", { name: "Junior Football (soccer)" });
+  const pill = page.getByRole("radio", { name: "Junior Football (soccer)" });
   await expect(pill).toContainText("Beta");
   await pill.click();
   const teamName = `SOC-WIZ-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;

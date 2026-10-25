@@ -24,6 +24,7 @@ import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { RadioChips } from "@/components/ui/RadioChips";
 import { SFButton } from "@/components/sf";
 import { LockModal } from "@/components/live/LockModal";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
@@ -382,27 +383,15 @@ export function SoccerLineupPicker({
             {shapes.length > 1 && (
               <div className="space-y-2">
                 <Label className="text-xs">Shape</Label>
-                <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Shape">
-                  {shapes.map((f) => (
-                    <button
-                      key={f.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={f.id === formation.id}
-                      onClick={() => {
-                        setFormationId(f.id);
-                        resuggest(onFieldSize, f.id);
-                      }}
-                      className={`rounded-full border px-3 py-1 font-mono text-xs font-semibold ${
-                        f.id === formation.id
-                          ? "border-ink bg-ink text-warm"
-                          : "border-hairline bg-surface text-ink-dim hover:bg-surface-alt"
-                      }`}
-                    >
-                      {f.id}
-                    </button>
-                  ))}
-                </div>
+                <RadioChips
+                  label="Shape"
+                  options={shapes.map((f) => ({ id: f.id, label: f.id }))}
+                  value={formation.id}
+                  onChange={(id) => {
+                    setFormationId(id);
+                    resuggest(onFieldSize, id);
+                  }}
+                />
               </div>
             )}
             {ageGroup.subMode.kind === "rolling" ? (

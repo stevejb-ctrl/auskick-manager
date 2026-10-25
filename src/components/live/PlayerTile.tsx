@@ -1,9 +1,11 @@
 "use client";
 
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useId, useRef, useState } from "react";
 import type { Player, Zone } from "@/lib/types";
 import type { ZoneMinutes } from "@/lib/fairness";
+import { ZONE_LABELS } from "@/lib/ageGroups";
 import { ZONE_SHORT } from "@/components/live/Field";
+import { tileName } from "@/components/live/tileName";
 import { type ChipKey, type ChipMode } from "@/lib/chips";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
@@ -160,6 +162,28 @@ function PlayerTileImpl({
 
   const zoneLabel = positionLabel ?? (currentZone ? ZONE_SHORT[currentZone] : null);
 
+  // One accessible name, read once: kid, zone, number, time, chips
+  // (tileName). The zone split is the description.
+  const splitId = useId();
+  const zoneSplit =
+    totalMs !== undefined && zoneMs
+      ? `Fwd ${formatMinSec(zoneMs.fwd)}, Mid ${formatMinSec(zoneMs.mid)}, Back ${formatMinSec(zoneMs.back)}`
+      : null;
+  const spokenName = tileName({
+    name: player.full_name,
+    place: positionLabel ?? (currentZone ? ZONE_LABELS[currentZone] : null),
+    number: player.jersey_number,
+    time: totalMs !== undefined ? formatMinSec(totalMs) : null,
+    states: [
+      isOn && (swap?.zone ? `Going on to ${ZONE_LABELS[swap.zone]}, pair ${swap.pair}` : `Going on, pair ${swap?.pair}`),
+      isOff && `Coming off next, pair ${swap?.pair}`,
+      hasScore && score && `${score.goals} goals, ${score.behinds} behinds`,
+      injured && "Injured",
+      loaned && !injured && "Lent to opposition",
+      !!lockMode && !injured && !loaned && (lockMode === "field" ? "Field locked" : "Zone locked"),
+    ],
+  });
+
   // Swap commit (design session 17 Oct 2026): the field keys tiles by
   // slot, so when an OFF-marked player is swapped out this same tile
   // receives the incoming player and hands over — the OFF chip pops to
@@ -204,6 +228,8 @@ function PlayerTileImpl({
     <button
       type="button"
       data-testid={`player-tile-${player.id}`}
+      aria-label={spokenName}
+      aria-describedby={zoneSplit ? splitId : undefined}
       onClick={handleClick}
       {...longPressHandlers}
       disabled={!onClick && !onLongPress}
@@ -386,6 +412,12 @@ function PlayerTileImpl({
         )}
       </div>
     </button>
+    {/* The tile's description, outside it so it isn't the tile's text. */}
+    {zoneSplit && (
+      <span id={splitId} hidden>
+        {zoneSplit}
+      </span>
+    )}
     </SirenPulseHalo>
   );
 }

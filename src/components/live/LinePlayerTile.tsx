@@ -21,6 +21,7 @@ import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
 import { useSquadNames } from "@/components/live/SquadNames";
 import { KeepOnMarker } from "@/components/playbook/KeepOnMarker";
+import { tileName } from "@/components/live/tileName";
 
 /** How a sport draws one of its lines on a tile. */
 export interface TileLineStyle {
@@ -70,6 +71,8 @@ export interface LinePlayerTileProps {
   swapDue?: boolean;
   /** A sport's own status chip after the score (basketball's fouls). */
   extraChip?: ReactNode;
+  /** What `extraChip` says to a screen reader ("First Receiver vest"), in the tile's name. */
+  extraChipLabel?: string | null;
   /** Named positions: the kid's position ("HK") in place of the line's label. */
   positionLabel?: string | null;
   /** Season role "Plays every minute": the corner marker. */
@@ -113,6 +116,7 @@ function LinePlayerTileImpl({
   score,
   swapDue = false,
   extraChip,
+  extraChipLabel = null,
   positionLabel = null,
   keepOn = false,
   testId,
@@ -120,6 +124,7 @@ function LinePlayerTileImpl({
 }: LinePlayerTileProps) {
   const { handlers: longPressHandlers, arming: longPressArming, consumedLongPress } = useLongPress({ onLongPress });
   const ruleNoteId = useId();
+  const splitId = useId();
 
   function handleClick() {
     if (consumedLongPress()) return;
@@ -180,16 +185,43 @@ function LinePlayerTileImpl({
   const swapStyle = swap?.line ? styles[swap.line] : undefined;
   const swapLabel = swapStyle?.short || "ON";
 
+  // One accessible name, read once: kid, line or position, number,
+  // time, chips (tileName). The time in each line is the description.
+  const lineSplit =
+    totalMs !== undefined && lineMs
+      ? barOrder
+          .filter((u) => (lineMs[u] ?? 0) > 0)
+          .map((u) => `${styles[u]?.label ?? u} ${formatMinSec(lineMs[u] ?? 0)}`)
+          .join(", ") || null
+      : null;
+  const spokenName = tileName({
+    name: player.full_name,
+    place: positionLabel || (style?.short ? style.label : null),
+    number: player.jersey_number,
+    time: totalMs !== undefined ? formatMinSec(totalMs) : null,
+    states: [
+      isOn && `Going on${swapStyle?.short ? ` to ${swapStyle.label}` : ""}, pair ${swap?.pair}`,
+      isOff && `Coming off next, pair ${swap?.pair}`,
+      !isOff && score?.label,
+      extraChipLabel,
+      injured && "Injured",
+      loaned && !injured && "Lent to opposition",
+      !!lockMode && !away && (lockMode === "field" ? "Kept on" : "Line locked"),
+    ],
+  });
+  const describedBy = [ruleNote ? ruleNoteId : null, lineSplit ? splitId : null].filter(Boolean).join(" ") || undefined;
+
   return (
     <SirenPulseHalo triggerKey={swap?.pair ?? null} size="md" display="block" className="rounded-md">
       <button
         type="button"
         data-testid={testId ?? `player-tile-${player.id}`}
         aria-pressed={selected ?? false}
+        aria-label={spokenName}
         onClick={handleClick}
         {...longPressHandlers}
         disabled={!onClick && !onLongPress}
-        aria-describedby={ruleNote ? ruleNoteId : undefined}
+        aria-describedby={describedBy}
         className={[
           "relative flex min-h-[68px] w-full flex-col items-stretch rounded-md text-left [transition:transform_120ms_cubic-bezier(0.2,0.8,0.2,1),opacity_120ms_cubic-bezier(0.2,0.8,0.2,1),box-shadow_240ms_cubic-bezier(0.2,0.8,0.2,1),background-color_240ms_cubic-bezier(0.2,0.8,0.2,1)]",
           baseBg,
@@ -335,6 +367,12 @@ function LinePlayerTileImpl({
           </span>
         )}
       </button>
+      {/* The time in each line, outside the tile so it isn't the tile's text. */}
+      {lineSplit && (
+        <span id={splitId} hidden>
+          {lineSplit}
+        </span>
+      )}
     </SirenPulseHalo>
   );
 }
@@ -361,7 +399,8 @@ function areEqual(a: LinePlayerTileProps, b: LinePlayerTileProps): boolean {
     a.keepOn !== b.keepOn ||
     a.score?.text !== b.score?.text ||
     a.swapDue !== b.swapDue ||
-    a.extraChip !== b.extraChip
+    a.extraChip !== b.extraChip ||
+    a.extraChipLabel !== b.extraChipLabel
   ) {
     return false;
   }

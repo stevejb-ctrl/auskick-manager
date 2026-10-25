@@ -45,13 +45,13 @@ test("team admin toggles a player's availability for a game", async ({
     .getByRole("listitem")
     .filter({ hasText: target.full_name })
     .first();
-  const inBtn = row.getByRole("button", { name: /^in$/i });
-  const outBtn = row.getByRole("button", { name: /^out$/i });
+  const inBtn = row.getByRole("radio", { name: /^in$/i });
+  const outBtn = row.getByRole("radio", { name: /^out$/i });
   // Click 1: unknown → available.
   await inBtn.click();
   // Wait for the round-trip to land before clicking again — otherwise
   // we race and may double-fire on stale state.
-  await expect(inBtn).toHaveAttribute("aria-pressed", "true");
+  await expect(inBtn).toHaveAttribute("aria-checked", "true");
   // Click 2: available → unavailable.
   await outBtn.click();
 
@@ -249,8 +249,8 @@ test("game day: marking a player out on the lineup screen drops them from the li
 
   await page.getByRole("button", { name: /who's here/i }).click();
   await page
-    .getByRole("group", { name: `${noShow.full_name} availability` })
-    .getByRole("button", { name: /^out$/i })
+    .getByRole("radiogroup", { name: `${noShow.full_name} availability` })
+    .getByRole("radio", { name: /^out$/i })
     .click();
 
   await expect(page.getByRole("button", { name: /who's here/i })).toContainText("13 of 14 in", {

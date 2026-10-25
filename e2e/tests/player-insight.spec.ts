@@ -228,7 +228,7 @@ test("netball: long-press a player shows in-game, per-period and season insight 
   // same trigger as netball-live-flow.spec.ts NETBALL-08.
   await page
     .getByRole("button", {
-      name: new RegExp(`^Goal Shooter,\\s*${players[0].full_name}`, "i"),
+      name: new RegExp(`^${players[0].full_name}, Goal Shooter`, "i"),
     })
     .click({ delay: 600 });
 
