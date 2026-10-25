@@ -74,7 +74,7 @@ export function SportsMenu() {
       <div
         id={panelId}
         hidden={!open}
-        className="absolute inset-x-3 top-full z-30 mt-2 max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-2xl border border-hairline bg-surface shadow-pop sm:inset-x-auto sm:left-0 sm:w-[min(44rem,calc(100vw-3rem))]"
+        className="absolute inset-x-3 top-full z-30 mt-2 max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-2xl border border-hairline bg-surface shadow-pop sm:inset-x-auto sm:right-0 sm:w-[min(44rem,calc(100vw-3rem))]"
       >
         <nav aria-label="Sports">
           <ul className="grid grid-cols-1 gap-0.5 p-3 sm:grid-flow-col sm:grid-cols-2 sm:grid-rows-5 sm:gap-x-4 sm:p-4">

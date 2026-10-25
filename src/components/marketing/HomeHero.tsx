@@ -19,6 +19,12 @@ const PLACE = {
   front: "left-1/2 top-0 w-[244px] -translate-x-1/2",
 } as const;
 
+const LABEL = {
+  left: "left-5",
+  right: "right-5",
+  front: "left-1/2 -translate-x-1/2",
+} as const;
+
 /**
  * The homepage hero. One pitch for every sport, server-rendered and
  * still (it used to rotate through the sports every 4.5 s, which at ten
@@ -70,7 +76,9 @@ export function HomeHero() {
                         className="object-cover object-top"
                       />
                     </div>
-                    <span className="absolute -bottom-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-hairline bg-surface px-3 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-ink">
+                    {/* The front phone covers the back ones' middles, so
+                        their labels sit at their outer edges. */}
+                    <span className={`absolute -bottom-3.5 ${LABEL[place]} whitespace-nowrap rounded-full border border-hairline bg-surface px-3 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-ink`}>
                       {sport.short}
                     </span>
                   </div>
