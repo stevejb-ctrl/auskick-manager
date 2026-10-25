@@ -17,7 +17,14 @@ import { notifyGameStarted } from "@/lib/notifications/gameStarted";
 import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvailability";
 import type { ActionResult, LiveAuth } from "@/lib/types";
 import type { GenericLineup } from "@/lib/sports/netball/fairness";
-import { checkPeriodWrite, revalidateLivePage, scoreRowsOf, staleRefusal } from "@/lib/live/liveWriteGuard";
+import {
+  checkPeriodWrite,
+  kickoffRaceRefusal,
+  raceVerdictOf,
+  revalidateLivePage,
+  scoreRowsOf,
+  staleRefusal,
+} from "@/lib/live/liveWriteGuard";
 import type { PeriodWrite } from "@/lib/live/periodGuard";
 import { resolveUndoTarget, undoArgs, type UndoTargetRef } from "@/lib/live/undoTarget";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
@@ -106,6 +113,10 @@ async function insertEvent(
     idempotency_key: idempotencyKey ?? null,
   });
   if (error) {
+    // The other phone's start or Finish landed after the guard looked.
+    const race = await raceVerdictOf(w.supabase, gameId, error, { type, guard }, "quarter", idempotencyKey);
+    if (race?.kind === "stale") return staleRefusal(auth, w.teamId, gameId, race.message);
+    if (race?.kind === "duplicate") return { success: true };
     // Unique violation on idempotency_key means the client is
     // replaying an op that already landed. Treat as success.
     if (error.code === "23505" && idempotencyKey) {
@@ -171,7 +182,10 @@ export async function startNetballGame(
     lineup,
   );
 
+  // Its id, so a kickoff that loses the race can take it back out.
+  const lineupEventId = crypto.randomUUID();
   const { error: insertError } = await w.supabase.from("game_events").insert({
+    id: lineupEventId,
     game_id: gameId,
     type: "lineup_set",
     metadata: { lineup: reconciledLineup, sport: "netball" },
@@ -192,7 +206,11 @@ export async function startNetballGame(
         metadata: { quarter: 1, sport: "netball" },
         created_by: w.userId,
       });
-    if (qStartError) return { success: false, error: qStartError.message };
+    if (qStartError) {
+      const raced = await kickoffRaceRefusal(gameId, [lineupEventId], qStartError, "quarter");
+      if (raced) return staleRefusal(auth, w.teamId, gameId, raced);
+      return { success: false, error: qStartError.message };
+    }
   }
 
   // Validate the override before writing — bounds match the picker

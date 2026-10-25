@@ -96,7 +96,8 @@ const SPORTS: SportCase[] = [
     sport: "soccer",
     first: "H1",
     second: "H2",
-    kickoff: () => soccer.startSoccerGame(auth, GAME, any({ keeper: null, lines: {}, bench: [] }), 7, true),
+    // A keeper, or U10's lineup check refuses it before anything is written.
+    kickoff: () => soccer.startSoccerGame(auth, GAME, any({ keeper: "p1", lines: {}, bench: [] }), 7, true),
     startPeriod: (q) => soccer.startSoccerHalf(auth, GAME, q),
     endPeriod: (q) => soccer.endSoccerHalf(auth, GAME, q, 600_000),
     breakLineup: () => soccer.recordSoccerLineupSet(auth, GAME, any({ keeper: null, lines: {}, bench: [] }), undefined),
@@ -236,6 +237,57 @@ describe.each(SPORTS)("$sport: a phone behind the game can't write a second kick
     expect((await s.liveLineup!(2)).success).toBe(true);
   });
 });
+
+// ─── Both phones tap Start in the same instant ───────────────
+// Each phone's guard reads the game before either writes, so both pass
+// it; the database's unique indexes (migration 0075) refuse the second
+// write, and the action words that as the guard would have.
+describe.each(SPORTS)("$sport: two phones tapping Start at once", (s) => {
+  /** The other phone's event, landing between this phone's check and its write. */
+  const otherPhoneWrites = (...rows: { type: string; metadata: Record<string, unknown> }[]) =>
+    state.db.interleave(() => {
+      for (const r of rows) state.db.rows("game_events").push({ game_id: GAME, player_id: null, idempotency_key: null, created_at: "2026-10-24T08:00:00.000Z", ...r, id: `other-${r.type}` });
+    });
+
+  it("the second start of a period is refused as stale, and there's one start", async () => {
+    seed(s.sport, "in_progress", atBreak(s.sport));
+    otherPhoneWrites({ type: "quarter_start", metadata: { quarter: 2, sport: s.sport } });
+    const r = await s.startPeriod(2);
+    expect(r).toMatchObject({ success: false, rejected: true, stale: true, error: `Another phone already started ${s.second}.` });
+    expect(ofType("quarter_start").filter((e) => (e.metadata as { quarter: number }).quarter === 2)).toHaveLength(1);
+  });
+
+  it("the second Finish is done, and there's one game_finalised", async () => {
+    seed(s.sport, "in_progress", atBreak(s.sport));
+    otherPhoneWrites({ type: "game_finalised", metadata: { quarter: 1, sport: s.sport } });
+    const r = await s.finalise();
+    expect(r.success).toBe(true);
+    expect(ofType("game_finalised")).toHaveLength(1);
+  });
+});
+
+describe.each(SPORTS)(
+  "$sport: two phones kicking off at once",
+  (s) => {
+    it("the second kickoff is refused as stale, and leaves no second lineup behind", async () => {
+      seed(s.sport, "upcoming", []);
+      state.db.rows("game_availability").push({ game_id: GAME, player_id: "p1", status: "available" });
+      state.db.interleave(() => {
+        state.db.rows("game_events").push(
+          { id: "other-lineup", game_id: GAME, type: "lineup_set", player_id: null, idempotency_key: null, metadata: { lineup: {}, sport: s.sport }, created_at: "2026-10-24T08:00:00.000Z" },
+          { id: "other-start", game_id: GAME, type: "quarter_start", player_id: null, idempotency_key: null, metadata: { quarter: 1, sport: s.sport }, created_at: "2026-10-24T08:00:00.001Z" },
+        );
+      });
+      const r = await s.kickoff();
+      expect(r).toMatchObject({ success: false, rejected: true, stale: true, error: `Another phone already started ${s.first}.` });
+      expect(ofType("quarter_start").map((e) => e.id)).toEqual(["other-start"]);
+      expect(ofType("lineup_set").map((e) => e.id)).toEqual(["other-lineup"]);
+      // Soccer marks the game in progress first: losing the race mustn't
+      // put the other phone's game back to Upcoming.
+      if (s.sport === "soccer") expect(state.db.rows("games")[0].status).toBe("in_progress");
+    });
+  },
+);
 
 describe("a write the queue replays is done, not stale", () => {
   it("succeeds without a second row when the key has already landed", async () => {

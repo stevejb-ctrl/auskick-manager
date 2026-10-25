@@ -34,7 +34,15 @@ import { basketballAgeGroupForTeam } from "@/lib/sports/basketball";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
 import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvailability";
-import { checkPeriodWrite, periodWordOf, revalidateLivePage, scoreRowsOf, staleRefusal } from "@/lib/live/liveWriteGuard";
+import {
+  checkPeriodWrite,
+  kickoffRaceRefusal,
+  periodWordOf,
+  raceVerdictOf,
+  revalidateLivePage,
+  scoreRowsOf,
+  staleRefusal,
+} from "@/lib/live/liveWriteGuard";
 import { lineupWrite, type PeriodWrite } from "@/lib/live/periodGuard";
 import { resolveUndoTarget, undoArgs, type UndoTargetRef } from "@/lib/live/undoTarget";
 import type { ActionResult, LiveAuth } from "@/lib/types";
@@ -134,6 +142,10 @@ async function insertEvent(
     idempotency_key: idempotencyKey ?? null,
   });
   if (error) {
+    // The other phone's start or Finish landed after the guard looked.
+    const race = await raceVerdictOf(w.supabase, gameId, error, { type, guard }, await periodWordFor(w.teamId), idempotencyKey);
+    if (race?.kind === "stale") return staleRefusal(auth, w.teamId, gameId, race.message);
+    if (race?.kind === "duplicate") return { success: true };
     // Unique-violation on the idempotency_key partial index means this
     // op already landed (write queue retry). Treat as success.
     if (error.code === "23505" && idempotencyKey) return { success: true };
@@ -186,7 +198,10 @@ export async function startBasketballGame(
   const firstError = check.issues.find((i) => i.kind === "error");
   if (firstError) return { success: false, error: firstError.message };
 
+  // Its id, so a kickoff that loses the race can take it back out.
+  const lineupEventId = crypto.randomUUID();
   const { error: insertError } = await w.supabase.from("game_events").insert({
+    id: lineupEventId,
     game_id: gameId,
     type: "lineup_set",
     metadata: { lineup, sport: "basketball" },
@@ -201,7 +216,11 @@ export async function startBasketballGame(
       metadata: { quarter: 1, sport: "basketball" },
       created_by: w.userId,
     });
-    if (startError) return { success: false, error: startError.message };
+    if (startError) {
+      const raced = await kickoffRaceRefusal(gameId, [lineupEventId], startError, await periodWordFor(w.teamId));
+      if (raced) return staleRefusal(auth, w.teamId, gameId, raced);
+      return { success: false, error: startError.message };
+    }
   }
 
   const gameUpdate: {
