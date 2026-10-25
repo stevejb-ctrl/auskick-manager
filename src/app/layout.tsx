@@ -14,6 +14,7 @@ import { PostHogAnalytics } from "@/components/analytics/PostHogAnalytics";
 import { NativeAuthBridge } from "@/components/auth/NativeAuthBridge";
 import { NativeCookieBridge } from "@/components/native/NativeCookieBridge";
 import { NativeSplashHide } from "@/components/native/NativeSplashHide";
+import { A11yRoot } from "@/components/ui/A11yRoot";
 import "./globals.css";
 
 const sans = Inter({
@@ -170,6 +171,10 @@ export default function RootLayout({
             No-op on web. */}
         <NativeSplashHide />
         {children}
+        {/* The one polite live region (scores, subs and the end of a
+            period are said into it, lib/a11y/announce) and the focus
+            history dialogs return focus from. */}
+        <A11yRoot />
         {/* Google Analytics, public pages only: never the app or a
             token link (/run/<token>, /join/<token>). The gate reads
             the URL with useSearchParams, hence the Suspense. */}

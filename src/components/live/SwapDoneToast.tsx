@@ -17,9 +17,17 @@
 // changed. The zero-height relative wrapper keeps the document where it
 // is; the toast floats over the content below.
 
+import { useEffect } from "react";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
+import { announce, swapSaid } from "@/lib/a11y/announce";
 
 export function SwapDoneToast({ text }: { text: string }) {
+  // Said in words ("Leo off, Ava on", not "Leo right arrow Ava") into the
+  // page's one live region: a status mounted with its text inside is
+  // often skipped (UX round 3, e4).
+  useEffect(() => {
+    announce(swapSaid(text));
+  }, [text]);
   return (
     <div className="relative z-30 h-0">
       <div className="absolute inset-x-0 top-0">
@@ -31,8 +39,6 @@ export function SwapDoneToast({ text }: { text: string }) {
               value in animating the disappearance. P1-6 in
               MICRO-INTERACTIONS-PLAN.md. */}
           <div
-            role="status"
-            aria-live="polite"
             data-testid="swap-toast"
             className="flex items-center gap-2 rounded-sm border border-brand-200 bg-brand-50 px-3 py-1.5 text-brand-800 shadow-pop motion-safe:animate-slide-in-bottom"
           >

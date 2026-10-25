@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
+import { announce } from "@/lib/a11y/announce";
+
 interface UndoStripProps {
   /** Just scored: the strip flashes dark with what was recorded. */
   flashing: boolean;
@@ -15,13 +18,17 @@ interface UndoStripProps {
  * with what was recorded, then settles to a quiet "Undo last score".
  */
 export function UndoStrip({ flashing, message, onUndo, disabled = false }: UndoStripProps) {
+  // Said into the page's one live region as it flashes (UX round 3, e4:
+  // a status mounted already holding its text is often skipped). Ahead
+  // of the new score, which the scorebug says.
+  useEffect(() => {
+    if (flashing && message) announce(message, { priority: 1 });
+  }, [flashing, message]);
   return (
     <div
       className={`mx-4 mb-1 flex items-center justify-between rounded-sm px-3 py-1.5 transition-colors ${
         flashing ? "bg-ink text-warm" : "bg-surface-alt"
       }`}
-      role="status"
-      aria-live="polite"
       data-testid="undo-strip"
     >
       <span className={`text-xs ${flashing ? "text-warm/80" : "text-ink-dim"}`}>

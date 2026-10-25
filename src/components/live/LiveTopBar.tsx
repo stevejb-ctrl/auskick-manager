@@ -106,7 +106,8 @@ export function LiveTopBar({
         </button>
         {title ? (
           <div className="flex min-w-0 flex-1 flex-col items-center justify-center py-1 text-center">
-            <h1 className="max-w-full truncate text-[17px] font-bold leading-tight tracking-[-0.01em] text-ink">
+            {/* Focusable by script: the break moves focus here as it opens. */}
+            <h1 tabIndex={-1} className="max-w-full truncate text-[17px] font-bold leading-tight tracking-[-0.01em] text-ink outline-none">
               {title}
             </h1>
             {subtitle && <p className="max-w-full truncate text-xs leading-4 text-ink-dim">{subtitle}</p>}
