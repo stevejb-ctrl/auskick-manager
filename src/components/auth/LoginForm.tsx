@@ -20,6 +20,15 @@ function safeNext(raw: string | null): string {
 type Mode = "magic" | "password";
 
 /**
+ * Signing in to join a team (from an invite or the team-code page):
+ * the team and role when the invite's open, else just "your team".
+ */
+export interface JoinStory {
+  teamName: string | null;
+  roleLabel: string | null;
+}
+
+/**
  * Unified email-first login form.
  *
  * Default mode is `magic`: one email field + one Continue button →
@@ -37,7 +46,7 @@ type Mode = "magic" | "password";
  * Replaces the previous AuthMethods + MagicLinkForm + LoginForm
  * stack with a single component.
  */
-export function LoginForm() {
+export function LoginForm({ join = null }: { join?: JoinStory | null }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNext(searchParams.get("next"));
@@ -132,23 +141,43 @@ export function LoginForm() {
 
   return (
     <div>
-      <Eyebrow>Coaches &amp; team managers</Eyebrow>
-      <h1
-        className="mt-1.5 text-[36px] font-bold tracking-tightest text-ink"
-        style={{ lineHeight: 1.05 }}
-      >
-        Run your team&apos;s{" "}
-        {/* Steve 2026-05-17: marketing design refresh swapped the
-            italic-serif accent for a brand-coloured one — same Geist
-            700 weight, just the per-host accent hue (footy green /
-            netball sky-blue). Mirrors TitleAccent's default treatment
-            on light surfaces. */}
-        <span className="text-brand-500">season</span>
-      </h1>
-      <p className="mt-2 mb-6 text-sm leading-relaxed text-ink-dim">
-        New or returning, enter your email and we&apos;ll get you in.
-        Parents don&apos;t need an account; they just open a share link.
-      </p>
+      {join ? (
+        // Joining a team: not the coach's "Run your team's season"
+        // and "you'll set up a team".
+        <>
+          <Eyebrow>Joining a team</Eyebrow>
+          <h1
+            className="mt-1.5 text-[36px] font-bold tracking-tightest text-ink"
+            style={{ lineHeight: 1.05 }}
+          >
+            Join <span className="text-brand-500">{join.teamName ?? "your team"}</span>
+          </h1>
+          <p className="mt-2 mb-6 text-sm leading-relaxed text-ink-dim">
+            {join.roleLabel ? `You're joining as a ${join.roleLabel}. ` : ""}
+            New or returning, enter your email and we&apos;ll get you in.
+          </p>
+        </>
+      ) : (
+        <>
+          <Eyebrow>Coaches &amp; team managers</Eyebrow>
+          <h1
+            className="mt-1.5 text-[36px] font-bold tracking-tightest text-ink"
+            style={{ lineHeight: 1.05 }}
+          >
+            Run your team&apos;s{" "}
+            {/* Steve 2026-05-17: marketing design refresh swapped the
+                italic-serif accent for a brand-coloured one — same Geist
+                700 weight, just the per-host accent hue (footy green /
+                netball sky-blue). Mirrors TitleAccent's default treatment
+                on light surfaces. */}
+            <span className="text-brand-500">season</span>
+          </h1>
+          <p className="mt-2 mb-6 text-sm leading-relaxed text-ink-dim">
+            New or returning, enter your email and we&apos;ll get you in.
+            Parents don&apos;t need an account; they just open a share link.
+          </p>
+        </>
+      )}
 
       <div className="space-y-2">
         <GoogleSignInButton next={next} />
@@ -218,8 +247,9 @@ export function LoginForm() {
           <p className="mt-0.5 flex items-start gap-2 text-xs leading-snug text-ink-mute">
             <LockIcon />
             <span>
-              We&apos;ll email you a sign-in link. New email? You&apos;ll be
-              invited to set up a team. No password to remember.
+              {join
+                ? "We'll email you a sign-in link, then take you straight to the team. No password to remember."
+                : "We'll email you a sign-in link. New email? You'll be invited to set up a team. No password to remember."}
             </span>
           </p>
         )}

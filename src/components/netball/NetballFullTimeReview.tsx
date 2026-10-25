@@ -7,7 +7,7 @@
 // event and the game_finalised event so the coach can reconcile
 // with the opposition before locking in the result.
 
-import { startTransition, useState, useTransition } from "react";
+import { startTransition } from "react";
 import { useRouter } from "next/navigation";
 import { finaliseNetballGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { hapticSiren } from "@/lib/haptics";
@@ -16,6 +16,7 @@ import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
 import type { LiveAuth, Player } from "@/lib/types";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { useFinishGame } from "@/components/live/useFinishGame";
 
 interface NetballFullTimeReviewProps {
   auth: LiveAuth;
@@ -60,24 +61,22 @@ export function NetballFullTimeReview({
   opponentName = "Them",
 }: NetballFullTimeReviewProps) {
   const router = useRouter();
-  const [finalisePending, startFinaliseTransition] = useTransition();
-  const [finaliseError, setFinaliseError] = useState<string | null>(null);
-
-  function handleFinalise() {
-    setFinaliseError(null);
-    startFinaliseTransition(async () => {
-      const result = await finaliseNetballGame(auth, gameId, finalisedElapsedMs, midQuarterSubs);
-      if (!result.success) {
-        setFinaliseError(result.error);
-        return;
-      }
+  // A failure keeps this screen up, and Finish is safe to tap again
+  // (it used to throw into the error boundary: "Failed to fetch").
+  const {
+    finish: handleFinalise,
+    pending: finalisePending,
+    error: finaliseError,
+  } = useFinishGame(
+    (key) => finaliseNetballGame(auth, gameId, finalisedElapsedMs, midQuarterSubs, key),
+    () => {
       // Siren-pattern haptic — full-time IS a sirenic moment, same
       // fidelity as the quarter-end hooter. Mirrors AFL
       // FullTimeReview (P1-10 / `15b0a7c`).
       void hapticSiren();
       startTransition(() => router.refresh());
-    });
-  }
+    },
+  );
 
   return (
     <div className="rounded-md border border-hairline bg-surface p-4 shadow-card">

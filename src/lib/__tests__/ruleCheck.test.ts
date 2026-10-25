@@ -130,6 +130,35 @@ describe("rule check (RuleCheckBar)", () => {
     });
   });
 
+  it("says a season gap this lineup closes is being closed, not short (UX round 2, 24 Oct 2026)", () => {
+    // "Hugo hasn't played back this season" in amber, with Hugo at BCK in
+    // the very lineup on screen.
+    const items = checkRules({
+      ...base,
+      onField: { hugo: "back", mia: "back" },
+      bench: [],
+      playedThisGame: {},
+      benchedLastPeriod: [],
+      period: 1,
+      rules: [],
+      season: {
+        time: { hugo: { mid: 4 * P, fwd: 4 * P }, mia: { back: 4 * P, mid: 4 * P } },
+        units: ["back", "mid", "fwd"],
+        unitLabel: (k) => label(k).toLowerCase(),
+      },
+    });
+    const season = items.filter((i) => i.id.startsWith("season-"));
+    expect(season).toContainEqual({ id: "season-hugo-back", status: "ok", text: "Hugo plays back this quarter" });
+    // A gap the lineup leaves open still nudges.
+    expect(season).toContainEqual({
+      id: "season-mia-fwd",
+      status: "warn",
+      text: "Mia hasn't played forward this season",
+      playerIds: ["mia"],
+    });
+    expect(summariseCheck(items)).toEqual({ status: "warn", text: "Mia hasn't played forward this season" });
+  });
+
   it("explains a move in one line", () => {
     const why = (over: Partial<Parameters<typeof whyMove>[0]>) =>
       whyMove({

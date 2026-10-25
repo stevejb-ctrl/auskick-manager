@@ -258,5 +258,11 @@ export interface PlaybookSnapshot {
   positions: { key: string; label: string; line: string }[];
   /** The team's rules that were on at kickoff (How we play › Rules). */
   rules?: import("@/lib/playbook/rules").RuleInstance[];
+  /**
+   * Whether this game kept score: the team's switch at kickoff, kept
+   * current if it moves during the game (lib/results scoresKept). Absent
+   * on games played before it was recorded.
+   */
+  trackScoring?: boolean;
   takenAt: string;
 }

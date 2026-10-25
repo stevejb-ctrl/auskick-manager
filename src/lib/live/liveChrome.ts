@@ -21,9 +21,36 @@ export function undoMessage(score: {
   return `${team} ${score.what}${score.side === "us" && score.scorerName ? ` — ${score.scorerName}` : ""}`;
 }
 
+/**
+ * What a sub card's per-pair button is called for a screen reader: "Swap
+ * Leo Ng off, Ava Bell on", or "Put Ava Bell on" into an empty spot. Every
+ * row's "Make swap" read the same (UX round 3, e4).
+ */
+export function swapPairLabel(offName: string | null, onName: string): string {
+  return offName ? `Swap ${offName} off, ${onName} on` : `Put ${onName} on`;
+}
+
 /** "Leo → Ava" for a sub, "Ava on" when the spot was empty. */
 export function swapToastText(offName: string | null, onName: string): string {
   return offName ? `${offName} → ${onName}` : `${onName} on`;
+}
+
+/**
+ * The toast's Undo after "Make all swaps": the same swaps back, last
+ * first, each kid coming back on where they went off (the sport's own
+ * swap, called with the pair flipped). Round 3 edge testing (24 Oct
+ * 2026): a mistaken batch took two hand swaps and two confirms to put
+ * back. Nothing to undo when a swap filled an empty spot (taking a kid
+ * off with nobody for them isn't a swap).
+ */
+export function undoSwaps<S extends { off: string | null; on: string }>(
+  made: S[],
+  swap: (s: S & { off: string }) => void,
+): (() => void) | undefined {
+  if (made.length === 0 || made.some((s) => s.off === null)) return undefined;
+  return () => {
+    for (const s of [...made].reverse()) swap({ ...s, off: s.on, on: s.off as string });
+  };
 }
 
 /**

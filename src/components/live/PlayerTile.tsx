@@ -7,7 +7,9 @@ import { ZONE_SHORT } from "@/components/live/Field";
 import { type ChipKey, type ChipMode } from "@/lib/chips";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
+import { useSquadNames } from "@/components/live/SquadNames";
 import { KeepOnMarker } from "@/components/playbook/KeepOnMarker";
+import { ZONE_STRIP } from "@/components/live/zoneStrip";
 
 export type SwapRole = {
   role: "off" | "on";
@@ -128,10 +130,10 @@ function PlayerTileImpl({
   // Accent class for the bench "→ ZONE" strip, derived from target zone.
   const swapZoneAccent =
     swap?.zone === "fwd" || swap?.zone === "hfwd"
-      ? "border-zone-f/40 bg-zone-f/15 text-zone-f"
+      ? ZONE_STRIP.f
       : swap?.zone === "mid"
-        ? "border-zone-c/40 bg-zone-c/15 text-zone-c"
-        : "border-zone-b/40 bg-zone-b/15 text-zone-b";
+        ? ZONE_STRIP.c
+        : ZONE_STRIP.b;
 
   // Surface + edge per state. Edges are inset rings (not borders) so
   // every state keeps the same 68px box and the lift shadow.
@@ -153,10 +155,8 @@ function PlayerTileImpl({
                 ? "bg-surface shadow-lift-field ring-1 ring-inset ring-warn/50"
                 : "bg-surface shadow-lift-field";
 
-  const parts = player.full_name.trim().split(/\s+/);
-  const firstName = parts[0] ?? "";
-  const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  const displayName = lastInitial ? `${firstName} ${lastInitial}` : firstName;
+  // "First L", told apart from a squad-mate with the same (SquadNames).
+  const displayName = useSquadNames().tile(player);
 
   const zoneLabel = positionLabel ?? (currentZone ? ZONE_SHORT[currentZone] : null);
 

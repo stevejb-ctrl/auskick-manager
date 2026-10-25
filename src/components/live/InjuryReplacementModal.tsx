@@ -2,6 +2,7 @@
 
 import type { Player } from "@/lib/types";
 import { Modal } from "@/components/ui/Modal";
+import { useSquadNames } from "@/components/live/SquadNames";
 
 export interface InjuryReplacementCandidate {
   player: Player;
@@ -68,7 +69,8 @@ export function InjuryReplacementModal({
   onCancel,
   reason = "injured",
 }: InjuryReplacementModalProps) {
-  const firstName = injuredPlayer.full_name.trim().split(/\s+/)[0];
+  const names = useSquadNames();
+  const firstName = names.first(injuredPlayer);
   const words = REASON_WORDS[reason];
 
   return (
@@ -92,7 +94,7 @@ export function InjuryReplacementModal({
         <div className="flex-1 overflow-y-auto px-5 pb-3">
           <ul className="flex flex-col gap-2">
             {candidates.map((c, idx) => {
-              const cFirst = c.player.full_name.trim().split(/\s+/)[0];
+              const cFirst = names.first(c.player);
               const isSuggested = idx === 0;
               return (
                 <li key={c.player.id}>

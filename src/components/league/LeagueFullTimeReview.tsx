@@ -6,18 +6,18 @@
 // netball's `NetballFullTimeReview` — same visual rhythm:
 //
 //   1. "Full time" eyebrow + reconcile message
-//   2. Two side-by-side score boxes (Us / Them)
-//   3. Per-period score table
+//   2. Two side-by-side score boxes (Us / Them), with the T/C line
+//   3. The shared BreakScoreEditor: the score by period, a missed score
+//      for either side on buttons that name their team (the scorebug's
+//      44 pt chips: +T, +C, and U13+'s goals), and Undo
 //   4. "Finalise game" button
 //
 // AFL's `ScoreReviewPanel` is goal/behind-shaped (calls
 // addRetroScore with kinds "goal"/"behind") so RL can't drop it in
-// verbatim. Coaches who need to fix a try/conversion can use the
-// Undo button + re-record via the scorebug — those chips stay
-// enabled at full-time review (see `LeagueLiveGame`'s scorebug
-// gating). A bespoke RL retro-add editor is a follow-up.
+// verbatim; BreakScoreEditor is the editor the sports it can't speak
+// for share (soccer's family, basketball, touch). The live scorebug's
+// chips and undo strip are gone by now (UX audit 23 Oct 2026).
 
-import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { SFButton } from "@/components/sf";
 import { hapticSiren } from "@/lib/haptics";
@@ -34,6 +34,8 @@ import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { GameEvent, LiveAuth } from "@/lib/types";
 import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { useFinishGame } from "@/components/live/useFinishGame";
+import { BreakScoreEditor, type BreakScoreChip } from "@/components/quarter-break/BreakScoreEditor";
 import { periodLabels } from "@/lib/sports";
 
 interface LeagueFullTimeReviewProps {
@@ -109,8 +111,14 @@ export function LeagueFullTimeReview({
   scorePending = false,
 }: LeagueFullTimeReviewProps) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  // A failure keeps this screen up, and Finish is safe to tap again.
+  const { finish: handleFinalise, pending, error } = useFinishGame(
+    (key) => finaliseLeagueGame(auth, gameId, finalisedElapsedMs, key),
+    () => {
+      void hapticSiren();
+      router.refresh();
+    },
+  );
   const periodLabel = periodLabels(sport, ageGroup).label;
   const periodAbbrev = periodLabel.charAt(0).toUpperCase();
   const words = rugbyScoreWords(sport);
@@ -119,19 +127,21 @@ export function LeagueFullTimeReview({
     ageGroup.periodCount,
     rugbyPoints(sport),
   );
-
-  function handleFinalise() {
-    setError(null);
-    startTransition(async () => {
-      const result = await finaliseLeagueGame(auth, gameId, finalisedElapsedMs);
-      if (!result.success) {
-        setError(result.error ?? "Couldn't finalise the game.");
-        return;
-      }
-      void hapticSiren();
-      router.refresh();
-    });
-  }
+  // Each side's buttons, in the sport's words and naming the team.
+  const chips = (
+    team: string,
+    on: { try?: () => void; conversion?: () => void; penaltyGoal?: () => void; fieldGoal?: () => void },
+  ): BreakScoreChip[] => {
+    const out: BreakScoreChip[] = [];
+    const add = (key: string, text: string, what: string, onClick: (() => void) | undefined) => {
+      if (onClick) out.push({ key, text, label: `Add ${what}, ${team}`, onClick });
+    };
+    add("t", "+T", "a try", on.try);
+    if (kickingAllowed) add("c", "+C", "a conversion", on.conversion);
+    add("pg", `+${words.penaltyGoal.short}`, `a ${words.penaltyGoal.label.toLowerCase()}`, on.penaltyGoal);
+    add("fg", `+${words.fieldGoal.short}`, `a ${words.fieldGoal.label.toLowerCase()}`, on.fieldGoal);
+    return out;
+  };
 
   return (
     <div className="rounded-md border border-hairline bg-surface p-4 shadow-card">
@@ -169,177 +179,37 @@ export function LeagueFullTimeReview({
         </div>
       )}
 
-      {/* Per-period reconcile table — mirrors AFL's QuarterScoreTable
-          shape but with the RL T/C breakdown rather than g.b. */}
       {trackScoring && (
-        <div className="mt-4 overflow-hidden rounded-md border border-hairline">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-surface-alt">
-              <tr>
-                <th className="px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute">
-                  {periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)}
-                </th>
-                <th className="px-2 py-1.5 text-right font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute">
-                  {teamName}
-                </th>
-                <th className="px-2 py-1.5 text-right font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute">
-                  {opponentName}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-hairline">
-              {Array.from({ length: ageGroup.periodCount }).map((_, i) => {
-                const p = i + 1;
-                const row = scoreByPeriod[p];
-                if (!row) return null;
-                return (
-                  <tr key={p}>
-                    <td className="px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
-                      {periodAbbrev}
-                      {p}
-                    </td>
-                    <td className="px-2 py-1.5 text-right tabular-nums">
-                      <span className="font-bold text-ink">
-                        {row.team.points}
-                      </span>{" "}
-                      <span className="text-[10px] text-ink-mute">
-                        ({leagueScoreLine(row.team, words)})
-                      </span>
-                    </td>
-                    <td className="px-2 py-1.5 text-right tabular-nums">
-                      <span className="font-bold text-ink">
-                        {row.opponent.points}
-                      </span>{" "}
-                      <span className="text-[10px] text-ink-mute">
-                        ({leagueScoreLine(row.opponent, words)})
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Inline score-adjustments panel — same chips the live
-          scorebug exposes, surfaced HERE so the coach doesn't have
-          to scroll down to the sticky scorebar to fix a miscount.
-          +T / +C add a missed score (+T opens the scorer picker
-          for our team; +C opens the conversion dialog when kicking
-          is allowed). Opponent +T / +C write directly because
-          there's no scorer to attribute. Undo pops the most
-          recent surviving scoring event (LIFO). Hidden entirely
-          when scoring is off. Steve 2026-05-23. */}
-      {trackScoring && (onTeamTry || onTeamConversion || onOpponentTry || onOpponentConversion || onTeamPenaltyGoal || onOpponentPenaltyGoal || onUndo) && (
-        <section className="mt-3 rounded-md border border-hairline bg-surface-alt p-3">
-          <p className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute">
-            Score adjustments
-          </p>
-          <p className="mt-0.5 text-[11px] text-ink-mute">
-            Spotted a miscount? Add a missed score with +T / +C
-            {onTeamPenaltyGoal || onOpponentPenaltyGoal ? ` / +${words.penaltyGoal.short} / +${words.fieldGoal.short}` : ""}, or
-            undo the most recent one.
-          </p>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <div className="space-y-1.5 rounded-md border border-hairline bg-surface p-2">
-              <p className="truncate text-[10px] font-bold uppercase tracking-micro text-ink-mute">
-                {teamName}
-              </p>
-              <div className="flex gap-1.5">
-                {onTeamTry && (
-                  <button
-                    type="button"
-                    onClick={onTeamTry}
-                    disabled={scorePending}
-                    className="flex-1 rounded-sm bg-brand-600 px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
-                  >
-                    + Try
-                  </button>
-                )}
-                {onTeamConversion && kickingAllowed && (
-                  <button
-                    type="button"
-                    onClick={onTeamConversion}
-                    disabled={scorePending}
-                    className="flex-1 rounded-sm border border-brand-500 bg-surface px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-brand-700 transition-colors duration-fast ease-out-quart hover:bg-brand-50 disabled:opacity-60"
-                  >
-                    + Conv
-                  </button>
-                )}
-              </div>
-              {(onTeamPenaltyGoal || onTeamFieldGoal) && (
-                <div className="flex gap-1.5">
-                  {onTeamPenaltyGoal && (
-                    <button type="button" onClick={onTeamPenaltyGoal} disabled={scorePending} className="flex-1 rounded-sm border border-brand-500 bg-surface px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-brand-700 transition-colors duration-fast ease-out-quart hover:bg-brand-50 disabled:opacity-60">
-                      + {words.penaltyGoal.short}
-                    </button>
-                  )}
-                  {onTeamFieldGoal && (
-                    <button type="button" onClick={onTeamFieldGoal} disabled={scorePending} className="flex-1 rounded-sm border border-brand-500 bg-surface px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-brand-700 transition-colors duration-fast ease-out-quart hover:bg-brand-50 disabled:opacity-60">
-                      + {words.fieldGoal.short}
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="space-y-1.5 rounded-md border border-hairline bg-surface p-2">
-              <p className="truncate text-[10px] font-bold uppercase tracking-micro text-ink-mute">
-                {opponentName}
-              </p>
-              <div className="flex gap-1.5">
-                {onOpponentTry && (
-                  <button
-                    type="button"
-                    onClick={onOpponentTry}
-                    disabled={scorePending}
-                    className="flex-1 rounded-sm bg-ink px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-warm transition-colors duration-fast ease-out-quart hover:bg-ink/85 disabled:opacity-60"
-                  >
-                    + Try
-                  </button>
-                )}
-                {onOpponentConversion && kickingAllowed && (
-                  <button
-                    type="button"
-                    onClick={onOpponentConversion}
-                    disabled={scorePending}
-                    className="flex-1 rounded-sm border border-ink/40 bg-surface px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-ink transition-colors duration-fast ease-out-quart hover:bg-ink/5 disabled:opacity-60"
-                  >
-                    + Conv
-                  </button>
-                )}
-              </div>
-              {(onOpponentPenaltyGoal || onOpponentFieldGoal) && (
-                <div className="flex gap-1.5">
-                  {onOpponentPenaltyGoal && (
-                    <button type="button" onClick={onOpponentPenaltyGoal} disabled={scorePending} className="flex-1 rounded-sm border border-ink/40 bg-surface px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-ink transition-colors duration-fast ease-out-quart hover:bg-ink/5 disabled:opacity-60">
-                      + {words.penaltyGoal.short}
-                    </button>
-                  )}
-                  {onOpponentFieldGoal && (
-                    <button type="button" onClick={onOpponentFieldGoal} disabled={scorePending} className="flex-1 rounded-sm border border-ink/40 bg-surface px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro text-ink transition-colors duration-fast ease-out-quart hover:bg-ink/5 disabled:opacity-60">
-                      + {words.fieldGoal.short}
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-          {onUndo
-            && (state.teamScore.points > 0 || state.opponentScore.points > 0)
-            && (
-              <div className="mt-2 flex justify-end">
-                <button
-                  type="button"
-                  onClick={onUndo}
-                  disabled={scorePending}
-                  className="rounded-sm px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-micro text-warn underline-offset-2 transition-colors duration-fast ease-out-quart hover:bg-warn-soft hover:underline disabled:opacity-60"
-                >
-                  ↶ Undo last score
-                </button>
-              </div>
+        <div className="mt-4">
+          <BreakScoreEditor
+            teamName={teamName}
+            opponentName={opponentName}
+            teamPoints={state.teamScore.points}
+            opponentPoints={state.opponentScore.points}
+            scoreByPeriod={Object.fromEntries(
+              Object.entries(scoreByPeriod).map(([p, row]) => [p, { ours: row.team.points, theirs: row.opponent.points }]),
             )}
-        </section>
+            periodCount={ageGroup.periodCount}
+            currentPeriod={ageGroup.periodCount}
+            periodLetter={periodAbbrev}
+            periodWord={periodLabel}
+            teamChips={chips(teamName, {
+              try: onTeamTry,
+              conversion: onTeamConversion,
+              penaltyGoal: onTeamPenaltyGoal,
+              fieldGoal: onTeamFieldGoal,
+            })}
+            opponentChips={chips(opponentName, {
+              try: onOpponentTry,
+              conversion: onOpponentConversion,
+              penaltyGoal: onOpponentPenaltyGoal,
+              fieldGoal: onOpponentFieldGoal,
+            })}
+            missedNote={`Spotted a miscount? A score you missed counts in ${periodAbbrev}${ageGroup.periodCount}.`}
+            onUndo={onUndo ?? (() => {})}
+            undoDisabled={scorePending || !onUndo}
+          />
+        </div>
       )}
 
       {error && (

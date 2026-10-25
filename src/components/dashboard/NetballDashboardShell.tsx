@@ -120,7 +120,7 @@ export function NetballDashboardShell(props: Props) {
         </Suspense>
       </div>
 
-      <div className="grid gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6">
         <Section title="Player statistics">
           <NetballPlayerStatsTable stats={playerStats} hasData={hasPlayData} />
         </Section>
@@ -189,7 +189,9 @@ function NetballPlayerStatsTable({
   const fmt = (ms: number) => Math.round(ms / MS_PER_MIN);
 
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
+    // One explicit column (minmax(0, 1fr)), so a card can't grow to the
+    // width of its metric row and clip at 320 px (UX round 3, e4).
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       {stats.map((s) => {
         const onCourt = s.thirdMs.attack + s.thirdMs.centre + s.thirdMs.defence;
         const pct = (ms: number) => (onCourt > 0 ? Math.round((ms / onCourt) * 100) : 0);
@@ -200,7 +202,7 @@ function NetballPlayerStatsTable({
           <div
             key={s.playerId}
             data-testid={`player-stats-${s.playerId}`}
-            className="rounded-lg border border-hairline bg-surface p-3 shadow-card"
+            className="min-w-0 rounded-lg border border-hairline bg-surface p-3 shadow-card"
           >
             <div className="flex items-start justify-between gap-2">
               <p className="min-w-0 truncate font-semibold text-ink">{s.playerName}</p>
@@ -218,7 +220,7 @@ function NetballPlayerStatsTable({
             </div>
 
             {/* Thirds, attack → defence, in the court's colours. */}
-            <div className="mt-2 flex items-center gap-1.5 text-[11px] font-medium">
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] font-medium">
               <ZonePill abbr="Att" pct={pct(s.thirdMs.attack)} tone="f" />
               <ZonePill abbr="Cen" pct={pct(s.thirdMs.centre)} tone="c" />
               <ZonePill abbr="Def" pct={pct(s.thirdMs.defence)} tone="b" />
@@ -326,7 +328,7 @@ function NetballHeadToHead({
         <tbody className="divide-y divide-hairline bg-surface">
           {records.map((r) => (
             <tr key={r.opponent}>
-              <td className="truncate px-2 py-2 font-medium text-ink">
+              <td className="w-full max-w-0 truncate px-2 py-2 font-medium text-ink" title={r.opponent}>
                 {r.opponent}
               </td>
               <td className="px-2 py-2 text-right tabular-nums text-ink-dim">

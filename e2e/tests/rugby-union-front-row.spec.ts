@@ -43,7 +43,16 @@ const at = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString(
  * Kid i (0–14) has home position i + 1; kids 15 and 16 have none. The
  * game is in H1 (or at half time, with `ended`), kid i at position i + 1.
  */
-async function unionNamedSide(admin: SupabaseClient, name: string, opts: { ended: boolean; extraPrefs?: (ids: string[]) => { player_id: string; position_key: string; kind: string; rank: number }[] }) {
+async function unionNamedSide(
+  admin: SupabaseClient,
+  name: string,
+  opts: {
+    ended: boolean;
+    extraPrefs?: (ids: string[]) => { player_id: string; position_key: string; kind: string; rank: number }[];
+    /** H1's slots, when not each kid's home position. */
+    slots?: (ids: string[]) => Record<string, string>;
+  },
+) {
   const ownerId = await ownerOf(admin);
   const team = await makeTeam(admin, { ownerId, sport: "rugby_union", ageGroup: "U12", name: `${name} ${Date.now()}` });
   await admin.from("team_playbooks").insert({ team_id: team.id, strategy: "named-positions", season_balance: "balanced" });
@@ -64,7 +73,7 @@ async function unionNamedSide(admin: SupabaseClient, name: string, opts: { ended
   await admin.from("game_availability").insert(
     players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
   );
-  const slots = Object.fromEntries(ids.slice(0, 15).map((id, i) => [id, `ru-${i + 1}`]));
+  const slots = opts.slots?.(ids) ?? Object.fromEntries(ids.slice(0, 15).map((id, i) => [id, `ru-${i + 1}`]));
   const lineup = { forwards: ids.slice(0, 8), backs: ids.slice(8, 15), bench: ids.slice(15), slots };
   const events = [
     { type: "lineup_set", metadata: { lineup, sport: "rugby_union" }, created_at: at(1600) },
@@ -121,17 +130,80 @@ test("union half time: Suggested keeps the lines and the picked front row, each 
 test("union half time: a lineup that puts an unpicked kid in the front row is a broken rule", async ({ page }) => {
   test.setTimeout(120_000);
   const admin = createAdminClient();
-  const { team, game } = await unionNamedSide(admin, "RU-FRONTROW-ROTATE", { ended: true });
+  const { team, game, ids } = await unionNamedSide(admin, "RU-FRONTROW-SWAP", { ended: true });
 
   await skipWalkthroughs(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
   await expect(page.getByRole("heading", { name: /^2nd half lineup$/i })).toBeVisible({ timeout: 15_000 });
-  // Rotate swaps the lines: the backs go up, and the front row with them
-  // can only be dealt to kids not picked for it.
-  await pickBreakStrategy(page, "Rotate");
-  await expect(page.getByText(/is at (LHP1|HK2|THP3) but isn't picked to play there/).first()).toBeVisible({ timeout: 10_000 });
+  // The coach swaps the loosehead with the scrum-half: a back in the pack
+  // can only be dealt the spot the loosehead left.
+  await pickBreakStrategy(page, "Repeat");
+  await page.getByTestId(`player-tile-${ids[0]}`).click();
+  await page.getByTestId(`player-tile-${ids[8]}`).click();
+  await expect(page.getByText(/is at LHP1 but isn't picked to play there/).first()).toBeVisible({ timeout: 10_000 });
   await expect(page.getByTestId("break-broken-rule").filter({ hasText: /Rule: Front-row spots go to kids picked for them/ }).first()).toBeVisible();
+});
+
+// Round 2 usability, 24 Oct 2026 (union P2): Rotate sent the whole front
+// row to the wings and dealt LHP1 to an unpicked late arrival; Repeat
+// reshuffled named positions and tagged everyone "Stays".
+
+test("union half time: Rotate swaps the lines but keeps the picked front row in the pack", async ({ page }) => {
+  test.setTimeout(120_000);
+  const admin = createAdminClient();
+  const { team, game, ids } = await unionNamedSide(admin, "RU-FRONTROW-ROTATE", { ended: true });
+
+  await skipWalkthroughs(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  await expect(page.getByRole("heading", { name: /^2nd half lineup$/i })).toBeVisible({ timeout: 15_000 });
+  await pickBreakStrategy(page, "Rotate");
+  const forwards = page.getByRole("group", { name: "Forwards", exact: true });
+  const frontRow = ["LHP1", "HK2", "THP3"];
+  for (let i = 0; i < 3; i++) {
+    await expect(forwards.getByTestId(`player-tile-${ids[i]}`), frontRow[i]).toContainText(frontRow[i]);
+  }
+  // The rest of the H1 pack went out to the backs.
+  for (const pid of ids.slice(3, 8)) await expect(forwards.getByTestId(`player-tile-${pid}`)).toHaveCount(0);
+  await expect(page.getByText(/isn't picked to play there/)).toHaveCount(0);
+  await expect(page.getByTestId("break-broken-rule")).toHaveCount(0);
+});
+
+test("union half time: Repeat keeps each kid in their own position", async ({ page }) => {
+  test.setTimeout(120_000);
+  const admin = createAdminClient();
+  // In H1 kid 3 (home 2R4) played 2R5 and kid 4 (home 2R5) played 2R4.
+  const { team, game, ids } = await unionNamedSide(admin, "RU-REPEAT-SLOTS", {
+    ended: true,
+    slots: (k) => ({ ...Object.fromEntries(k.slice(0, 15).map((id, i) => [id, `ru-${i + 1}`])), [k[3]]: "ru-5", [k[4]]: "ru-4" }),
+  });
+
+  await skipWalkthroughs(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  await expect(page.getByRole("heading", { name: /^2nd half lineup$/i })).toBeVisible({ timeout: 15_000 });
+  const tile = (pid: string) => page.getByTestId(`player-tile-${pid}`);
+  await pickBreakStrategy(page, "Repeat");
+  await expect(tile(ids[3])).toContainText("2R5");
+  await expect(tile(ids[3])).toContainText("Stays");
+  await expect(tile(ids[4])).toContainText("2R4");
+  await expect(tile(ids[4])).toContainText("Stays");
+  // Suggested deals home positions: the move within the pack says where from.
+  await pickBreakStrategy(page, "Suggested");
+  await expect(tile(ids[3])).toContainText("2R4");
+  await expect(tile(ids[3])).toContainText("From 2R5");
+
+  // Repeat's Start records H1's slots.
+  await pickBreakStrategy(page, "Repeat");
+  await startFromBreak(page, /^start 2nd half/i);
+  await expect
+    .poll(async () => {
+      const { data } = await admin.from("game_events").select("metadata, created_at").eq("game_id", game.id).eq("type", "lineup_set").order("created_at");
+      const slots = ((data ?? []).at(-1)?.metadata as { lineup?: { slots?: Record<string, string> } } | undefined)?.lineup?.slots ?? {};
+      return [slots[ids[3]], slots[ids[4]]];
+    }, { timeout: 15_000 })
+    .toEqual(["ru-5", "ru-4"]);
 });
 
 test("union live subs: pairs go by position, never an unpicked kid into the front row", async ({ page }) => {
@@ -181,9 +253,10 @@ test("union live: a coach's swap that puts an unpicked kid at hooker gets a warn
   await waitForHydration(page);
   const tile = (pid: string) => page.getByTestId(`league-player-tile-${pid}`);
   await expect(tile(ids[1]).getByText("HK2", { exact: true })).toBeVisible({ timeout: 15_000 });
-  // The hooker off, kid 15 (no role) on in their spot.
+  // The hooker off, kid 15 (no role) on in their spot (AFL's confirm first).
   await tile(ids[1]).click();
   await tile(ids[15]).click();
+  await page.getByRole("dialog", { name: /manually sub/i }).getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByTestId("front-row-warning")).toContainText(`${nameOf(ids[15])} is at HK2 but isn't picked to play there`, {
     timeout: 15_000,
   });

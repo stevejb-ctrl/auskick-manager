@@ -216,6 +216,7 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
         playhqUrl={(team.playhq_url as string | null) ?? ""}
         playhqTenant={PLAYHQ_TENANT[sport]}
         games={gamesRaw ?? []}
+        teamName={teamName}
       />
     );
   }

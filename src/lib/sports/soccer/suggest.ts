@@ -31,6 +31,7 @@ import {
   type SoccerKeeperStrategy,
   type SoccerLine,
   type SoccerSubMode,
+  type SoccerUnit,
 } from "@/lib/sports/soccer/types";
 
 /** Season balance, as How we play sets it. */
@@ -45,9 +46,11 @@ export interface SoccerSeasonBalance {
 
 /** A suggested sub: the shape of the `swap` event it becomes. */
 export interface SoccerSub {
-  off_player_id: string;
+  /** Null: into an empty spot (the goal, or one on the field), nobody off. */
+  off_player_id: string | null;
   on_player_id: string;
-  line: SoccerLine;
+  /** The line the kid comes on in; "gk" only to fill an empty goal. */
+  line: SoccerUnit;
 }
 
 const seasonTotal = (season: SoccerSeasonBalance | undefined, pid: string) =>
@@ -221,12 +224,23 @@ export interface SuggestSoccerSubInput {
    * before a rolling sub moves them again. 0 or omitted = no guard.
    */
   minStintMs?: number;
+  /**
+   * The cool-down after going off: a kid who went off less than this long
+   * ago isn't brought back on (round 2 usability, 24 Oct 2026: after
+   * Mateo → Ollie the card at once had Mateo back on). 0 or omitted = none.
+   */
+  restMs?: number;
   /** The kids' roles: a kid comes on only for a line they play. */
   prefs?: SoccerKeeperPrefs;
+  /**
+   * The shape on the field now (the live screen's): whether it plays a
+   * keeper, and the places in each line. Any left empty are filled first.
+   */
+  spots?: { keeper: boolean; lines: Partial<Record<SoccerLine, number>> };
 }
 
 /** Who may come on, who may go off, and how long each has played. */
-function subPools(state: SoccerGameState, nowMs: number, minStintMs: number) {
+function subPools(state: SoccerGameState, nowMs: number, minStintMs: number, restMs = 0) {
   const lu = state.lineup;
   if (!lu) return null;
   const away = new Set([...state.injuredIds, ...state.loanedIds]);
@@ -244,7 +258,9 @@ function subPools(state: SoccerGameState, nowMs: number, minStintMs: number) {
   const justOff = (pid: string) => guard && state.lastSubbedOffMs[pid] !== undefined && nowMs - state.lastSubbedOffMs[pid] < minStintMs;
   const justOn = (pid: string) => guard && nowMs - (state.lastSubbedOnMs[pid] ?? 0) < minStintMs;
 
-  const fit = lu.bench.filter((p) => !away.has(p));
+  const resting = (pid: string) =>
+    restMs > 0 && state.lastSubbedOffMs[pid] !== undefined && nowMs - state.lastSubbedOffMs[pid] < restMs;
+  const fit = lu.bench.filter((p) => !away.has(p) && !resting(p));
   const rested = fit.filter((p) => !justOff(p));
   // Bench kids who haven't rested wait while anyone else has.
   const bench = sortBy(rested.length > 0 ? rested : fit, game);
@@ -269,7 +285,7 @@ const takesPlace = (lu: SoccerLineup, prefs: SoccerKeeperPrefs | undefined, on: 
  * no sub evens their time. A kid held in a line comes on only there.
  */
 export function suggestSoccerRollingSub(input: SuggestSoccerSubInput): SoccerSub | null {
-  const pools = subPools(input.state, input.nowMs, input.minStintMs ?? 0);
+  const pools = subPools(input.state, input.nowMs, input.minStintMs ?? 0, input.restMs ?? 0);
   if (!pools) return null;
   const { lu, bench, field, game, zoneHold } = pools;
   for (const on of bench) {
@@ -299,17 +315,42 @@ export function soccerSubWindowsMs(mode: SoccerSubMode, periodMs: number, clockM
 }
 
 /**
- * A sub window's batch: the bench, least time first, on for the outfield
+ * A sub window's batch: empty spots first, nobody off (round 3 edge
+ * cases, 24 Oct 2026: hockey's keeper was hurt with nobody to replace
+ * them, and the card offered only outfield swaps with the goal empty) —
+ * the goal before the field, a keen keeper first, never a kid marked
+ * "not in goal". Then the bench, least time first, on for the outfield
  * kids with the most, while each sub evens their time. Windows are the
  * only time to sub, so no stint guard.
  */
 export function suggestSoccerWindowBatch(input: Omit<SuggestSoccerSubInput, "minStintMs">): SoccerSub[] {
-  const pools = subPools(input.state, input.nowMs, 0);
+  const pools = subPools(input.state, input.nowMs, 0, input.restMs ?? 0);
   if (!pools) return [];
   const { lu, bench, field, game, zoneHold } = pools;
   const used = new Set<string>();
   const subs: SoccerSub[] = [];
+  const filled = new Set<string>();
+  if (input.spots?.keeper && !lu.keeper) {
+    const keen = (p: string) => (input.prefs?.keenKeepers?.includes(p) || input.prefs?.namedKeepers?.includes(p) ? 0 : 1);
+    const keeper = sortBy(
+      bench.filter((p) => !zoneHold(p) && !input.prefs?.notInGoal?.includes(p)),
+      (p) => [keen(p), game(p)],
+    )[0];
+    if (keeper) {
+      filled.add(keeper);
+      subs.push({ off_player_id: null, on_player_id: keeper, line: "gk" });
+    }
+  }
+  for (const line of SOCCER_LINES) {
+    for (let open = (input.spots?.lines[line] ?? 0) - lu.lines[line].length; open > 0; open--) {
+      const on = bench.find((p) => !filled.has(p) && (!zoneHold(p) || zoneHold(p) === line) && (line === "field" || playsLine(input.prefs, p, line)));
+      if (!on) break;
+      filled.add(on);
+      subs.push({ off_player_id: null, on_player_id: on, line });
+    }
+  }
   for (const on of bench) {
+    if (filled.has(on)) continue;
     const only = zoneHold(on);
     const off = field.find((p) => !used.has(p) && (!only || soccerUnitOf(lu, p) === only) && takesPlace(lu, input.prefs, on, p));
     if (!off || !(game(on) < game(off))) continue;

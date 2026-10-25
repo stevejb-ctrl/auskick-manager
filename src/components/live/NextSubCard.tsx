@@ -16,10 +16,18 @@
 
 import { useEffect, useState } from "react";
 import type { Player } from "@/lib/types";
+import { firstName, shortName } from "@/lib/names";
+import { useSquadNames } from "@/components/live/SquadNames";
 import { SUB_DUE_RING, SUB_IDLE_SHADOW, SubDueHeading, SubDueRoot } from "@/components/live/SubDue";
+import { swapPairLabel } from "@/lib/live/liveChrome";
 
 export interface NextSubPair {
-  offId: string;
+  /**
+   * The kid coming off, or null: on into an empty spot, nobody off
+   * (round 3 edge cases, 24 Oct 2026: a short side was only ever
+   * offered swaps).
+   */
+  offId: string | null;
   onId: string;
   /** Where the kid coming on plays, e.g. "FWD", "DEF". */
   label: string;
@@ -53,15 +61,11 @@ function formatCountdown(ms: number): string {
   return `${m}:${r.toString().padStart(2, "0")}`;
 }
 
-function first(name: string): string {
-  return name.split(" ")[0];
-}
-
+// The avatar's letters, from the words with letters ("😀 Emoji Kid" is EK).
 function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  const a = parts[0]?.[0] ?? "";
-  const b = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  return (a + b).toUpperCase();
+  const first = firstName(name);
+  const rest = shortName(name, "initial").slice(first.length).trim();
+  return (Array.from(first)[0] ?? "") + (rest ? Array.from(rest)[0] : "");
 }
 
 function TimerRing({
@@ -129,6 +133,7 @@ export function NextSubCard({
   pairTestIdPrefix,
   dueHint,
 }: NextSubCardProps) {
+  const names = useSquadNames();
   const [open, setOpen] = useState(due);
   // When the sub-due window opens, auto-expand so the coach can see
   // the full list. AFL's SwapCard does the same.
@@ -136,14 +141,14 @@ export function NextSubCard({
     if (due) setOpen(true);
   }, [due]);
 
-  // Skip any pair with a missing player (defensive).
+  // Skip any pair with a missing player (defensive). A fill has nobody off.
   const valid = pairs
     .map((s, index) => {
-      const off = playerById.get(s.offId);
+      const off = s.offId === null ? null : playerById.get(s.offId);
       const on = playerById.get(s.onId);
-      return off && on ? { s, off, on, index } : null;
+      return off !== undefined && on ? { s, off, on, index } : null;
     })
-    .filter((x): x is { s: NextSubPair; off: Player; on: Player; index: number } => x !== null);
+    .filter((x): x is { s: NextSubPair; off: Player | null; on: Player; index: number } => x !== null);
   if (valid.length === 0) return null;
 
   const timerActive
@@ -194,7 +199,7 @@ export function NextSubCard({
           hint={dueHint}
           summary={
             <span className="truncate">
-              {valid.map(({ off, on }) => `${first(off.full_name)}→${first(on.full_name)}`).join(" · ")}
+              {valid.map(({ off, on }) => `${off ? names.first(off) : "Empty"}→${names.first(on)}`).join(" · ")}
             </span>
           }
         />
@@ -236,18 +241,24 @@ export function NextSubCard({
                   {s.label}
                 </span>
                 <span className="flex min-w-0 flex-auto items-center gap-1.5">
-                  <span className="hidden h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-white/10 font-mono text-[8px] font-bold text-warm/70 sm:flex">
-                    {initials(off.full_name)}
-                  </span>
-                  <span className="truncate text-xs font-semibold text-warm/70">
-                    {first(off.full_name)}
-                  </span>
+                  {off ? (
+                    <>
+                      <span className="hidden h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-white/10 font-mono text-[8px] font-bold text-warm/70 sm:flex">
+                        {initials(off.full_name)}
+                      </span>
+                      <span className="truncate text-xs font-semibold text-warm/70">
+                        {names.first(off)}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="truncate text-xs italic text-warm/50">Empty spot</span>
+                  )}
                   <span className="text-warm/40">→</span>
                   <span className="hidden h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-brand-600/40 font-mono text-[8px] font-bold text-brand-200 sm:flex">
                     {initials(on.full_name)}
                   </span>
                   <span className="truncate text-xs font-bold text-brand-300">
-                    {first(on.full_name)}
+                    {names.first(on)}
                   </span>
                 </span>
                 {onApplyOne && (
@@ -262,9 +273,13 @@ export function NextSubCard({
                       // the coach can see the field update immediately.
                       setOpen(false);
                     }}
-                    className="ml-auto flex-shrink-0 rounded-sm bg-brand-600 px-2.5 py-1 font-mono text-[11px] font-bold text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
+                    // Named for its kids, 44 px tall as AFL's (it was 79×25 and
+                    // every row read "Make swap"; UX round 3, e4). Null-safe
+                    // for a fill into an empty spot (nobody off).
+                    aria-label={swapPairLabel(off ? off.full_name : null, on.full_name)}
+                    className="ml-auto min-h-11 flex-shrink-0 rounded-sm bg-brand-600 px-3 font-mono text-[11px] font-bold text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
                   >
-                    {pending ? "…" : "Make swap"}
+                    {pending ? "…" : off ? "Make swap" : "Put on"}
                   </button>
                 )}
               </li>

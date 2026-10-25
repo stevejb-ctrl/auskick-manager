@@ -7,6 +7,8 @@
 import { describe, expect, it } from "vitest";
 import type { GameEvent } from "@/lib/types";
 import {
+  isOptimisticEventId,
+  liveEvents,
   mergeOptimisticEvents,
   optimisticCreatedAt,
   optimisticUndo,
@@ -20,6 +22,10 @@ import {
   BASKETBALL_SCORE_EVENT_TYPES,
   basketballScoreEventType,
 } from "@/lib/sports/basketball/scoreEvents";
+import { replayTouchGame } from "@/lib/sports/touch/replay";
+import { TOUCH_SCORE_EVENT_TYPES, isGirlsTry, touchTryEventType } from "@/lib/sports/touch/scoreEvents";
+import { replayLeagueGame } from "@/lib/sports/rugby_league/fairness";
+import { RUGBY_SCORE_EVENT_TYPES, conversionTryEventId } from "@/lib/sports/rugby_league/kicks";
 
 const GAME = "g1";
 let n = 0;
@@ -201,5 +207,135 @@ describe("basketball's baskets", () => {
     const undo = optimisticUndo(shown, BASKETBALL_SCORE_EVENT_TYPES);
     const after = mergeOptimisticEvents(server, [three, pending(undo!, "op2", server, [three])]);
     expect(replayBasketballGame(after).teamScore.points).toBe(0);
+  });
+});
+
+// ─── Touch and Oztag (23 Oct 2026: every write but tries waited) ───
+
+describe("touch's tries", () => {
+  const start = (): GameEvent[] => [
+    ev("lineup_set", "2026-10-23T08:00:00.100000+00:00", {
+      metadata: {
+        lineup: { lines: { middle: ["m1", "m2"], link: ["l1", "l2"], wing: ["w1", "w2"], field: [] }, bench: ["b1", "b2"] },
+      },
+    }),
+    ev("quarter_start", "2026-10-23T08:00:00.200000+00:00", { metadata: { quarter: 1 } }),
+  ];
+  const groupOf = (id: string) => (id.startsWith("m") ? ("girl" as const) : ("boy" as const));
+
+  it("names each try's event type as the server writes it", () => {
+    expect(touchTryEventType("ours", false)).toBe("try");
+    expect(touchTryEventType("ours", true)).toBe("girls_try");
+    expect(touchTryEventType("theirs", false)).toBe("opponent_try");
+    expect(touchTryEventType("theirs", true)).toBe("opponent_girls_try");
+    expect(Array.from(TOUCH_SCORE_EVENT_TYPES).sort()).toEqual(["girls_try", "opponent_girls_try", "opponent_try", "try"]);
+  });
+
+  it("a girl's try is the scorer's group where girls' tries count double, and the coach's word without a scorer", () => {
+    const base = { girlsTryDouble: true, groupOf };
+    expect(isGirlsTry({ ...base, side: "ours", playerId: "m1" })).toBe(true);
+    expect(isGirlsTry({ ...base, side: "ours", playerId: "l1", girl: true })).toBe(false);
+    expect(isGirlsTry({ ...base, side: "ours", playerId: null, girl: true })).toBe(true);
+    expect(isGirlsTry({ ...base, side: "theirs", playerId: null, girl: true })).toBe(true);
+    expect(isGirlsTry({ ...base, girlsTryDouble: false, side: "ours", playerId: "m1" })).toBe(false);
+  });
+
+  it("a girl's try counts 2 at once, a sub swaps at once, and an undo takes the try back", () => {
+    const server = start();
+    const girls = pending(liveEvents.score(touchTryEventType("ours", true), "m1", { quarter: 1, elapsed_ms: 1000 }), "op1", server);
+    const swap = pending(
+      liveEvents.swap({ off_player_id: "w1", on_player_id: "b1", quarter: 1, elapsed_ms: 2000 }),
+      "op2",
+      server,
+      [girls],
+    );
+    const shown = mergeOptimisticEvents(server, [girls, swap]);
+    const state = replayTouchGame(shown);
+    expect(state.teamScore.points).toBe(2);
+    expect(state.lineup?.lines.wing).toContain("b1");
+    expect(state.lineup?.bench).toContain("w1");
+    const undo = optimisticUndo(shown, TOUCH_SCORE_EVENT_TYPES);
+    expect(undo?.metadata).toMatchObject({ original_type: "girls_try" });
+    const after = replayTouchGame(mergeOptimisticEvents(server, [girls, swap, pending(undo!, "op3", server, [girls, swap])]));
+    expect(after.teamScore.points).toBe(0);
+  });
+
+  it("a field the mixed rule shrinks shows at once", () => {
+    const server = start();
+    const shrink = pending(liveEvents.fieldSize({ on_field_size: 5, quarter: 1, elapsed_ms: 3000 }), "op1", server);
+    expect(replayTouchGame(mergeOptimisticEvents(server, [shrink])).fieldSize).toBe(5);
+  });
+});
+
+// ─── Rugby league and union (23 Oct 2026: every write waited) ──────
+
+describe("rugby's writes", () => {
+  const kickoff = (): GameEvent[] => [
+    ev("lineup_set", "2026-10-23T08:00:00.100000+00:00", {
+      metadata: { lineup: { forwards: ["f1", "f2"], backs: ["b1", "b2"], bench: ["x1", "x2"] } },
+    }),
+    ev("quarter_start", "2026-10-23T08:00:00.200000+00:00", { metadata: { quarter: 1 } }),
+  ];
+  const at = { quarter: 1, elapsed_ms: 1000 };
+
+  it("a try and its conversion count at once; undo takes back the conversion, then the try", () => {
+    const server = kickoff();
+    const tryEv = pending(liveEvents.score("try", "f1", at), "op1", server);
+    const conv = pending(
+      liveEvents.conversion({ kicker_id: "f2", made: true, force: false, ...at }),
+      "op2",
+      server,
+      [tryEv],
+    );
+    const shown = mergeOptimisticEvents(server, [tryEv, conv]);
+    expect(replayLeagueGame(shown).teamScore.points).toBe(6);
+    expect(replayLeagueGame(shown).playerConversions.f2).toEqual({ attempts: 1, made: 1 });
+    const undo = optimisticUndo(shown, RUGBY_SCORE_EVENT_TYPES);
+    expect(undo?.metadata).toMatchObject({ original_type: "conversion_attempt" });
+    const after = mergeOptimisticEvents(server, [tryEv, conv, pending(undo!, "op3", server, [tryEv, conv])]);
+    expect(replayLeagueGame(after).teamScore.points).toBe(4);
+  });
+
+  it("every score type the server's undo can take back", () => {
+    expect(Array.from(RUGBY_SCORE_EVENT_TYPES).sort()).toEqual(
+      [
+        "conversion_attempt",
+        "field_goal",
+        "opponent_conversion",
+        "opponent_field_goal",
+        "opponent_penalty_goal",
+        "opponent_try",
+        "penalty_goal",
+        "try",
+      ].sort(),
+    );
+  });
+
+  it("a sub, a move to the backs and a lineup change show at once", () => {
+    const server = kickoff();
+    const swap = pending(liveEvents.swap({ off_player_id: "f1", on_player_id: "x1", ...at }), "op1", server);
+    const move = pending(liveEvents.leaguePositionChange({ player_id: "f2", to_zone: "back", ...at }), "op2", server, [swap]);
+    let state = replayLeagueGame(mergeOptimisticEvents(server, [swap, move]));
+    expect(state.lineup).toEqual({ forwards: ["x1"], backs: ["b1", "b2", "f2"], bench: ["x2", "f1"] });
+    const set = pending(
+      liveEvents.lineupSet({ lineup: { forwards: ["x1", "x2"], backs: ["b1", "b2", "f2"], bench: ["f1"] }, ...at }),
+      "op3",
+      server,
+      [swap, move],
+    );
+    state = replayLeagueGame(mergeOptimisticEvents(server, [swap, move, set]));
+    expect(state.lineup?.forwards).toEqual(["x1", "x2"]);
+  });
+
+  it("a conversion names a try the server has, never one still on its way", () => {
+    const server = [...kickoff(), ev("try", "2026-10-23T08:01:00+00:00", { player_id: "f1", metadata: at })];
+    const savedTry = server[server.length - 1];
+    expect(conversionTryEventId(server)).toBe(savedTry.id);
+    const second = pending(liveEvents.score("try", "f2", at), "op1", server);
+    const converted = [...server, ev("conversion_attempt", "2026-10-23T08:01:30+00:00", { player_id: "f2", metadata: { made: true } })];
+    // The saved try is converted; the only one waiting hasn't saved yet.
+    expect(conversionTryEventId(mergeOptimisticEvents(converted, [second]))).toBeUndefined();
+    expect(isOptimisticEventId(second.id)).toBe(true);
+    expect(isOptimisticEventId(savedTry.id)).toBe(false);
   });
 });

@@ -6,6 +6,7 @@
 
 import type { TileLineStyle } from "@/components/live/LinePlayerTile";
 import type { TouchLine, TouchStrategy } from "@/lib/sports/touch/types";
+import { ZONE_STRIP } from "@/components/live/zoneStrip";
 
 /** Each lane's short label, as the tile and the swap strip print it. */
 export const TOUCH_LINE_SHORT: Record<TouchLine, string> = { middle: "M", link: "L", wing: "W", field: "" };
@@ -28,21 +29,21 @@ export const TOUCH_TILE_STYLES: Record<TouchLine, TileLineStyle> = {
     label: "Middles",
     textClass: "text-zone-c",
     fillClass: "bg-zone-c-fill",
-    stripClass: "border-zone-c/40 bg-zone-c/15 text-zone-c",
+    stripClass: ZONE_STRIP.c,
   },
   link: {
     short: "L",
     label: "Links",
     textClass: "text-zone-b",
     fillClass: "bg-zone-b-fill",
-    stripClass: "border-zone-b/40 bg-zone-b/15 text-zone-b",
+    stripClass: ZONE_STRIP.b,
   },
   wing: {
     short: "W",
     label: "Wings",
     textClass: "text-zone-f",
     fillClass: "bg-zone-f-fill",
-    stripClass: "border-zone-f/40 bg-zone-f/15 text-zone-f",
+    stripClass: ZONE_STRIP.f,
   },
   field: {
     short: "",

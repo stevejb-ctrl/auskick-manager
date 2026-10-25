@@ -42,6 +42,7 @@ import { normalizeLeagueLineup, leagueOnField } from "@/lib/types";
 import { getSportConfig, type RugbySport } from "@/lib/sports/registry";
 import type { ScoreTypeDef } from "@/lib/sports/types";
 import { chipZone } from "./positions";
+import { takeUndoTarget } from "@/lib/live/scoreUndo";
 
 /**
  * One side's rugby score. `points` = each score times the sport's
@@ -112,6 +113,19 @@ export function rugbyScoreWords(sport: RugbySport): RugbyScoreWords {
     return { label: type.label, short: type.shortLabel };
   };
   return { penaltyGoal: words("penalty_goal"), fieldGoal: words("field_goal") };
+}
+
+/**
+ * What the undo strip says was scored, in the sport's own words: "try",
+ * "conversion" (or "missed conversion": a miss is undone like a score),
+ * "penalty goal", union's "drop goal". Either side's event type.
+ */
+export function rugbyScoreWhat(sport: RugbySport, type: string, made = true): string {
+  const kind = type.replace(/^opponent_/, "");
+  if (kind === "try") return "try";
+  if (kind === "conversion" || kind === "conversion_attempt") return made ? "conversion" : "missed conversion";
+  const words = rugbyScoreWords(sport);
+  return (kind === "penalty_goal" ? words.penaltyGoal : words.fieldGoal).label.toLowerCase();
 }
 
 /** "2T · 1C · 1PG" — penalty and field (drop) goals only when there are some. */
@@ -230,7 +244,10 @@ export function replayRugbyGame(events: GameEvent[], points: RugbyPoints): Leagu
     | { kind: "conversion"; player: string; made: boolean }
     | { kind: "opp_conversion" }
     | { kind: "goal"; side: "team" | "opponent"; goal: "penalty" | "field"; player: string | null };
-  const undoStack: UndoOp[] = [];
+  // Each entry keeps its score's id: an undo takes back the score it
+  // names (two phones can score; "the latest" may be the other's), else
+  // the latest (takeUndoTarget, as the server and the score log do).
+  const undoStack: (UndoOp & { id: string })[] = [];
 
   // SUB-01/B4: absolute game-elapsed timeline for lastSubbedOnMs.
   // `elapsed_ms` is per-quarter, so accumulate each completed quarter's
@@ -359,14 +376,14 @@ export function replayRugbyGame(events: GameEvent[], points: RugbyPoints): Leagu
           state.playerTries[ev.player_id] =
             (state.playerTries[ev.player_id] ?? 0) + 1;
         }
-        undoStack.push({ kind: "try", player: ev.player_id });
+        undoStack.push({ id: ev.id, kind: "try", player: ev.player_id });
         break;
       }
 
       case "opponent_try": {
         state.opponentScore.tries++;
         state.opponentScore.points += points.try;
-        undoStack.push({ kind: "opp_try" });
+        undoStack.push({ id: ev.id, kind: "opp_try" });
         break;
       }
 
@@ -387,6 +404,7 @@ export function replayRugbyGame(events: GameEvent[], points: RugbyPoints): Leagu
         // rotation logic in Phase 5 will use this to roll back the
         // cycle.
         undoStack.push({
+          id: ev.id,
           kind: "conversion",
           player: kicker ?? "",
           made,
@@ -397,7 +415,7 @@ export function replayRugbyGame(events: GameEvent[], points: RugbyPoints): Leagu
       case "opponent_conversion": {
         state.opponentScore.conversions++;
         state.opponentScore.points += points.conversion;
-        undoStack.push({ kind: "opp_conversion" });
+        undoStack.push({ id: ev.id, kind: "opp_conversion" });
         break;
       }
 
@@ -416,12 +434,12 @@ export function replayRugbyGame(events: GameEvent[], points: RugbyPoints): Leagu
           state.playerGoals[player] ??= { penalty: 0, field: 0 };
           state.playerGoals[player][goal]++;
         }
-        undoStack.push({ kind: "goal", side, goal, player });
+        undoStack.push({ id: ev.id, kind: "goal", side, goal, player });
         break;
       }
 
       case "score_undo": {
-        const op = undoStack.pop();
+        const op = takeUndoTarget(undoStack, ev.metadata);
         if (!op) break;
         switch (op.kind) {
           case "try": {
@@ -629,6 +647,12 @@ export function replayRugbyGame(events: GameEvent[], points: RugbyPoints): Leagu
 
 /** §7 carve-out threshold — three minutes of playing time. */
 const INJURY_CARVEOUT_MS = 3 * 60 * 1000;
+/**
+ * A swap put straight back (the toast's Undo after "Make all swaps", or
+ * a mistapped sub undone by hand) within this long isn't a break: the
+ * kid never really left the field.
+ */
+const SWAP_UNDONE_MS = 10 * 1000;
 
 export interface UnbrokenPeriodCompliance {
   /**
@@ -689,6 +713,9 @@ function walkUnbrokenPeriods(events: GameEvent[]): {
     t.pendingInjury.delete(pid);
     if (elapsed - startedAt > INJURY_CARVEOUT_MS) t.removed.add(pid);
   };
+  // This period's swap-offs: when, and whether the kid's period was
+  // already broken (an undo mustn't mend an earlier break).
+  let swappedOff = new Map<string, { at: number; wasBroken: boolean }>();
 
   for (const ev of sorted) {
     const meta = ev.metadata as {
@@ -729,6 +756,7 @@ function walkUnbrokenPeriods(events: GameEvent[]): {
           pendingInjury: new Map(),
           closed: false,
         });
+        swappedOff = new Map();
         break;
       }
       case "quarter_end": {
@@ -750,10 +778,17 @@ function walkUnbrokenPeriods(events: GameEvent[]): {
         // injury-only). A hurt kid being replaced keeps their incident
         // open: it closes if they come back on in time.
         if (off && slots.has(off)) {
-          if (onField(off)) tracker()?.removed.add(off);
+          const t = tracker();
+          if (onField(off) && t) {
+            swappedOff.set(off, { at: elapsed, wasBroken: t.removed.has(off) });
+            t.removed.add(off);
+          }
           slots.delete(off);
         }
         if (on) {
+          const back = swappedOff.get(on);
+          if (back && !back.wasBroken && elapsed - back.at <= SWAP_UNDONE_MS) tracker()?.removed.delete(on);
+          swappedOff.delete(on);
           slots.add(on);
           allPlayers.add(on);
           if (onField(on)) closeIncident(on, elapsed);
@@ -1471,7 +1506,8 @@ export function rugbyScoreByPeriod(
       | { kind: "conv"; period: number; made: boolean }
       | { kind: "opp_conv"; period: number }
       | { kind: "goal"; period: number; side: "team" | "opponent"; goal: "penalty" | "field" };
-  const stack: Op[] = [];
+  // With each score's id, so an undo takes back the one it names.
+  const stack: (Op & { id: string })[] = [];
 
   for (const ev of sorted) {
     const meta = (ev.metadata ?? {}) as { quarter?: number; made?: boolean };
@@ -1493,22 +1529,22 @@ export function rugbyScoreByPeriod(
     if (ev.type === "try") {
       out[period].team.tries += 1;
       out[period].team.points += points.try;
-      stack.push({ kind: "try", period });
+      stack.push({ id: ev.id, kind: "try", period });
     } else if (ev.type === "opponent_try") {
       out[period].opponent.tries += 1;
       out[period].opponent.points += points.try;
-      stack.push({ kind: "opp_try", period });
+      stack.push({ id: ev.id, kind: "opp_try", period });
     } else if (ev.type === "conversion_attempt") {
       const made = meta.made === true;
       if (made) {
         out[period].team.conversions += 1;
         out[period].team.points += points.conversion;
       }
-      stack.push({ kind: "conv", period, made });
+      stack.push({ id: ev.id, kind: "conv", period, made });
     } else if (ev.type === "opponent_conversion") {
       out[period].opponent.conversions += 1;
       out[period].opponent.points += points.conversion;
-      stack.push({ kind: "opp_conv", period });
+      stack.push({ id: ev.id, kind: "opp_conv", period });
     } else if (
       ev.type === "penalty_goal"
       || ev.type === "field_goal"
@@ -1521,9 +1557,9 @@ export function rugbyScoreByPeriod(
       if (goal === "penalty") slot.penaltyGoals += 1;
       else slot.fieldGoals += 1;
       slot.points += goalPoints(points, goal);
-      stack.push({ kind: "goal", period, side, goal });
+      stack.push({ id: ev.id, kind: "goal", period, side, goal });
     } else if (ev.type === "score_undo") {
-      const op = stack.pop();
+      const op = takeUndoTarget(stack, ev.metadata);
       if (!op) continue;
       if (op.kind === "goal") {
         const slot = out[op.period][op.side];
@@ -2041,18 +2077,16 @@ export function playerZoneMsOnField(
 
 /**
  * Season balance's line time (audit, 23 Oct 2026): ms per player in the
- * forwards and the backs, vest time in its own line — the First
- * Receiver a back, the Dummy Half a forward, as the vest spots stand on
- * the field (LeagueField). The tiles' bar keeps vest time as its centre
- * (playerZoneMsOnField); balance has no centre line to owe, so vest
- * time used to drop out of it. Completed periods only.
+ * forwards and the backs, vest time in the line the lineup has the kid
+ * in, where the field draws them (arrangeLeagueField). The tiles' bar
+ * keeps vest time as its centre (playerZoneMsOnField); balance has no
+ * centre line to owe, so vest time used to drop out of it. It then went
+ * to the vest's nominal line (FR a back, DH a forward), which the field
+ * contradicted (round 2 usability, 24 Oct 2026). Completed periods only.
  */
 export function playerLineMsOnField(events: GameEvent[]): Record<string, { forwards: number; backs: number }> {
   return walkLeagueStints(events, Number.MAX_SAFE_INTEGER, 0).lines;
 }
-
-/** The line a vest's time counts in: the line its spot stands in. */
-const VEST_LINE: Record<"fr" | "dh", "forwards" | "backs"> = { fr: "backs", dh: "forwards" };
 
 /**
  * Named positions (5.7): ms per player per position key, from the
@@ -2093,7 +2127,7 @@ function walkLeagueStints(
     row[bucket] += ms;
     total[pid] = row;
   };
-  // Line time rides along, a vest's time in its spot's line.
+  // Line time rides along, a vest's time in the kid's own line.
   const lineTotal: Record<string, { forwards: number; backs: number }> = {};
   const addLineMs = (pid: string, line: "forwards" | "backs", ms: number) => {
     if (ms <= 0) return;
@@ -2159,7 +2193,7 @@ function walkLeagueStints(
     if (s.vest) addMs(pid, "centre", dur);
     else if (s.zone === "forward") addMs(pid, "forwards", dur);
     else addMs(pid, "backs", dur);
-    addLineMs(pid, s.vest ? VEST_LINE[s.vest] : s.zone === "forward" ? "forwards" : "backs", dur);
+    addLineMs(pid, s.zone === "forward" ? "forwards" : "backs", dur);
     addSlotMs(pid, dur);
   };
   const closeStint = (pid: string, endMs: number) => {

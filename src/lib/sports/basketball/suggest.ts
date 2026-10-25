@@ -36,6 +36,7 @@ import {
 import { basketballLineOf, basketballOnCourt, type BasketballLineup } from "@/lib/sports/basketball/lineup";
 import { basketballCanPlay, basketballGameMs, type BasketballGameState } from "@/lib/sports/basketball/replay";
 import {
+  BASKETBALL_LINES,
   BASKETBALL_TWO_LINES,
   basketballLikeForLike,
   usesBasketballLines,
@@ -90,7 +91,8 @@ const keptOn = (prefs: BasketballPrefs | undefined, pid: string) => (prefs?.keep
 
 /** A suggested sub: the shape of the `swap` event it becomes. */
 export interface BasketballSub {
-  off_player_id: string;
+  /** Null: into an empty spot, nobody off. */
+  off_player_id: string | null;
   on_player_id: string;
   line: BasketballLine;
 }
@@ -342,12 +344,21 @@ export interface SuggestBasketballSubsInput {
    * before a sub moves them again. 0 or omitted = no guard.
    */
   minStintMs?: number;
+  /**
+   * Spots in each line on court (the live screen's shape): any left
+   * empty (a kid hurt, fouled out or lent with nobody on) are filled
+   * first.
+   */
+  spots?: Partial<Record<BasketballLine, number>>;
   /** At most this many subs in one batch; omitted = as many as even time. */
   maxSubs?: number;
 }
 
 /**
- * A sub-due batch: the bench, least time this game first, on for the
+ * A sub-due batch: empty spots first, a bench kid on with nobody off
+ * (round 3 edge cases, 24 Oct 2026: with 2 on court and 3 spots empty
+ * the card said "Ruby → Archie", and following it cost Ruby 3:36);
+ * then the bench, least time this game first, on for the
  * kids on court with the most (foul trouble first), while each sub evens
  * their time. Under Home line and Set positions a kid comes on only for
  * one in their line; otherwise the kids coming on are matched to the
@@ -399,11 +410,36 @@ export function suggestBasketballSubs(input: SuggestBasketballSubsInput): Basket
   let handlersOn = basketballOnCourt(lu).filter((p) => handlers.has(p)).length;
   const keepsHandler = (off: string, on: string) => !handlers.has(off) || handlers.has(on) || handlersOn > 1;
 
+  // Fill: empty spots, nobody off; a kid held to a line (or, like for
+  // like, their home line) fills only there.
+  const fills: BasketballSub[] = [];
+  const filled = new Set<string>();
+  // Only when the spots are the lineup's own kind (lines, or the court).
+  const courtSpots = (input.spots?.court ?? 0) > 0;
+  const sameKind = courtSpots
+    ? lu.lines.guard.length + lu.lines.forward.length === 0
+    : lu.lines.court.length === 0;
+  for (const line of sameKind ? BASKETBALL_LINES : []) {
+    for (let open = (input.spots?.[line] ?? 0) - lu.lines[line].length; open > 0; open--) {
+      if (input.maxSubs !== undefined && fills.length >= input.maxSubs) break;
+      const on = bench.find((p) => {
+        if (filled.has(p)) return false;
+        const only = lineHold(p) ?? (likeForLike ? homeLineOf(p) : null);
+        return (!only || only === line) && playsSpot(prefs, p, line, null);
+      });
+      if (!on) break;
+      filled.add(on);
+      fills.push({ off_player_id: null, on_player_id: on, line });
+      if (handlers.has(on)) handlersOn++;
+    }
+  }
+
   // Pair: who comes on for whom.
   const used = new Set<string>();
   const pairs: { on: string; off: string }[] = [];
   for (const on of bench) {
-    if (input.maxSubs !== undefined && pairs.length >= input.maxSubs) break;
+    if (input.maxSubs !== undefined && fills.length + pairs.length >= input.maxSubs) break;
+    if (filled.has(on)) continue;
     const only = lineHold(on) ?? (likeForLike ? homeLineOf(on) : null);
     const plays = (p: string) => {
       const line = basketballLineOf(lu, p) as BasketballLine;
@@ -439,7 +475,7 @@ export function suggestBasketballSubs(input: SuggestBasketballSubsInput): Basket
     pairs.splice(0, pairs.length, ...ons.map((on, i) => ({ on, off: offs[assigned[i]] })));
   }
 
-  return pairs.map((p) => ({ off_player_id: p.off, on_player_id: p.on, line: basketballLineOf(lu, p.off) as BasketballLine }));
+  return [...fills, ...pairs.map((p) => ({ off_player_id: p.off, on_player_id: p.on, line: basketballLineOf(lu, p.off) as BasketballLine }))];
 }
 
 // ─── The next period ─────────────────────────────────────────

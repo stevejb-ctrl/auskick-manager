@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
+import { StatusNotice } from "@/components/team/StatusNotice";
 
 /**
  * First-time welcome.  Middleware routes brand-new authenticated users
@@ -12,7 +13,12 @@ import { createClient, getUser } from "@/lib/supabase/server";
  * page self-heals if someone deep-links to /welcome after they've
  * already created a team: we redirect them out.
  */
-export default async function WelcomePage() {
+export default async function WelcomePage({
+  searchParams,
+}: {
+  /** left: the team just left (LeaveTeamButton → dashboard → here). */
+  searchParams?: { left?: string };
+}) {
   const supabase = createClient();
   const {
     data: { user },
@@ -57,16 +63,17 @@ export default async function WelcomePage() {
     {
       num: 5,
       title: "Ready for round 1",
-      body: "Invite a manager, share availability.",
+      body: "Invite a manager, ask parents who's in.",
     },
   ];
 
   return (
     <div className="mx-auto max-w-xl space-y-8 py-4 sm:py-8">
+      {searchParams?.left && <StatusNotice>{`You left ${searchParams.left}.`}</StatusNotice>}
       {/* Hero — phrased so it works for both audiences who land here:
           coaches setting up a new team AND parents who signed up to
-          join an existing one. The two CTAs at the bottom split into
-          those paths. */}
+          join an existing one. The two CTAs below split into those
+          paths. */}
       <div className="space-y-3 text-center">
         <p className="text-[11px] font-bold uppercase tracking-micro text-brand-700">
           Welcome to Siren
@@ -81,33 +88,15 @@ export default async function WelcomePage() {
         </p>
       </div>
 
-      {/* 5-step preview */}
-      <ol className="space-y-3">
-        {steps.map((s) => (
-          <li
-            key={s.num}
-            className="flex items-start gap-4 rounded-lg border border-hairline bg-surface p-4 shadow-card"
-          >
-            <span
-              aria-hidden
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-700"
-            >
-              {s.num}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="font-semibold text-ink">{s.title}</p>
-              <p className="mt-0.5 text-sm text-ink-dim">{s.body}</p>
-            </div>
-          </li>
-        ))}
-      </ol>
-
       {/* CTAs — two equal paths so a parent who came to join a
           coach's team doesn't get pushed into the create-team wizard,
           and a coach setting up for the first time doesn't get pushed
           into the join flow. The "Join with a code" path is the
           handoff for parents who got a code verbally on the sideline
-          or via text from the coach. */}
+          or via text from the coach. Both sit above the coach's
+          steps: the code button used to be below the fold on a
+          phone, under five steps that aren't about parents (round 2
+          usability, 24 Oct 2026). */}
       <div className="space-y-3">
         <Link
           href="/teams/new"
@@ -133,6 +122,31 @@ export default async function WelcomePage() {
           </Link>
         </p>
       </div>
+
+      {/* 5-step preview, for the coach */}
+      <p className="text-center text-xs font-semibold uppercase tracking-micro text-ink-mute">
+        Setting up a team? The wizard&rsquo;s five steps
+      </p>
+      <ol className="space-y-3">
+        {steps.map((s) => (
+          <li
+            key={s.num}
+            className="flex items-start gap-4 rounded-lg border border-hairline bg-surface p-4 shadow-card"
+          >
+            <span
+              aria-hidden
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-700"
+            >
+              {s.num}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-ink">{s.title}</p>
+              <p className="mt-0.5 text-sm text-ink-dim">{s.body}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+
     </div>
   );
 }

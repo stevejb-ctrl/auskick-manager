@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ReloadWhenOnline } from "./ReloadWhenOnline";
 
 // ─── /offline ─────────────────────────────────────────────────
 //
@@ -21,6 +22,7 @@ export const metadata: Metadata = {
 export default function OfflinePage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-6 py-12 text-center">
+      <ReloadWhenOnline />
       <div
         aria-hidden="true"
         className="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-full border border-warn/40 bg-warn-soft"

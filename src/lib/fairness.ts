@@ -31,6 +31,8 @@ import {
 } from "@/lib/types";
 import { emptyZoneCaps, positionsFor, zoneCapsFor, type ZoneCaps } from "@/lib/ageGroups";
 import { replayLocks, type PlayerLock } from "@/lib/live/locks";
+import { lastClockPause, type ClockPauseMark } from "@/lib/live/clockPause";
+import { openSubBatch, resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
 import {
   type ChipKey,
   type ChipMode,
@@ -1166,6 +1168,20 @@ export interface GameState {
   /** ISO timestamp of the current quarter_start event; null when quarter is ended/not started. */
   quarterStartedAt: string | null;
   /**
+   * The quarter in play's latest clock pause or resume (lib/live/
+   * clockPause), so a reload puts a paused clock back paused. Null when
+   * the clock hasn't stopped this quarter, or none is in play.
+   */
+  clockPause: ClockPauseMark | null;
+  /**
+   * The quarter in play's sub clock (lib/live/subAnchor): game ms of
+   * its last planned swap (0 at the start), and the due batch's swaps
+   * still to make. A reload takes these instead of guessing from the
+   * clock. Null / 0 when no quarter is in play.
+   */
+  subAnchorMs: number | null;
+  subBatchLeft: number;
+  /**
    * Saved holds (Keep on / Keep in {zone}) from player_lock events.
    * Undefined when the game has none, so a game started before holds
    * were saved keeps the ones on the coach's phone.
@@ -1210,6 +1226,9 @@ export function replayGame(events: GameEvent[]): GameState {
     loanStartMs: {},
     basePlayedLoanMs: {},
     quarterStartedAt: null,
+    clockPause: null,
+    subAnchorMs: null,
+    subBatchLeft: 0,
   };
 
   // Ensure scoreByQuarter[q] exists. Quarters are 1-indexed; we pad
@@ -1588,6 +1607,11 @@ export function replayGame(events: GameEvent[]): GameState {
   if (state.lineup) state.lineup = normalizeLineup(state.lineup);
   state.quarterStartedAt = quarterStartedAt;
   if (sorted.some((ev) => ev.type === "player_lock")) state.locks = replayLocks(sorted);
+  if (state.currentQuarter >= 1 && !state.quarterEnded && !state.finalised) {
+    state.clockPause = lastClockPause(sorted, state.currentQuarter);
+    state.subAnchorMs = resolveSubAnchorElapsed(sorted, state.currentQuarter);
+    state.subBatchLeft = openSubBatch(sorted, state.currentQuarter);
+  }
 
   return state;
 }

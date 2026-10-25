@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import type { Player, Zone } from "@/lib/types";
 import { ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 import { Modal } from "@/components/ui/Modal";
+import { useSquadNames } from "@/components/live/SquadNames";
 
 interface LockModalProps {
   player: Player;
@@ -120,7 +121,9 @@ interface LockModalProps {
   isOnField?: boolean;
   /**
    * F3 (Phase 12) long-press player summary. Optional presentational slot
-   * rendered between the player name and the action buttons. The host
+   * rendered after the action buttons, before Cancel: on a phone held
+   * sideways, or at large text, it pushed every action below the fold
+   * (UX round 3, e4: Switch player started at y = 340 of 390). The host
    * builds it from the shared `buildPlayerInsight` view-model via
    * `PlayerInsightSummary`, so this component stays sport-agnostic — it
    * just reserves the space. Omit to show no summary (pre-game pickers).
@@ -206,7 +209,7 @@ export function LockModal({
   outForGameActions,
   onClose,
 }: LockModalProps) {
-  const firstName = player.full_name.trim().split(/\s+/)[0];
+  const firstName = useSquadNames().first(player);
   const zoneLabel = zoneLabelProp ?? (currentZone ? ZONE_SHORT_LABELS[currentZone] : currentLine);
   const loanedLabel = seasonLoanMins === undefined ? null : Math.round(seasonLoanMins);
   const squadLabel = Math.round(squadLoanMins ?? 0);
@@ -218,6 +221,7 @@ export function LockModal({
     injure: !!onToggleInjury,
     lend: !!onToggleLoan,
   });
+  const insightBlock = insight ? <div className="mt-2 [&>*]:mb-0">{insight}</div> : null;
   const runAction = (a: LockModalAction) => (a.confirm ? setConfirming(a) : a.onClick());
   const actionButton = (a: LockModalAction) => (
     <button
@@ -247,8 +251,6 @@ export function LockModal({
           {firstName}{player.jersey_number != null ? ` #${player.jersey_number}` : ""}
         </h2>
 
-        {insight}
-
         {confirming ? (
           /* An action that asks first (basketball's manual "Fouled out"). */
           <>
@@ -270,7 +272,7 @@ export function LockModal({
               <button
                 type="button"
                 onClick={() => setConfirming(null)}
-                className="w-full py-2 text-sm text-ink-mute transition-colors duration-fast ease-out-quart hover:text-ink"
+                className="min-h-[44px] w-full py-2 text-sm text-ink-mute transition-colors duration-fast ease-out-quart hover:text-ink"
               >
                 Back
               </button>
@@ -283,10 +285,11 @@ export function LockModal({
             <p className="mb-5 text-center text-sm text-ink-dim">{outForGameNote}</p>
             <div className="flex flex-col gap-2">
               {outForGameActions?.map(actionButton)}
+              {insightBlock}
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full py-2 text-sm text-ink-mute transition-colors duration-fast ease-out-quart hover:text-ink"
+                className="min-h-[44px] w-full py-2 text-sm text-ink-mute transition-colors duration-fast ease-out-quart hover:text-ink"
               >
                 Close
               </button>
@@ -310,10 +313,11 @@ export function LockModal({
                   Back in the rotation from the next sub
                 </span>
               </button>
+              {insightBlock}
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full py-2 text-sm text-ink-mute transition-colors duration-fast ease-out-quart hover:text-ink"
+                className="min-h-[44px] w-full py-2 text-sm text-ink-mute transition-colors duration-fast ease-out-quart hover:text-ink"
               >
                 Cancel
               </button>
@@ -337,10 +341,11 @@ export function LockModal({
                   Returns to the bench, available for the next sub
                 </span>
               </button>
+              {insightBlock}
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full py-2 text-sm text-ink-mute transition-colors duration-fast ease-out-quart hover:text-ink"
+                className="min-h-[44px] w-full py-2 text-sm text-ink-mute transition-colors duration-fast ease-out-quart hover:text-ink"
               >
                 Cancel
               </button>
@@ -363,10 +368,11 @@ export function LockModal({
               >
                 Let them rotate again
               </button>
+              {insightBlock}
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full py-2 text-sm text-ink-mute transition-colors duration-fast ease-out-quart hover:text-ink"
+                className="min-h-[44px] w-full py-2 text-sm text-ink-mute transition-colors duration-fast ease-out-quart hover:text-ink"
               >
                 Cancel
               </button>
@@ -556,10 +562,11 @@ export function LockModal({
                   </span>
                 </button>
                 )}
+              {insightBlock}
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full py-2 text-sm text-ink-mute transition-colors duration-fast ease-out-quart hover:text-ink"
+                className="min-h-[44px] w-full py-2 text-sm text-ink-mute transition-colors duration-fast ease-out-quart hover:text-ink"
               >
                 Cancel
               </button>

@@ -2,6 +2,7 @@
 
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useDialogFocus } from "@/components/ui/useDialogFocus";
 
 // ─── ActionSheet ─────────────────────────────────────────────
 // The one "pick an action" surface: a bottom sheet on phones (thumb
@@ -12,7 +13,8 @@ import { createPortal } from "react-dom";
 //
 // Rows are ≥ 44 pt. Backdrop tap and Escape both close. The sheet
 // closes itself before running an action so a follow-up confirm
-// dialog never stacks on top of it.
+// dialog never stacks on top of it. Focus starts on the first row, Tab
+// stays inside, and goes back to the opener on close (useDialogFocus).
 
 export interface ActionSheetAction {
   id: string;
@@ -36,21 +38,10 @@ interface ActionSheetProps {
 
 export function ActionSheet({ title, subtitle, actions, onClose }: ActionSheetProps) {
   const [mounted, setMounted] = useState(false);
-  const firstRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const idBase = useId();
   useEffect(() => setMounted(true), []);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  useEffect(() => {
-    if (mounted) firstRef.current?.focus();
-  }, [mounted]);
+  useDialogFocus(dialogRef, mounted, onClose);
 
   if (!mounted) return null;
 
@@ -69,10 +60,12 @@ export function ActionSheet({ title, subtitle, actions, onClose }: ActionSheetPr
         aria-hidden
       />
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative z-10 w-full max-w-md rounded-t-lg border border-hairline bg-surface shadow-modal motion-safe:animate-sheet-up sm:m-4 sm:rounded-lg"
+        className="relative z-10 max-h-[calc(100dvh-16px)] w-full max-w-md overflow-y-auto rounded-t-lg border border-hairline bg-surface shadow-modal outline-none motion-safe:animate-sheet-up sm:m-4 sm:rounded-lg"
       >
         <div className="border-b border-hairline px-5 pb-3 pt-4">
           <p className="text-base font-semibold text-ink">{title}</p>
@@ -82,7 +75,7 @@ export function ActionSheet({ title, subtitle, actions, onClose }: ActionSheetPr
           {actions.map((a, i) => (
             <li key={a.id}>
               <button
-                ref={i === 0 ? firstRef : undefined}
+                data-autofocus={i === 0 ? "" : undefined}
                 type="button"
                 disabled={a.disabled}
                 aria-label={a.label}

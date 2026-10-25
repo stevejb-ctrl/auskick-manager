@@ -8,7 +8,9 @@ import { soccerFamilyAgeGroup, soccerFamilyRules } from "@/lib/sports/soccer/fam
 import { mixedRuleColumns } from "@/lib/sports/touch/mixed";
 import type { MixedRule } from "@/lib/sports/touch/types";
 import type { ActionResult, Sport } from "@/lib/types";
-import { storedOnFieldSize } from "@/lib/games/newGameDefaults";
+import { storedOnFieldSize, teamOnFieldSize } from "@/lib/games/newGameDefaults";
+import { pinPlayedPeriodLength } from "@/lib/games/pinPlayedPeriodLength";
+import { teamNameError, teamNameMatches } from "@/lib/strings";
 
 const BUCKET = "team-songs";
 const MAX_BYTES = 20 * 1024 * 1024; // 20 MB
@@ -211,8 +213,8 @@ export async function renameTeam(
   if (error) return { success: false, error };
 
   const trimmed = newName.trim();
-  if (trimmed.length === 0) return { success: false, error: "Name can't be empty." };
-  if (trimmed.length > 80) return { success: false, error: "Name is too long (80 chars max)." };
+  const nameError = teamNameError(trimmed);
+  if (nameError) return { success: false, error: nameError };
 
   const { error: updateError } = await supabase
     .from("teams")
@@ -277,6 +279,13 @@ export async function setTeamAgeGroup(
     return { success: false, error: `Invalid age group "${ageGroup}" for ${cfg.name}.` };
   }
 
+  // Past games keep the length they were played with (UX round 2).
+  try {
+    await pinPlayedPeriodLength(supabase, teamId);
+  } catch (e) {
+    return { success: false, error: (e as Error).message };
+  }
+
   const { error: updateError } = await supabase
     .from("teams")
     .update({
@@ -295,15 +304,21 @@ export async function setTeamAgeGroup(
  * (competitions differ by state). New games start from it; NULL (or the
  * age group's own) = the age group's default. It must be inside the age
  * group's range.
+ *
+ * Games already scheduled that are still on the team's old size take the
+ * new one, as a period-length change reaches them; a game given its own
+ * size keeps it. The lineup for a fixtured game said "12 on field" after
+ * Settings said 11 (UX round 2, 24 Oct 2026). `data.scheduled` is how
+ * many games moved.
  */
 export async function setTeamOnFieldSize(
   teamId: string,
   size: number | null,
-): Promise<ActionResult> {
+): Promise<ActionResult<{ scheduled: number }>> {
   const { supabase, error } = await getAuthedAdmin(teamId);
   if (error) return { success: false, error };
 
-  const { data: team } = await supabase.from("teams").select("sport, age_group").eq("id", teamId).single();
+  const { data: team } = await supabase.from("teams").select("sport, age_group, on_field_size").eq("id", teamId).single();
   if (!team) return { success: false, error: "Team not found." };
   const sport = teamSport((team as { sport?: Sport | null }).sport);
   const ageCfg = getAgeGroupConfig(sport, (team as { age_group?: string | null }).age_group ?? null);
@@ -320,9 +335,23 @@ export async function setTeamOnFieldSize(
     .eq("id", teamId);
   if (updateError) return { success: false, error: updateError.message };
 
+  const before = teamOnFieldSize(ageCfg, (team as { on_field_size?: number | null }).on_field_size);
+  const after = teamOnFieldSize(ageCfg, size);
+  let scheduled = 0;
+  if (before !== after) {
+    const { count, error: gamesError } = await supabase
+      .from("games")
+      .update({ on_field_size: after }, { count: "exact" })
+      .eq("team_id", teamId)
+      .eq("status", "upcoming")
+      .eq("on_field_size", before);
+    if (gamesError) return { success: false, error: gamesError.message };
+    scheduled = count ?? 0;
+  }
+
   revalidatePath(`/teams/${teamId}/settings`);
-  revalidatePath(`/teams/${teamId}/games`);
-  return { success: true };
+  revalidatePath(`/teams/${teamId}/games`, "layout");
+  return { success: true, data: { scheduled } };
 }
 
 /** Team › Danger zone › Leave team — removes the caller's own membership. */
@@ -364,8 +393,8 @@ export async function deleteTeam(teamId: string, confirmName: string): Promise<A
 
   const { data: team } = await supabase.from("teams").select("name").eq("id", teamId).single();
   if (!team) return { success: false, error: "Team not found." };
-  if (confirmName.trim() !== (team.name as string).trim()) {
-    return { success: false, error: "Type the team name exactly to confirm." };
+  if (!teamNameMatches(confirmName, team.name as string)) {
+    return { success: false, error: "Type the team name to confirm." };
   }
 
   const { error: deleteError } = await supabase.from("teams").delete().eq("id", teamId);
@@ -406,6 +435,13 @@ export async function setTeamPeriodCount(teamId: string, count: 1 | 2 | 4 | null
     own = soccerFamilyAgeGroup(sport, (team as { age_group?: string | null }).age_group ?? null).periodCount;
   } else {
     return { success: false, error: "Only basketball, hockey, touch and Oztag teams choose their periods." };
+  }
+
+  // Past games keep the length they were played with (UX round 2).
+  try {
+    await pinPlayedPeriodLength(supabase, teamId);
+  } catch (e) {
+    return { success: false, error: (e as Error).message };
   }
 
   const { error: updateError } = await supabase

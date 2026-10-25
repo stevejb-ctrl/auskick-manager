@@ -44,6 +44,12 @@ export interface RuleCheckInput {
    * at the breaks), so a bench kid is held to the periods after.
    */
   benchReachMs?: number;
+  /**
+   * ms each kid couldn't play so far (late, hurt, lent: lib/live/break/
+   * floor's awayMsSoFar). Their floor is over the rest of the game, as
+   * How we played holds them to it.
+   */
+  awayMs?: Readonly<Record<string, number>>;
   periodWord: string;
   /** "line" (AFL, league) or "third" (netball). */
   lineWord: string;
@@ -78,12 +84,14 @@ export function checkRules(input: RuleCheckInput): RuleCheckItem[] {
   const sev = (rule: RuleInstance): CheckStatus => (rule.strength === "must" ? "fail" : "warn");
 
   // Game-time floor: can everyone still reach it? A kid on the bench at
-  // the start can still come on this period where subs roll.
+  // the start can still come on this period where subs roll. Time a kid
+  // couldn't play is off their game.
   const gameMs = input.periodCount * input.periodMs;
   const benchReach = Math.min(input.periodMs, Math.max(0, input.benchReachMs ?? 0));
   const short = squad.filter((pid) => {
+    const could = gameMs - Math.max(0, input.awayMs?.[pid] ?? 0);
     const best = played(pid) + (input.onField[pid] ? input.periodMs : benchReach) + remainingAfter * input.periodMs;
-    return gameMs > 0 && best / gameMs < input.minGameTimePct / 100;
+    return could > 0 && best / could < input.minGameTimePct / 100;
   });
   items.push(
     short.length === 0
@@ -228,8 +236,21 @@ export function checkRules(input: RuleCheckInput): RuleCheckItem[] {
   // With none, still say where season balance stands, so the check shows
   // it's being kept (usability run: "only checks a 50% minimum").
   if (input.season) {
-    const gaps = biggestSeasonGaps(input.season.time, squad, input.season.units, input.periodMs, { limit: 2 });
-    if (gaps.length === 0) {
+    // A gap this lineup is closing (the kid is in that unit now) isn't a
+    // warning: amber on the Suggested lineup that put Hugo at back for
+    // "Hugo hasn't played back" read as a fault (UX round 2, 24 Oct 2026).
+    // It says so, and the nudges go to the gaps still open.
+    const all = biggestSeasonGaps(input.season.time, squad, input.season.units, input.periodMs, { limit: Infinity });
+    const closing = (g: (typeof all)[number]) => input.onField[g.playerId] === g.unit;
+    const gaps = all.filter((g) => !closing(g)).slice(0, 2);
+    for (const g of all.slice(0, 2).filter(closing)) {
+      items.push({
+        id: `season-${g.playerId}-${g.unit}`,
+        status: "ok",
+        text: `${input.name(g.playerId)} plays ${input.season.unitLabel(g.unit)} this ${input.periodWord}`,
+      });
+    }
+    if (all.length === 0) {
       const anyTime = squad.some((pid) => Object.values(input.season!.time[pid] ?? {}).some((ms) => ms > 0));
       items.push({
         id: "season-balance",

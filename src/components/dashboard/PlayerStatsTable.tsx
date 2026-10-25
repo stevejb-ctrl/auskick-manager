@@ -84,7 +84,11 @@ export function PlayerStatsTable({ stats, hasData }: Props) {
         </div>
       )}
 
-      <div className="grid gap-2 sm:grid-cols-2">
+      {/* One explicit column (minmax(0, 1fr)), as netball's cards: at 320 px
+          the implicit one grew to the metric row and clipped it (UX round 3,
+          e4), and a long name truncates in its card instead of widening every
+          card (e1). */}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {sorted.map((p) => {
           // Zone split as a % of the player's own on-field time (sums to
           // ~100%) — "where do they play", independent of how much they
@@ -103,7 +107,7 @@ export function PlayerStatsTable({ stats, hasData }: Props) {
           return (
             <div
               key={p.playerId}
-              className="rounded-lg border border-hairline bg-surface p-3 shadow-card"
+              className="min-w-0 rounded-lg border border-hairline bg-surface p-3 shadow-card"
             >
               {/* Header: jersey + name + headline total */}
               <div className="flex items-start justify-between gap-2">
@@ -141,7 +145,7 @@ export function PlayerStatsTable({ stats, hasData }: Props) {
 
               {/* Zone breakdown — Forward → Centre → Back to match the
                   in-game order + wording. */}
-              <div className="mt-2 flex items-center gap-1.5 text-[11px] font-medium">
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] font-medium">
                 <ZonePill abbr="Fwd" pct={fwdPct} tone="f" />
                 <ZonePill abbr="Cen" pct={midPct} tone="c" />
                 <ZonePill abbr="Back" pct={backPct} tone="b" />

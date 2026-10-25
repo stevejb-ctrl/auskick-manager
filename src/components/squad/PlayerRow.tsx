@@ -17,6 +17,7 @@ import { describeRole, EMPTY_ROLE, type PlayerRole, type RoleModel } from "@/lib
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { MixedGroupPicker } from "@/components/squad/MixedGroupPicker";
 import type { MixedGroup } from "@/lib/types";
+import { parseWholeNumber } from "@/lib/wholeNumber";
 
 interface PlayerRowProps {
   player: Player;
@@ -77,11 +78,12 @@ export function PlayerRow({
       return;
     }
 
-    const jerseyNum = jersey.trim() === "" ? null : parseInt(jersey, 10);
-    if (jerseyNum !== null && (isNaN(jerseyNum) || jerseyNum < 1 || jerseyNum > 99)) {
-      setJerseyError("1–99 only.");
+    const parsedJersey = parseWholeNumber(jersey, { min: 1, max: 99, what: "Jersey" });
+    if (parsedJersey.error) {
+      setJerseyError("Whole number, 1–99.");
       return;
     }
+    const jerseyNum = parsedJersey.value;
 
     if (jerseyNum !== null) {
       const otherJerseys = takenJerseys.filter((j) => j !== player.jersey_number);
@@ -117,15 +119,22 @@ export function PlayerRow({
     });
   }
 
-  function handleToggle(active: boolean) {
+  // A kid in a game that's on now: asked before they're deactivated
+  // (UX round 3, 24 Oct 2026). The opponent, while the question is up.
+  const [liveGame, setLiveGame] = useState<string | null>(null);
+
+  function handleToggle(active: boolean, confirmLive = false) {
     setServerError(null);
+    setLiveGame(null);
     startTransition(async () => {
       // A refusal (e.g. "Squad is full") is shown, not swallowed — the
       // switch flipping back on its own said nothing about why.
       const result = active
         ? await reactivatePlayer(teamId, player.id)
-        : await deactivatePlayer(teamId, player.id);
-      if (!result.success) setServerError(result.error);
+        : await deactivatePlayer(teamId, player.id, confirmLive);
+      const live = (result as { liveGame?: string }).liveGame;
+      if (!result.success && live) setLiveGame(live);
+      else if (!result.success) setServerError(result.error);
     });
   }
 
@@ -161,9 +170,9 @@ export function PlayerRow({
           />
           {showJersey && (
             <Input
-              type="number"
-              min={1}
-              max={99}
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
               value={jersey}
               onChange={(e) => setJersey(e.target.value)}
               error={jerseyError}
@@ -186,7 +195,10 @@ export function PlayerRow({
         </div>
       ) : (
         <>
-          <span className="min-w-0 flex-1 text-sm font-medium text-ink">
+          {/* At least 8.5rem before the buttons wrap under it, and long
+              names break inside it (UX round 3, e4: at 320 px the name had
+              63 px and "Papadopoulos" ran under the Role button). */}
+          <span className="min-w-0 flex-[1_1_8.5rem] break-words text-sm font-medium text-ink [overflow-wrap:anywhere]">
             {player.full_name}
             {roleText && (
               <span className="block truncate text-xs font-normal text-ink-mute" data-testid={`player-role-${player.id}`}>
@@ -210,6 +222,7 @@ export function PlayerRow({
               variant="ghost"
               onClick={() => setEditing(true)}
               disabled={isPending}
+              aria-label={`Edit ${player.full_name}`}
             >
               Edit
             </SFButton>
@@ -240,11 +253,28 @@ export function PlayerRow({
           checked={player.is_active}
           onChange={handleToggle}
           disabled={isPending}
-          label={player.is_active ? "Deactivate player" : "Reactivate player"}
+          // Named for the kid: every row read "Deactivate player" (UX round 3, e4).
+          label={`${player.is_active ? "Deactivate" : "Reactivate"} ${player.full_name}`}
         />
       )}
       {!editing && serverError && (
         <InlineAlert className="basis-full">{serverError}</InlineAlert>
+      )}
+      {liveGame && (
+        <div role="alert" className="basis-full rounded-md border border-warn/40 bg-warn-soft px-3 py-2 text-sm text-ink">
+          <p>
+            {player.full_name} is in the game against {liveGame} that&apos;s on now. They&apos;ll stay in that game
+            until it&apos;s finished, and be off the squad for the next one.
+          </p>
+          <div className="mt-2 flex gap-2">
+            <SFButton size="sm" variant="danger" onClick={() => handleToggle(false, true)} loading={isPending}>
+              Deactivate anyway
+            </SFButton>
+            <SFButton size="sm" variant="ghost" onClick={() => setLiveGame(null)} disabled={isPending}>
+              Keep {player.full_name.trim().split(/\s+/)[0]}
+            </SFButton>
+          </div>
+        </div>
       )}
     </li>
   );

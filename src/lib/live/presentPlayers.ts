@@ -48,3 +48,29 @@ export function playersHeadline(played: number, didntGetOnCount: number): string
   const base = `${played} player${played !== 1 ? "s" : ""}`;
   return didntGetOnCount > 0 ? `${base} · ${didntGetOnCount} didn't get on` : base;
 }
+
+/**
+ * Every kid this game's events name: at the game (above), subbed, hurt,
+ * lent, scored. A live page loads them whatever their active flag, so a
+ * kid deactivated mid-game stays on the field and in the share text,
+ * which read "Unknown — 12:00" (UX round 3, 24 Oct 2026).
+ */
+export function inGamePlayerIds(events: GameEvent[]): string[] {
+  const ids = new Set(presentPlayerIds(events));
+  for (const e of events) {
+    if (e.player_id) ids.add(e.player_id);
+    const m = e.metadata as { on_player_id?: unknown; off_player_id?: unknown } | null;
+    if (typeof m?.on_player_id === "string") ids.add(m.on_player_id);
+    if (typeof m?.off_player_id === "string") ids.add(m.off_player_id);
+  }
+  return Array.from(ids);
+}
+
+/**
+ * A players query's filter for a live page: the active squad, and any kid
+ * this game's events name (PostgREST `or`, for `.or(...)`).
+ */
+export function activeOrInGameFilter(events: GameEvent[]): string {
+  const ids = inGamePlayerIds(events).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+  return ids.length > 0 ? `is_active.eq.true,id.in.(${ids.join(",")})` : "is_active.eq.true";
+}

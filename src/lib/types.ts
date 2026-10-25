@@ -268,6 +268,12 @@ export interface Game {
   status: GameStatus;
   sub_interval_seconds: number;
   share_token: string;
+  /**
+   * The parent availability link's token (migration 0072):
+   * /availability/<token> marks a kid In or Out, nothing else. Not the
+   * game-day link (share_token), which runs the game.
+   */
+  availability_token: string;
   on_field_size: number;
   /**
    * The old Junior Rugby League §6 switch (migration 0046). No longer
@@ -311,6 +317,8 @@ export interface GameAvailability {
   status: AvailabilityStatus;
   updated_by: string | null;
   updated_at: string;
+  /** When a parent answered (the availability link, or a Parent member); migration 0072. */
+  replied_at: string | null;
 }
 
 export type Zone = "back" | "hback" | "mid" | "hfwd" | "fwd";
@@ -395,7 +403,11 @@ export type GameEventType =
   // Oztag mixed: a try scored by a girl, worth 2 (ITF rule 4.3), both
   // sides. player_id = the scorer on ours.
   | "girls_try"
-  | "opponent_girls_try";
+  | "opponent_girls_try"
+  // Every sport: the clock stopped or started again mid-period.
+  // Metadata: { quarter, paused, elapsed_ms, at_ms } (lib/live/clockPause).
+  // A reload or a second phone rebuilds a paused clock from it.
+  | "clock_pause";
 
 export interface Lineup {
   back: string[];
@@ -552,9 +564,10 @@ export type Database = {
       };
       games: {
         Row: Game;
-        Insert: Omit<Game, "id" | "created_at" | "updated_at" | "status"> & {
+        Insert: Omit<Game, "id" | "created_at" | "updated_at" | "status" | "availability_token"> & {
           id?: string;
           status?: GameStatus;
+          availability_token?: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -563,9 +576,10 @@ export type Database = {
       };
       game_availability: {
         Row: GameAvailability;
-        Insert: Omit<GameAvailability, "id" | "updated_at" | "status"> & {
+        Insert: Omit<GameAvailability, "id" | "updated_at" | "status" | "replied_at"> & {
           id?: string;
           status?: AvailabilityStatus;
+          replied_at?: string | null;
           updated_at?: string;
         };
         Update: Partial<Omit<GameAvailability, "id">>;
@@ -688,7 +702,9 @@ export type Database = {
 // proper type narrowing on `.data`. Defaults to `unknown` for the bulk
 // of actions that just signal success/failure.
 // `rejected`: refused under a game rule, so the write queue drops the op
-// instead of retrying it (see writeQueue's ActionResult).
+// instead of retrying it (see writeQueue's ActionResult). `stale`: refused
+// because another phone has moved the game on (lib/live/liveWriteGuard.ts);
+// the screen says so and shows the game as it stands.
 export type ActionResult<T = unknown> =
   | { success: true; data?: T }
-  | { success: false; error: string; rejected?: true };
+  | { success: false; error: string; rejected?: true; stale?: true };

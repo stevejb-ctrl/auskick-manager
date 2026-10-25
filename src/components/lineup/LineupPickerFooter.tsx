@@ -30,8 +30,9 @@
 // shared shell — the rest of LineupPickerShell extraction follows
 // in later commits.
 
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { SFButton } from "@/components/sf";
+import { useStickyInset } from "@/components/ui/useStickyInset";
 
 interface LineupPickerFooterProps {
   // ─── Counts row ─────────────────────────────────────────────
@@ -67,6 +68,12 @@ interface LineupPickerFooterProps {
   confirmLabel: string;
   /** Disable gate for the primary CTA — typically `onFieldCount === 0 || isPending`. */
   confirmDisabled?: boolean;
+  /**
+   * Why the primary CTA is disabled, said under it (round 3 edge cases,
+   * 24 Oct 2026: league's Start H1 greyed out with one kid in and nothing
+   * said the vests need two).
+   */
+  confirmHint?: string | null;
   /** Loading state for the primary CTA. */
   confirmLoading?: boolean;
   /** Optional right-side icon. AFL passes chevronRight; netball passes nothing. */
@@ -84,14 +91,23 @@ export function LineupPickerFooter({
   onConfirm,
   confirmLabel,
   confirmDisabled = false,
+  confirmHint = null,
   confirmLoading = false,
   confirmIconAfter,
 }: LineupPickerFooterProps) {
+  // Focus scrolls clear of the footer (the page's scroll padding).
+  const footerRef = useRef<HTMLDivElement>(null);
+  useStickyInset(footerRef, "bottom");
   return (
-    <div className="sticky bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-3">
-      <div className="mx-auto flex max-w-4xl flex-col gap-2">
+    // On a short screen (a phone held sideways) the two rows fold into
+    // one: 119 of 390 px left no player above the fold (UX round 3, e4).
+    <div
+      ref={footerRef}
+      className="sticky bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-3 short:pb-[calc(8px+env(safe-area-inset-bottom))] short:pt-[8px]"
+    >
+      <div className="mx-auto flex max-w-4xl flex-col gap-2 short:flex-row short:items-center short:gap-4">
         {onSavePlan && (
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3 short:min-w-0 short:flex-1">
             <div className="flex items-center gap-3 text-xs sm:gap-4">
               <span className="inline-flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full bg-ok" />
@@ -143,9 +159,16 @@ export function LineupPickerFooter({
           size="lg"
           full
           iconAfter={confirmIconAfter}
+          aria-describedby={confirmDisabled && confirmHint ? "lineup-confirm-hint" : undefined}
+          className="short:h-11 short:w-auto short:flex-1"
         >
           {confirmLabel}
         </SFButton>
+        {confirmDisabled && confirmHint && (
+          <p id="lineup-confirm-hint" role="status" className="text-center text-xs font-medium text-warn">
+            {confirmHint}
+          </p>
+        )}
       </div>
     </div>
   );

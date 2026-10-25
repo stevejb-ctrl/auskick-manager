@@ -31,13 +31,16 @@ import { soccerFamilyAgeGroup, soccerFamilyAgeGroupForTeam, soccerFamilyRules } 
 import { PeriodFormatSettings } from "@/components/team/PeriodFormatSettings";
 import { TrackFoulsToggle } from "@/components/team/TrackFoulsToggle";
 import { centreVest } from "@/lib/sports/rugby/zoneTime";
+import { ReadOnlyNote, MANAGER_CAN } from "@/components/team/ReadOnlyNote";
 import type { Sport, TeamRole } from "@/lib/types";
 
 interface SettingsPageProps {
   params: { teamId: string };
+  /** ?invite=1: "Invite a manager" opens People's invite form. */
+  searchParams?: { invite?: string };
 }
 
-export default async function SettingsPage({ params }: SettingsPageProps) {
+export default async function SettingsPage({ params, searchParams }: SettingsPageProps) {
   const supabase = createClient();
 
   const {
@@ -104,7 +107,8 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
     .map((m) => ({
       user_id: m.user_id,
       role: m.role,
-      full_name: m.profiles?.full_name ?? null,
+      // Email sign-ups have a blank name; the row falls back to the email.
+      full_name: m.profiles?.full_name?.trim() || null,
       email: m.profiles?.email ?? null,
       isSelf: !!user && m.user_id === user.id,
     }))
@@ -142,6 +146,14 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
       : isTouch(sport)
         ? touchAgeGroupForTeam(sport, teamAgeGroup, teamPeriodCount)
         : getAgeGroupConfig(sport, teamAgeGroup);
+  // Games already scheduled on the team's size: changing it moves them
+  // too, and the size card says so before the coach saves.
+  const { count: scheduledOnSize } = await supabase
+    .from("games")
+    .select("id", { count: "exact", head: true })
+    .eq("team_id", params.teamId)
+    .eq("status", "upcoming")
+    .eq("on_field_size", teamOnFieldSize(ageGroupCfg, (team as { on_field_size?: number | null }).on_field_size ?? null));
   // Hockey's halves or quarters: the game's length is the age group's
   // (4 × 15 is 2 × 30).
   const hockeyFormat =
@@ -174,6 +186,11 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   // game-day extras, and the danger zone — instead of one long stack.
   return (
     <div className="space-y-8">
+      {!isAdmin && (
+        <ReadOnlyNote>
+          Only the coach can change the team&rsquo;s settings. {MANAGER_CAN}
+        </ReadOnlyNote>
+      )}
       <TeamNameSettings
         teamId={params.teamId}
         currentName={team.name}
@@ -225,13 +242,14 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         )}
       </SettingsSection>
 
-      <SettingsSection title="People">
+      <SettingsSection title="People" anchor="people">
         <TeamMembersSettings
           teamId={params.teamId}
           isAdmin={isAdmin}
           members={members}
           invites={invites}
           joinCode={joinCode}
+          openInvite={searchParams?.invite === "1"}
         />
       </SettingsSection>
 
@@ -257,6 +275,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           min={ageGroupCfg.minOnFieldSize}
           max={ageGroupCfg.maxOnFieldSize}
           initialSize={(team as { on_field_size?: number | null }).on_field_size ?? null}
+          scheduledGames={scheduledOnSize ?? 0}
           isAdmin={isAdmin}
         />
         {isBasketball(sport) && (
@@ -356,7 +375,12 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
       </SettingsSection>
 
       <SettingsSection title="Danger zone" tone="danger">
-        <DangerZone teamId={params.teamId} teamName={team.name} isAdmin={isAdmin} />
+        <DangerZone
+          teamId={params.teamId}
+          teamName={team.name}
+          isAdmin={isAdmin}
+          soleCoach={isAdmin && members.filter((m) => m.role === "admin").length <= 1}
+        />
       </SettingsSection>
     </div>
   );

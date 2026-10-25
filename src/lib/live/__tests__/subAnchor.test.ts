@@ -4,7 +4,7 @@
 // when the batch is done.
 
 import { describe, expect, it } from "vitest";
-import { openSubBatch, resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
+import { mergeSubAnchor, openSubBatch, resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
 import type { GameEvent } from "@/lib/types";
 
 let seq = 0;
@@ -84,5 +84,52 @@ describe("openSubBatch: what's left of a due batch", () => {
       swap(MIN + 9_000, "c", "z"),
     ];
     expect(openSubBatch(events, 1)).toBe(1);
+  });
+});
+
+describe("a hand swap doesn't restart the sub clock (AFL's rule, every sport)", () => {
+  // Round 2 (24 Oct 2026): a tap-tap swap restarted soccer's countdown
+  // (3:15 → 3:58); AFL's kept running toward the next planned sub.
+  it("skips a manual swap when finding the anchor", () => {
+    const events = [ev("quarter_start", { quarter: 1 }), swap(4 * MIN, "a", "x"), swap(5 * MIN, "b", "y", { manual: true })];
+    expect(resolveSubAnchorElapsed(events, 1)).toBe(4 * MIN);
+    expect(resolveSubAnchorElapsed([ev("quarter_start", { quarter: 1 }), swap(MIN, "a", "x", { manual: true })], 1)).toBe(0);
+  });
+
+  it("looks past a manual swap for a batch still open", () => {
+    const events = [ev("quarter_start", { quarter: 1 }), swap(MIN, "a", "x", { batch_left: 1 }), swap(MIN + 9_000, "c", "z", { manual: true })];
+    expect(openSubBatch(events, 1)).toBe(1);
+  });
+});
+
+describe("mergeSubAnchor: AFL's sub clock, from the events and this phone", () => {
+  // Round 2 (24 Oct 2026): a reload 35 s after "Make all 2 swaps" (made
+  // late, at 7:48) brought "Sub due — NOW" straight back. The anchor was
+  // re-seeded from a stale clock; now it's the events' anchor.
+  it("takes the events' anchor for a period it hasn't seen (a reload, a new quarter)", () => {
+    expect(mergeSubAnchor(null, { period: 1, anchorMs: 7 * MIN + 48_000, batchLeft: 0 })).toEqual({
+      period: 1,
+      anchorMs: 7 * MIN + 48_000,
+      batchLeft: 0,
+    });
+    expect(mergeSubAnchor({ period: 1, anchorMs: 9 * MIN, batchLeft: 0 }, { period: 2, anchorMs: null, batchLeft: 0 })).toEqual({
+      period: 2,
+      anchorMs: 0,
+      batchLeft: 0,
+    });
+  });
+
+  it("keeps this phone's newer swap over events that haven't caught up", () => {
+    const mine = { period: 1, anchorMs: 8 * MIN, batchLeft: 0 };
+    expect(mergeSubAnchor(mine, { period: 1, anchorMs: 4 * MIN, batchLeft: 0 })).toBe(mine);
+    expect(mergeSubAnchor(mine, { period: 1, anchorMs: null, batchLeft: 0 })).toBe(mine);
+  });
+
+  it("follows a newer swap the events have (another phone's)", () => {
+    expect(mergeSubAnchor({ period: 1, anchorMs: 4 * MIN, batchLeft: 0 }, { period: 1, anchorMs: 8 * MIN, batchLeft: 1 })).toEqual({
+      period: 1,
+      anchorMs: 8 * MIN,
+      batchLeft: 1,
+    });
   });
 });

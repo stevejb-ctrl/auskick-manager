@@ -39,6 +39,8 @@ import { AflWalkthroughOffer, LeagueWalkthroughOffer } from "@/components/live/W
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { ParentScoreboard } from "@/components/live/ParentScoreboard";
 import { GameDayAvailabilityPanel } from "@/components/games/GameDayAvailabilityPanel";
+import { activeOrInGameFilter } from "@/lib/live/presentPlayers";
+import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
 import {
   replayGame,
   seasonZoneMinutes,
@@ -53,6 +55,9 @@ import { normalizeChipMode } from "@/lib/chips";
 import type { FillIn, Game, GameEvent, LeagueLineup, MixedGroup, Player, Sport } from "@/lib/types";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { teamSportById } from "@/lib/sports/teamSportById";
+import { LiveSync } from "@/components/live/LiveSync";
+import { readLiveSyncStamp } from "@/lib/live/liveSyncStamp";
+import { backfillNetballCourt, filterLineupToAvailable, inSquadOrder } from "@/lib/live/lineupDraft";
 
 /**
  * A fill-in player is stored in `game_fill_ins` but needs to look like a
@@ -87,88 +92,16 @@ function fillInToPlayer(f: FillIn, teamId: string): Player {
 }
 
 /**
- * B1 / AVAIL-01 (UX half): strip every player id not in `availableIds`
- * out of a saved draft lineup so a now-unavailable player visibly drops
- * off the field when the picker hydrates. Structural + recursive so it
- * covers AFL/league flat zone arrays AND netball's nested `positions`
- * map with one impl — mirroring the server-side
- * reconcileLineupToAvailability filter. Correctness is enforced
- * server-side at kickoff; this is purely the visible echo for the coach.
+ * When and where the game is, and the squad kids not here, for the Game
+ * plan's copied text, as the game page's plan says them (UX round 2,
+ * 24 Oct 2026: parents had to ask).
  */
-function filterLineupToAvailable<T>(
-  lineup: T,
-  availableIds: Set<string> | string[],
-): T {
-  const has = (id: string): boolean =>
-    Array.isArray(availableIds)
-      ? availableIds.includes(id)
-      : availableIds.has(id);
-  const walk = (node: unknown): unknown => {
-    if (Array.isArray(node)) {
-      return node.filter((id) => typeof id === "string" && has(id));
-    }
-    if (node && typeof node === "object") {
-      const out: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
-        out[k] = walk(v);
-      }
-      return out;
-    }
-    return node;
-  };
-  return walk(lineup) as T;
-}
-
-/**
- * B1 / AVAIL-01 (netball UX half): after `filterLineupToAvailable`
- * strips a now-unavailable player out of a netball draft, the court
- * is left with a NAMED empty position. Unlike AFL/league flat zone
- * arrays (where a removed player just shortens the array), netball's
- * `validateNetballLineup` blocks kickoff while any targeted court
- * position is empty — so the coach would be stranded at "Need 7 on
- * court". This backfills each empty court position, in canonical
- * order, from the available bench (any available id not already on
- * court). Mirrors D-04's "the normal rotation fills the vacated spot"
- * rule for netball's named-position model, keeping the silent
- * auto-remove startable. Server-side `reconcileLineupToAvailability`
- * remains the authoritative correctness backstop at kickoff.
- */
-function backfillNetballCourt(
-  lineup: import("@/lib/sports/netball/fairness").GenericLineup,
-  courtPositions: readonly string[],
-  availableIds: Set<string> | string[],
-): import("@/lib/sports/netball/fairness").GenericLineup {
-  const availArr = Array.isArray(availableIds)
-    ? availableIds
-    : Array.from(availableIds);
-  const positions = { ...lineup.positions };
-  // Everyone currently placed on court (post-filter) — never double-place.
-  const onCourt = new Set<string>();
-  for (const pid of courtPositions) {
-    const occ = positions[pid]?.[0];
-    if (occ) onCourt.add(occ);
-  }
-  const bench = (lineup.bench ?? []).filter((id) => availArr.includes(id));
-  // Candidate pool to draw from: available bench players first, then
-  // any other available id not yet on court (defensive — covers a
-  // draft whose bench list was itself stale).
-  const pool = [
-    ...bench,
-    ...availArr.filter((id) => !onCourt.has(id) && !bench.includes(id)),
-  ].filter((id) => !onCourt.has(id));
-  const filledBench = new Set<string>();
-  for (const pid of courtPositions) {
-    const occupied = (positions[pid]?.length ?? 0) > 0;
-    if (occupied) continue;
-    const next = pool.find((id) => !onCourt.has(id));
-    if (!next) break; // not enough available players — leave it empty
-    positions[pid] = [next];
-    onCourt.add(next);
-    filledBench.add(next);
-  }
+function gamePlanDetails(g: Game, squad: Player[], availableIds: Set<string> | string[]) {
+  const here = new Set(availableIds);
   return {
-    positions,
-    bench: bench.filter((id) => !filledBench.has(id)),
+    scheduledAt: g.scheduled_at,
+    venue: g.location,
+    out: squad.filter((p) => !here.has(p.id)).map((p) => p.full_name.trim().split(/\s+/)[0]),
   };
 }
 
@@ -176,7 +109,22 @@ interface LivePageProps {
   params: { teamId: string; gameId: string };
 }
 
-export default async function LivePage({ params }: LivePageProps) {
+// The coach's page keeps in step with the other phone on the game (a
+// parent's game-day link, a co-manager): LiveSync. The game's stamp is
+// read before the page's own data, so a write landing in between makes
+// the next check refresh rather than be missed.
+export default async function LivePage(props: LivePageProps) {
+  const stamp = await readLiveSyncStamp(createClient(), props.params.gameId);
+  const body = await LivePageBody(props);
+  return (
+    <>
+      <LiveSync stamp={stamp} syncUrl={`/teams/${props.params.teamId}/games/${props.params.gameId}/live/sync`} />
+      {body}
+    </>
+  );
+}
+
+async function LivePageBody({ params }: LivePageProps) {
   const supabase = createClient();
 
   const {
@@ -201,7 +149,7 @@ export default async function LivePage({ params }: LivePageProps) {
       .single(),
     supabase
       .from("teams")
-      .select("name, sport, track_scoring, track_zone_time, age_group, quarter_length_seconds, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
+      .select("name, sport, track_scoring, track_zone_time, age_group, quarter_length_seconds, on_field_size, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_label, chip_b_label, chip_c_label, chip_a_mode, chip_b_mode, chip_c_mode")
       .eq("id", params.teamId)
       .single(),
     supabase
@@ -212,6 +160,9 @@ export default async function LivePage({ params }: LivePageProps) {
   ]);
   if (!game) notFound();
   const g = game as Game;
+  // The squad for this game: the active kids, and any kid its events name
+  // (deactivated mid-game, they stay on: UX round 3, 24 Oct 2026).
+  const squadFilter = activeOrInGameFilter((thisGameEvents ?? []) as GameEvent[]);
   const teamName = teamRow?.name ?? "Team";
   const sport: Sport = teamRow ? teamSport(teamRow.sport) : ((await teamSportById(params.teamId)) ?? notFound());
   // track_scoring is sport-agnostic — both AFL and netball flows
@@ -333,8 +284,8 @@ export default async function LivePage({ params }: LivePageProps) {
       { quarter_length_seconds: g.quarter_length_seconds },
     );
     const [{ data: avail }, { data: players }, { data: fillInRows }] = await Promise.all([
-      supabase.from("game_availability").select("player_id, status").eq("game_id", params.gameId).eq("status", "available"),
-      supabase.from("players").select("*").eq("team_id", params.teamId).eq("is_active", true).order("jersey_number"),
+      supabase.from("game_availability").select("player_id, status").eq("game_id", params.gameId).eq("status", "available").order("player_id"),
+      supabase.from("players").select("*").eq("team_id", params.teamId).or(squadFilter).order("jersey_number").order("full_name").order("id"),
       supabase.from("game_fill_ins").select("*").eq("game_id", params.gameId).order("created_at"),
     ]);
     const fillIns = ((fillInRows ?? []) as FillIn[]).map((f) => fillInToPlayer(f, params.teamId));
@@ -475,8 +426,8 @@ export default async function LivePage({ params }: LivePageProps) {
     );
     const trackFouls = teamExtras?.track_fouls ?? ageCfgB.tracksFoulsDefault;
     const [{ data: avail }, { data: players }, { data: fillInRows }] = await Promise.all([
-      supabase.from("game_availability").select("player_id, status").eq("game_id", params.gameId).eq("status", "available"),
-      supabase.from("players").select("*").eq("team_id", params.teamId).eq("is_active", true).order("jersey_number"),
+      supabase.from("game_availability").select("player_id, status").eq("game_id", params.gameId).eq("status", "available").order("player_id"),
+      supabase.from("players").select("*").eq("team_id", params.teamId).or(squadFilter).order("jersey_number").order("full_name").order("id"),
       supabase.from("game_fill_ins").select("*").eq("game_id", params.gameId).order("created_at"),
     ]);
     const fillIns = ((fillInRows ?? []) as FillIn[]).map((f) => fillInToPlayer(f, params.teamId));
@@ -625,8 +576,8 @@ export default async function LivePage({ params }: LivePageProps) {
     const mixedRule = teamMixedRule(teamExtras);
     const girlsTryDouble = girlsTryCountsDouble(ageCfgT, mixedRule, teamExtras?.girls_try_double);
     const [{ data: avail }, { data: players }, { data: fillInRows }] = await Promise.all([
-      supabase.from("game_availability").select("player_id, status").eq("game_id", params.gameId).eq("status", "available"),
-      supabase.from("players").select("*").eq("team_id", params.teamId).eq("is_active", true).order("jersey_number"),
+      supabase.from("game_availability").select("player_id, status").eq("game_id", params.gameId).eq("status", "available").order("player_id"),
+      supabase.from("players").select("*").eq("team_id", params.teamId).or(squadFilter).order("jersey_number").order("full_name").order("id"),
       supabase.from("game_fill_ins").select("*").eq("game_id", params.gameId).order("created_at"),
     ]);
     const fillIns = ((fillInRows ?? []) as FillIn[]).map((f) => fillInToPlayer(f, params.teamId));
@@ -658,6 +609,8 @@ export default async function LivePage({ params }: LivePageProps) {
       weight: howWePlay.balance === "off" ? 0 : seasonBalanceWeight(sport, howWePlay.balance),
       periodMs: periodSecondsT * 1000,
     };
+    // Lent minutes in the season's other games, for the long-press sheet.
+    const seasonLoanMinsT = seasonLoanMinutes(seasonEvents as GameEvent[]);
 
     if (!events.some((e) => e.type === "lineup_set")) {
       const { data: draftRow } = await supabase
@@ -707,6 +660,7 @@ export default async function LivePage({ params }: LivePageProps) {
               // Suggest again when who's here changes.
               key={Array.from(availableIds).sort().join(",")}
               auth={{ kind: "team", teamId: params.teamId }}
+              sport={sport}
               gameId={params.gameId}
               players={availablePlayers}
               ageGroup={ageCfgT}
@@ -720,6 +674,7 @@ export default async function LivePage({ params }: LivePageProps) {
               initialDraft={initialDraft}
               initialLoanedIds={initialLoanedIds}
               availabilityPanel={touchAvailabilityPanel}
+              seasonLoanMinutes={seasonLoanMinsT}
             />
           )}
         </div>
@@ -748,6 +703,7 @@ export default async function LivePage({ params }: LivePageProps) {
           season={season}
           isAdmin={isAdmin}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
+          seasonLoanMinutes={seasonLoanMinsT}
         />
       </div>
     );
@@ -790,13 +746,14 @@ export default async function LivePage({ params }: LivePageProps) {
         .from("game_availability")
         .select("player_id, status")
         .eq("game_id", params.gameId)
-        .eq("status", "available"),
+        .eq("status", "available")
+        .order("player_id"),
       supabase
         .from("players")
         .select("*")
         .eq("team_id", params.teamId)
-        .eq("is_active", true)
-        .order("jersey_number"),
+        .or(squadFilter)
+        .order("jersey_number").order("full_name").order("id"),
       supabase
         .from("game_fill_ins")
         .select("*")
@@ -943,7 +900,8 @@ export default async function LivePage({ params }: LivePageProps) {
               gameId={params.gameId}
               players={availablePlayers}
               ageGroup={ageCfgL}
-              defaultOnFieldSize={ageCfgL.defaultOnFieldSize}
+              // The game's own size, as AFL's and every picker's.
+              defaultOnFieldSize={g.on_field_size}
               minOnFieldSize={ageCfgL.minOnFieldSize}
               maxOnFieldSize={ageCfgL.maxOnFieldSize}
               defaultSubMinutes={g.sub_interval_seconds / 60}
@@ -956,6 +914,7 @@ export default async function LivePage({ params }: LivePageProps) {
                 subIntervalSeconds: g.sub_interval_seconds,
                 teamName,
                 opponentName: g.opponent,
+                details: gamePlanDetails(g, (players ?? []) as Player[], availableIds),
                 seasonEvents: leagueSeasonEvents as GameEvent[],
                 chipModeByKey: teamChipModes,
                 leaguePlaybook,
@@ -1045,13 +1004,14 @@ export default async function LivePage({ params }: LivePageProps) {
         .from("game_availability")
         .select("player_id, status")
         .eq("game_id", params.gameId)
-        .eq("status", "available"),
+        .eq("status", "available")
+        .order("player_id"),
       supabase
         .from("players")
         .select("*")
         .eq("team_id", params.teamId)
-        .eq("is_active", true)
-        .order("jersey_number"),
+        .or(squadFilter)
+        .order("jersey_number").order("full_name").order("id"),
       supabase.from("games").select("id").eq("team_id", params.teamId),
       supabase
         .from("game_fill_ins")
@@ -1088,7 +1048,7 @@ export default async function LivePage({ params }: LivePageProps) {
       .map((e) => e.player_id as string);
     const availableIds = Array.from(
       new Set<string>([
-        ...(avail ?? []).map((a) => a.player_id),
+        ...inSquadOrder((avail ?? []).map((a) => a.player_id), squad),
         ...fillInsForLive.map((f) => f.id),
         ...lateArrivedFromEvents,
       ]),
@@ -1264,6 +1224,8 @@ export default async function LivePage({ params }: LivePageProps) {
                   periodMinutes: quarterLengthSeconds / 60,
                   teamName,
                   opponentName: g.opponent,
+                  // When, where and who's out, as the game page's plan.
+                  details: gamePlanDetails(g, (players ?? []) as Player[], availableIds),
                   seasonEvents: seasonEvents as GameEvent[],
                   chipModeByKey: teamChipModes,
                   netballPlaybook,
@@ -1326,8 +1288,8 @@ export default async function LivePage({ params }: LivePageProps) {
         .from("players")
         .select("*")
         .eq("team_id", params.teamId)
-        .eq("is_active", true)
-        .order("jersey_number"),
+        .or(squadFilter)
+        .order("jersey_number").order("full_name").order("id"),
       supabase.from("games").select("id").eq("team_id", params.teamId),
       supabase
         .from("game_fill_ins")
@@ -1415,7 +1377,9 @@ export default async function LivePage({ params }: LivePageProps) {
           currentOnFieldSize={g.on_field_size}
           minOnFieldSize={ageCfg.minOnFieldSize}
           maxOnFieldSize={ageCfg.maxOnFieldSize}
-          defaultOnFieldSize={ageCfg.defaultOnFieldSize}
+          // A full side is the team's own (its competition's), not the age
+          // group's: a team that plays 6 drew 6 empty slots (UX round 3).
+          defaultOnFieldSize={teamOnFieldSize(ageCfg, (teamRow as { on_field_size?: number | null } | null)?.on_field_size)}
           chipModeByKey={teamChipModes}
           aflPlaybook={aflPlaybook}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
@@ -1445,13 +1409,14 @@ export default async function LivePage({ params }: LivePageProps) {
       .from("game_availability")
       .select("player_id, status")
       .eq("game_id", params.gameId)
-      .eq("status", "available"),
+      .eq("status", "available")
+      .order("player_id"),
     supabase
       .from("players")
       .select("*")
       .eq("team_id", params.teamId)
-      .eq("is_active", true)
-      .order("jersey_number"),
+      .or(squadFilter)
+      .order("jersey_number").order("full_name").order("id"),
     supabase.from("games").select("id").eq("team_id", params.teamId),
     supabase
       .from("game_fill_ins")
@@ -1577,11 +1542,17 @@ export default async function LivePage({ params }: LivePageProps) {
           gameId={params.gameId}
           players={availablePlayers}
           season={season}
-          defaultOnFieldSize={ageCfg.defaultOnFieldSize}
+          // The game's own size (the team's, its competition's, when it
+          // was made or since), as the runner's lineup and every other
+          // sport's picker start from: it said 12 after Settings said 11
+          // (UX round 2, 24 Oct 2026).
+          defaultOnFieldSize={g.on_field_size}
           minOnFieldSize={ageCfg.minOnFieldSize}
           maxOnFieldSize={ageCfg.maxOnFieldSize}
           positionModel={positionModel}
-          gameMinutes={(ageCfg.periodSeconds * ageCfg.periodCount) / 60}
+          // This game's length, not the age group's: the sub-interval
+          // explainer said "over 48 min" for a 40-minute game.
+          gameMinutes={(quarterMs * ageCfg.periodCount) / 60_000}
           defaultSubMinutes={g.sub_interval_seconds / 60}
           fullPeriodMs={quarterMs}
           backHref={`/teams/${params.teamId}/games/${params.gameId}`}
@@ -1595,6 +1566,7 @@ export default async function LivePage({ params }: LivePageProps) {
             subIntervalSeconds: g.sub_interval_seconds,
             teamName,
             opponentName: g.opponent,
+            details: gamePlanDetails(g, (players ?? []) as Player[], availableIds),
             seasonEvents: (seasonEvents ?? []) as GameEvent[],
             chipModeByKey: teamChipModes,
             aflPlaybook,
@@ -1605,6 +1577,7 @@ export default async function LivePage({ params }: LivePageProps) {
           roleSheet={coachRoleSheet(isAdmin, playbook, playbookPrefs)}
           initialLoanedIds={initialLoanedIds}
           initialLocks={replayLocks((thisGameEvents ?? []) as GameEvent[])}
+          seasonLoanMinutes={seasonLoanMinutes((seasonEvents ?? []) as GameEvent[])}
         />
       )}
     </div>

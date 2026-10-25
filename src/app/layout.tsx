@@ -14,6 +14,7 @@ import { PostHogAnalytics } from "@/components/analytics/PostHogAnalytics";
 import { NativeAuthBridge } from "@/components/auth/NativeAuthBridge";
 import { NativeCookieBridge } from "@/components/native/NativeCookieBridge";
 import { NativeSplashHide } from "@/components/native/NativeSplashHide";
+import { A11yRoot } from "@/components/ui/A11yRoot";
 import "./globals.css";
 
 const sans = Inter({
@@ -102,6 +103,11 @@ export function generateViewport(): Viewport {
     initialScale: 1,
     viewportFit: "cover",
     themeColor,
+    // Light only, so Chrome's auto-dark and Samsung Internet's dark
+    // mode leave the page alone (UX round 3, e4: they inverted it, and
+    // the dark sub card and clock pill sank into the darkened page).
+    // A real dark theme would be a design job of its own.
+    colorScheme: "only light",
   };
 }
 
@@ -170,6 +176,10 @@ export default function RootLayout({
             No-op on web. */}
         <NativeSplashHide />
         {children}
+        {/* The one polite live region (scores, subs and the end of a
+            period are said into it, lib/a11y/announce) and the focus
+            history dialogs return focus from. */}
+        <A11yRoot />
         {/* Google Analytics, public pages only: never the app or a
             token link (/run/<token>, /join/<token>). The gate reads
             the URL with useSearchParams, hence the Suspense. */}

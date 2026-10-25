@@ -28,6 +28,16 @@ interface AvailabilityListProps {
    */
   canManageMatch: boolean;
   /**
+   * "Mark all in" for everyone at once: the coach's, a manager's and the
+   * game-day runner's, never a parent's. Defaults to canMarkAvailability.
+   */
+  canMarkAllIn?: boolean;
+  /**
+   * Show who answered through the parent availability link (or as a
+   * Parent member): "Replied" on the row and "N of M replied" up top.
+   */
+  showReplies?: boolean;
+  /**
    * AFL teams show a jersey-number input on the fill-in form; netball
    * teams don't (no jersey numbers in netball). Defaults to true so
    * unchanged callers keep their current behaviour.
@@ -51,6 +61,8 @@ export async function AvailabilityList({
   gameId,
   canMarkAvailability,
   canManageMatch,
+  canMarkAllIn = canMarkAvailability,
+  showReplies = false,
   showJerseyNumber = true,
   requiredAvailable,
 }: AvailabilityListProps) {
@@ -77,9 +89,12 @@ export async function AvailabilityList({
   const squad = (players ?? []) as Player[];
   const fillIns = (fillInRows ?? []) as FillIn[];
   const availMap = new Map<string, AvailabilityStatus>();
+  const replied = new Set<string>();
   for (const row of (availability ?? []) as GameAvailability[]) {
     availMap.set(row.player_id, row.status);
+    if (row.replied_at) replied.add(row.player_id);
   }
+  const repliedCount = squad.filter((p) => replied.has(p.id)).length;
 
   let available = 0;
   for (const p of squad) {
@@ -122,7 +137,12 @@ export async function AvailabilityList({
         >
           {`${available} of ${totalRoster} in`}
         </span>
-        {canMarkAvailability && (
+        {showReplies && squad.length > 0 && (
+          <span className="text-xs font-medium text-ink-dim">
+            {repliedCount} of {squad.length} replied
+          </span>
+        )}
+        {canMarkAvailability && canMarkAllIn && (
           <MarkAllInButton auth={auth} gameId={gameId} notInIds={notInIds} />
         )}
       </div>
@@ -150,6 +170,10 @@ export async function AvailabilityList({
                 jerseyNumber={p.jersey_number}
                 status={availMap.get(p.id) ?? "unknown"}
                 canEdit={canMarkAvailability}
+                note={showReplies && replied.has(p.id) ? "Replied" : undefined}
+                // A parent member answers for their child (Mark all in
+                // and fill-ins are the coach's).
+                answering={canMarkAvailability && !canManageMatch}
               />
             ))}
             {fillIns.map((f) => (

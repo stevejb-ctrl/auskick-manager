@@ -13,6 +13,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
+import { liveEvents } from "@/lib/live/optimisticEvents";
+import type { OptimisticWrite } from "@/lib/live/useOptimisticEvents";
+import { queuedStartClockMark } from "@/lib/live/useClockPause";
 import { useStagedBreakDraft } from "@/lib/live/useStagedBreakDraft";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { hapticTap } from "@/lib/haptics";
@@ -21,9 +24,11 @@ import { PeriodBreak, type BreakPlayer, type BreakStrategy } from "@/components/
 import { breakConfigFor } from "@/lib/sports/break";
 import { buildBoard, placesOf, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
+import { useBreakReplan } from "@/lib/live/break/useBreakReplan";
+import { awayMsSoFar } from "@/lib/live/break/floor";
 import { rotateGroups } from "@/lib/live/break/rotateGroups";
-import { checkRules } from "@/lib/playbook/ruleCheck";
 import { BASKETBALL_POSITION_DEFS } from "@/lib/sports/basketball";
+import { basketballBreakCheck } from "@/lib/sports/basketball/breakCheck";
 import {
   basketballLineOf,
   basketballOnCourt,
@@ -39,10 +44,9 @@ import {
 } from "@/lib/sports/basketball/suggest";
 import { benchOutInBasketballLineup, placeInBasketballLineup, swapInBasketballLineup } from "@/lib/sports/basketball/live";
 import type { BasketballAgeGroupConfig, BasketballLine, BasketballStrategy } from "@/lib/sports/basketball/types";
-import type { Game, LiveAuth, Player } from "@/lib/types";
+import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 
 const GROUPS = ["forward", "guard", "court"] as const;
-const LINE_LABEL: Record<string, string> = { guard: "Guards", forward: "Forwards", court: "Court" };
 const POSITION_TAG = Object.fromEntries(BASKETBALL_POSITION_DEFS.map((p) => [p.key, p.label])) as Record<string, string>;
 
 /** The shared staged lineup, with each kid's position (the position strategies) beside it. */
@@ -70,12 +74,16 @@ function swapSlots(l: BasketballLineup, a: BoardSlot, b: BoardSlot): BasketballL
 
 interface Props {
   auth: LiveAuth;
+  /** The live screen's optimistic write: Start shows at once, with or without signal. */
+  write: OptimisticWrite;
   game: Game;
   exitHref?: string;
   squad: Player[];
   ageGroup: BasketballAgeGroupConfig;
   /** The game at the break (no open stints). */
   state: BasketballGameState;
+  /** The game's events: who arrived late, was hurt or lent, and when. */
+  events: GameEvent[];
   periodMs: number;
   strategy: BasketballStrategy;
   prefs?: BasketballPrefs;
@@ -89,11 +97,13 @@ interface Props {
 
 export function BasketballBreak({
   auth,
+  write,
   game,
   exitHref,
   squad,
   ageGroup,
   state,
+  events,
   periodMs,
   strategy: playStrategy,
   prefs,
@@ -180,9 +190,13 @@ export function BasketballBreak({
     s === "suggested" ? suggested : s === "rotate" ? rotated : s === "repeat" ? repeat : manual;
   const [draft, setDraft] = useState<BasketballLineup>(() => forStrategy(initialMode));
   const lastApplied = useRef<BreakStrategy>(initialMode);
+  // A kid back at the break gets the strategy's lineup again, unless the
+  // coach has placed kids by hand (lib/live/break/useBreakReplan).
+  const replan = useBreakReplan(healthy, () => setDraft(forStrategy(strategy)));
   useEffect(() => {
     if (lastApplied.current === strategy) return;
     lastApplied.current = strategy;
+    replan.strategyApplied();
     setDraft(forStrategy(strategy));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [strategy]);
@@ -198,6 +212,7 @@ export function BasketballBreak({
     staged,
     mode: strategy,
     onRestore: (restored) => {
+      replan.placedByHand();
       setDraft(lineupOf(restored));
       const mode = restored.mode as BreakStrategy;
       if (["suggested", "rotate", "repeat", "manual"].includes(mode)) {
@@ -232,6 +247,7 @@ export function BasketballBreak({
     void run(enqueueLiveAction("addLateArrival", [auth, game.id, { player_id: pid, ...at }]).flushed);
   }
   function markOut(pid: string, replacementId: string | null) {
+    if (replacementId) replan.placedByHand();
     setDraft((d) => {
       const line = basketballLineOf(d, pid);
       const benched = benchOutInBasketballLineup(d, new Set([pid]));
@@ -240,23 +256,21 @@ export function BasketballBreak({
     void run(enqueueLiveAction("markInjury", [auth, game.id, { player_id: pid, injured: true, ...at, reason: "out" }]).flushed);
   }
 
-  async function start() {
-    setPending(true);
+  // Start: the break's lineup, then the period, as optimistic writes
+  // through the live screen's `write`, so the period starts at the tap
+  // with or without signal (it used to wait on both saves; with no
+  // signal it never started). With no signal the clock's start rides
+  // along too (queuedStartClockMark).
+  function start() {
     setError(null);
-    try {
-      // Kids who can't play now start on the bench, places left empty.
-      await enqueueLiveAction("recordBasketballLineupSet", [auth, game.id, benchOutInBasketballLineup(draft, sidelinedSet), undefined])
-        .flushed;
-      await enqueueLiveAction("startBasketballPeriod", [auth, game.id, nextPeriod]).flushed;
-      stagedBreakDraft.clear();
-      void hapticTap("medium");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "That didn't save. Try again.");
-      setPending(false);
-      return;
-    }
-    setPending(false);
-    router.refresh();
+    // Kids who can't play now start on the bench, places left empty.
+    const lineup = benchOutInBasketballLineup(draft, sidelinedSet);
+    const mark = queuedStartClockMark(nextPeriod);
+    write("recordBasketballLineupSet", [auth, game.id, lineup, undefined], liveEvents.breakLineup(lineup));
+    write("startBasketballPeriod", [auth, game.id, nextPeriod], liveEvents.periodStart(nextPeriod));
+    if (mark) write("recordClockPause", [auth, game.id, mark], liveEvents.clockPause(mark));
+    stagedBreakDraft.clear();
+    void hapticTap("medium");
   }
 
   // ── The break screen ────────────────────────────────────────
@@ -278,36 +292,23 @@ export function BasketballBreak({
   const previous = useMemo(() => (previousLineup ? placesOf(stagedOf(previousLineup)) : {}), [previousLineup]);
 
   const names = useMemo(() => Object.fromEntries(squad.map((p) => [p.id, p.full_name])), [squad]);
+  // Time a kid couldn't play (late, hurt, lent) is off their game.
+  const awayMs = useMemo(() => awayMsSoFar(events, () => periodMs, state.currentPeriod), [events, periodMs, state.currentPeriod]);
   const issues = useMemo(() => {
     // Basketball's engine acts on no catalogue rule yet: the check is the
-    // 50% game-time floor.
-    const check = (l: BasketballLineup) => {
-      // Kids who can't play aren't held to the rules.
-      const benched = benchOutInBasketballLineup(l, sidelinedSet);
-      const lu = { ...benched, bench: benched.bench.filter((id) => !sidelinedSet.has(id)) };
-      const onField: Record<string, string> = {};
-      for (const g of GROUPS) for (const pid of lu.lines[g]) onField[pid] = g;
-      const playedThisGame: Record<string, Record<string, number>> = {};
-      for (const pid of [...Object.keys(onField), ...lu.bench]) {
-        playedThisGame[pid] = Object.fromEntries(Object.entries(state.ms[pid] ?? {}).filter(([, v]) => typeof v === "number")) as Record<string, number>;
-      }
-      return checkRules({
-        onField,
-        bench: lu.bench,
-        lines: shape.lines.court > 0 ? ["court"] : ["guard", "forward"],
-        lineLabel: (k) => LINE_LABEL[k] ?? k,
-        name: (pid) => names[pid] ?? "A player",
-        playedThisGame,
-        benchedLastPeriod: previousLineup ? previousLineup.bench : [],
+    // 50% game-time floor (basketball/breakCheck).
+    const check = (l: BasketballLineup) =>
+      basketballBreakCheck({
+        lineup: l,
+        state,
+        sidelined: sidelinedSet,
+        court: shape.lines.court > 0,
         period: nextPeriod,
         periodCount: ageGroup.periodCount,
         periodMs,
-        periodWord: ageGroup.periodCount === 4 ? "quarter" : "half",
-        lineWord: "line",
-        minGameTimePct: 50,
-        rules: [],
+        names,
+        awayMs,
       });
-    };
     return breakIssues({
       lineup: draft,
       check,
@@ -316,7 +317,7 @@ export function BasketballBreak({
       sidelined: sidelinedSet,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, sidelinedSet, state.ms, shape, names, previousLineup, nextPeriod, ageGroup.periodCount, periodMs, config.zones]);
+  }, [draft, sidelinedSet, state, shape, names, nextPeriod, ageGroup.periodCount, periodMs, awayMs, config.zones]);
 
   const asBreakPlayer = (p: Player): BreakPlayer => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number });
   const players = useMemo(() => new Map(squad.map((p) => [p.id, asBreakPlayer(p)])), [squad]);
@@ -353,7 +354,10 @@ export function BasketballBreak({
       scores={scores}
       tags={tags}
       sidelined={sidelined}
-      onSwap={(a, b) => setDraft((d) => swapSlots(d, a, b))}
+      onSwap={(a, b) => {
+        replan.placedByHand();
+        setDraft((d) => swapSlots(d, a, b));
+      }}
       strategy={strategy}
       onStrategy={(next) => {
         setStrategy(next);
@@ -391,7 +395,7 @@ export function BasketballBreak({
         pending,
         error,
       }}
-      start={{ onStart: () => void start(), pending, cue: "whistle goes", error }}
+      start={{ onStart: start, pending, cue: "whistle goes", error }}
     />
   );
 }

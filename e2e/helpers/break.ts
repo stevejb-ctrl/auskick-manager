@@ -42,4 +42,27 @@ export async function startFromBreak(page: Page, periodName: RegExp): Promise<vo
   const now = page.getByRole("button", { name: /^start .+ now$/i });
   await expect(anyway.or(now)).toBeVisible();
   await ((await anyway.isVisible()) ? anyway : now).click();
+  await liveWritesSaved(page);
+}
+
+/**
+ * Wait until every live write this phone queued has saved. Taps are on
+ * screen at once and save behind them (lib/live/writeQueue), so a spec
+ * that reads game_events after a period starts waits for this first.
+ */
+export async function liveWritesSaved(page: Page): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          try {
+            const raw = localStorage.getItem("siren-write-queue-v1");
+            return raw ? (JSON.parse(raw) as { state?: { queue?: unknown[] } }).state?.queue?.length ?? 0 : 0;
+          } catch {
+            return 0;
+          }
+        }),
+      { timeout: 20_000 },
+    )
+    .toBe(0);
 }

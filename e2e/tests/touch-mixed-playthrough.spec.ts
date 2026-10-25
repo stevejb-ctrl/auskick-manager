@@ -15,6 +15,11 @@
 //   6. The break plans the second half on five; a try each way (a try is
 //      1 in touch, whoever scores); full time; every event carries the
 //      team's sport; the game page reports by group.
+// Along the way, AFL's live chrome (UX audit 23 Oct 2026): the boys'-cap
+// warning sits on the one swap confirm, which toasts; the undo strip says
+// what each try was; Game settings (the sub interval) is in the row; full
+// time drops the scorebug's chips and the undo strip for the review's
+// team-named 44 pt buttons, and nobody can arrive late after the last half.
 
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
@@ -65,7 +70,12 @@ test("touch U11 mixed: the Girl/Boy prompt, the cap kept through subs, a girl hu
     .from("teams")
     .update({ track_scoring: true, mixed_max_boys: 3, mixed_min_girls: 1, mixed_min_boys: 1 })
     .eq("id", team.id);
-  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 12 });
+  // Twelve here; a thirteenth in the squad could turn up late.
+  const squad = await makePlayers(admin, { teamId: team.id, ownerId, count: 13 });
+  const players = squad.slice(0, 12);
+  const nameOf = (id: string) => players.find((p) => p.id === id)!.full_name;
+  const { data: teamRow } = await admin.from("teams").select("name").eq("id", team.id).single();
+  const teamName = teamRow!.name as string;
   // Alicia, Camille, Elena and Gemma are girls; the other eight boys.
   // Gemma has no group yet: the lineup asks.
   const GIRLS = new Set(["Alicia", "Camille", "Elena", "Gemma"]);
@@ -214,7 +224,11 @@ test("touch U11 mixed: the Girl/Boy prompt, the cap kept through subs, a girl hu
   expect(await count("swap")).toBe(swapsBeforeHand);
   // The girl is still picked: the coach chooses again, and this time swaps anyway.
   await bench.getByTestId(`player-tile-${boyOn}`).click();
+  // One dialog: AFL's swap confirm, carrying the rule it breaks.
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  await expect(page.getByRole("dialog")).toContainText(`Manually sub ${nameOf(boyOn)} (Bench) for ${nameOf(girlOff)}`);
   await page.getByRole("dialog").getByRole("button", { name: "Swap anyway" }).click();
+  await expect(page.getByTestId("swap-toast")).toContainText(`${nameOf(girlOff)} → ${nameOf(boyOn)}`);
   await expect.poll(() => count("swap"), { timeout: 15_000 }).toBe(swapsBeforeHand + 1);
   expect(boysOf(await fieldNow())).toBe(4);
   // Over the cap, a chip stays pinned until it's fixed; Fix brings a girl on for a boy.
@@ -294,14 +308,39 @@ test("touch U11 mixed: the Girl/Boy prompt, the cap kept through subs, a girl hu
   const scorer = onField(h2).find((id) => groupOf.get(id) === "girl")!;
   await page.getByTestId(`player-tile-${scorer}`).click({ timeout: 10_000 });
   await page.getByTestId("touch-dock-try").click({ timeout: 5_000 });
+  // The undo strip says what was recorded, as AFL's does.
+  const strip = page.getByTestId("undo-strip");
+  await expect(strip).toContainText(`${teamName} try — ${nameOf(scorer)}`);
   await expect.poll(() => count("try")).toBe(1);
   expect(await count("girls_try")).toBe(0);
   await page.getByRole("button", { name: "Add a try, Merewether Mariners" }).click({ timeout: 5_000 });
+  await expect(strip).toContainText("Merewether Mariners try");
   await expect.poll(() => count("opponent_try")).toBe(1);
+  // The kid who isn't here yet can be added late.
+  await expect(page.getByRole("button", { name: "+ Add late arrival" })).toBeVisible();
+
+  // Game settings: the sub interval mid-game, as AFL's, in the row.
+  await page.getByRole("button", { name: "Game settings", exact: true }).click();
+  const settings = page.getByRole("dialog").filter({ hasText: "Sub interval" });
+  await expect(settings).toBeVisible();
+  await expect(settings.getByText(/players on field/i)).toHaveCount(0);
+  await settings.getByRole("button", { name: /^cancel$/i }).click();
+  await expect(settings).toHaveCount(0);
 
   await page.getByRole("button", { name: /^clock — h2/i }).click();
   await page.getByRole("button", { name: /^end h2 now$/i }).click();
   await page.getByRole("button", { name: /^end\s*h\s*2$/i }).click();
+  // Full time: the review fixes a miscount; the scorebug's chips and the
+  // undo strip are gone, each side's buttons name their team, and nobody
+  // arrives late at a game that's over.
+  await expect(page.getByRole("button", { name: /finish game/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("undo-strip")).toHaveCount(0);
+  for (const side of [teamName, "Merewether Mariners"]) {
+    const add = page.getByRole("button", { name: `Add a try, ${side}` });
+    await expect(add).toHaveCount(1);
+    expect((await add.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  }
+  await expect(page.getByRole("button", { name: "+ Add late arrival" })).toHaveCount(0);
   await page.getByRole("button", { name: /finish game/i }).click({ timeout: 10_000 });
   await expect.poll(() => count("game_finalised")).toBe(1);
   await expect

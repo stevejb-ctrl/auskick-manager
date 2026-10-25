@@ -23,6 +23,7 @@
 // Start, not after.
 
 import { useMemo, useRef, useState, useTransition } from "react";
+import { useKeptSetting } from "@/components/lineup/useKeptSetting";
 import { useRouter } from "next/navigation";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
 import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
@@ -65,10 +66,15 @@ import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
 import { touchLineupRuleItems } from "@/lib/sports/touch/ruleCheck";
 import { TouchField } from "./TouchField";
 import { TouchBench } from "./TouchBench";
-import { TOUCH_LINE_ONE, touchStrategyLabel } from "./touchWords";
+import { TOUCH_LINE_LABEL, TOUCH_LINE_ONE, touchStrategyLabel } from "./touchWords";
+import { getSportConfig, type TouchSport } from "@/lib/sports/registry";
+import { squadLoanAverage } from "@/lib/live/liveChrome";
+import { noteLiveResult } from "@/lib/live/liveSync";
 
 interface TouchLineupPickerProps {
   auth: LiveAuth;
+  /** Touch or Oztag: the start's words come from its config. */
+  sport: TouchSport;
   gameId: string;
   /** Kids here today, in squad order. */
   players: Player[];
@@ -89,10 +95,13 @@ interface TouchLineupPickerProps {
   initialLoanedIds: string[];
   availabilityPanel?: React.ReactNode;
   availabilityHref?: string | null;
+  /** Lent minutes in the season's other games, for the long-press sheet. */
+  seasonLoanMinutes?: Record<string, number>;
 }
 
 export function TouchLineupPicker({
   auth,
+  sport,
   gameId,
   players,
   ageGroup,
@@ -107,6 +116,7 @@ export function TouchLineupPicker({
   initialLoanedIds,
   availabilityPanel,
   availabilityHref,
+  seasonLoanMinutes = {},
 }: TouchLineupPickerProps) {
   const router = useRouter();
   const pickerRootRef = useRef<HTMLDivElement>(null);
@@ -126,11 +136,13 @@ export function TouchLineupPicker({
   const [groupPending, setGroupPending] = useState<string | null>(null);
 
   const clampSize = (n: number) => Math.max(ageGroup.minOnFieldSize, Math.min(ageGroup.maxOnFieldSize, n));
-  const [onFieldSize, setOnFieldSize] = useState(() => clampSize(initialSize));
+  // Settings are kept through a Who's here change (useKeptSetting): the
+  // picker remounts with a fresh suggestion in the coach's size and shape.
+  const [onFieldSize, setOnFieldSize] = useKeptSetting(gameId, "onFieldSize", () => clampSize(initialSize));
   const playing = useMemo(() => players.filter((p) => !loanedIds.has(p.id)).map((p) => p.id), [players, loanedIds]);
   const plan = touchFieldPlan(onFieldSize, playing, mixed);
   const size = Math.min(plan?.size ?? onFieldSize, playing.length || onFieldSize);
-  const [shapeId, setShapeId] = useState<string | null>(null);
+  const [shapeId, setShapeId] = useKeptSetting<string | null>(gameId, "shape", null);
   const shape = touchShapeFor(ageGroup, strategy, size, shapeId);
   const laneShapes = usesTouchLanes(strategy) ? (ageGroup.shapes[size] ?? []) : [];
 
@@ -149,7 +161,7 @@ export function TouchLineupPicker({
         bench: [...keep(draft.bench), ...players.map((p) => p.id).filter((id) => !placed.has(id))],
       };
     }
-    return suggest(clampSize(initialSize), null, players.map((p) => p.id).filter((id) => !initialLoanedIds.includes(id))).lineup;
+    return suggest(onFieldSize, shapeId, players.map((p) => p.id).filter((id) => !initialLoanedIds.includes(id))).lineup;
   });
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -159,7 +171,7 @@ export function TouchLineupPicker({
   const [startModalOpen, setStartModalOpen] = useState(false);
   const [savePending, setSavePending] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(initialDraft?.updated_at ?? null);
-  const [subMinInput, setSubMinInput] = useState(String(defaultSubMinutes));
+  const [subMinInput, setSubMinInput] = useKeptSetting(gameId, "subMinutes", String(defaultSubMinutes));
   const subIntervalSeconds = Math.round(subMinutesFrom(subMinInput, defaultSubMinutes) * 60);
 
   const fieldIds = touchOnField(lineup);
@@ -263,6 +275,8 @@ export function TouchLineupPicker({
     setError(null);
     startTransition(async () => {
       const result = await startTouchGame(auth, gameId, lineup, onFieldSize, true, subIntervalSeconds);
+      // Refused because another phone already started: say so over the page.
+      noteLiveResult(result);
       if (!result.success) {
         setError(result.error ?? "Couldn't start the game.");
         setStartModalOpen(false);
@@ -506,11 +520,12 @@ export function TouchLineupPicker({
         <LockModal
           player={actionPlayer}
           currentLock={null}
-          currentZone={null}
+          // The kid's lane, and the season's lent minutes, as in play.
+          currentLine={touchLineOf(lineup, actionPlayer.id) ? TOUCH_LINE_LABEL[touchLineOf(lineup, actionPlayer.id)!] : null}
           isInjured={false}
           isLoaned={loanedIds.has(actionPlayer.id)}
-          seasonLoanMins={0}
-          squadLoanMins={0}
+          seasonLoanMins={seasonLoanMinutes[actionPlayer.id] ?? 0}
+          squadLoanMins={squadLoanAverage(seasonLoanMinutes)}
           onUnlock={() => setActionPlayerId(null)}
           onSwitch={() => {
             setActionPlayerId(null);
@@ -558,7 +573,8 @@ export function TouchLineupPicker({
         <StartQuarterModal
           quarter={1}
           periodLabel={onePeriod ? "period" : "half"}
-          cue="referee starts play"
+          shortSide={{ playing: fieldIds.length, size: initialSize, min: ageGroup.minOnFieldSize }}
+          cue={getSportConfig(sport).words.startCue}
           loading={isPending}
           onStart={handleConfirmStart}
           onCancel={() => setStartModalOpen(false)}

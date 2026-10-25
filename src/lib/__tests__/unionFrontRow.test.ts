@@ -129,27 +129,41 @@ describe("the break's Suggested", () => {
   const ageGroup = getAgeGroupConfig("rugby_union", "U12");
   const h1 = { forwards: ids.slice(0, 8), backs: ids.slice(8, 15), bench: [ids[15]] };
 
-  for (const seed of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]) {
-    it(`keeps every kid in their own line, the picked front row on (seed ${seed})`, () => {
-      const next = leagueBreakSuggestion({
-        sport: "rugby_union",
-        ageGroup,
-        squad: ids.map((id) => ({ id })),
-        previousLineup: h1,
-        injured: new Set(),
-        loaned: new Set(),
-        onFieldSize: 15,
-        currentQuarter: 1,
-        leaguePlaybook: pb,
-        seed,
-      });
-      for (const pid of next.forwards) expect(ids.slice(0, 8).concat(ids[15])).toContain(pid);
-      for (const pid of next.backs) expect(ids.slice(8, 15).concat(ids[15])).toContain(pid);
-      for (const pid of ["k0", "k1", "k2"]) expect(next.forwards, pid).toContain(pid);
-      const slots = assignLeaguePositions(next, pb);
-      expect(restrictedMisfits(slots, pb)).toEqual([]);
+  const suggest = (msByPlayer: Record<string, number>, minGameTimePct?: number) =>
+    leagueBreakSuggestion({
+      sport: "rugby_union",
+      ageGroup,
+      previousLineup: h1,
+      injured: new Set(),
+      loaned: new Set(),
+      onFieldSize: 15,
+      currentQuarter: 1,
+      leaguePlaybook: pb,
+      msByPlayer,
+      periodMs: P,
+      minGameTimePct,
     });
-  }
+  const expectRolesKept = (next: ReturnType<typeof suggest>) => {
+    for (const pid of next.forwards) expect(ids.slice(0, 8).concat(ids[15])).toContain(pid);
+    for (const pid of next.backs) expect(ids.slice(8, 15).concat(ids[15])).toContain(pid);
+    for (const pid of ["k0", "k1", "k2"]) expect(next.forwards, pid).toContain(pid);
+    expect(restrictedMisfits(assignLeaguePositions(next, pb), pb)).toEqual([]);
+  };
+
+  it("keeps every kid in their own line, the picked front row on", () => {
+    // The fifteen played all of H1; kid 15 sat it out and comes on.
+    const next = suggest(Object.fromEntries(ids.map((id) => [id, id === ids[15] ? 0 : P])));
+    expect(next.bench).toHaveLength(1);
+    expect(next.bench).not.toContain(ids[15]);
+    expectRolesKept(next);
+  });
+
+  it("brings the loosehead back on when time alone would sit him", () => {
+    // No floor; k0 played a minute more than anyone, so he'd sit.
+    const next = suggest(Object.fromEntries(ids.map((id) => [id, id === ids[15] ? 0 : id === "k0" ? P : P - 60_000])), 0);
+    expect(next.forwards).toContain("k0");
+    expectRolesKept(next);
+  });
 });
 
 describe("the break's check", () => {

@@ -9,11 +9,14 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Modal } from "@/components/ui/Modal";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { teamNameMatches } from "@/lib/strings";
 
 interface DangerZoneProps {
   teamId: string;
   teamName: string;
   isAdmin: boolean;
+  /** The team's only coach can't leave it (guard_last_team_admin). */
+  soleCoach?: boolean;
 }
 
 /**
@@ -21,7 +24,7 @@ interface DangerZoneProps {
  * existed although Help described "Delete team" (UX plan H7). Deleting
  * asks for the team name so it can't happen by accident.
  */
-export function DangerZone({ teamId, teamName, isAdmin }: DangerZoneProps) {
+export function DangerZone({ teamId, teamName, isAdmin, soleCoach = false }: DangerZoneProps) {
   const router = useRouter();
   const [dialog, setDialog] = useState<"delete" | null>(null);
   const [typed, setTyped] = useState("");
@@ -54,7 +57,7 @@ export function DangerZone({ teamId, teamName, isAdmin }: DangerZoneProps) {
           <p className="text-sm font-semibold text-ink">Leave team</p>
           <p className="text-xs text-ink-mute">Remove yourself from {teamName}.</p>
         </div>
-        <LeaveTeamButton teamId={teamId} teamName={teamName} />
+        <LeaveTeamButton teamId={teamId} teamName={teamName} soleCoach={soleCoach} />
       </div>
       {isAdmin && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline pt-3">
@@ -96,7 +99,8 @@ export function DangerZone({ teamId, teamName, isAdmin }: DangerZoneProps) {
             <SFButton
               variant="alarm"
               size="md"
-              disabled={typed.trim() !== teamName.trim()}
+              // Case, curly quotes and emoji don't count (teamNameMatches).
+              disabled={!teamNameMatches(typed, teamName)}
               loading={isPending}
               onClick={() => run(() => deleteTeam(teamId, typed))}
             >

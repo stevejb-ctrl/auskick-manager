@@ -2,6 +2,7 @@
 
 import { SFButton } from "@/components/sf";
 import { Modal } from "@/components/ui/Modal";
+import { shortSideNote, type ShortSide } from "@/lib/live/shortSide";
 
 interface StartQuarterModalProps {
   quarter: number;
@@ -41,6 +42,11 @@ interface StartQuarterModalProps {
   brokenRules?: string[];
   /** Rise from the bottom as a sheet (the period break) rather than centre. */
   sheet?: boolean;
+  /**
+   * Kickoff's side: fewer on than the side's size reads "Playing 6 of
+   * 7" (more firmly under the age group's minimum). Never a block.
+   */
+  shortSide?: ShortSide;
 }
 
 /**
@@ -59,9 +65,11 @@ export function StartQuarterModal({
   cue,
   brokenRules = [],
   sheet = false,
+  shortSide,
 }: StartQuarterModalProps) {
   const name = periodName ?? `${periodLabel.charAt(0).toUpperCase()}${quarter}`;
   const broken = brokenRules.length;
+  const short = shortSide ? shortSideNote(shortSide) : null;
   return (
     <Modal placement={sheet ? "sheet" : "center"} label={broken ? `Start with ${broken} broken` : `Start ${name}`}>
       {/* The action keeps its name through the whole flow (UI polish
@@ -81,6 +89,14 @@ export function StartQuarterModal({
             <li key={r}>{r}</li>
           ))}
         </ul>
+      )}
+      {short && (
+        <p
+          className={`mt-2 text-center text-sm font-semibold ${short.belowMin ? "text-danger" : "text-warn"}`}
+          data-testid="short-side"
+        >
+          {short.text}
+        </p>
       )}
       <p className="mt-1 text-center text-sm text-ink-dim">
         Tap when the {cue} — the clock starts then.

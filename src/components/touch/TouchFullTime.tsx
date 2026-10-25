@@ -3,15 +3,18 @@
 // ─── Touch family full time ──────────────────────────────────
 // TouchFullTimeReview sits between the last period's end and
 // game_finalised, as AFL's FullTimeReview and basketball's do: the two
-// score boxes, the score by period, inline score adjustments (a try for
-// either side, Oztag's girl's try, undo the last), then "Finish game".
-// With scoring off it's just the finish. TouchGameSummaryCard is the
+// score boxes, then the shared BreakScoreEditor — the score by half, a
+// missed try for either side on buttons that name their team (the
+// scorebug's 44 pt chips, Oztag's girl's try too), and Undo — then
+// "Finish game". The live scorebug's chips and undo strip are gone by now
+// (UX audit 23 Oct 2026). With scoring off it's just the finish. TouchGameSummaryCard is the
 // share text afterwards, on the shared CopyableTextBlock.
 
-import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { SFButton } from "@/components/sf";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { useFinishGame } from "@/components/live/useFinishGame";
+import { BreakScoreEditor } from "@/components/quarter-break/BreakScoreEditor";
 import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { hapticSiren } from "@/lib/haptics";
@@ -59,27 +62,16 @@ export function TouchFullTimeReview({
   scorePending = false,
 }: TouchFullTimeReviewProps) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
-  function handleFinalise() {
-    setError(null);
-    startTransition(async () => {
-      const result = await finaliseTouchGame(auth, gameId, finalisedElapsedMs);
-      if (!result.success) {
-        setError(result.error ?? "Couldn't finish the game.");
-        return;
-      }
+  // A failure keeps this screen up, and Finish is safe to tap again.
+  const { finish: handleFinalise, pending, error } = useFinishGame(
+    (key) => finaliseTouchGame(auth, gameId, finalisedElapsedMs, key),
+    () => {
       void hapticSiren();
       router.refresh();
-    });
-  }
+    },
+  );
 
   const box = "rounded-md border border-hairline bg-surface-alt p-3";
-  const head = "font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute";
-  const chip =
-    "rounded-sm px-2 py-1.5 font-mono text-[11px] font-bold uppercase tracking-micro transition-colors duration-fast ease-out-quart disabled:opacity-60";
-  const opponentChips = touchOpponentChips(girlsTryDouble, opponentName);
 
   return (
     <div className="rounded-md border border-hairline bg-surface p-4 shadow-card">
@@ -101,82 +93,34 @@ export function TouchFullTimeReview({
             </div>
           </div>
 
-          {periodCount > 1 && (
-            <div className="mt-4 overflow-hidden rounded-md border border-hairline">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-surface-alt">
-                  <tr>
-                    <th className={`px-3 py-1.5 ${head}`}>Half</th>
-                    <th className={`px-2 py-1.5 text-right ${head}`}>{teamName}</th>
-                    <th className={`px-2 py-1.5 text-right ${head}`}>{opponentName}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-hairline">
-                  {Array.from({ length: periodCount }).map((_, i) => {
-                    const row = state.scoreByPeriod[i + 1] ?? { ours: 0, theirs: 0 };
-                    return (
-                      <tr key={i}>
-                        <td className="px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
-                          {periodLetter}
-                          {i + 1}
-                        </td>
-                        <td className="px-2 py-1.5 text-right font-bold tabular-nums text-ink">{row.ours}</td>
-                        <td className="px-2 py-1.5 text-right font-bold tabular-nums text-ink">{row.theirs}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {(onTeamScore || onOpponentScore || onUndo) && (
-            <section className="mt-3 rounded-md border border-hairline bg-surface-alt p-3">
-              <p className={head}>Score adjustments</p>
-              <p className="mt-0.5 text-[11px] text-ink-mute">Spotted a miscount? Add a missed try, or undo the most recent one.</p>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                {onTeamScore && (
-                  <button
-                    type="button"
-                    onClick={onTeamScore}
-                    disabled={scorePending}
-                    className={`${chip} bg-brand-600 text-white hover:bg-brand-500`}
-                    aria-label={`Add a try, ${teamName}`}
-                  >
-                    +T
-                  </button>
-                )}
-                {onOpponentScore && (
-                  <div className="flex gap-1.5">
-                    {opponentChips.map((c) => (
-                      <button
-                        key={c.key}
-                        type="button"
-                        onClick={() => onOpponentScore(c.girl)}
-                        disabled={scorePending}
-                        className={`${chip} flex-1 bg-ink text-warm hover:bg-ink/85`}
-                        aria-label={c.label}
-                      >
-                        {c.sub ? `${c.text} ${c.sub}` : c.text}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {onUndo && (state.teamScore.points > 0 || state.opponentScore.points > 0) && (
-                <div className="mt-2 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={onUndo}
-                    disabled={scorePending}
-                    className="rounded-sm px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-micro text-warn underline-offset-2 transition-colors duration-fast ease-out-quart hover:bg-warn-soft hover:underline disabled:opacity-60"
-                  >
-                    ↶ Undo last try
-                  </button>
-                </div>
-              )}
-            </section>
-          )}
+          <div className="mt-4">
+            <BreakScoreEditor
+              teamName={teamName}
+              opponentName={opponentName}
+              teamPoints={state.teamScore.points}
+              opponentPoints={state.opponentScore.points}
+              scoreByPeriod={state.scoreByPeriod}
+              periodCount={periodCount}
+              currentPeriod={periodCount}
+              periodLetter={periodLetter || "P"}
+              periodWord={periodCount > 1 ? "half" : "period"}
+              teamChips={onTeamScore ? [{ key: "try", text: "+T", label: `Add a try, ${teamName}`, onClick: onTeamScore }] : []}
+              opponentChips={
+                onOpponentScore
+                  ? touchOpponentChips(girlsTryDouble, opponentName).map((c) => ({
+                      key: c.key,
+                      text: c.text,
+                      sub: c.sub,
+                      label: c.label,
+                      onClick: () => onOpponentScore(c.girl),
+                    }))
+                  : []
+              }
+              missedNote={`Spotted a miscount? A try you missed counts in ${periodLetter || "P"}${periodCount}.`}
+              onUndo={onUndo ?? (() => {})}
+              undoDisabled={scorePending || !onUndo}
+            />
+          </div>
         </>
       )}
 

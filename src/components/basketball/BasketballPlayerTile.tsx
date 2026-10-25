@@ -17,6 +17,8 @@ import { BASKETBALL_LINE_ZONE } from "@/lib/sports/basketball";
 import type { BasketballLineMs } from "@/lib/sports/basketball/replay";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
+import { ZONE_STRIP } from "@/components/live/zoneStrip";
+import { useSquadNames } from "@/components/live/SquadNames";
 
 /** Each line's short label, as the tile and the swap strip print it. */
 export const BASKETBALL_LINE_SHORT: Record<BasketballLine, string> = {
@@ -36,8 +38,8 @@ export const BASKETBALL_LINE_LABEL: Record<BasketballLine, string> = {
 // (BASKETBALL_LINE_ZONE): guards AFL's centre colour, forwards its
 // forward colour. The court (no positions) prints in ink.
 const ZONE_CLASSES: Record<"zone1" | "zone2", { text: string; fill: string; strip: string }> = {
-  zone1: { text: "text-zone-f", fill: "bg-zone-f-fill", strip: "border-zone-f/40 bg-zone-f/15 text-zone-f" },
-  zone2: { text: "text-zone-c", fill: "bg-zone-c-fill", strip: "border-zone-c/40 bg-zone-c/15 text-zone-c" },
+  zone1: { text: "text-zone-f", fill: "bg-zone-f-fill", strip: ZONE_STRIP.f },
+  zone2: { text: "text-zone-c", fill: "bg-zone-c-fill", strip: ZONE_STRIP.c },
 };
 const zoneOf = (line: BasketballLine) => ZONE_CLASSES[BASKETBALL_LINE_ZONE[line] as "zone1" | "zone2"];
 const LINE_TEXT: Record<BasketballLine, string> = {
@@ -175,10 +177,8 @@ function BasketballPlayerTileImpl({
                 ? "bg-surface shadow-lift-field ring-1 ring-inset ring-warn/50"
                 : "bg-surface shadow-lift-field";
 
-  const parts = player.full_name.trim().split(/\s+/);
-  const firstName = parts[0] ?? "";
-  const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  const displayName = lastInitial ? `${firstName} ${lastInitial}` : firstName;
+  // "First L", told apart from a squad-mate with the same (SquadNames).
+  const displayName = useSquadNames().tile(player);
 
   const lineLabel = positionLabel ?? (line ? BASKETBALL_LINE_SHORT[line] || null : null);
 

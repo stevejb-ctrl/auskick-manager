@@ -410,7 +410,7 @@ test("a kid just swapped off isn't suggested straight back on", async ({ page })
   await page.getByTestId("swapcard-toggle").click();
 
   // Make the first suggested swap on its own.
-  await page.getByRole("button", { name: /^make swap$/i }).first().click();
+  await page.getByRole("button", { name: /^swap .+ off, .+ on$/i }).first().click();
   const swaps = async () => {
     const { data } = await admin.from("game_events").select("player_id, metadata").eq("game_id", game.id).eq("type", "swap");
     return (data ?? []).map((e) => (e.metadata as { off_player_id: string }).off_player_id);

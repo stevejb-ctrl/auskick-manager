@@ -16,7 +16,9 @@
 //     empty; we still gate the row mount on candidates.length to
 //     skip the row chrome when only the LateArrival affordance
 //     would be relevant but has nothing left to surface.
-//   - ResetGameButton is admin-gated by the caller via `isAdmin`.
+//   - ResetGameButton is admin-gated by the caller via `isAdmin`, and
+//     never shown on a game-day link (resetGame refuses one: the link
+//     is shared in group chats, UX round 2).
 //
 // The "+G/+B" record-score floating dock (z-40) and sticky-bottom
 // scorebug (z-30) overlay this row when active, so it stays
@@ -43,7 +45,7 @@ interface LiveAdminUtilityRowProps {
   auth: LiveAuth;
   /** Game id threaded to ResetGameButton. */
   gameId: string;
-  /** True when the user has admin rights (renders the destructive reset button). */
+  /** True when the user has admin rights (renders the destructive reset button; never for a game-day link). */
   isAdmin?: boolean;
   /**
    * The Game settings button (the sub interval mid-game): a standard
@@ -85,7 +87,7 @@ export function LiveAdminUtilityRow({
   finished = false,
 }: LiveAdminUtilityRowProps) {
   const showLate = candidates.length > 0 && !finished;
-  const isAdmin = isAdminProp && !finished;
+  const isAdmin = isAdminProp && !finished && auth.kind !== "token";
   const settings = finished ? null : settingsProp;
   const extra = finished ? null : extraProp;
   // Row mounts whenever ANY slot has content — extra now joins

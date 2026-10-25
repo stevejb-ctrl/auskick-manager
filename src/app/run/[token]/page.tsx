@@ -41,11 +41,21 @@ import { aflBranch, aflPositionModel, getAgeGroupConfig, getEffectiveQuarterSeco
 import type { LeagueLineup } from "@/lib/types";
 import type { FillIn, Game, GameEvent, LiveAuth, MixedGroup, Player, Sport } from "@/lib/types";
 import { withThirdsToday } from "@/lib/playbook/dayLines";
+import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
+import { activeOrInGameFilter } from "@/lib/live/presentPlayers";
+import { LiveSync } from "@/components/live/LiveSync";
+import { periodShort, periodWordOf } from "@/lib/live/periodGuard";
+import { RunnerAllDone } from "@/components/games/RunnerAllDone";
+import { readLiveSyncStamp } from "@/lib/live/liveSyncStamp";
+import { backfillNetballCourt, filterLineupToAvailable, inSquadOrder } from "@/lib/live/lineupDraft";
+import type { GenericLineup } from "@/lib/sports/netball/fairness";
 
 export const dynamic = "force-dynamic";
 
 interface RunPageProps {
   params: { token: string };
+  /** `?step=availability`: the "Who's here today?" list before kickoff. */
+  searchParams?: { step?: string };
 }
 
 /**
@@ -69,8 +79,31 @@ function fillInToPlayer(f: FillIn, teamId: string): Player {
   };
 }
 
-export default async function RunPage({ params }: RunPageProps) {
+// The runner's page keeps in step with the coach's phone (LiveSync): the
+// game's stamp is read before the page's own data, so a write landing in
+// between makes the next check refresh rather than be missed.
+export default async function RunPage(props: RunPageProps) {
   noStore();
+  const admin = createAdminClient();
+  const { data: row } = await admin.from("games").select("id").eq("share_token", props.params.token).maybeSingle();
+  const stamp = row ? await readLiveSyncStamp(admin, (row as { id: string }).id) : null;
+  const body = await RunPageBody(props);
+  return (
+    <>
+      <LiveSync stamp={stamp} syncUrl={`/run/${props.params.token}/sync`} />
+      {body}
+    </>
+  );
+}
+
+async function RunPageBody({ params, searchParams }: RunPageProps) {
+  noStore();
+  // The lineup's "Update availability" opens the who's-here list (it used
+  // to link to this page, so a no-show couldn't be marked out: UX round 2).
+  const wantsAvailability = searchParams?.step === "availability";
+  // EXIT leaves the game for a page that says nothing's lost (it used to
+  // link here, so it did nothing).
+  const exitHref = `/run/${params.token}/left`;
   const admin = createAdminClient();
 
   const { data: game } = await admin
@@ -83,7 +116,7 @@ export default async function RunPage({ params }: RunPageProps) {
 
   const { data: teamRow } = await admin
     .from("teams")
-    .select("name, sport, track_scoring, age_group, quarter_length_seconds, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_mode, chip_b_mode, chip_c_mode, chip_a_label, chip_b_label, chip_c_label, track_zone_time")
+    .select("name, sport, track_scoring, age_group, quarter_length_seconds, on_field_size, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_mode, chip_b_mode, chip_c_mode, chip_a_label, chip_b_label, chip_c_label, track_zone_time")
     .eq("id", g.team_id)
     .single();
   // Read with the service client: no row means no such team.
@@ -108,6 +141,9 @@ export default async function RunPage({ params }: RunPageProps) {
   // Netball has no jersey numbers — hide the # input on AddFillInForm
   // (and feed the right live-game component below).
   const sport: Sport = teamSport((teamRow as { sport?: Sport } | null)?.sport);
+  // The first period as the sport's Start button says it ("Q1", "H1").
+  const firstPeriodOf = (label: string | null | undefined) =>
+    periodShort(periodWordOf(label ?? getSportConfig(sport).periodLabel), 1);
 
   const auth: LiveAuth = { kind: "token", token: params.token };
 
@@ -117,6 +153,9 @@ export default async function RunPage({ params }: RunPageProps) {
     .eq("game_id", g.id)
     .order("created_at");
   const hasStarted = (thisGameEvents ?? []).some((e) => e.type === "lineup_set");
+  // The squad for this game: the active kids, and any kid its events name
+  // (deactivated mid-game, they stay on: UX round 3, 24 Oct 2026).
+  const squadFilter = activeOrInGameFilter((thisGameEvents ?? []) as GameEvent[]);
 
   // ─── Netball branch ─────────────────────────────────────────
   // Netball games render through NetballLiveGame; the AFL LiveGame
@@ -167,8 +206,8 @@ export default async function RunPage({ params }: RunPageProps) {
       { quarter_length_seconds: g.quarter_length_seconds },
     );
     const [{ data: avail }, { data: players }, { data: teamGames }, { data: fillInRows }] = await Promise.all([
-      admin.from("game_availability").select("player_id, status").eq("game_id", g.id).eq("status", "available"),
-      admin.from("players").select("*").eq("team_id", g.team_id).eq("is_active", true).order("jersey_number"),
+      admin.from("game_availability").select("player_id, status").eq("game_id", g.id).eq("status", "available").order("player_id"),
+      admin.from("players").select("*").eq("team_id", g.team_id).or(squadFilter).order("jersey_number").order("full_name").order("id"),
       admin.from("games").select("id").eq("team_id", g.team_id),
       admin.from("game_fill_ins").select("*").eq("game_id", g.id).order("created_at"),
     ]);
@@ -217,8 +256,14 @@ export default async function RunPage({ params }: RunPageProps) {
       }
       return (
         <div className="space-y-3 px-4 py-3">
-          <RunnerWelcomeBanner teamName={teamName} trackScoring={trackScoring} />
-          {availablePlayers.length === 0 ? (
+          <RunnerWelcomeBanner
+            teamName={teamName}
+            opponent={g.opponent}
+            trackScoring={trackScoring}
+            firstPeriod={firstPeriodOf(ageCfgS.periodLabel)}
+            availability={availablePlayers.length === 0 || wantsAvailability ? "list" : "link"}
+          />
+          {availablePlayers.length === 0 || wantsAvailability ? (
             <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
               <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
                 Who&apos;s here today?
@@ -232,6 +277,11 @@ export default async function RunPage({ params }: RunPageProps) {
                 showJerseyNumber={getSportConfig(sport).jerseyNumbers}
                 requiredAvailable={ageCfgS.defaultOnFieldSize}
               />
+              {availablePlayers.length > 0 && (
+                <SFButton href={`/run/${params.token}`} variant="primary" size="lg" full>
+                  Back to the lineup
+                </SFButton>
+              )}
             </section>
           ) : (
             <SoccerLineupPicker
@@ -257,7 +307,7 @@ export default async function RunPage({ params }: RunPageProps) {
               initialLoanedIds={Array.from(lent.entries())
                 .filter(([, v]) => v.loaned)
                 .map(([id]) => id)}
-              availabilityHref={`/run/${params.token}`}
+              availabilityHref={`/run/${params.token}?step=availability`}
             />
           )}
         </div>
@@ -282,10 +332,13 @@ export default async function RunPage({ params }: RunPageProps) {
           keeperStrategy={howWePlay.keeperStrategy}
           keeperPrefs={howWePlay.prefs}
           seasonLoanMinutes={seasonLoanMinsS}
-          // A runner token can run the whole game, as in the other sports.
+          // A runner token can run the whole game, as in the other sports
+          // (not restart it: LiveAdminUtilityRow never offers Restart on a
+          // game-day link).
           isAdmin
-          exitHref={`/run/${params.token}`}
+          exitHref={exitHref}
         />
+        {g.status === "completed" && <RunnerAllDone className="pb-6 pt-2" />}
       </div>
     );
   }
@@ -303,8 +356,8 @@ export default async function RunPage({ params }: RunPageProps) {
     );
     const trackFouls = teamExtras?.track_fouls ?? ageCfgB.tracksFoulsDefault;
     const [{ data: avail }, { data: players }, { data: teamGames }, { data: fillInRows }] = await Promise.all([
-      admin.from("game_availability").select("player_id, status").eq("game_id", g.id).eq("status", "available"),
-      admin.from("players").select("*").eq("team_id", g.team_id).eq("is_active", true).order("jersey_number"),
+      admin.from("game_availability").select("player_id, status").eq("game_id", g.id).eq("status", "available").order("player_id"),
+      admin.from("players").select("*").eq("team_id", g.team_id).or(squadFilter).order("jersey_number").order("full_name").order("id"),
       admin.from("games").select("id").eq("team_id", g.team_id),
       admin.from("game_fill_ins").select("*").eq("game_id", g.id).order("created_at"),
     ]);
@@ -353,8 +406,14 @@ export default async function RunPage({ params }: RunPageProps) {
       }
       return (
         <div className="space-y-3 px-4 py-3">
-          <RunnerWelcomeBanner teamName={teamName} trackScoring={trackScoring} />
-          {availablePlayers.length === 0 ? (
+          <RunnerWelcomeBanner
+            teamName={teamName}
+            opponent={g.opponent}
+            trackScoring={trackScoring}
+            firstPeriod={firstPeriodOf(ageCfgB.periodLabel)}
+            availability={availablePlayers.length === 0 || wantsAvailability ? "list" : "link"}
+          />
+          {availablePlayers.length === 0 || wantsAvailability ? (
             <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
               <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
                 Who&apos;s here today?
@@ -368,6 +427,11 @@ export default async function RunPage({ params }: RunPageProps) {
                 showJerseyNumber={getSportConfig(sport).jerseyNumbers}
                 requiredAvailable={ageCfgB.defaultOnFieldSize}
               />
+              {availablePlayers.length > 0 && (
+                <SFButton href={`/run/${params.token}`} variant="primary" size="lg" full>
+                  Back to the lineup
+                </SFButton>
+              )}
             </section>
           ) : (
             <BasketballLineupPicker
@@ -392,7 +456,7 @@ export default async function RunPage({ params }: RunPageProps) {
               initialLoanedIds={Array.from(lent.entries())
                 .filter(([, v]) => v.loaned)
                 .map(([id]) => id)}
-              availabilityHref={`/run/${params.token}`}
+              availabilityHref={`/run/${params.token}?step=availability`}
             />
           )}
         </div>
@@ -420,8 +484,9 @@ export default async function RunPage({ params }: RunPageProps) {
           seasonLoanMinutes={seasonLoanMinsB}
           // A runner token can run the whole game, as in the other sports.
           isAdmin
-          exitHref={`/run/${params.token}`}
+          exitHref={exitHref}
         />
+        {g.status === "completed" && <RunnerAllDone className="pb-6 pt-2" />}
       </div>
     );
   }
@@ -448,8 +513,8 @@ export default async function RunPage({ params }: RunPageProps) {
     const mixedRule = teamMixedRule(teamExtras);
     const girlsTryDouble = girlsTryCountsDouble(ageCfgT, mixedRule, teamExtras?.girls_try_double);
     const [{ data: avail }, { data: players }, { data: teamGames }, { data: fillInRows }] = await Promise.all([
-      admin.from("game_availability").select("player_id, status").eq("game_id", g.id).eq("status", "available"),
-      admin.from("players").select("*").eq("team_id", g.team_id).eq("is_active", true).order("jersey_number"),
+      admin.from("game_availability").select("player_id, status").eq("game_id", g.id).eq("status", "available").order("player_id"),
+      admin.from("players").select("*").eq("team_id", g.team_id).or(squadFilter).order("jersey_number").order("full_name").order("id"),
       admin.from("games").select("id").eq("team_id", g.team_id),
       admin.from("game_fill_ins").select("*").eq("game_id", g.id).order("created_at"),
     ]);
@@ -483,6 +548,8 @@ export default async function RunPage({ params }: RunPageProps) {
       weight: howWePlay.balance === "off" ? 0 : seasonBalanceWeight(sport, howWePlay.balance),
       periodMs: periodSecondsT * 1000,
     };
+    // Lent minutes in the season's other games, for the long-press sheet.
+    const seasonLoanMinsT = seasonLoanMinutes((seasonRaw ?? []) as GameEvent[]);
 
     if (!hasStarted) {
       const { data: draftRow } = await admin
@@ -499,8 +566,14 @@ export default async function RunPage({ params }: RunPageProps) {
       }
       return (
         <div className="space-y-3 px-4 py-3">
-          <RunnerWelcomeBanner teamName={teamName} trackScoring={trackScoring} />
-          {availablePlayers.length === 0 ? (
+          <RunnerWelcomeBanner
+            teamName={teamName}
+            opponent={g.opponent}
+            trackScoring={trackScoring}
+            firstPeriod={firstPeriodOf(ageCfgT.periodLabel)}
+            availability={availablePlayers.length === 0 || wantsAvailability ? "list" : "link"}
+          />
+          {availablePlayers.length === 0 || wantsAvailability ? (
             <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
               <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
                 Who&apos;s here today?
@@ -514,10 +587,16 @@ export default async function RunPage({ params }: RunPageProps) {
                 showJerseyNumber={getSportConfig(sport).jerseyNumbers}
                 requiredAvailable={ageCfgT.defaultOnFieldSize}
               />
+              {availablePlayers.length > 0 && (
+                <SFButton href={`/run/${params.token}`} variant="primary" size="lg" full>
+                  Back to the lineup
+                </SFButton>
+              )}
             </section>
           ) : (
             <TouchLineupPicker
               auth={auth}
+              sport={sport}
               gameId={g.id}
               players={availablePlayers}
               ageGroup={ageCfgT}
@@ -539,7 +618,8 @@ export default async function RunPage({ params }: RunPageProps) {
               initialLoanedIds={Array.from(lent.entries())
                 .filter(([, v]) => v.loaned)
                 .map(([id]) => id)}
-              availabilityHref={`/run/${params.token}`}
+              availabilityHref={`/run/${params.token}?step=availability`}
+              seasonLoanMinutes={seasonLoanMinsT}
             />
           )}
         </div>
@@ -568,8 +648,10 @@ export default async function RunPage({ params }: RunPageProps) {
           season={season}
           // A runner token can run the whole game, as in the other sports.
           isAdmin
-          exitHref={`/run/${params.token}`}
+          exitHref={exitHref}
+          seasonLoanMinutes={seasonLoanMinsT}
         />
+        {g.status === "completed" && <RunnerAllDone className="pb-6 pt-2" />}
       </div>
     );
   }
@@ -610,13 +692,14 @@ export default async function RunPage({ params }: RunPageProps) {
         .from("game_availability")
         .select("player_id, status")
         .eq("game_id", g.id)
-        .eq("status", "available"),
+        .eq("status", "available")
+        .order("player_id"),
       admin
         .from("players")
         .select("*")
         .eq("team_id", g.team_id)
-        .eq("is_active", true)
-        .order("jersey_number"),
+        .or(squadFilter)
+        .order("jersey_number").order("full_name").order("id"),
       admin.from("games").select("id").eq("team_id", g.team_id),
       admin
         .from("game_fill_ins")
@@ -725,9 +808,12 @@ export default async function RunPage({ params }: RunPageProps) {
         <div className="space-y-3 px-4 py-3">
           <RunnerWelcomeBanner
             teamName={teamName}
+            opponent={g.opponent}
             trackScoring={trackScoring}
+            firstPeriod={firstPeriodOf(ageCfgL.periodLabel)}
+            availability={availablePlayers.length === 0 || wantsAvailability ? "list" : "link"}
           />
-          {availablePlayers.length === 0 ? (
+          {availablePlayers.length === 0 || wantsAvailability ? (
             // Empty-state — same shape as the netball runner branch.
             // Demo games seed availability at create time so this
             // path is mostly for hand-crafted runner-token URLs
@@ -745,6 +831,11 @@ export default async function RunPage({ params }: RunPageProps) {
                 showJerseyNumber={rugbyCfg.jerseyNumbers}
                 requiredAvailable={ageCfgL.defaultOnFieldSize}
               />
+              {availablePlayers.length > 0 && (
+                <SFButton href={`/run/${params.token}`} variant="primary" size="lg" full>
+                  Back to the lineup
+                </SFButton>
+              )}
             </section>
           ) : (
             <LeagueLineupPicker
@@ -753,7 +844,8 @@ export default async function RunPage({ params }: RunPageProps) {
               gameId={g.id}
               players={availablePlayers}
               ageGroup={ageCfgL}
-              defaultOnFieldSize={ageCfgL.defaultOnFieldSize}
+              // The game's own size, as the coach's page.
+              defaultOnFieldSize={g.on_field_size}
               minOnFieldSize={ageCfgL.minOnFieldSize}
               maxOnFieldSize={ageCfgL.maxOnFieldSize}
               // The game's own interval (see the AFL runner lineup page).
@@ -761,7 +853,7 @@ export default async function RunPage({ params }: RunPageProps) {
               seasonEvents={leagueSeasonEvents}
               initialLoanedIds={leagueLoanedIds}
               initialDraft={initialDraft}
-              availabilityHref={`/run/${params.token}`}
+              availabilityHref={`/run/${params.token}?step=availability`}
               chipLabels={{ a: chipLabelA, b: chipLabelB }}
               chipModes={teamChipModes}
               leaguePlaybook={leaguePlaybook}
@@ -799,12 +891,12 @@ export default async function RunPage({ params }: RunPageProps) {
           seasonEvents={leagueSeasonEvents}
           chipModes={teamChipModes}
           leaguePlaybook={leaguePlaybook}
-          // Runner-token grants restart access (same convention as
-          // the netball branch — folded into LeagueLiveGame's
-          // admin-utility row).
+          // A runner token can run the whole game (not restart it:
+          // LiveAdminUtilityRow never offers Restart on a game-day link).
           isAdmin
-          exitHref={`/run/${params.token}`}
+          exitHref={exitHref}
         />
+        {g.status === "completed" && <RunnerAllDone className="pb-6 pt-2" />}
       </div>
     );
   }
@@ -833,13 +925,14 @@ export default async function RunPage({ params }: RunPageProps) {
         .from("game_availability")
         .select("player_id, status")
         .eq("game_id", g.id)
-        .eq("status", "available"),
+        .eq("status", "available")
+        .order("player_id"),
       admin
         .from("players")
         .select("*")
         .eq("team_id", g.team_id)
-        .eq("is_active", true)
-        .order("jersey_number"),
+        .or(squadFilter)
+        .order("jersey_number").order("full_name").order("id"),
       admin.from("games").select("id").eq("team_id", g.team_id),
       admin
         .from("game_fill_ins")
@@ -857,7 +950,7 @@ export default async function RunPage({ params }: RunPageProps) {
       .map((e) => e.player_id as string);
     const availableIds = Array.from(
       new Set<string>([
-        ...(avail ?? []).map((a) => a.player_id),
+        ...inSquadOrder((avail ?? []).map((a) => a.player_id), squad),
         ...fillInsForLive.map((f) => f.id),
         ...lateArrivedFromEvents,
       ]),
@@ -894,6 +987,22 @@ export default async function RunPage({ params }: RunPageProps) {
       quarterLengthSeconds,
     );
     const isPreKickoff = state.lineup === null;
+    // The coach's saved plan, as the coach's page seeds its picker with:
+    // without it the two phones suggested different lineups for the same
+    // kickoff (UX round 2).
+    const { data: netballDraftRow } = isPreKickoff
+      ? await admin.from("game_lineup_drafts").select("lineup, updated_at").eq("game_id", g.id).maybeSingle()
+      : { data: null };
+    const netballDraft = netballDraftRow
+      ? {
+          lineup: backfillNetballCourt(
+            filterLineupToAvailable((netballDraftRow as { lineup: unknown }).lineup as GenericLineup, availableIds),
+            ageCfgN.positions,
+            availableIds,
+          ),
+          updated_at: (netballDraftRow as { updated_at: string }).updated_at,
+        }
+      : null;
     // Gate the availability section on "not enough available to
     // start yet". For demo games (and any flow where availability
     // was seeded at game-creation time), this is already
@@ -912,16 +1021,23 @@ export default async function RunPage({ params }: RunPageProps) {
             sticky top bar (Steve 2026-05-13) — the (app) header is
             hidden on /live routes so this info lives in the
             in-game chrome itself. */}
-        {needsAvailabilityStep && (
+        {/* Orientation banner — first thing a parent-runner sees, on
+            every pre-kickoff screen: it names the game (UX round 2: it
+            only showed when too few kids were in, so it never did).
+            Steve 2026-05-13 usability test: without it Lisa
+            (parent-volunteer persona) lands on a wordmark + a list of
+            names with no role context. */}
+        {isPreKickoff && (
+          <RunnerWelcomeBanner
+            teamName={teamName}
+            opponent={g.opponent}
+            trackScoring={trackScoring}
+            firstPeriod="Q1"
+            availability={needsAvailabilityStep || wantsAvailability ? "list" : "link"}
+          />
+        )}
+        {(needsAvailabilityStep || (isPreKickoff && wantsAvailability)) && (
           <>
-            {/* Orientation banner — first thing a parent-runner sees.
-                Steve 2026-05-13 usability test: without it Lisa
-                (parent-volunteer persona) lands on a wordmark + a
-                list of names with no role context. */}
-            <RunnerWelcomeBanner
-              teamName={teamName}
-              trackScoring={trackScoring}
-            />
             <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
               <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
                 Who&apos;s here today?
@@ -935,9 +1051,15 @@ export default async function RunPage({ params }: RunPageProps) {
                 showJerseyNumber={getSportConfig("netball").jerseyNumbers}
                 requiredAvailable={ageCfgN.positions.length}
               />
+              {!needsAvailabilityStep && (
+                <SFButton href={`/run/${params.token}`} variant="primary" size="lg" full>
+                  Back to the lineup
+                </SFButton>
+              )}
             </section>
           </>
         )}
+        {!(isPreKickoff && wantsAvailability && !needsAvailabilityStep) && (
         <NetballLiveGame
           auth={auth}
           renderedAtMs={Date.now()}
@@ -960,11 +1082,9 @@ export default async function RunPage({ params }: RunPageProps) {
           seasonEvents={(seasonEventsNetball ?? []) as GameEvent[]}
           trackScoring={trackScoring}
           clockMultiplier={g.clock_multiplier ?? 1}
-          // Runner-token URLs grant restart access (same behaviour
-          // as the pre-2026-05-13 standalone ResetGameButton that
-          // used to sit below the live UI). Folded into the
-          // admin-utility row inside NetballLiveGame so it shares
-          // a row with "+ Add late arrival".
+          initialDraft={netballDraft}
+          // A runner token can run the whole game (not restart it:
+          // LiveAdminUtilityRow never offers Restart on a game-day link).
           isAdmin
           allowMidQuarterSubs={allowMidQuarterSubs}
           teamAllowMidQuarterSubs={teamAllowMidQuarterSubs}
@@ -975,6 +1095,7 @@ export default async function RunPage({ params }: RunPageProps) {
           songStartSeconds={songStartSecondsTop}
           songDurationSeconds={songDurationSecondsTop}
         />
+        )}
       </div>
     );
   }
@@ -1007,8 +1128,8 @@ export default async function RunPage({ params }: RunPageProps) {
         .from("players")
         .select("*")
         .eq("team_id", g.team_id)
-        .eq("is_active", true)
-        .order("jersey_number"),
+        .or(squadFilter)
+        .order("jersey_number").order("full_name").order("id"),
       admin.from("games").select("id").eq("team_id", g.team_id),
     ]);
     // Pass the full active squad — LateArrivalMenu needs non-available
@@ -1050,7 +1171,7 @@ export default async function RunPage({ params }: RunPageProps) {
           game={g}
           // The live top bar, as league and netball runners have: Exit
           // back to the runner page, and the sub-due banner under it.
-          exitHref={`/run/${params.token}`}
+          exitHref={exitHref}
           teamName={teamName}
           opponentName={g.opponent}
           trackScoring={trackScoring}
@@ -1066,7 +1187,8 @@ export default async function RunPage({ params }: RunPageProps) {
           currentOnFieldSize={g.on_field_size}
           minOnFieldSize={ageCfgSport.minOnFieldSize}
           maxOnFieldSize={ageCfgSport.maxOnFieldSize}
-          defaultOnFieldSize={ageCfgSport.defaultOnFieldSize}
+          // The team's own full side, as the coach's page.
+          defaultOnFieldSize={teamOnFieldSize(ageCfgSport, (teamRow as { on_field_size?: number | null } | null)?.on_field_size)}
           chipModeByKey={teamChipModes}
           aflPlaybook={aflPlaybook}
           songUrl={songUrl}
@@ -1074,12 +1196,11 @@ export default async function RunPage({ params }: RunPageProps) {
           songDurationSeconds={songDurationSeconds}
           quarterMs={quarterMs}
           ageGroup={ageCfgSport}
-          // Runner-token URLs grant restart access (same behaviour
-          // as the pre-2026-05-13 standalone ResetGameButton). The
-          // button now lives inside LiveGame's admin-utility row
-          // alongside "+ Add late arrival".
+          // A runner token can run the whole game (not restart it:
+          // LiveAdminUtilityRow never offers Restart on a game-day link).
           isAdmin
         />
+        {g.status === "completed" && <RunnerAllDone className="pb-6 pt-2" />}
       </div>
     );
   }
@@ -1097,7 +1218,8 @@ export default async function RunPage({ params }: RunPageProps) {
     .from("game_availability")
     .select("player_id")
     .eq("game_id", g.id)
-    .eq("status", "available");
+    .eq("status", "available")
+    .order("player_id");
   const availableCount = availCountRows?.length ?? 0;
   const enoughAvailable = availableCount >= g.on_field_size;
 
@@ -1112,7 +1234,10 @@ export default async function RunPage({ params }: RunPageProps) {
       {!hasStarted && (
         <RunnerWelcomeBanner
           teamName={teamName}
+          opponent={g.opponent}
           trackScoring={trackScoring}
+          firstPeriod="Q1"
+          availability="list"
         />
       )}
 

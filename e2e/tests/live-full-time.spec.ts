@@ -192,7 +192,7 @@ test("Fix scores at full time keeps the summary's scorers in step", async ({
 
   // Delete the behind that was never kicked.
   const row = page.getByRole("listitem").filter({ hasText: wrongBehind.full_name });
-  await row.getByRole("button", { name: "Delete this score" }).click();
+  await row.getByRole("button", { name: /^delete (goal|behind)/i }).click();
   await page.getByRole("button", { name: /^delete$/i }).click();
   await expect
     .poll(async () => {

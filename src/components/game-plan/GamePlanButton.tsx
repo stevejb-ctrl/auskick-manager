@@ -14,6 +14,8 @@
 
 import { useState } from "react";
 import { SFButton, SFIcon } from "@/components/sf";
+import { withPinnedPeriods } from "@/lib/game-plan";
+import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { GamePlanModal, type GamePlanModalProps } from "./GamePlanModal";
 
 type SFButtonVariant = "primary" | "accent" | "alarm" | "ghost" | "subtle" | "danger";
@@ -30,6 +32,14 @@ export interface GamePlanButtonProps
   /** Stretch the button to its container width. */
   full?: boolean;
   className?: string;
+  /**
+   * From a page without the lineup (the game page): the game whose later
+   * periods the coach pinned on its lineup ("Use this plan"). The plan
+   * opens on them, as the lineup's own Game plan does, so the two share
+   * the same text (UX round 2, 24 Oct 2026). A lineup screen passes its
+   * own adjustInitialPlan instead.
+   */
+  pinnedPlanGameId?: string;
 }
 
 /**
@@ -43,9 +53,21 @@ export function GamePlanButton({
   size = "sm",
   full,
   className,
+  pinnedPlanGameId,
   ...modalProps
 }: GamePlanButtonProps) {
   const [open, setOpen] = useState(false);
+  const plannedRotation = useLiveGame((s) => s.plannedRotation);
+  const adjustInitialPlan =
+    modalProps.adjustInitialPlan ??
+    (pinnedPlanGameId
+      ? (plan: Parameters<NonNullable<GamePlanModalProps["adjustInitialPlan"]>>[0]) =>
+          withPinnedPeriods(plan, {
+            pin: plannedRotation?.gameId === pinnedPlanGameId ? plannedRotation : null,
+            fromPeriodIndex: 1,
+            availableIds: modalProps.players.map((p) => p.id),
+          })
+      : undefined);
 
   return (
     <>
@@ -60,7 +82,7 @@ export function GamePlanButton({
         {label}
       </SFButton>
       {open && (
-        <GamePlanModal {...modalProps} onClose={() => setOpen(false)} />
+        <GamePlanModal {...modalProps} adjustInitialPlan={adjustInitialPlan} onClose={() => setOpen(false)} />
       )}
     </>
   );

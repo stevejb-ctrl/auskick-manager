@@ -11,7 +11,11 @@ import { invalidateSeasonEvents } from "@/lib/season";
 import { notifyGameStarted } from "@/lib/notifications/gameStarted";
 import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvailability";
 import { isPlayerLock, type PlayerLock } from "@/lib/live/locks";
+import { isClockPauseInput, type ClockPauseInput } from "@/lib/live/clockPause";
 import { pairScoreUndos } from "@/lib/live/scoreUndo";
+import { checkPeriodWrite, revalidateLivePage, scoreRowsOf, staleRefusal } from "@/lib/live/liveWriteGuard";
+import type { PeriodWrite } from "@/lib/live/periodGuard";
+import { resolveUndoTarget, undoArgs, type UndoTargetRef } from "@/lib/live/undoTarget";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
 import type { ActionResult, LineupDraft, LiveAuth, Lineup, Zone } from "@/lib/types";
@@ -105,9 +109,16 @@ async function insertEvent(
   type: string,
   payload: { player_id?: string | null; metadata?: Record<string, unknown> },
   idempotencyKey?: string,
+  /** A period write: refused when another phone has moved the game on. */
+  guard?: PeriodWrite,
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
+  if (guard) {
+    const verdict = await checkPeriodWrite(w.supabase, gameId, guard, "quarter", idempotencyKey);
+    if (verdict.kind === "stale") return staleRefusal(auth, w.teamId, gameId, verdict.message);
+    if (verdict.kind === "duplicate") return { success: true };
+  }
 
   const { error: insertError } = await w.supabase.from("game_events").insert({
     game_id: gameId,
@@ -156,6 +167,9 @@ export async function startGame(
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
+  // A second phone's picker, still open after the first kicked off.
+  const verdict = await checkPeriodWrite(w.supabase, gameId, { kind: "kickoff" }, "quarter");
+  if (verdict.kind !== "ok") return staleRefusal(auth, w.teamId, gameId, verdict.kind === "stale" ? verdict.message : "This game has already started.");
 
   // Backstop the picker's dropdown — clamp to the team's sport+age
   // legal range so a stale or hand-crafted client request can't shove
@@ -518,6 +532,7 @@ export async function startQuarter(
     "quarter_start",
     { metadata: { quarter } },
     idempotencyKey,
+    { kind: "period_start", period: quarter },
   );
   if (!result.success) return result;
 
@@ -550,6 +565,7 @@ export async function endQuarter(
     "quarter_end",
     { metadata: { quarter, elapsed_ms: elapsedMs } },
     idempotencyKey,
+    { kind: "period_end", period: quarter },
   );
   if (!result.success) return result;
 
@@ -582,10 +598,21 @@ export async function finaliseGame(
   auth: LiveAuth,
   gameId: string,
   elapsedMs: number,
+  /** The same for every retry of one Finish, so a retry can't finalise twice. */
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
+  // Both phones tapping Finish: the second finds it done.
+  const first = await resolveWriter(auth, gameId);
+  if (first.error) return { success: false, error: first.error };
+  const verdict = await checkPeriodWrite(first.supabase, gameId, { kind: "finalise" }, "quarter");
+  if (verdict.kind === "duplicate") {
+    revalidateLivePage(auth, first.teamId, gameId);
+    return { success: true };
+  }
+
   const finalise = await insertEvent(auth, gameId, "game_finalised", {
     metadata: { quarter: 4, elapsed_ms: elapsedMs },
-  });
+  }, idempotencyKey);
   if (!finalise.success) return finalise;
 
   const w = await resolveWriter(auth, gameId);
@@ -838,6 +865,35 @@ export async function recordPlayerLock(
   );
 }
 
+/**
+ * Save a clock pause or resume, in any sport (lib/live/clockPause.ts),
+ * so a reload or a second phone rebuilds the paused clock.
+ */
+export async function recordClockPause(
+  auth: LiveAuth,
+  gameId: string,
+  input: ClockPauseInput,
+  idempotencyKey?: string,
+): Promise<ActionResult> {
+  if (!isClockPauseInput(input)) {
+    return { success: false, error: "That pause isn't one we know.", rejected: true };
+  }
+  return insertEvent(
+    auth,
+    gameId,
+    "clock_pause",
+    {
+      metadata: {
+        quarter: input.quarter,
+        paused: input.paused,
+        elapsed_ms: input.elapsed_ms,
+        at_ms: input.at_ms,
+      },
+    },
+    idempotencyKey,
+  );
+}
+
 export async function recordLineupSet(
   auth: LiveAuth,
   gameId: string,
@@ -850,6 +906,8 @@ export async function recordLineupSet(
     "lineup_set",
     { metadata: { lineup } },
     idempotencyKey,
+    // The break's lineup for the next quarter (AFL's only whole-lineup write).
+    { kind: "break_lineup" },
   );
 }
 
@@ -862,6 +920,10 @@ export async function recordSwap(
     zone: Zone;
     quarter: number;
     elapsed_ms: number;
+    /** By hand, off the rotation's cadence: the sub clock doesn't restart (lib/live/subAnchor). */
+    manual?: boolean;
+    /** One swap of a due batch, with this many still to make. */
+    batch_left?: number;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {
@@ -874,10 +936,15 @@ export async function recordSwap(
   );
 }
 
-// Takes back the latest score of this kind still standing. It runs on
-// the game's write-queue lane (it used to bypass the queue, so it could
-// land before its goal), and a second undo no longer re-targets a score
-// already undone. Nothing standing: nothing to do (a retry won't help).
+// Takes back the score this phone's undo strip named (`target`: the
+// score's event id, or its write's key while it's still on the way), and
+// only that one: with two phones scoring, "the latest goal" may be the
+// other phone's (UX round 2). It runs on the game's write-queue lane, so
+// it never lands before its score. Already taken back on the other phone:
+// say so, write nothing. An undo with no target (queued by an older
+// client) takes back the latest standing score of its kind, as before.
+const AFL_SCORE_TYPES: ReadonlySet<string> = new Set(["goal", "behind", "opponent_goal", "opponent_behind"]);
+
 export async function undoLastScore(
   auth: LiveAuth,
   gameId: string,
@@ -885,34 +952,35 @@ export async function undoLastScore(
     kind: "goal" | "behind" | "opponent_goal" | "opponent_behind";
     quarter: number;
     playerId: string | null;
+    target?: UndoTargetRef | null;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
 
-  const scoreTypes = ["goal", "behind", "opponent_goal", "opponent_behind"];
-  const { data: rows } = await w.supabase
-    .from("game_events")
-    .select("id, type, metadata")
-    .eq("game_id", gameId)
-    .in("type", [...scoreTypes, "score_undo"])
-    .order("created_at", { ascending: true });
-  const events = (rows ?? []) as { id: string; type: string; metadata: unknown }[];
-  const undone = new Set(pairScoreUndos(events, new Set(scoreTypes)).values());
-  const latest = [...events].reverse().find((e) => e.type === input.kind && !undone.has(e.id));
-  if (!latest) return { success: true };
+  const { ref } = undoArgs(input.target ?? null, idempotencyKey);
+  const rows = await scoreRowsOf(w.supabase, gameId, AFL_SCORE_TYPES);
+  const found = resolveUndoTarget(rows, AFL_SCORE_TYPES, ref, {
+    ownKey: idempotencyKey,
+    fallbackTypes: new Set([input.kind]),
+  });
+  if (found.kind === "gone") return staleRefusal(auth, w.teamId, gameId, found.message);
+  if (found.kind !== "target") return { success: true };
+  const t = found.target;
 
+  // The replays take an undo off by its own type, quarter and player, so
+  // they come from the score it names.
   return insertEvent(
     auth,
     gameId,
     "score_undo",
     {
-      player_id: input.playerId,
+      player_id: t.player_id,
       metadata: {
-        target_event_id: latest.id,
-        original_type: input.kind,
-        quarter: input.quarter,
+        target_event_id: t.id,
+        original_type: t.type,
+        quarter: (t.metadata as { quarter?: number } | null)?.quarter ?? input.quarter,
       },
     },
     idempotencyKey,

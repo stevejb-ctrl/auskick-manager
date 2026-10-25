@@ -131,3 +131,48 @@ test("Oztag: a girl's try with no scorer is in the summary", async ({ page }) =>
     `Tries: ${players[0].full_name.split(" ")[0]} (#1), ${players[1].full_name.split(" ")[0]} (#2), +1 try (no scorer)`,
   );
 });
+
+// Round 2 usability, 24 Oct 2026: How we played left out two Musts the
+// live screen holds the side to. League's Law 6 (a kid on no unbroken
+// half read only "played under 50%"), and a mixed team's rule (a half
+// played with 5 boys on for three minutes read "Rules kept").
+
+test("league: a kid who never got an unbroken half is named under Law 6", async ({ page }) => {
+  // U10, two halves: Cal sat H1 and came on for Ben ten minutes into H2.
+  const { team, game, players } = await finishedGame("rugby_league", 3, ([ava, ben, cal]) => [
+    { type: "lineup_set", metadata: { lineup: { forwards: [ava], backs: [ben], bench: [cal] } } },
+    ...playPeriod(1, [], 1_200_000),
+    ...playPeriod(2, [{ type: "swap", metadata: { off_player_id: ben, on_player_id: cal, quarter: 2, elapsed_ms: 600_000 } }], 1_200_000),
+    fullTime,
+  ]);
+  await page.goto(`/teams/${team.id}/games/${game.id}`);
+  const card = page.getByTestId("how-we-played");
+  await expect(card).toContainText(`${players[2].full_name} didn't get 1 unbroken half (Law 6)`, { timeout: 15_000 });
+  await expect(card).not.toContainText(`${players[1].full_name} didn't get`);
+});
+
+test("Oztag: a stretch over the boys' cap is a missed rule", async ({ page }) => {
+  // At most 4 boys: kids 0–5 boys, 6–9 girls; 8 on. 5:00 a boy on for a
+  // girl, 8:10 the girl back on for him.
+  const { admin, team, game, players } = await finishedGame("oztag", 10, (k) => [
+    { type: "lineup_set", metadata: { lineup: { lines: { middle: [], link: [], wing: [], field: [...k.slice(0, 4), ...k.slice(6)] }, bench: k.slice(4, 6) } } },
+    ...playPeriod(
+      1,
+      [
+        { type: "swap", metadata: { off_player_id: k[9], on_player_id: k[4], quarter: 1, elapsed_ms: 300_000 } },
+        { type: "swap", metadata: { off_player_id: k[4], on_player_id: k[9], quarter: 1, elapsed_ms: 490_000 } },
+      ],
+      900_000,
+    ),
+    ...playPeriod(2, [], 900_000),
+    fullTime,
+  ]);
+  await admin.from("teams").update({ mixed_max_boys: 4, mixed_min_girls: 1, mixed_min_boys: 0 }).eq("id", team.id);
+  for (let i = 0; i < players.length; i++) {
+    await admin.from("players").update({ mixed_group: i < 6 ? "boy" : "girl" }).eq("id", players[i].id);
+  }
+  await page.goto(`/teams/${team.id}/games/${game.id}`);
+  const card = page.getByTestId("how-we-played");
+  await expect(card).toContainText("Mixed rule broken for 3:10 in half 1", { timeout: 15_000 });
+  await expect(card).not.toContainText("Rules kept");
+});

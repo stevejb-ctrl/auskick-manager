@@ -9,10 +9,14 @@ import type { GameEvent } from "@/lib/types";
 import {
   liveLoanMinutes,
   squadLoanAverage,
+  swapPairLabel,
   swapToastText,
   undoMessage,
+  undoSwaps,
 } from "@/lib/live/liveChrome";
 import { soccerLikelyScorers } from "@/lib/sports/soccer/scorers";
+import { rugbyScoreWhat } from "@/lib/sports/rugby_league/fairness";
+import { touchTryWhat } from "@/lib/sports/touch/scoreEvents";
 
 describe("undoMessage", () => {
   it("names the team, what was scored and who, as AFL's strip does", () => {
@@ -33,6 +37,14 @@ describe("swapToastText", () => {
   it("reads off → on, or who came on into an empty spot", () => {
     expect(swapToastText("Leo", "Ava")).toBe("Leo → Ava");
     expect(swapToastText(null, "Ava")).toBe("Ava on");
+  });
+});
+
+describe("swapPairLabel", () => {
+  // Every row's "Make swap" read the same to a screen reader (UX round 3, e4).
+  it("names both kids, or the one going on into an empty spot", () => {
+    expect(swapPairLabel("Leo Ng", "Ava Bell")).toBe("Swap Leo Ng off, Ava Bell on");
+    expect(swapPairLabel(null, "Ava Bell")).toBe("Put Ava Bell on");
   });
 });
 
@@ -92,5 +104,53 @@ describe("soccerLikelyScorers (the scorer sheet's order)", () => {
   it("puts a one-line field before the keeper", () => {
     const order = soccerLikelyScorers({ keeper: "gk", lines: { def: [], mid: [], att: [], field: ["f1", "f2"] }, bench: [] });
     expect(order.map((s) => s.id)).toEqual(["f1", "f2", "gk"]);
+  });
+});
+
+describe("what the undo strip says was scored, in rugby's and touch's words", () => {
+  it("names league's and union's scores as each sport calls them", () => {
+    expect(rugbyScoreWhat("rugby_league", "try")).toBe("try");
+    expect(rugbyScoreWhat("rugby_league", "conversion_attempt", true)).toBe("conversion");
+    expect(rugbyScoreWhat("rugby_league", "conversion_attempt", false)).toBe("missed conversion");
+    expect(rugbyScoreWhat("rugby_league", "opponent_conversion")).toBe("conversion");
+    expect(rugbyScoreWhat("rugby_league", "penalty_goal")).toBe("penalty goal");
+    expect(rugbyScoreWhat("rugby_league", "field_goal")).toBe("field goal");
+    expect(rugbyScoreWhat("rugby_union", "opponent_field_goal")).toBe("drop goal");
+    expect(undoMessage({ side: "us", what: rugbyScoreWhat("rugby_union", "try"), teamName: "Rams", opponentName: "Bulls", scorerName: "Kai" })).toBe(
+      "Rams try — Kai",
+    );
+  });
+
+  it("says a girl's try where it counts double", () => {
+    expect(touchTryWhat(false)).toBe("try");
+    expect(touchTryWhat(true)).toBe("girl's try");
+  });
+});
+
+// Round 3 (24 Oct 2026): "Make all 2 swaps" by mistake took two swaps by
+// hand, with two confirms, to put back. The toast offers Undo now; it
+// writes the reverse swaps, last first, so each kid goes back where
+// they were.
+describe("undoSwaps", () => {
+  it("swaps each pair back, last first", () => {
+    const made: { off: string; on: string; line: string }[] = [];
+    const undo = undoSwaps(
+      [
+        { off: "lily", on: "max", line: "def" },
+        { off: "noah", on: "jack", line: "mid" },
+      ],
+      (s) => made.push(s),
+    );
+    expect(made).toEqual([]);
+    undo!();
+    expect(made).toEqual([
+      { off: "jack", on: "noah", line: "mid" },
+      { off: "max", on: "lily", line: "def" },
+    ]);
+  });
+
+  it("offers nothing to undo when a swap filled an empty spot", () => {
+    expect(undoSwaps([{ off: null, on: "max" }], () => {})).toBeUndefined();
+    expect(undoSwaps([], () => {})).toBeUndefined();
   });
 });

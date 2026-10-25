@@ -11,6 +11,7 @@
 
 import { useState } from "react";
 import type { Player } from "@/lib/types";
+import { shortName } from "@/lib/names";
 import { RoleHandoverCard } from "@/components/quarter-break/RoleHandoverCard";
 
 interface KeeperHandoverCardProps {
@@ -34,7 +35,7 @@ interface KeeperHandoverCardProps {
 }
 
 function firstName(p: Player): string {
-  return p.full_name.trim().split(/\s+/)[0] ?? p.full_name;
+  return shortName(p.full_name);
 }
 
 /** The keeper badge: a small ink "GK" chip (the keeper is ink everywhere). */

@@ -63,7 +63,9 @@ type Piece =
   | "undoFlash"
   | "swapConfirm"
   | "settingsInRow"
-  | "optimisticWrites";
+  | "optimisticWrites"
+  | "pauseFromEvents"
+  | "summaryAtTop";
 
 /**
  * Each piece, as a check on a live screen's source. A screen without
@@ -84,8 +86,20 @@ const PIECES: Record<Piece, (s: string) => boolean> = {
   // Game settings (the sub interval) is a standard slot of the row.
   settingsInRow: (s) => blocks(s, "LiveAdminUtilityRow").some((b) => /settings=\{/.test(b)),
   // Score, undo and swap show at once: the AFL store, or optimistic
-  // events over the replay — never a wait on the server first.
-  optimisticWrites: (s) => /useLiveGame\(/.test(s) || /useOptimisticEvents\(/.test(s),
+  // events over the replay — never a wait on the server first. League
+  // reads the AFL store for its plan pin only, so the store alone
+  // doesn't count where a screen waits on a save before refreshing.
+  optimisticWrites: (s) =>
+    (/useLiveGame\(/.test(s) && !/await flushed/.test(s)) || /useOptimisticEvents\(/.test(s),
+  // A pause is a clock_pause event, so a reload or a second phone keeps
+  // it (round 2, 24 Oct 2026): the period's pause comes from the events
+  // (AFL's from the replay's mark), never from the page's own state.
+  pauseFromEvents: (s) =>
+    (/useEventPeriodPause\(/.test(s) || /initialState\.clockPause/.test(s)) &&
+    !/useState<PeriodPause>/.test(s) &&
+    !/usePeriodPause\(/.test(s),
+  // The summary after Finish opens at the top (round 2).
+  summaryAtTop: (s) => /useScrollToTopOnFinish\(/.test(s),
 };
 
 /**
@@ -99,32 +113,11 @@ const NOT_APPLICABLE: Record<string, Partial<Record<Piece, string>>> = {
   },
 };
 
-const KNOWN_GAPS: Record<string, Piece[]> = {
-  // Follow-up once the rugby session merges (fix packages B/C, 23 Oct 2026).
-  "src/components/league/LeagueLiveGame.tsx": [
-    "lockModalLine",
-    "lockModalLoan",
-    "undoFlash",
-    "swapConfirm",
-    "settingsInRow",
-  ],
-  // Follow-up once the touch/Oztag session merges. Its hand subs already
-  // go through SwapConfirmDialog (the boys'-cap confirm, fix A2).
-  "src/components/touch/TouchLiveGame.tsx": [
-    "lockModalLine",
-    "lockModalLoan",
-    "undoFlash",
-    "settingsInRow",
-    "optimisticWrites",
-  ],
-};
+// Empty since league and touch caught up (23 Oct 2026). A new gap needs
+// a named follow-up beside it.
+const KNOWN_GAPS: Record<string, Piece[]> = {};
 
-const PICKER_GAPS: Record<string, Piece[]> = {
-  // AFL's picker lends pre-game with 0m shown (the page doesn't pass it).
-  "src/components/live/LineupPicker.tsx": ["lockModalLoan"],
-  "src/components/league/LeagueLineupPicker.tsx": ["lockModalLine", "lockModalLoan"],
-  "src/components/touch/TouchLineupPicker.tsx": ["lockModalLine", "lockModalLoan"],
-};
+const PICKER_GAPS: Record<string, Piece[]> = {};
 
 describe("the live chrome contract", () => {
   it("knows every sport's live screen and picker", () => {
@@ -167,6 +160,26 @@ describe("shared sheets", () => {
     }
   });
 
+  it("the newer sports' scorer sheets ask \"Who scored?\" and say what was scored above it", () => {
+    // UX audit 23 Oct 2026: touch's read "WHO SCORED THE / Who scored the
+    // try", and league's was a sheet of its own that a stray tap closed.
+    const sheets = [
+      "src/components/soccer/SoccerLiveGame.tsx",
+      "src/components/basketball/BasketballLiveGame.tsx",
+      "src/components/touch/TouchLiveGame.tsx",
+      "src/components/league/LeagueScorerPicker.tsx",
+    ];
+    for (const path of sheets) {
+      const scorers = blocks(src(path), "SlotFillSheet").filter((b) => /scored/i.test(b));
+      expect(scorers.length, path).toBeGreaterThan(0);
+      for (const b of scorers) {
+        expect(b, path).toMatch(/title="Who scored\?"/);
+        expect(b, path).toMatch(/eyebrow=/);
+        expect(b, path).not.toMatch(/titleVerb=/);
+      }
+    }
+  });
+
   it("the late-arrival sheet and the break's settings sheets are the safe-to-dismiss ones", () => {
     expect(blocks(src("src/components/live/LateArrivalMenu.tsx"), "SlotFillSheet").every((b) => /dismissOnBackdrop\b/.test(b))).toBe(
       true,
@@ -180,5 +193,49 @@ describe("shared sheets", () => {
 
   it("the utility row hides late arrivals once the game is finished", () => {
     expect(src("src/components/live/LiveAdminUtilityRow.tsx")).toMatch(/showLate = candidates\.length > 0 && !finished/);
+  });
+});
+
+describe("full time", () => {
+  // At full time the review fixes a miscount: its buttons name their team
+  // (BreakScoreEditor) and the live scorebug's chips and undo strip go,
+  // as soccer's and basketball's do (UX audit 23 Oct 2026).
+  const reviews = {
+    "src/components/soccer/SoccerFullTime.tsx": "SoccerFullTimeReview",
+    "src/components/basketball/BasketballFullTime.tsx": "BasketballFullTimeReview",
+    "src/components/league/LeagueFullTimeReview.tsx": "LeagueFullTimeReview",
+    "src/components/touch/TouchFullTime.tsx": "TouchFullTimeReview",
+  };
+
+  for (const [path, name] of Object.entries(reviews)) {
+    it(`${name} adjusts the score on the shared editor`, () => {
+      const source = src(path);
+      expect(source).toMatch(/<BreakScoreEditor\b/);
+      expect(source).not.toMatch(/Score adjustments/);
+    });
+  }
+
+  // Finish game survives a dropped request: the review stays up, says
+  // "Couldn't save — try again", and a retry can't finalise twice (round
+  // 2, 24 Oct 2026: netball threw "Failed to fetch" into the boundary).
+  it("every sport's Finish goes through the shared, retry-safe useFinishGame", () => {
+    for (const path of [
+      "src/components/live/FullTimeReview.tsx",
+      "src/components/netball/NetballFullTimeReview.tsx",
+      ...Object.keys(reviews),
+    ]) {
+      const source = src(path);
+      expect(source, path).toMatch(/useFinishGame\(/);
+      expect(source, path).not.toMatch(/await finalise\w*Game\(/);
+    }
+  });
+
+  it("no one arrives late at a game that's over (the review, not just once it's finished)", () => {
+    for (const path of Object.keys(reviews).map((p) => p.replace(/(FullTime|FullTimeReview)\.tsx$/, "LiveGame.tsx"))) {
+      const source = src(path);
+      const at = source.indexOf("const lateArrivalCandidates");
+      expect(at, path).toBeGreaterThan(-1);
+      expect(source.slice(at, at + 300), path).toMatch(/if \(isFinished\) return \[\]/);
+    }
   });
 });

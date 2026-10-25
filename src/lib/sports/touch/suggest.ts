@@ -71,7 +71,8 @@ export interface TouchMixed {
 
 /** A suggested sub: the shape of the `swap` event it becomes. */
 export interface TouchSub {
-  off_player_id: string;
+  /** Null: into an empty place, nobody off. */
+  off_player_id: string | null;
   on_player_id: string;
   line: TouchLine;
 }
@@ -294,6 +295,17 @@ export interface SuggestTouchSubsInput {
    * before a sub moves them again. 0 or omitted = no guard.
    */
   minStintMs?: number;
+  /**
+   * The cool-down after going off: a kid who went off less than this long
+   * ago isn't brought back on (the live game passes one sub interval). 0
+   * or omitted = none.
+   */
+  restMs?: number;
+  /**
+   * Places in each lane on the field now (the live screen's): any left
+   * empty (a kid hurt with nobody on) are filled first.
+   */
+  spots?: Partial<Record<TouchLine, number>>;
   /** At most this many subs in one batch; omitted = as many as even time. */
   maxSubs?: number;
 }
@@ -332,22 +344,50 @@ function touchRollingInput(input: SuggestTouchSubsInput, lu: TouchLineup): Rolli
     ...(mixed ? { tags: mixedTags(mixed.groupOf), constraints: mixedConstraints(mixed.rule), pool: poolOfFor(mixed) } : {}),
     justOn: (p) => guard && nowMs - (state.lastSubbedOnMs[p] ?? 0) < minStint,
     justOff: (p) => guard && state.lastSubbedOffMs[p] !== undefined && nowMs - state.lastSubbedOffMs[p] < minStint,
+    resting: (p) => (input.restMs ?? 0) > 0 && state.lastSubbedOffMs[p] !== undefined && nowMs - state.lastSubbedOffMs[p] < (input.restMs ?? 0),
+    open: TOUCH_LINES.flatMap((l) => Array.from({ length: Math.max(0, (input.spots?.[l] ?? 0) - lu.lines[l].length) }, () => l)),
     maxSubs: input.maxSubs,
   };
 }
 
 const asTouchSub = (s: RollingSub<TouchLine>): TouchSub => ({ off_player_id: s.off, on_player_id: s.on, line: s.line });
 
+/** How a mixed side that breaks its rule gets back inside it. */
+export interface TouchMixFix {
+  /** Subs first: a girl on for the boy on longest, or a boy for a girl when there's no boy on. */
+  subs: TouchSub[];
+  /**
+   * Still over the boys' cap with nobody on the bench to swap in: the
+   * boys to take off with no replacement, the one on longest first, so
+   * the side plays short at the size the rule allows.
+   */
+  off: string[];
+}
+
 /**
- * The subs that put a mixed side that breaks its rule (a hand sub put a
- * fourth boy on) back inside it: a girl on for the boy on longest, or a
- * boy for a girl when there's no boy on. Empty when the side keeps the
- * rule, nobody on the bench can fix it, or the team isn't mixed.
+ * The fix for a mixed side that breaks its rule (a hand sub put a
+ * fourth boy on). Round 2 usability, 24 Oct 2026 (Oztag): after a girl
+ * was hurt and the only bench girl came on, 5 boys stayed on with no
+ * fix offered, though the banner said the side could field 6. Empty when
+ * the side keeps the rule, nobody can fix it, or the team isn't mixed.
  */
-export function touchMixFixSubs(input: SuggestTouchSubsInput): TouchSub[] {
+export function touchMixFix(input: SuggestTouchSubsInput): TouchMixFix {
   const lu = input.state.lineup;
-  if (!lu || !input.mixed) return [];
-  return compositionFixes(touchRollingInput(input, lu)).map(asTouchSub);
+  if (!lu || !input.mixed) return { subs: [], off: [] };
+  const { rule, groupOf } = input.mixed;
+  const subs = compositionFixes(touchRollingInput(input, lu)).map(asTouchSub);
+  const onField = new Set(touchOnField(lu));
+  for (const s of subs) {
+    if (s.off_player_id) onField.delete(s.off_player_id);
+    onField.add(s.on_player_id);
+  }
+  const boys = Array.from(onField).filter((p) => groupOf(p) === "boy");
+  const over = boys.length - rule.maxBoys;
+  if (over <= 0) return { subs, off: [] };
+  // The boy on longest goes; one held on or kept on only if no other can.
+  const stays = (p: string) => (input.state.locks[p]?.kind === "field" || keptOn(input.prefs, p) === 0 ? 1 : 0);
+  const order = sortByKeys(boys, (p) => [stays(p), -touchGameMs(input.state, p)]);
+  return { subs, off: order.slice(0, over) };
 }
 
 export function suggestTouchSubs(input: SuggestTouchSubsInput): TouchSub[] {
@@ -369,7 +409,9 @@ export function suggestTouchSubs(input: SuggestTouchSubsInput): TouchSub[] {
     const score = laneScore(strategy, prefs, season, (pid, lane) => state.ms[pid]?.[lane] ?? 0, periodMs);
     const pools = Array.from(new Set(subs.slice(fixCount).map((s) => poolOf(s.on))));
     for (const pool of pools) {
-      const idx = subs.map((s, i) => (i >= fixCount && poolOf(s.on) === pool && !laneHold(s.on) ? i : -1)).filter((i) => i >= 0);
+      const idx = subs
+        .map((s, i) => (i >= fixCount && s.off !== null && poolOf(s.on) === pool && !laneHold(s.on) ? i : -1))
+        .filter((i) => i >= 0);
       if (idx.length < 2) continue;
       const ons = idx.map((i) => subs[i].on);
       const lanes = idx.map((i) => subs[i].line);

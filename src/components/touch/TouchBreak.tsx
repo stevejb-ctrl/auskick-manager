@@ -15,19 +15,24 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
+import { liveEvents } from "@/lib/live/optimisticEvents";
+import type { OptimisticWrite } from "@/lib/live/useOptimisticEvents";
+import { queuedStartClockMark } from "@/lib/live/useClockPause";
 import { useStagedBreakDraft } from "@/lib/live/useStagedBreakDraft";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { hapticTap } from "@/lib/haptics";
 import { type InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
 import { PeriodBreak, type BreakPlayer, type BreakStrategy } from "@/components/quarter-break/PeriodBreak";
 import { breakConfigFor } from "@/lib/sports/break";
+import { getSportConfig } from "@/lib/sports/registry";
 import type { RuleCheckItem } from "@/lib/playbook/ruleCheck";
-import { checkRules } from "@/lib/playbook/ruleCheck";
 import { buildBoard, placesOf, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
+import { useBreakReplan } from "@/lib/live/break/useBreakReplan";
+import { awayMsSoFar } from "@/lib/live/break/floor";
 import { rotateGroups } from "@/lib/live/break/rotateGroups";
 import { normalizeTouchLineup, touchLineOf, touchOnField, type TouchLineup } from "@/lib/sports/touch/lineup";
-import { touchLineupRuleItems } from "@/lib/sports/touch/ruleCheck";
+import { touchBreakCheck } from "@/lib/sports/touch/breakCheck";
 import { touchCanPlay, touchGameMs, type TouchGameState } from "@/lib/sports/touch/replay";
 import {
   suggestTouchBreakPlan,
@@ -39,11 +44,10 @@ import {
 } from "@/lib/sports/touch/suggest";
 import { benchOutInTouchLineup, placeInTouchLineup, swapInTouchLineup } from "@/lib/sports/touch/live";
 import { TOUCH_LANES, type TouchAgeGroupConfig, type TouchLine, type TouchStrategy } from "@/lib/sports/touch/types";
-import type { Game, LiveAuth, Player } from "@/lib/types";
+import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import type { SportId } from "@/lib/sports/types";
 
 const GROUPS = ["middle", "link", "wing", "field"] as const;
-const LINE_LABEL: Record<string, string> = { middle: "Middles", link: "Links", wing: "Wings", field: "Field" };
 
 function stagedOf(l: TouchLineup): StagedLineup {
   return { groups: { middle: l.lines.middle, link: l.lines.link, wing: l.lines.wing, field: l.lines.field }, bench: l.bench };
@@ -63,6 +67,8 @@ function swapSlots(l: TouchLineup, a: BoardSlot, b: BoardSlot): TouchLineup {
 
 interface Props {
   auth: LiveAuth;
+  /** The live screen's optimistic write: Start shows at once, with or without signal. */
+  write: OptimisticWrite;
   /** Touch or Oztag: its words come from its config. */
   sport: SportId;
   game: Game;
@@ -71,6 +77,8 @@ interface Props {
   ageGroup: TouchAgeGroupConfig;
   /** The game at the break (no open stints). */
   state: TouchGameState;
+  /** The game's events: who arrived late, was hurt or lent, and when. */
+  events: GameEvent[];
   periodMs: number;
   strategy: TouchStrategy;
   prefs?: TouchPrefs;
@@ -85,12 +93,14 @@ interface Props {
 
 export function TouchBreak({
   auth,
+  write,
   sport,
   game,
   exitHref,
   squad,
   ageGroup,
   state,
+  events,
   periodMs,
   strategy: playStrategy,
   prefs,
@@ -182,9 +192,13 @@ export function TouchBreak({
     s === "suggested" ? suggested : s === "rotate" ? rotated : s === "repeat" ? repeat : manual;
   const [draft, setDraft] = useState<TouchLineup>(() => forStrategy(initialMode));
   const lastApplied = useRef<BreakStrategy>(initialMode);
+  // A kid back at the break gets the strategy's lineup again, unless the
+  // coach has placed kids by hand (lib/live/break/useBreakReplan).
+  const replan = useBreakReplan(healthy, () => setDraft(forStrategy(strategy)));
   useEffect(() => {
     if (lastApplied.current === strategy) return;
     lastApplied.current = strategy;
+    replan.strategyApplied();
     setDraft(forStrategy(strategy));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [strategy]);
@@ -200,6 +214,7 @@ export function TouchBreak({
     staged,
     mode: strategy,
     onRestore: (restored) => {
+      replan.placedByHand();
       setDraft(lineupOf(restored));
       const mode = restored.mode as BreakStrategy;
       if (["suggested", "rotate", "repeat", "manual"].includes(mode)) {
@@ -236,6 +251,7 @@ export function TouchBreak({
   // Out: recorded as an injury (reason "out"); a replacement takes the
   // spot in the staged plan, committed with it at Start.
   function markOut(pid: string, replacementId: string | null) {
+    if (replacementId) replan.placedByHand();
     setDraft((d) => {
       const line = touchLineOf(d, pid);
       const benched = benchOutInTouchLineup(d, new Set([pid]));
@@ -244,22 +260,21 @@ export function TouchBreak({
     void run(enqueueLiveAction("markInjury", [auth, game.id, { player_id: pid, injured: true, ...at, reason: "out" }]).flushed);
   }
 
-  async function start() {
-    setPending(true);
+  // Start: the break's lineup, then the period, as optimistic writes
+  // through the live screen's `write`, so the period starts at the tap
+  // with or without signal (round 3: it waited on both saves, and with no
+  // signal it never started). With no signal the clock's start rides
+  // along too (queuedStartClockMark).
+  function start() {
     setError(null);
-    try {
-      // Kids who can't play now start on the bench, places left empty.
-      await enqueueLiveAction("recordTouchLineupSet", [auth, game.id, benchOutInTouchLineup(draft, sidelinedSet), undefined]).flushed;
-      await enqueueLiveAction("startTouchPeriod", [auth, game.id, nextPeriod]).flushed;
-      stagedBreakDraft.clear();
-      void hapticTap("medium");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "That didn't save. Try again.");
-      setPending(false);
-      return;
-    }
-    setPending(false);
-    router.refresh();
+    // Kids who can't play now start on the bench, places left empty.
+    const lineup = benchOutInTouchLineup(draft, sidelinedSet);
+    const mark = queuedStartClockMark(nextPeriod);
+    write("recordTouchLineupSet", [auth, game.id, lineup, undefined], liveEvents.breakLineup(lineup));
+    write("startTouchPeriod", [auth, game.id, nextPeriod], liveEvents.periodStart(nextPeriod));
+    if (mark) write("recordClockPause", [auth, game.id, mark], liveEvents.clockPause(mark));
+    stagedBreakDraft.clear();
+    void hapticTap("medium");
   }
 
   // ── The break screen ────────────────────────────────────────
@@ -281,40 +296,25 @@ export function TouchBreak({
   const previous = useMemo(() => (previousLineup ? placesOf(stagedOf(previousLineup)) : {}), [previousLineup]);
 
   const names = useMemo(() => Object.fromEntries(squad.map((p) => [p.id, p.full_name])), [squad]);
+  // Time a kid couldn't play (late, hurt, lent) is off their game.
+  const awayMs = useMemo(() => awayMsSoFar(events, () => periodMs, state.currentPeriod), [events, periodMs, state.currentPeriod]);
   const issues = useMemo(() => {
     // The lineup's own rules (the lane shape, nobody twice, the mixed
-    // rule), then the shared 50% game-time floor.
-    const check = (l: TouchLineup): RuleCheckItem[] => {
-      // Kids who can't play aren't held to the rules.
-      const benched = benchOutInTouchLineup(l, sidelinedSet);
-      const lu = { ...benched, bench: benched.bench.filter((id) => !sidelinedSet.has(id)) };
-      const items: RuleCheckItem[] = touchLineupRuleItems({ lineup: lu, ageGroup, size: sideSize, mixed });
-      const onField: Record<string, string> = {};
-      for (const g of GROUPS) for (const pid of lu.lines[g]) onField[pid] = g;
-      const playedThisGame: Record<string, Record<string, number>> = {};
-      for (const pid of [...Object.keys(onField), ...lu.bench]) {
-        playedThisGame[pid] = Object.fromEntries(Object.entries(state.ms[pid] ?? {}).filter(([, v]) => typeof v === "number")) as Record<string, number>;
-      }
-      items.push(
-        ...checkRules({
-          onField,
-          bench: lu.bench,
-          lines: shape.lines.field > 0 ? ["field"] : [...TOUCH_LANES],
-          lineLabel: (k) => LINE_LABEL[k] ?? k,
-          name: (pid) => names[pid] ?? "A player",
-          playedThisGame,
-          benchedLastPeriod: previousLineup ? previousLineup.bench : [],
-          period: nextPeriod,
-          periodCount: ageGroup.periodCount,
-          periodMs,
-          periodWord: "half",
-          lineWord: "lane",
-          minGameTimePct: 50,
-          rules: [],
-        }),
-      );
-      return items;
-    };
+    // rule), then the shared 50% game-time floor (touch/breakCheck).
+    const check = (l: TouchLineup): RuleCheckItem[] =>
+      touchBreakCheck({
+        lineup: l,
+        state,
+        ageGroup,
+        size: sideSize,
+        mixed,
+        sidelined: sidelinedSet,
+        field: shape.lines.field > 0,
+        period: nextPeriod,
+        periodMs,
+        names,
+        awayMs,
+      });
     return breakIssues({
       lineup: draft,
       check,
@@ -325,7 +325,7 @@ export function TouchBreak({
       emptySpots: false,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, sidelinedSet, ageGroup, sideSize, mixed, state.ms, shape, names, previousLineup, nextPeriod, periodMs, config.zones]);
+  }, [draft, sidelinedSet, ageGroup, sideSize, mixed, state, shape, names, nextPeriod, periodMs, awayMs, config.zones]);
 
   const asBreakPlayer = (p: Player): BreakPlayer => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number });
   const players = useMemo(() => new Map(squad.map((p) => [p.id, asBreakPlayer(p)])), [squad]);
@@ -350,7 +350,10 @@ export function TouchBreak({
       gameMs={gameMs}
       scores={scores}
       sidelined={sidelined}
-      onSwap={(a, b) => setDraft((d) => swapSlots(d, a, b))}
+      onSwap={(a, b) => {
+        replan.placedByHand();
+        setDraft((d) => swapSlots(d, a, b));
+      }}
       strategy={strategy}
       onStrategy={(next) => {
         setStrategy(next);
@@ -387,7 +390,7 @@ export function TouchBreak({
         pending,
         error,
       }}
-      start={{ onStart: () => void start(), pending, cue: "whistle goes", error }}
+      start={{ onStart: start, pending, cue: getSportConfig(sport).words.startCue, error }}
     />
   );
 }

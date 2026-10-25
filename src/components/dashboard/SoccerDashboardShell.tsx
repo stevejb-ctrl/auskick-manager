@@ -4,7 +4,8 @@
 // season balance, the player table), so a coach coming from another
 // sport finds it where they expect. Soccer's own numbers: goals, the
 // result (only when scoring is on: MiniRoos keeps none), minutes, and
-// time in goal, which "Everyone has a turn" shares out.
+// time in goal, which "Everyone has a turn" shares out. Goals nobody was
+// named for get their own row, so the goals add up to goals for.
 
 import { SeasonBalanceSection, type SeasonBalanceSectionProps } from "./SeasonBalanceGrid";
 import { SeasonSelector } from "@/components/dashboard/SeasonSelector";
@@ -56,9 +57,14 @@ export function SoccerDashboardShell({
     );
   }
 
-  const rows = Object.values(aggregate.perPlayer).sort(
-    (a, b) => b.gamesPlayed - a.gamesPlayed || (playerNames[a.playerId] ?? "").localeCompare(playerNames[b.playerId] ?? ""),
-  );
+  // A squad kid who came but never got on is listed at 0, so the coach
+  // sees who missed out (UX round 2, 24 Oct 2026); a fill-in only once
+  // they've played.
+  const rows = Object.values(aggregate.perPlayer)
+    .filter((r) => r.gamesPlayed > 0 || playerNames[r.playerId] !== undefined)
+    .sort(
+      (a, b) => b.gamesPlayed - a.gamesPlayed || (playerNames[a.playerId] ?? "").localeCompare(playerNames[b.playerId] ?? ""),
+    );
   const t = aggregate.totals;
 
   return (
@@ -102,6 +108,19 @@ export function SoccerDashboardShell({
               </tr>
             ))}
           </tbody>
+          {/* Goals nobody was named for, so the column adds up to goals
+              for (as touch's tries do: UX round 2, 24 Oct 2026). */}
+          {trackScoring && aggregate.noScorer.goals > 0 && (
+            <tfoot>
+              <tr className="border-t border-hairline text-ink-dim">
+                <Td className="text-left">No scorer</Td>
+                <Td>—</Td>
+                <Td>—</Td>
+                <Td>{aggregate.noScorer.goals}</Td>
+                {withKeeper && <Td>—</Td>}
+              </tr>
+            </tfoot>
+          )}
         </table>
       </section>
     </div>

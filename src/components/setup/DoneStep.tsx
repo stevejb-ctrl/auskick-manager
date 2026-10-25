@@ -109,16 +109,20 @@ export function DoneStep({
           <li className="flex gap-2">
             <span aria-hidden className="mt-0.5 text-brand-600">•</span>
             <span>
-              <strong className="text-ink">Share availability</strong> with
-              parents so you know who&rsquo;s playing before match day.
+              <strong className="text-ink">Ask parents who&rsquo;s in.</strong>{" "}
+              Each game has an availability link to share in the group chat:
+              parents tap In or Out for their child, no account needed. Find
+              it on the game&rsquo;s page under &ldquo;Ask parents who&rsquo;s in&rdquo;.
             </span>
           </li>
         </ul>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
+        {/* Straight to People with the invite form open: it used to land
+            at the top of Team settings, three screens above People. */}
         <Link
-          href={`/teams/${teamId}/settings`}
+          href={`/teams/${teamId}/settings?invite=1#people`}
           className="inline-flex items-center justify-center rounded-md border border-hairline bg-surface px-4 py-2.5 text-sm font-medium text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
         >
           Invite a manager

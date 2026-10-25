@@ -21,6 +21,9 @@ import { isEmail } from "@/lib/email/validate";
 import { publicOrigin } from "@/lib/platform";
 import type { TeamRole } from "@/lib/types";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { Modal } from "@/components/ui/Modal";
+import { SFButton } from "@/components/sf";
+import { hasDisplayName, memberDisplayName } from "@/lib/members/displayName";
 
 // Mirror of RESEND_THROTTLE_MS on the server. Used for the countdown
 // display on the "Resend email" button so the disabled state matches
@@ -58,6 +61,8 @@ interface TeamMembersSettingsProps {
    * 0041's NOT NULL constraint means real teams will always have one.
    */
   joinCode: string | null;
+  /** Open the invite form on arrival ("Invite a manager" links here). */
+  openInvite?: boolean;
 }
 
 export function TeamMembersSettings({
@@ -66,6 +71,7 @@ export function TeamMembersSettings({
   members,
   invites,
   joinCode,
+  openInvite = false,
 }: TeamMembersSettingsProps) {
   return (
     <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
@@ -95,7 +101,7 @@ export function TeamMembersSettings({
 
       {isAdmin && (
         <div className="mt-6 border-t border-hairline pt-5">
-          <InviteSection teamId={teamId} invites={invites} />
+          <InviteSection teamId={teamId} invites={invites} openInvite={openInvite} />
         </div>
       )}
     </div>
@@ -153,8 +159,8 @@ function JoinCodeSection({
       </div>
       <p className="text-xs text-ink-mute">
         Parents with a Siren account can enter this code to join the team as a
-        parent. Read it aloud at the sideline, or copy and text it. Regenerate
-        any time if it leaks.
+        Parent. Read it aloud at the sideline, or copy and text it. Regenerate
+        any time if it leaks. To make someone a Manager, change their role above.
       </p>
       <div className="flex items-center gap-2">
         <code
@@ -198,6 +204,9 @@ function MemberRowItem({
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+  // Email sign-ups have a blank name: show the email instead, never "".
+  const label = memberDisplayName(member);
 
   function handleRoleChange(newRole: TeamRole) {
     setError(null);
@@ -210,10 +219,9 @@ function MemberRowItem({
 
   function handleRemove() {
     setError(null);
-    const label = member.full_name ?? member.email ?? "this member";
-    if (!confirm(`Remove ${label} from the team?`)) return;
     startTransition(async () => {
       const res = await removeMember(teamId, member.user_id);
+      setConfirmingRemove(false);
       if (!res.success) setError(res.error);
     });
   }
@@ -223,14 +231,14 @@ function MemberRowItem({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <p className="truncate text-sm font-medium text-ink">
-            {member.full_name ?? member.email ?? "Unknown"}
+            {label}
             {member.isSelf && (
               <span className="ml-1.5 text-xs text-ink-mute">(you)</span>
             )}
           </p>
           <Badge variant={member.role}>{ROLE_LABEL[member.role]}</Badge>
         </div>
-        {member.full_name && member.email && (
+        {hasDisplayName(member.full_name) && member.email && (
           <p className="truncate text-xs text-ink-mute">{member.email}</p>
         )}
         {error && (
@@ -247,7 +255,7 @@ function MemberRowItem({
             onChange={(e) => handleRoleChange(e.target.value as TeamRole)}
             disabled={isPending}
             className="rounded-md border border-hairline bg-surface px-2 py-1.5 text-sm text-ink shadow-card focus:border-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:opacity-50"
-            aria-label={`Role for ${member.full_name ?? "member"}`}
+            aria-label={`Role for ${label}`}
           >
             {ROLE_OPTIONS.map((r) => (
               <option key={r} value={r}>
@@ -258,13 +266,35 @@ function MemberRowItem({
           <Button
             size="sm"
             variant="ghost"
-            onClick={handleRemove}
+            onClick={() => {
+              setError(null);
+              setConfirmingRemove(true);
+            }}
             loading={isPending}
             className="text-danger hover:bg-danger/10 hover:text-danger"
           >
             Remove
           </Button>
         </div>
+      )}
+
+      {confirmingRemove && (
+        <Modal label={`Remove ${label}?`} onClose={isPending ? undefined : () => setConfirmingRemove(false)}>
+          <h2 className="text-center text-lg font-bold text-danger">Remove {label}?</h2>
+          <p className="mt-2 text-sm text-ink-dim">
+            They lose access to the team straight away, and the invite they
+            joined with stops working. The team code still lets anyone join as
+            a Parent: regenerate it below if you need to.
+          </p>
+          <div className="mt-5 flex flex-col gap-2">
+            <SFButton variant="alarm" size="md" loading={isPending} onClick={handleRemove}>
+              Remove {label}
+            </SFButton>
+            <SFButton variant="ghost" size="sm" onClick={() => setConfirmingRemove(false)} disabled={isPending}>
+              Cancel
+            </SFButton>
+          </div>
+        </Modal>
       )}
     </li>
   );
@@ -275,11 +305,13 @@ function MemberRowItem({
 function InviteSection({
   teamId,
   invites,
+  openInvite,
 }: {
   teamId: string;
   invites: PendingInvite[];
+  openInvite: boolean;
 }) {
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(openInvite);
 
   return (
     <div className="space-y-4">
@@ -501,9 +533,9 @@ function InviteForm({
           Invite link ready — share it privately.
         </p>
         <p className="text-xs text-ink-dim">
-          Anyone who opens this link can join as{" "}
-          <span className="font-medium">{ROLE_LABEL[role]}</span>. Expires in 14
-          days.
+          Send it to one person: it works once, to join as{" "}
+          <span className="font-medium">{ROLE_LABEL[role]}</span>, and expires
+          in 14 days. Inviting someone else? Create another link.
         </p>
 
         {emailStatus.kind === "sent" && (
@@ -594,7 +626,7 @@ function InviteForm({
           autoComplete="email"
           value={invitedEmail}
           onChange={(e) => setInvitedEmail(e.target.value)}
-          placeholder="parent@example.com"
+          placeholder="name@example.com"
           disabled={isPending}
         />
         <LookupHint

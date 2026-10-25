@@ -16,6 +16,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
+import { liveEvents } from "@/lib/live/optimisticEvents";
+import type { OptimisticWrite } from "@/lib/live/useOptimisticEvents";
+import { queuedStartClockMark } from "@/lib/live/useClockPause";
 import { useStagedBreakDraft } from "@/lib/live/useStagedBreakDraft";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { hapticTap } from "@/lib/haptics";
@@ -28,6 +31,7 @@ import { periodLabels, type SoccerSport } from "@/lib/sports";
 import { soccerFamilyRules } from "@/lib/sports/soccer/family";
 import { buildBoard, placesOf, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
+import { useBreakReplan } from "@/lib/live/break/useBreakReplan";
 import { rotateGroups } from "@/lib/live/break/rotateGroups";
 import { soccerOnField, soccerUnitOf, type SoccerLineup } from "@/lib/sports/soccer/lineup";
 import { soccerGameMs, type SoccerGameState } from "@/lib/sports/soccer/replay";
@@ -40,6 +44,7 @@ import {
   type SoccerAgeGroupConfig,
   type SoccerFormation,
   type SoccerKeeperStrategy,
+  type SoccerLine,
   type SoccerUnit,
 } from "@/lib/sports/soccer/types";
 import type { Game, LiveAuth, Player } from "@/lib/types";
@@ -73,6 +78,8 @@ function swapSlots(l: SoccerLineup, a: BoardSlot, b: BoardSlot): SoccerLineup {
 
 interface Props {
   auth: LiveAuth;
+  /** The live screen's optimistic write: Start shows at once, with or without signal. */
+  write: OptimisticWrite;
   /** The team's sport: its line words and keeper rules. */
   sport: SoccerSport;
   game: Game;
@@ -94,6 +101,7 @@ interface Props {
 
 export function SoccerBreak({
   auth,
+  write,
   sport,
   game,
   exitHref,
@@ -163,7 +171,7 @@ export function SoccerBreak({
   );
   // Rotate: the half-time plan's keeper goes in goal; everyone else moves
   // up a line (defence → midfield → attack → defence), the shape kept,
-  // least-played on.
+  // least-played on, each kid only to a line their "Plays as" names.
   const rotatedPlan = useMemo<SoccerLineup>(() => {
     const keeper = plan.formation.keeper ? plan.lineup.keeper : null;
     const shape = plan.formation.lines;
@@ -180,9 +188,10 @@ export function SoccerBreak({
         }),
       ),
       sidelinedIds: sidelinedInGame,
+      plays: (pid, line) => line === "field" || !keeperPrefs?.notInLine?.[pid]?.includes(line as SoccerLine),
     });
     return lineupOf({ groups: { ...out.groups, gk: keeper ? [keeper] : [] }, bench: out.bench });
-  }, [plan, healthy, state.ms, gameMs, previousLineup, sidelinedInGame]);
+  }, [plan, healthy, state.ms, gameMs, previousLineup, sidelinedInGame, keeperPrefs]);
   // Every plan but Manual puts the kit-up keeper in goal.
   const {
     suggested,
@@ -215,9 +224,13 @@ export function SoccerBreak({
   // A strategy only re-derives the plan when the coach picks it, never
   // when the suggestion recomputes underneath their edits.
   const lastApplied = useRef<BreakStrategy>(initialMode);
+  // A kid back at the break gets the strategy's lineup again, unless the
+  // coach has placed kids by hand (lib/live/break/useBreakReplan).
+  const replan = useBreakReplan(healthy, () => setDraft(forStrategy(strategy)));
   useEffect(() => {
     if (lastApplied.current === strategy) return;
     lastApplied.current = strategy;
+    replan.strategyApplied();
     setDraft(forStrategy(strategy));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [strategy]);
@@ -243,6 +256,7 @@ export function SoccerBreak({
     staged,
     mode: strategy,
     onRestore: (restored) => {
+      replan.placedByHand();
       shaped.current = true;
       setDraft(lineupOf(restored));
       const mode = restored.mode as BreakStrategy;
@@ -280,6 +294,7 @@ export function SoccerBreak({
   // Out: recorded as an injury (reason "out"); a replacement takes the
   // spot in the staged plan, committed with it at Start.
   function markOut(pid: string, replacementId: string | null) {
+    if (replacementId) replan.placedByHand();
     setDraft((d) => {
       const unit = soccerUnitOf(d, pid);
       const benched = benchOutInSoccerLineup(d, new Set([pid]));
@@ -288,25 +303,23 @@ export function SoccerBreak({
     void run(enqueueLiveAction("markInjury", [auth, game.id, { player_id: pid, injured: true, ...at, reason: "out" }]).flushed);
   }
 
-  async function start() {
-    setPending(true);
+  // Start: the break's lineup, then the period, as optimistic writes
+  // through the live screen's `write`, so the period starts at the tap
+  // with or without signal (it used to wait on both saves; with no
+  // signal it never started). With no signal the clock's start rides
+  // along too (queuedStartClockMark).
+  function start() {
     setError(null);
-    try {
-      // Kids who can't play now start on the bench, their places left empty.
-      await enqueueLiveAction("recordSoccerLineupSet", [auth, game.id, benchOutInSoccerLineup(draft, sidelinedSet), undefined])
-        .flushed;
-      await enqueueLiveAction("startSoccerHalf", [auth, game.id, nextPeriod]).flushed;
-      stagedBreakDraft.clear();
-      // The kit-up heads-up's job is done once the period starts.
-      writeKitUp(kitUpKey(game.id, period), "");
-      void hapticTap("medium");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "That didn't save. Try again.");
-      setPending(false);
-      return;
-    }
-    setPending(false);
-    router.refresh();
+    // Kids who can't play now start on the bench, their places left empty.
+    const lineup = benchOutInSoccerLineup(draft, sidelinedSet);
+    const mark = queuedStartClockMark(nextPeriod);
+    write("recordSoccerLineupSet", [auth, game.id, lineup, undefined], liveEvents.breakLineup(lineup));
+    write("startSoccerHalf", [auth, game.id, nextPeriod], liveEvents.periodStart(nextPeriod));
+    if (mark) write("recordClockPause", [auth, game.id, mark], liveEvents.clockPause(mark));
+    stagedBreakDraft.clear();
+    // The kit-up heads-up's job is done once the period starts.
+    writeKitUp(kitUpKey(game.id, period), "");
+    void hapticTap("medium");
   }
 
   // ── The break screen ────────────────────────────────────────
@@ -392,6 +405,7 @@ export function SoccerBreak({
       sidelined={sidelined}
       onSwap={(a, b) => {
         shaped.current = true;
+        replan.placedByHand();
         setDraft((d) => swapSlots(d, a, b));
       }}
       strategy={strategy}
@@ -470,7 +484,7 @@ export function SoccerBreak({
         pending,
         error,
       }}
-      start={{ onStart: () => void start(), pending, cue: "whistle goes", error }}
+      start={{ onStart: start, pending, cue: "whistle goes", error }}
     />
   );
 }

@@ -5,7 +5,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { replayGame } from "@/lib/fairness";
 import { playedZoneMsByPeriod as netballByPeriod } from "@/lib/sports/netball/fairness";
-import { playedZoneMsByPeriod as leagueByPeriod } from "@/lib/sports/rugby_league/fairness";
+import {
+  playedZoneMsByPeriod as leagueByPeriod,
+  unbrokenPeriodCompliance,
+  unbrokenPeriodsRequired,
+} from "@/lib/sports/rugby_league/fairness";
 import { primaryThirdFor } from "@/lib/sports/netball";
 import {
   getAgeGroupConfig,
@@ -25,6 +29,7 @@ import { basketballAgeGroupForTeam } from "@/lib/sports/basketball";
 import { replayTouchGame } from "@/lib/sports/touch/replay";
 import { touchAgeGroupForTeam } from "@/lib/sports/touch/family";
 import { teamMixedRule, type MixedRuleColumns } from "@/lib/sports/touch/mixed";
+import { mixedBreachMsByPeriod } from "@/lib/sports/touch/mixedBreach";
 import { getSeasonEvents } from "@/lib/season";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { effectiveStrategy, getSportPlaybook } from "@/lib/playbook";
@@ -238,6 +243,23 @@ export async function buildGameReport(
   // Time each kid couldn't play: late, injured or fouled out, lent.
   const away = awayMsByPeriod(events, (p) => periodPlayedMs[p] ?? periodSeconds * 1000, ageCfg.periodCount);
 
+  // League's Law 6 where the grade plays it; a mixed team's rule. Both
+  // are Musts the live screen holds the side to (round 2 usability, 24
+  // Oct 2026: neither reached How we played).
+  const required = isRugby(sport) ? unbrokenPeriodsRequired(ageCfg) : 0;
+  const unbroken =
+    required > 0
+      ? {
+          required,
+          done: Object.fromEntries(
+            Object.entries(unbrokenPeriodCompliance(events, required)).map(([pid, c]) => [pid, c.unbrokenPeriods.length]),
+          ),
+          periodWord: periods.label,
+        }
+      : undefined;
+  const mixedRule = isTouch(sport) ? teamMixedRule(team) : null;
+  const mixedBreachMs = mixedRule ? mixedBreachMsByPeriod(events, mixedRule, (pid) => mixedGroups?.[pid] ?? null) : undefined;
+
   return gameReport({
     byPeriod,
     present,
@@ -260,7 +282,8 @@ export async function buildGameReport(
     periodMs: periodSeconds * 1000,
     minGameTimePct: snapshot?.policy.minGameTimePct ?? resolved.policy.minGameTimePct,
     // A mixed team evens time within each group, so its floor is per group.
-    ...(isTouch(sport) && teamMixedRule(team) ? { mixedGroupOf: (pid: string) => mixedGroups?.[pid] ?? null } : {}),
+    ...(mixedRule ? { mixedGroupOf: (pid: string) => mixedGroups?.[pid] ?? null, mixedBreachMs } : {}),
+    unbroken,
     rules,
     name: (pid) => playerNames[pid] ?? "A fill-in",
     homeLine,

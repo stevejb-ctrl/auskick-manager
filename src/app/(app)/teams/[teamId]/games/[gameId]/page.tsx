@@ -13,11 +13,13 @@ import {
 } from "@/components/sf";
 import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isBasketball, isSoccer, isTouch, periodLabels, teamSport } from "@/lib/sports";
 import { teamMixedRule } from "@/lib/sports/touch/mixed";
-import { scorersFromEvents } from "@/lib/results";
+import { scoresKept, scorersFromEvents, unnamedScoreFromEvents } from "@/lib/results";
 import { getSeasonEvents } from "@/lib/season";
 import { gamePlanPlaybooks } from "@/lib/playbook/planInputs";
+import { gamePlanAnchor } from "@/lib/game-plan/anchor";
 import { FinishedGameSummary } from "@/components/games/FinishedGameSummary";
 import { GamePlanButton } from "@/components/game-plan/GamePlanButton";
+import { AskAvailabilityButton } from "@/components/games/AskAvailabilityButton";
 import { HowWePlayedCard } from "@/components/playbook/HowWePlayedCard";
 import { buildGameReport } from "@/lib/playbook/gameReportServer";
 import type { Game, GameEvent, MixedGroup, Player, Sport } from "@/lib/types";
@@ -25,6 +27,11 @@ import { BackLink } from "@/components/ui/BackLink";
 import { teamSportById } from "@/lib/sports/teamSportById";
 import { teamAgeGroup } from "@/lib/sports/teamAgeGroup";
 import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
+import { distinctFullNames } from "@/lib/names";
+import { isNotPlayed, playedInSiren } from "@/lib/games/notPlayed";
+import { NotPlayedActions } from "@/components/games/NotPlayedGames";
+import { finishedScoreLog, scoreKinds } from "@/lib/games/finishedScores";
+import type { FixScoresProps } from "@/components/games/FixScoresDialog";
 
 interface GameDetailPageProps {
   params: { teamId: string; gameId: string };
@@ -87,19 +94,22 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
     supabase
       .from("players")
       .select("id, full_name, jersey_number, chip, is_active, mixed_group")
-      .eq("team_id", params.teamId),
+      .eq("team_id", params.teamId)
+      // The lineup screen's order, which its suggestion follows: the
+      // Game plan below opens on the same lineup.
+      .order("jersey_number"),
   ]);
 
   if (!game) notFound();
 
   // Pre-game saved lineup (Phase C). Drives the "Plan saved" chip
   // for upcoming games so the coach knows their armchair plan
-  // persisted. Cleared at startGame.
+  // persisted, and the Game plan opens on it. Cleared at startGame.
   const { data: draftRow } =
     (game as Game).status === "upcoming"
       ? await supabase
           .from("game_lineup_drafts")
-          .select("updated_at")
+          .select("updated_at, lineup, on_field_size, sub_interval_seconds")
           .eq("game_id", params.gameId)
           .maybeSingle()
       : { data: null };
@@ -138,7 +148,12 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   const scorerRows = scorersFromEvents(sport, (scoringEvents ?? []) as GameEvent[])
     .map((t) => ({ player: playerById.get(t.playerId), ...t }))
     .filter((r) => r.player);
+  // Scored with nobody named ("Not sure who"): its own row, so the card
+  // adds up to the score (UX round 2, 24 Oct 2026).
+  const unnamedScore = unnamedScoreFromEvents(sport, (scoringEvents ?? []) as GameEvent[]);
   const scorerWords = SCORER_WORDS[sport];
+  // Two kids with the same name read "Ava Smith #3" / "#12" (lib/names).
+  const scorerNames = distinctFullNames(Array.from(playerById.values()));
 
   const isLive = g.status === "in_progress";
   const isFinal = g.status === "completed";
@@ -157,6 +172,12 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   // Basketball skips the game-plan preview too (its plan), and so do
   // touch and Oztag: their engine plans at the lineup and each break
   // (asking gamePlanPlaybooks for them throws by name).
+  //
+  // It's the plan the lineup screen will use (UX round 2, 24 Oct 2026:
+  // the night-before text shared a different Q1 from the lineup, even
+  // after "Plan saved"): its first period is the saved plan's lineup,
+  // else AFL's opening suggestion, and the rest follow from it as the
+  // lineup's own Game plan does. The text says when, where and who's out.
   const planInput = isUp && !isSoccer(sport) && !isBasketball(sport) && !isTouch(sport)
     ? await (async () => {
         const [{ data: avail }, seasonAll] = await Promise.all([
@@ -165,24 +186,44 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
         ]);
         const active = (players ?? []).filter((p) => (p as { is_active?: boolean }).is_active !== false);
         const available = new Set((avail ?? []).filter((a) => a.status === "available").map((a) => a.player_id as string));
+        const planPlayers = available.size > 0 ? active.filter((p) => available.has(p.id)) : active;
         const seasonEvents = seasonAll.filter((e) => e.game_id !== params.gameId);
         const periodSeconds = getEffectiveQuarterSeconds(
           { quarter_length_seconds: (team as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null },
           planAgeCfg,
           { quarter_length_seconds: g.quarter_length_seconds },
         );
+        const playbooks = await gamePlanPlaybooks(
+          supabase,
+          params.teamId,
+          sport,
+          (team as { age_group?: string } | null)?.age_group ?? null,
+          seasonEvents,
+          periodSeconds,
+        );
+        const draft = draftRow as { lineup?: unknown; on_field_size?: number; sub_interval_seconds?: number } | null;
         return {
-          players: available.size > 0 ? active.filter((p) => available.has(p.id)) : active,
+          players: planPlayers,
           seasonEvents,
           periodMinutes: periodSeconds / 60,
-          playbooks: await gamePlanPlaybooks(
-            supabase,
-            params.teamId,
+          playbooks,
+          onFieldSize: draft?.on_field_size ?? g.on_field_size ?? planAgeCfg.defaultOnFieldSize,
+          subIntervalSeconds: draft?.sub_interval_seconds ?? g.sub_interval_seconds,
+          anchor: gamePlanAnchor({
             sport,
-            (team as { age_group?: string } | null)?.age_group ?? null,
+            draftLineup: draft?.lineup ?? null,
+            here: new Set(planPlayers.map((p) => p.id)),
+            players: planPlayers as Player[],
+            thisGame: (scoringEvents ?? []) as GameEvent[],
             seasonEvents,
-            periodSeconds,
-          ),
+            onFieldSize: g.on_field_size,
+            ageGroup: planAgeCfg,
+            fullPeriodMs: periodSeconds * 1000,
+            aflPlaybook: playbooks.aflPlaybook,
+          }),
+          out: available.size > 0
+            ? active.filter((p) => !available.has(p.id)).map((p) => p.full_name.trim().split(/\s+/)[0])
+            : [],
         };
       })()
     : null;
@@ -191,6 +232,13 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   // log (already fetched above, in order), and the game's fill-ins: the
   // summary names them as the live screen's does.
   const summaryEvents: GameEvent[] | null = isFinal ? ((scoringEvents ?? []) as GameEvent[]) : null;
+  // Whether THIS game kept score, not the team's switch today.
+  const keptScore = scoresKept(
+    sport,
+    g,
+    (team as { track_scoring?: boolean } | null)?.track_scoring ?? false,
+    (scoringEvents ?? []) as GameEvent[],
+  );
   const { data: fillIns } = isFinal
     ? await supabase.from("game_fill_ins").select("id, full_name, jersey_number, mixed_group").eq("game_id", params.gameId)
     : { data: null };
@@ -211,9 +259,41 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
       ? Object.fromEntries(summarySquad.map((p) => [p.id, p.mixed_group ?? null]))
       : undefined;
 
-  // How we played (UX plan 4.4): rules kept and season balance, every sport.
+  // How we played (UX plan 4.4): rules kept and season balance, every
+  // sport. The coach's and managers' only: it names the kids who played
+  // under a fair share, and a parent shouldn't read that about someone
+  // else's child (round 2 usability, 24 Oct 2026).
+  // A game marked played (not run in Siren) has no events: no summary,
+  // score or report, rather than a 0–0 draw with nobody on.
+  const ranInSiren = summaryEvents !== null && playedInSiren(summaryEvents);
+  // A finished game's scores, fixable from More (round 3 edge testing:
+  // "Open game screen: fix scores" opened a read-only summary).
+  const teamAge = teamAgeGroup(
+    sport,
+    (team as { age_group?: string } | null)?.age_group,
+    (team as { period_count?: number | null } | null)?.period_count,
+  );
+  const scoreNames = distinctFullNames(summarySquad);
+  const fixScores: FixScoresProps | undefined =
+    isFinal && summaryEvents && ranInSiren && canManageMatch && (team as { track_scoring?: boolean } | null)?.track_scoring
+      ? {
+          teamId: params.teamId,
+          gameId: params.gameId,
+          kinds: scoreKinds(sport, {
+            goalsFromPlay: (teamAge as { goalsFromPlay?: boolean }).goalsFromPlay ?? true,
+            girlsTry: sport === "oztag" && teamMixedRule(touchTeam) !== null,
+          }),
+          log: finishedScoreLog(sport, summaryEvents),
+          players: summarySquad.map((p) => ({ id: p.id, name: scoreNames.get(p.id) ?? p.full_name })),
+          periodCount: teamAge.periodCount,
+          periodLetter: periodLabel.charAt(0).toUpperCase(),
+          teamName,
+          opponentName: g.opponent,
+        }
+      : undefined;
+
   const howWePlayed =
-    isFinal && summaryEvents
+    isFinal && summaryEvents && ranInSiren && canManageMatch
       ? await buildGameReport(
           supabase,
           {
@@ -301,9 +381,11 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 teamId={params.teamId}
                 gameId={params.gameId}
                 shareToken={g.share_token}
+                canReplaceLink={role === "admin"}
                 canRestart={role === "admin"}
                 canDelete={role === "admin"}
                 periodLabel={periodLabel}
+                live
               />
             </div>
           )}
@@ -349,6 +431,12 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 <p className="mt-3 whitespace-pre-wrap text-sm text-ink-dim">
                   {g.notes}
                 </p>
+              )}
+              {/* Well past its start and never run (lib/games/notPlayed). */}
+              {isUp && isNotPlayed(g) && (
+                <div className="mt-4 rounded-md bg-surface-alt p-3" data-testid="not-played">
+                  <NotPlayedActions teamId={params.teamId} gameId={g.id} canEdit={role === "admin"} afterDelete="games" />
+                </div>
               )}
             </div>
           </div>
@@ -432,12 +520,15 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                     sport={sport}
                     ageGroup={planAgeCfg}
                     players={planInput.players}
-                    onFieldSize={g.on_field_size ?? planAgeCfg.defaultOnFieldSize}
+                    onFieldSize={planInput.onFieldSize}
                     periodMinutes={planInput.periodMinutes}
-                    subIntervalSeconds={g.sub_interval_seconds}
+                    subIntervalSeconds={planInput.subIntervalSeconds}
                     teamName={teamName}
                     opponentName={g.opponent}
                     seasonEvents={planInput.seasonEvents}
+                    anchor={planInput.anchor ?? undefined}
+                    pinnedPlanGameId={params.gameId}
+                    details={{ scheduledAt: g.scheduled_at, venue: g.location, out: planInput.out }}
                     {...planInput.playbooks}
                     note="A preview to share. Set the lineup on game day."
                     variant="ghost"
@@ -449,8 +540,11 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                   teamId={params.teamId}
                   gameId={params.gameId}
                   shareToken={g.share_token}
+                  canReplaceLink={role === "admin"}
                   edit={
-                    isUp && role === "admin"
+                    // A finished game's opponent or date can be fixed too
+                    // (round 3: a typo stayed in the history for good).
+                    (isUp || isFinal) && role === "admin"
                       ? {
                           game: {
                             id: g.id,
@@ -460,20 +554,44 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                             round_number: g.round_number,
                             notes: g.notes,
                           },
+                          teamName,
                         }
                       : undefined
                   }
-                  liveHref={
-                    isFinal
-                      ? `/teams/${params.teamId}/games/${params.gameId}/live`
-                      : undefined
-                  }
+                  fixScores={fixScores}
                   canRestart={role === "admin" && !isUp}
                   canDelete={role === "admin"}
                   periodLabel={periodLabel}
                 />
                 </div>
+                {/* The game's availability link for the group chat
+                    (migration 0072): parents mark In or Out without an
+                    account. */}
+                {isUp && g.availability_token && (
+                  <AskAvailabilityButton
+                    teamName={teamName}
+                    opponent={g.opponent}
+                    scheduledAt={g.scheduled_at}
+                    token={g.availability_token}
+                    className="w-full sm:w-auto"
+                  />
+                )}
               </div>
+            </div>
+          )}
+          {/* A parent marks their child In or Out here too: the
+              Availability button used to be coaches' and managers' only,
+              so a parent who joined by code had no way in. */}
+          {!canRun && role === "parent" && isUp && (
+            <div className="border-t border-hairline bg-surface-alt px-5 py-4 sm:px-7">
+              <SFButton
+                href={`/teams/${params.teamId}/games/${params.gameId}/availability`}
+                variant="primary"
+                iconAfter={<SFIcon.chevronRight color="currentColor" />}
+                className="w-full sm:w-auto"
+              >
+                Availability
+              </SFButton>
             </div>
           )}
         </SFCard>
@@ -481,7 +599,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
 
       {/* ── Scorers, in each sport's words (AFL goals + behinds, netball
             goals, league tries + kicks); numbers where the sport has them ── */}
-      {scorerRows.length > 0 && (
+      {(scorerRows.length > 0 || unnamedScore) && (
         <SFCard>
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -500,7 +618,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 key={r.player!.id}
                 className="flex items-center justify-between py-3 text-sm"
               >
-                <span className="flex items-center gap-3">
+                <span className="flex min-w-0 items-center gap-3">
                   <span
                     className={`font-mono text-[11px] font-bold tracking-[0.06em] ${
                       i === 0 ? "text-warn" : "text-ink-mute"
@@ -511,8 +629,8 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                   {getSportConfig(sport).jerseyNumbers && (
                     <Guernsey num={r.player!.jersey_number} size={32} />
                   )}
-                  <span className="font-semibold text-ink">
-                    {r.player!.full_name}
+                  <span className="min-w-0 break-words font-semibold text-ink">
+                    {scorerNames.get(r.player!.id) ?? r.player!.full_name}
                   </span>
                 </span>
                 <span className="font-mono tabular-nums text-ink-dim">
@@ -528,6 +646,12 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 </span>
               </li>
             ))}
+            {unnamedScore && (
+              <li data-testid="no-scorer-row" className="flex items-center justify-between py-3 text-sm">
+                <span className="font-medium text-ink-dim">No scorer</span>
+                <span className="font-mono font-bold tabular-nums text-ink">{unnamedScore.detail}</span>
+              </li>
+            )}
           </ul>
         </SFCard>
       )}
@@ -537,15 +661,30 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
           text + "Copy for group chat"), so a coach or parent revisiting
           a finished game gets the score and game time here. The
           dashboard's "Last result" links straight to it. */}
-      {isFinal && summaryEvents && (
+      {isFinal && !ranInSiren && (
         <SFCard id="summary">
+          <p className="text-sm text-ink-dim">
+            Marked as played. It wasn&apos;t run in Siren, so there&apos;s no score or game time for it.
+          </p>
+        </SFCard>
+      )}
+
+      {isFinal && summaryEvents && ranInSiren && (
+        <SFCard id="summary">
+          {/* A game played with scoring off says so, whatever the switch
+              says now (UX round 3, 24 Oct 2026: it read "0 drew with 0"). */}
+          {!keptScore && (
+            <p data-testid="scores-not-kept" className="mb-3 text-sm text-ink-dim">
+              Scores not kept
+            </p>
+          )}
           <FinishedGameSummary
             sport={sport}
             events={summaryEvents}
             squad={summarySquad as Player[]}
             teamName={teamName}
             opponentName={g.opponent}
-            trackScoring={(team as { track_scoring?: boolean } | null)?.track_scoring ?? false}
+            trackScoring={keptScore}
             periodSeconds={getEffectiveQuarterSeconds(
               { quarter_length_seconds: (team as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null },
               planAgeCfg,
