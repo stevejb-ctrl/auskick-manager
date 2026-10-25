@@ -78,6 +78,6 @@ test("Siren declares light and dark, so forced dark modes leave it to its own da
   await page.emulateMedia({ colorScheme: "dark" });
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe("dark");
   expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(15, 19, 17)");
-  const pill = await page.getByRole("button", { name: /^clock — /i }).first().evaluate((el) => getComputedStyle(el).backgroundColor);
-  expect(pill).toBe("rgb(43, 50, 45)");
+  // (The pill has transition-colors, so wait out the 120 ms.)
+  await expect(page.getByRole("button", { name: /^clock — /i }).first()).toHaveCSS("background-color", "rgb(36, 42, 38)");
 });

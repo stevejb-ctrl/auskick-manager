@@ -98,6 +98,13 @@ const clockPill = (page: Page) => page.getByRole("button", { name: /^clock — /
 
 test.beforeEach(async ({ page }) => {
   await skipHints(page);
+  // Reduce motion (the app's own switch): pulses and sheet entrances
+  // land on their final frame, so colours are read at rest.
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("siren-motion-pref-v1", "reduce");
+    } catch {}
+  });
 });
 
 // ── Signed out ─────────────────────────────────────────────────────
@@ -151,7 +158,7 @@ for (const sport of ALL_SPORTS) {
   test(`lineup: ${sport}`, async ({ page }, testInfo) => {
     const { team, game } = await lineupGame(sport);
     await open(page, `/teams/${team.id}/games/${game.id}/live`);
-    await expect(page.getByRole("button", { name: /^start/i }).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole("button", { name: /^start /i }).first()).toBeVisible({ timeout: 20_000 });
     await expectDarkAndReadable(page, testInfo, `lineup-${sport}`);
   });
 }
@@ -187,7 +194,12 @@ test("live AFL: the scorer sheet", async ({ page }, testInfo) => {
   await open(page, url);
   await page.getByTestId(`player-tile-${players[9].id}`).click();
   await expect(page.getByRole("button", { name: /\+ goal/i })).toBeVisible();
-  await expectDarkAndReadable(page, testInfo, "live-afl-scorer");
+  // The dock's words; the field behind it is dimmed on purpose.
+  await page
+    .getByText(/^Record score for/)
+    .locator("xpath=ancestor::div[contains(@class, 'shadow-modal')][1]")
+    .evaluate((el) => el.setAttribute("data-e2e-sample", ""));
+  await expectDarkAndReadable(page, testInfo, "live-afl-scorer", "[data-e2e-sample]");
 });
 
 for (const sport of ["rugby_league", "rugby_union", "soccer", "basketball"] as const) {
@@ -221,7 +233,7 @@ test("the break (AFL)", async ({ page }, testInfo) => {
 test("the break (rugby union)", async ({ page }, testInfo) => {
   const { url } = await liveGame("rugby_union", { ended: true });
   await open(page, url);
-  await expect(page.getByRole("button", { name: /^start h2/i })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("button", { name: /^start (h2|2nd half)/i })).toBeVisible({ timeout: 20_000 });
   await expectDarkAndReadable(page, testInfo, "break-union");
 });
 
@@ -251,8 +263,13 @@ async function aflAtQ4Hooter(admin: SupabaseClient) {
 test("full time (AFL)", async ({ page }, testInfo) => {
   const { team, game } = await aflAtQ4Hooter(createAdminClient());
   await open(page, `/teams/${team.id}/games/${game.id}/live`);
-  await page.getByRole("button", { name: /^end game$/i }).click({ timeout: 20_000 });
-  await expect(page.getByRole("button", { name: /finish game/i })).toBeVisible({ timeout: 10_000 });
+  // Past the Q4 hooter the screen offers End game, or (WebKit, a slower
+  // load) has already moved on to the full-time review.
+  const endGame = page.getByRole("button", { name: /^end game$/i });
+  const finish = page.getByRole("button", { name: /finish game/i });
+  await expect(endGame.or(finish).first()).toBeVisible({ timeout: 20_000 });
+  if (await endGame.isVisible()) await endGame.click();
+  await expect(finish).toBeVisible({ timeout: 10_000 });
   await expectDarkAndReadable(page, testInfo, "full-time-review");
   await page.getByRole("button", { name: /finish game/i }).click();
   await expect(page.getByText(/full time|final score|game summary/i).first()).toBeVisible({ timeout: 15_000 });

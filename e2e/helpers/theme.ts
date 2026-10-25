@@ -70,7 +70,9 @@ export async function readTheme(page: Page, within?: string): Promise<ThemeRepor
       const r = el.getBoundingClientRect();
       if (r.width < 1 || r.height < 1 || s.visibility !== "visible" || s.display === "none") continue;
       if (r.bottom < 0 || r.top > window.innerHeight || r.right < 0 || r.left > window.innerWidth) continue;
-      if (el.closest("[disabled], [aria-disabled=true], .sr-only, [aria-hidden=true] svg, noscript, script, style, title")) continue;
+      // Disabled controls are exempt (WCAG 1.4.3), and so are decorative
+      // glyphs hidden from assistive tech (the → between swap names).
+      if (el.closest("[disabled], [aria-disabled=true], .sr-only, [aria-hidden=true], noscript, script, style, title")) continue;
       // Clipped away (sr-only patterns without the class).
       if (s.position === "absolute" && r.width <= 1 && r.height <= 1) continue;
       let opacity = 1;
