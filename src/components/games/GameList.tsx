@@ -4,6 +4,7 @@ import { GameRow } from "@/components/games/GameRow";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { NotPlayedGames } from "@/components/games/NotPlayedGames";
 import { splitByNotPlayed } from "@/lib/games/notPlayed";
+import { teamSport } from "@/lib/sports";
 
 interface GameListProps {
   teamId: string;
@@ -25,7 +26,7 @@ interface GameListProps {
 export async function GameList({ teamId, filter = "all", canEdit = false }: GameListProps) {
   const supabase = createClient();
 
-  const [{ data: games }, { count: activeCount }, { data: availability }] =
+  const [{ data: games }, { count: activeCount }, { data: availability }, { data: team }] =
     await Promise.all([
       supabase
         .from("games")
@@ -41,6 +42,8 @@ export async function GameList({ teamId, filter = "all", canEdit = false }: Game
         .from("game_availability")
         .select("game_id, status")
         .eq("status", "available"),
+      // Mark played's score is in the sport's words, beside the team's name.
+      supabase.from("teams").select("sport, name").eq("id", teamId).maybeSingle(),
     ]);
 
   const all = (games ?? []) as Game[];
@@ -94,7 +97,13 @@ export async function GameList({ teamId, filter = "all", canEdit = false }: Game
       )}
 
       {showCompleted && (
-        <NotPlayedGames teamId={teamId} games={[...notPlayed].reverse()} canEdit={canEdit} />
+        <NotPlayedGames
+          teamId={teamId}
+          sport={team ? teamSport(team.sport) : "afl"}
+          teamName={(team?.name as string | undefined) ?? "Us"}
+          games={[...notPlayed].reverse()}
+          canEdit={canEdit}
+        />
       )}
 
       {showCompleted && completed.length > 0 && (

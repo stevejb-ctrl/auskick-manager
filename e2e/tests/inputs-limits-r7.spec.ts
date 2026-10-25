@@ -254,6 +254,8 @@ test("last week's unplayed game leaves Next up; mark it played or delete it", as
   await expect(notPlayed).toContainText("Didn't play? Delete it, or mark it played.");
 
   await notPlayed.locator("li", { hasText: "Washed Out Wolves" }).getByRole("button", { name: "Mark played" }).click();
+  // Nobody kept the score.
+  await page.getByRole("dialog", { name: "Mark played" }).getByRole("button", { name: "No score kept" }).click();
   await expect.poll(async () => (await admin.from("games").select("status").eq("id", missed.id).single()).data?.status).toBe("completed");
   await expect(notPlayed).not.toContainText("Washed Out Wolves");
   // Played without the app: counted, but not a 0–0 draw.
@@ -266,6 +268,54 @@ test("last week's unplayed game leaves Next up; mark it played or delete it", as
   await listed.locator("li", { hasText: "Forgotten Foxes" }).getByRole("button", { name: "Delete" }).click();
   await page.getByRole("button", { name: /yes, delete this game/i }).click();
   await expect.poll(async () => (await admin.from("games").select("id").eq("id", missed2.id)).data?.length).toBe(0);
+});
+
+test("a game marked played takes its final score, and counts as a result", async ({ page }) => {
+  // Round 3 follow-up: Mark played couldn't take a score, so the game
+  // never counted in the record or Stats. AFL's in goals and behinds.
+  const ownerId = await ownerIdOf();
+  const admin = createAdminClient();
+  const team = await makeTeam(admin, { ownerId, sport: "afl", name: `R7 Scored ${tag()}` });
+  await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+  await makePlayers(admin, { teamId: team.id, ownerId, count: 12 });
+  const missed = await makeGame(admin, {
+    teamId: team.id,
+    ownerId,
+    opponent: "Rained Off Rovers",
+    scheduledAt: new Date(Date.now() - 8 * 86_400_000).toISOString(),
+  });
+
+  await page.goto(`/teams/${team.id}/games/${missed.id}`);
+  await waitForHydration(page);
+  await page.getByTestId("not-played").getByRole("button", { name: "Mark played" }).click();
+  const dialog = page.getByRole("dialog", { name: "Mark played" });
+  // Half a score isn't taken.
+  await dialog.getByLabel(`${team.name} goals`).fill("5");
+  await dialog.getByRole("button", { name: "Save score" }).click();
+  await expect(dialog).toContainText("Enter goals and behinds for both teams");
+  await dialog.getByLabel(`${team.name} behinds`).fill("4");
+  await dialog.getByLabel("Rained Off Rovers goals").fill("3");
+  await dialog.getByLabel("Rained Off Rovers behinds").fill("2");
+  await dialog.getByRole("button", { name: "Save score" }).click();
+  await expect(dialog).toBeHidden();
+
+  // Stored on the game, and the summary says it.
+  await expect
+    .poll(async () => (await admin.from("games").select("status, played_score").eq("id", missed.id).single()).data)
+    .toMatchObject({ status: "completed", played_score: { us: 34, them: 20, usGoals: 5, usBehinds: 4, themGoals: 3, themBehinds: 2 } });
+  await expect(page.getByTestId("played-score")).toContainText(`${team.name} 5.4 (34) – 3.2 (20) Rained Off Rovers`, { timeout: 15_000 });
+  await expect(page.getByTestId("played-score")).toContainText("Won.");
+
+  // Today: the last result and the season record count it.
+  await page.goto(`/teams/${team.id}`);
+  await expect(page.getByRole("region", { name: "Last result" })).toContainText("34–20");
+  await expect(page.getByRole("region", { name: /^season$/i })).toContainText("1 played · 1 won · 0 lost");
+
+  // Stats: a completed game, and a win against them.
+  await page.goto(`/teams/${team.id}/stats`);
+  await expect(page.getByText("Rained Off Rovers").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("1W").first()).toBeVisible();
+  await expect(page.getByText("5.4").first()).toBeVisible();
 });
 
 // ─── Deleting a live game ───────────────────────────────────────────

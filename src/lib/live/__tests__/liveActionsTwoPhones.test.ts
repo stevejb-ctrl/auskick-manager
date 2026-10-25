@@ -396,6 +396,39 @@ describe("resetGame", () => {
   });
 });
 
+// ─── Mark played, with the final score ───────────────────────
+describe("markGamePlayed", () => {
+  it("stores the score it's given (AFL's from goals and behinds)", async () => {
+    seed("afl", "upcoming", []);
+    const r = await gameActions.markGamePlayed(TEAM, GAME, { usGoals: 5, usBehinds: 4, themGoals: 3, themBehinds: 2 });
+    expect(r.success).toBe(true);
+    expect(state.db.rows("games")[0]).toMatchObject({
+      status: "completed",
+      played_score: { us: 34, them: 20, usGoals: 5, usBehinds: 4, themGoals: 3, themBehinds: 2 },
+    });
+  });
+
+  it("without a score, it's played with no result", async () => {
+    seed("netball", "upcoming", []);
+    expect((await gameActions.markGamePlayed(TEAM, GAME)).success).toBe(true);
+    expect(state.db.rows("games")[0]).toMatchObject({ status: "completed", played_score: null });
+  });
+
+  it("refuses a score that isn't one, and leaves the game alone", async () => {
+    seed("netball", "upcoming", []);
+    const r = await gameActions.markGamePlayed(TEAM, GAME, { us: -2, them: 3 });
+    expect(r.success).toBe(false);
+    expect(state.db.rows("games")[0].status).toBe("upcoming");
+  });
+
+  it("is a team admin's", async () => {
+    seed("netball", "upcoming", []);
+    state.role = "game_manager";
+    expect((await gameActions.markGamePlayed(TEAM, GAME, { us: 1, them: 0 })).success).toBe(false);
+    expect(state.db.rows("games")[0].status).toBe("upcoming");
+  });
+});
+
 // ─── A coach can take a game-day link back ───────────────────
 describe("newGameDayLink", () => {
   it("replaces the link: the old one can't write any more, the new one can", async () => {

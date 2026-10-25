@@ -6,16 +6,17 @@
 // stayed "Next up" forever, over the game that really was next. They
 // live here instead, on Today, the Games list and the game's own page,
 // with the two ways out: delete it, or mark it played (it happened
-// without the app).
+// without the app), with its final score if anyone kept one
+// (MarkPlayedDialog).
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { markGamePlayed } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
 import { DeleteGameDialog } from "@/components/games/DeleteGameDialog";
+import { MarkPlayedDialog } from "@/components/games/MarkPlayedDialog";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
-import { InlineAlert } from "@/components/ui/InlineAlert";
 import { Eyebrow, SFButton, SFCard } from "@/components/sf";
+import type { Sport } from "@/lib/types";
 
 interface NotPlayedGame {
   id: string;
@@ -28,11 +29,18 @@ interface NotPlayedGame {
 export function NotPlayedActions({
   teamId,
   gameId,
+  sport,
+  teamName,
+  opponent,
   canEdit,
   afterDelete = "stay",
 }: {
   teamId: string;
   gameId: string;
+  /** For the score Mark played takes (AFL's in goals and behinds). */
+  sport: Sport;
+  teamName: string;
+  opponent: string;
   /** Coaches (admins) only; anyone else just reads the line. */
   canEdit: boolean;
   /** "games": go to the Games list (the game's own page is gone). */
@@ -40,17 +48,7 @@ export function NotPlayedActions({
 }) {
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-
-  function markPlayed() {
-    setError(null);
-    startTransition(async () => {
-      const res = await markGamePlayed(teamId, gameId);
-      if (!res.success) setError(res.error);
-      else router.refresh();
-    });
-  }
+  const [marking, setMarking] = useState(false);
 
   return (
     <div className="space-y-2">
@@ -59,15 +57,25 @@ export function NotPlayedActions({
       </p>
       {canEdit && (
         <div className="flex flex-wrap gap-2">
-          <SFButton size="sm" variant="ghost" onClick={markPlayed} loading={isPending}>
+          <SFButton size="sm" variant="ghost" onClick={() => setMarking(true)}>
             Mark played
           </SFButton>
-          <SFButton size="sm" variant="ghost" onClick={() => setDeleting(true)} disabled={isPending}>
+          <SFButton size="sm" variant="ghost" onClick={() => setDeleting(true)}>
             Delete
           </SFButton>
         </div>
       )}
-      {error && <InlineAlert>{error}</InlineAlert>}
+      {marking && (
+        <MarkPlayedDialog
+          teamId={teamId}
+          gameId={gameId}
+          sport={sport}
+          teamName={teamName}
+          opponent={opponent}
+          onClose={() => setMarking(false)}
+          onDone={() => router.refresh()}
+        />
+      )}
       {deleting && (
         <DeleteGameDialog
           teamId={teamId}
@@ -82,10 +90,14 @@ export function NotPlayedActions({
 
 export function NotPlayedGames({
   teamId,
+  sport,
+  teamName,
   games,
   canEdit,
 }: {
   teamId: string;
+  sport: Sport;
+  teamName: string;
   games: NotPlayedGame[];
   canEdit: boolean;
 }) {
@@ -108,7 +120,7 @@ export function NotPlayedGames({
                   <FormattedDateTime iso={g.scheduled_at} mode="short" />
                 </span>
               </Link>
-              <NotPlayedActions teamId={teamId} gameId={g.id} canEdit={canEdit} />
+              <NotPlayedActions teamId={teamId} gameId={g.id} sport={sport} teamName={teamName} opponent={g.opponent} canEdit={canEdit} />
             </li>
           ))}
         </ul>

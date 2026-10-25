@@ -12,7 +12,8 @@ import {
   StatusPill,
 } from "@/components/sf";
 import { getSeasonEvents } from "@/lib/season";
-import { outcomeOf, scoreFromEvents, scoresKept, seasonRecord, type GameScore } from "@/lib/results";
+import { outcomeOf, seasonRecord, type GameScore } from "@/lib/results";
+import { finalScoreOf } from "@/lib/games/playedScore";
 import type { Game, GameEvent, Sport } from "@/lib/types";
 import { getSportConfig, teamSport, type SurfaceArt } from "@/lib/sports";
 import { SurfaceMotif } from "@/components/brand/SurfaceMotif";
@@ -21,7 +22,7 @@ import { teamSportById } from "@/lib/sports/teamSportById";
 import { notFound } from "next/navigation";
 import { emptyHeroCopy } from "@/lib/teamHome/emptyHero";
 import { NotPlayedGames } from "@/components/games/NotPlayedGames";
-import { notPlayedCutoffIso, playedInSiren } from "@/lib/games/notPlayed";
+import { notPlayedCutoffIso } from "@/lib/games/notPlayed";
 
 interface TeamDashboardProps {
   params: { teamId: string };
@@ -93,13 +94,13 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
 
     supabase
       .from("teams")
-      .select("sport, track_scoring")
+      .select("sport, track_scoring, name")
       .eq("id", params.teamId)
       .single(),
 
     supabase
       .from("games")
-      .select("id, opponent, scheduled_at, round_number, playbook_snapshot")
+      .select("id, opponent, scheduled_at, round_number, playbook_snapshot, played_score")
       .eq("team_id", params.teamId)
       .eq("status", "completed")
       .order("scheduled_at", { ascending: false }),
@@ -114,7 +115,7 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
   const trackScoring = teamRow?.track_scoring === true;
   const finals = (finalGames ?? []) as Pick<
     Game,
-    "id" | "opponent" | "scheduled_at" | "round_number" | "playbook_snapshot"
+    "id" | "opponent" | "scheduled_at" | "round_number" | "playbook_snapshot" | "played_score"
   >[];
   // Scores come from each final game's events (one cached read for the
   // whole season — the same cache the lineup suggester uses), for the
@@ -129,9 +130,10 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
       byGame.set(ev.game_id, list);
     }
     for (const g of finals) {
-      // A game marked played (not run in Siren) has no score: not a 0–0.
-      const events = byGame.get(g.id) ?? [];
-      if (playedInSiren(events) && scoresKept(sport, g, trackScoring, events)) scoresById.set(g.id, scoreFromEvents(sport, events));
+      // A game marked played counts with the score it was given; without
+      // one it has no result, not a 0–0 (lib/games/playedScore).
+      const score = finalScoreOf(sport, g, byGame.get(g.id) ?? [], trackScoring);
+      if (score) scoresById.set(g.id, score);
     }
   }
   const lastFinal = finals[0] ?? null;
@@ -206,7 +208,13 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
         />
       )}
 
-      <NotPlayedGames teamId={params.teamId} games={notPlayedRaw ?? []} canEdit={isAdmin} />
+      <NotPlayedGames
+        teamId={params.teamId}
+        sport={sport}
+        teamName={(teamRow as { name?: string } | null)?.name ?? "Us"}
+        games={notPlayedRaw ?? []}
+        canEdit={isAdmin}
+      />
 
       {todos.length > 0 && <TodoList todos={todos} />}
 
