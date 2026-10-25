@@ -161,6 +161,11 @@
 
   html {
     overscroll-behavior-y: contain;
+    /* A control that takes keyboard focus scrolls clear of the sticky
+       bars, whose heights the bars set (useStickyInset). WCAG 2.4.11;
+       UX round 3, e4: Tab put union's back line under the score bar. */
+    scroll-padding-top: calc(var(--sticky-top-h, 0px) + 8px);
+    scroll-padding-bottom: calc(var(--sticky-bottom-h, 0px) + 8px);
   }
 
   /* ─── Non-selectable game chrome ────────────────────────────
