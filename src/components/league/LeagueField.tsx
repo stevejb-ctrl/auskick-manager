@@ -263,7 +263,7 @@ export function LeagueField({
             return (
               <div key={line} data-line={line} className={gi > 0 ? "relative mt-4 pt-4" : "relative"}>
                 {gi > 0 && <div aria-hidden className="pointer-events-none absolute -left-3 -right-3 top-0 h-px bg-white/[0.28]" />}
-                <p className="relative mb-2 px-1 font-mono text-[10px] font-bold uppercase tracking-micro text-white/75">
+                <p className="relative mb-2 px-1 font-mono text-[10px] font-bold uppercase tracking-micro text-white">
                   {line === "forwards" ? "Forwards" : "Backs"}
                 </p>
                 <div role="group" aria-label={line === "forwards" ? "Forwards" : "Backs"} className="relative space-y-2">

@@ -196,7 +196,7 @@ export function GameHeader({
             </span>
             <span
               className={`nums mt-1 font-mono text-[28px] font-bold leading-7 tracking-[-0.03em] tabular-nums ${
-                overtime ? "text-warn" : "text-warm"
+                overtime ? "text-due-dark" : "text-warm"
               }`}
             >
               {formatClock(remaining)}
