@@ -169,14 +169,14 @@ export function PositionToken({
   // rings so every state keeps the same box. The old GS/GA "shooter"
   // outline is gone; tapping a shooter still records a goal.
   const baseBg = selected
-    ? "bg-white ring-2 ring-brand-500 shadow-pop"
+    ? "bg-surface ring-2 ring-brand-500 shadow-pop"
     : injured
-    ? "bg-white shadow-lift-court ring-1 ring-inset ring-danger/40"
+    ? "bg-surface shadow-lift-court ring-1 ring-inset ring-danger/40"
     : loaned
-    ? "bg-white shadow-lift-court ring-1 ring-inset ring-warn/40"
+    ? "bg-surface shadow-lift-court ring-1 ring-inset ring-warn/40"
     : ineligible
     ? "bg-surface-alt shadow-lift-court"
-    : "bg-white shadow-lift-court";
+    : "bg-surface shadow-lift-court";
 
   const third = (() => {
     const t = primaryThirdFor(positionId);

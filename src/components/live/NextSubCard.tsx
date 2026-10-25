@@ -112,7 +112,7 @@ function TimerRing({
       </svg>
       <span
         className={`nums font-mono text-[9px] font-bold leading-none ${
-          due ? "animate-pulse text-warn" : "text-warm"
+          due ? "animate-pulse text-due-dark" : "text-warm"
         }`}
       >
         {due ? "NOW" : formatCountdown(msUntilDue)}
@@ -253,7 +253,7 @@ export function NextSubCard({
                   ) : (
                     <span className="truncate text-xs italic text-warm/50">Empty spot</span>
                   )}
-                  <span className="text-warm/40">→</span>
+                  <span aria-hidden className="text-warm/40">→</span>
                   <span className="hidden h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-brand-600/40 font-mono text-[8px] font-bold text-brand-200 sm:flex">
                     {initials(on.full_name)}
                   </span>

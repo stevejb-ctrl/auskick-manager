@@ -12,6 +12,10 @@ import { FeedbackFab } from "@/components/feedback/FeedbackFab";
 // so it only shows on the public marketing surface. The authenticated
 // app keeps the warm cream `bg-warm` body backdrop from globals.css.
 //
+// `theme-light` pins the marketing site to the light palette on a dark
+// phone: its brand gradients, phone mock-ups and illustrations are drawn
+// for light, and the dark theme is the app's (25 Oct 2026).
+//
 // Pages keep their own <main> element so per-page width/padding
 // classes (max-w-3xl on policy pages, full-bleed on the home hero,
 // etc.) stay exactly where they are.
@@ -21,7 +25,7 @@ export default function MarketingLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-brand-50 to-brand-100">
+    <div className="theme-light min-h-screen bg-gradient-to-b from-brand-50 to-brand-100">
       <MarketingBanner />
       <MarketingHeader />
       {children}

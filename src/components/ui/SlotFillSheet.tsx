@@ -150,7 +150,7 @@ export function SlotFillSheet({
       // 12px down. The top bar's back link showed through that strip,
       // so a stray tap at the top left the live screen with the pick
       // unmade (UX audit 23 Oct 2026, the scorer-sheet backdrop tests).
-      className="fixed inset-0 z-[60] !m-0 flex items-end sm:items-center justify-center bg-ink/60 p-[16px] motion-safe:animate-fade-in"
+      className="fixed inset-0 z-[60] !m-0 flex items-end sm:items-center justify-center bg-scrim/60 p-[16px] motion-safe:animate-fade-in"
       onClick={dismissOnBackdrop ? onCancel : undefined}
     >
       <div

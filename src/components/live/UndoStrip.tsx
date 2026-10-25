@@ -43,7 +43,7 @@ export function UndoStrip({ flashing, message, onUndo, disabled = false }: UndoS
         onClick={onUndo}
         disabled={disabled}
         className={`-my-3 px-2 py-3 font-mono text-xs font-bold uppercase tracking-micro transition-colors disabled:opacity-60 motion-safe:active:scale-[0.97] ${
-          flashing ? "text-warn hover:text-warn/80" : "text-brand-700 hover:text-brand-600"
+          flashing ? "text-due-dark hover:text-due-dark/80" : "text-brand-700 hover:text-brand-600"
         }`}
       >
         Undo

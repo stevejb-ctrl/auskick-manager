@@ -37,8 +37,10 @@ interface GuernseyProps {
 export function Guernsey({
   num,
   size = 36,
-  color = "#1A1E1A", // ink
-  ink = "#F7F5F1", // warm
+  // Ink on warm, as theme variables: a near-black shirt with a light
+  // number in light, a light shirt with a dark number in dark.
+  color = "rgb(var(--t-ink))",
+  ink = "rgb(var(--c-warm))",
   className = "",
 }: GuernseyProps) {
   // 2-digit numbers (10–99) need a slightly smaller font to stay inside
@@ -80,7 +82,7 @@ export function Guernsey({
       </defs>
       <path
         d="M9 9 L14 5 Q20 8 26 5 L31 9 L34 14 L29 17 L29 33 Q20 35 11 33 L11 17 L6 14 Z"
-        fill={color}
+        style={{ fill: color }}
         stroke="rgba(0,0,0,0.15)"
         strokeWidth="0.5"
       />
@@ -92,12 +94,11 @@ export function Guernsey({
         fontFamily="var(--font-geist-mono), ui-monospace, monospace"
         fontSize={fontSize}
         fontWeight="800"
-        fill={ink}
         clipPath={`url(#${clipId})`}
         // transform-origin needs to be the digit's centre (20, 26 in
         // viewBox coords) so the scale-up/down keyframe stays
         // centred on the number rather than the SVG top-left.
-        style={{ transformOrigin: "20px 26px", transformBox: "fill-box" }}
+        style={{ fill: ink, transformOrigin: "20px 26px", transformBox: "fill-box" }}
         className={
           animKey > 0 ? "motion-safe:animate-digit-flip" : undefined
         }

@@ -164,8 +164,8 @@ function BasketballPlayerTileImpl({
     ? "bg-brand-50 ring-2 ring-brand-500 shadow-pop"
     : isOff
       ? swapDue
-        ? "bg-due-tint shadow-[inset_0_0_0_2px_#A8590F,0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
-        : "bg-surface shadow-[inset_0_0_0_1.5px_#A8590F,0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
+        ? "bg-due-tint shadow-[inset_0_0_0_2px_rgb(var(--l-due)),0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
+        : "bg-surface shadow-[inset_0_0_0_1.5px_rgb(var(--l-due)),0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
       : isOn
         ? "bg-brand-50 shadow-lift-field ring-1 ring-inset ring-brand-500"
         : injured || fouledOut
