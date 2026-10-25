@@ -15,6 +15,11 @@ interface OfflineBannerProps {
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
+// When this page loaded. A write queued before it (left by a reload) has
+// waited at least a reload, so it counts as waiting from the first render,
+// not only once its next try fails.
+const PAGE_LOADED_AT = Date.now();
+
 // Renders nothing when the device is online and every live write has
 // saved — zero pixels, zero layout impact.
 //
@@ -31,7 +36,7 @@ export function OfflineBanner({ message }: OfflineBannerProps) {
   const discard = useWriteQueue((s) => s.discard);
   const live = queue.filter((op) => laneOf(op.kind) === "game");
   const stuck = live.filter((op) => op.stuck);
-  const struggling = live.some((op) => op.attemptCount > 0 || op.lastError);
+  const struggling = live.some((op) => op.attemptCount > 0 || op.lastError || op.queuedAt < PAGE_LOADED_AT);
 
   if (online && stuck.length > 0) {
     const why = stuck[0].lastError;
