@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { SFButton } from "@/components/sf";
 import type { LiveAuth } from "@/lib/types";
+import { onLiveGameGone } from "@/lib/live/liveSync";
 
 const CHECK_EVERY_MS = 10_000;
 
@@ -43,6 +44,10 @@ export function GameGoneWatcher({ auth, gameId, exitHref }: { auth: LiveAuth; ga
       }
     }
     const timer = setInterval(check, CHECK_EVERY_MS);
+    // LiveSync (every 3 s) hears it first: take its word at once.
+    const offGone = onLiveGameGone(() => {
+      if (!stopped) setGone(true);
+    });
     const onVisible = () => {
       if (document.visibilityState === "visible") void check();
     };
@@ -51,6 +56,7 @@ export function GameGoneWatcher({ auth, gameId, exitHref }: { auth: LiveAuth; ga
     return () => {
       stopped = true;
       clearInterval(timer);
+      offGone();
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };

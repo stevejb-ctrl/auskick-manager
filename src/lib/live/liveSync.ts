@@ -44,6 +44,24 @@ export function onLiveSyncRequest(listener: () => void): () => void {
   };
 }
 
+const goneListeners = new Set<() => void>();
+
+/**
+ * The sync found the game (or the link) gone. GameGoneWatcher covers the
+ * screen with where to go; a refresh would have rendered a bare "Not
+ * found" over it instead.
+ */
+export function notifyLiveGameGone(): void {
+  goneListeners.forEach((l) => l());
+}
+
+export function onLiveGameGone(listener: () => void): () => void {
+  goneListeners.add(listener);
+  return () => {
+    goneListeners.delete(listener);
+  };
+}
+
 /** Show `text` over the live page, and catch up with the game. */
 export function announceLiveNotice(text: string): void {
   useLiveNotice.getState().show(text);

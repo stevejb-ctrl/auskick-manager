@@ -23,7 +23,7 @@
 
 import { startTransition, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { onLiveSyncRequest, useLiveNotice } from "@/lib/live/liveSync";
+import { notifyLiveGameGone, onLiveSyncRequest, useLiveNotice } from "@/lib/live/liveSync";
 
 /** How often a phone in view checks the game. */
 const SYNC_INTERVAL_MS = 3000;
@@ -47,10 +47,11 @@ export function LiveSync({ stamp, syncUrl }: { stamp: string | null; syncUrl: st
     try {
       const res = await fetch(syncUrl, { cache: "no-store", headers: { accept: "application/json" } });
       if (res.status === 404) {
-        // The game (or this link) is gone: the page will say so.
+        // The game (or this link) is gone: GameGoneWatcher says so, with
+        // where to go. A refresh rendered a bare "Not found" over it.
         if (!goneRefreshed.current) {
           goneRefreshed.current = true;
-          startTransition(() => router.refresh());
+          notifyLiveGameGone();
         }
         return;
       }
