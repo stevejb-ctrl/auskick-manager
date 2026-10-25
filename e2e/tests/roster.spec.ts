@@ -38,7 +38,7 @@ test("add, rename, deactivate, and reactivate a player", async ({ page }) => {
   // shifts from the rendered name to button labels + input values
   // once `editing=true`).
   const row = page.getByRole("listitem");
-  await row.getByRole("button", { name: /^edit$/i }).click();
+  await row.getByRole("button", { name: /^edit\b/i }).click();
   // Inside the row in edit mode: textbox[0] = name, textbox[1] = jersey.
   const nameInput = row.getByRole("textbox").first();
   await nameInput.fill("Alex Rivers");
@@ -46,11 +46,11 @@ test("add, rename, deactivate, and reactivate a player", async ({ page }) => {
   await expect(page.getByText("Alex Rivers")).toBeVisible();
 
   // ── Deactivate ─────────────────────────────────────────────
-  // Toggle role="switch" with aria-label "Deactivate player" when
+  // Toggle role="switch" with aria-label "Deactivate {name}" when
   // active. Single-row page → no filter needed.
   //
   // Wait for admin-membership hydration — see e2e/helpers/admin-hydration.ts.
-  const deactivateSwitch = page.getByRole("switch", { name: /deactivate player/i });
+  const deactivateSwitch = page.getByRole("switch", { name: /^deactivate /i });
   await waitForAdminHydration(deactivateSwitch);
   await deactivateSwitch.click();
 
@@ -73,12 +73,12 @@ test("add, rename, deactivate, and reactivate a player", async ({ page }) => {
     .toBe(false);
 
   // ── Reactivate ─────────────────────────────────────────────
-  // Same Toggle, aria-label is now "Reactivate player". Player
+  // Same Toggle, aria-label is now "Reactivate {name}". Player
   // moved to the inactive section but is still the only <li> on
   // the page.
   //
   // Wait for admin-membership hydration — see e2e/helpers/admin-hydration.ts.
-  const reactivateSwitch = page.getByRole("switch", { name: /reactivate player/i });
+  const reactivateSwitch = page.getByRole("switch", { name: /^reactivate /i });
   await waitForAdminHydration(reactivateSwitch);
   await reactivateSwitch.click();
 
@@ -158,7 +158,7 @@ test("reactivating into a full squad says why it didn't work", async ({ page }) 
   await page.goto(`/teams/${team.id}/squad`);
   await waitForHydration(page);
   const row = page.getByRole("listitem").filter({ hasText: "Benched Bo" });
-  const reactivate = row.getByRole("switch", { name: /reactivate player/i });
+  const reactivate = row.getByRole("switch", { name: /^reactivate /i });
   await waitForAdminHydration(reactivate);
   await reactivate.click();
   await expect(row.getByRole("alert")).toContainText(/squad is full/i);

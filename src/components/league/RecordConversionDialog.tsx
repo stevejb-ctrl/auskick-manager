@@ -194,12 +194,15 @@ export function RecordConversionDialog({
                       )}
                     </div>
                   </div>
+                  {/* Named for the kicker: fifteen rows of "Made" and
+                      "Missed" read the same (UX round 3, e4). */}
                   <div className="flex gap-1">
                     <SFButton
                       size="sm"
                       variant="primary"
                       disabled={!canPick}
                       onClick={() => commit(p.id, true)}
+                      aria-label={`Made, ${p.full_name}`}
                     >
                       Made
                     </SFButton>
@@ -208,6 +211,7 @@ export function RecordConversionDialog({
                       variant="ghost"
                       disabled={!canPick}
                       onClick={() => commit(p.id, false)}
+                      aria-label={`Missed, ${p.full_name}`}
                     >
                       Missed
                     </SFButton>

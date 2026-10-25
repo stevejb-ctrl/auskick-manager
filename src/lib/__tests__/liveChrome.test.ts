@@ -9,6 +9,7 @@ import type { GameEvent } from "@/lib/types";
 import {
   liveLoanMinutes,
   squadLoanAverage,
+  swapPairLabel,
   swapToastText,
   undoMessage,
 } from "@/lib/live/liveChrome";
@@ -35,6 +36,14 @@ describe("swapToastText", () => {
   it("reads off → on, or who came on into an empty spot", () => {
     expect(swapToastText("Leo", "Ava")).toBe("Leo → Ava");
     expect(swapToastText(null, "Ava")).toBe("Ava on");
+  });
+});
+
+describe("swapPairLabel", () => {
+  // Every row's "Make swap" read the same to a screen reader (UX round 3, e4).
+  it("names both kids, or the one going on into an empty spot", () => {
+    expect(swapPairLabel("Leo Ng", "Ava Bell")).toBe("Swap Leo Ng off, Ava Bell on");
+    expect(swapPairLabel(null, "Ava Bell")).toBe("Put Ava Bell on");
   });
 });
 

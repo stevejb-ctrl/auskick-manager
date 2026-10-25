@@ -18,8 +18,9 @@
 //
 // Steve 2026-05-15: Phase 4b of the netball-parity shell refactor.
 
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { SFButton } from "@/components/sf";
+import { useStickyInset } from "@/components/ui/useStickyInset";
 
 interface QuarterKickoffBarProps {
   /** Tapped to open the per-sport StartQuarterModal. */
@@ -44,10 +45,19 @@ export function QuarterKickoffBar({
   prompt,
   badge,
 }: QuarterKickoffBarProps) {
+  // Focus scrolls clear of the bar (the page's scroll padding).
+  const barRef = useRef<HTMLDivElement>(null);
+  useStickyInset(barRef, "bottom");
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4 md:sticky md:inset-x-auto">
-      <div className="mx-auto max-w-4xl space-y-2">
-        {prompt}
+    // On a short screen (a phone held sideways) the prompt and the button
+    // share one row (UX round 3, e4: the 125 px bar left the break about
+    // 216 px of a 390 px screen).
+    <div
+      ref={barRef}
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4 md:sticky md:inset-x-auto short:pb-[calc(8px+env(safe-area-inset-bottom))] short:pt-[8px]"
+    >
+      <div className="mx-auto max-w-4xl space-y-2 short:flex short:items-center short:gap-4 short:space-y-0">
+        {prompt && <div className="short:min-w-0 short:flex-1">{prompt}</div>}
         <SFButton
           onClick={onConfirm}
           disabled={disabled}
@@ -55,6 +65,7 @@ export function QuarterKickoffBar({
           variant="accent"
           size="lg"
           full
+          className="short:h-11 short:w-auto short:flex-1"
         >
           {confirmLabel}
           {badge}

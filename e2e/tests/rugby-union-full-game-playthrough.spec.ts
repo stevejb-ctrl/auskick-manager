@@ -110,7 +110,7 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
   await expect(conversion).toBeVisible({ timeout: 5_000 });
   await expect(conversion).not.toContainText(/rotation/i);
   const kickerName = players.find((p) => p.id === kicker)!.full_name;
-  await conversion.locator("div.rounded-lg").filter({ hasText: kickerName }).getByRole("button", { name: /^made$/i }).click();
+  await conversion.locator("div.rounded-lg").filter({ hasText: kickerName }).getByRole("button", { name: /^made\b/i }).click();
   await expect.poll(() => count("conversion_attempt")).toBe(1);
 
   // A penalty goal and a drop goal for us, from the player's dock.

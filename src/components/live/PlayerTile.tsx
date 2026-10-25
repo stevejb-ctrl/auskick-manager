@@ -8,6 +8,7 @@ import { type ChipKey, type ChipMode } from "@/lib/chips";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
 import { KeepOnMarker } from "@/components/playbook/KeepOnMarker";
+import { ZONE_STRIP } from "@/components/live/zoneStrip";
 
 export type SwapRole = {
   role: "off" | "on";
@@ -128,10 +129,10 @@ function PlayerTileImpl({
   // Accent class for the bench "→ ZONE" strip, derived from target zone.
   const swapZoneAccent =
     swap?.zone === "fwd" || swap?.zone === "hfwd"
-      ? "border-zone-f/40 bg-zone-f/15 text-zone-f"
+      ? ZONE_STRIP.f
       : swap?.zone === "mid"
-        ? "border-zone-c/40 bg-zone-c/15 text-zone-c"
-        : "border-zone-b/40 bg-zone-b/15 text-zone-b";
+        ? ZONE_STRIP.c
+        : ZONE_STRIP.b;
 
   // Surface + edge per state. Edges are inset rings (not borders) so
   // every state keeps the same 68px box and the lift shadow.

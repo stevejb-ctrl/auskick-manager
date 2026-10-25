@@ -226,13 +226,18 @@ export function ScoreReviewPanel({
                             </span>
                           )}
                         </span>
+                        {/* A 44 px target round the small ×, named for
+                            the score it deletes (it was 25×22 and "Delete
+                            this score" on every row; UX round 3, e4). */}
                         <button
                           type="button"
                           onClick={() => setPendingDelete(e)}
-                          className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-ink-mute transition-colors hover:border-danger/30 hover:bg-danger/10 hover:text-danger motion-safe:active:scale-[0.97]"
-                          aria-label="Delete this score"
+                          className="group -my-2 -mr-2 inline-flex h-11 w-11 shrink-0 items-center justify-center motion-safe:active:scale-[0.97]"
+                          aria-label={`Delete ${includeBehinds && !isGoal ? "behind" : "goal"}${isOurs ? ` by ${who(e)}` : `, ${who(e)}`}`}
                         >
-                          ×
+                          <span className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-ink-mute transition-colors group-hover:border-danger/30 group-hover:bg-danger/10 group-hover:text-danger">
+                            ×
+                          </span>
                         </button>
                       </li>
                     );

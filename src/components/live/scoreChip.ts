@@ -13,9 +13,12 @@
 // Re-skin (design session 17 Oct 2026): ink 700 label on the well
 // fill — the chips are the scorebug's actions, so they read as
 // buttons rather than greyed hints.
+//
+// Padding in px (UX round 3, e4): the label grows with large text, the
+// padding doesn't, so union's four chips a side still fit at 200%.
 export const SCORE_CHIP =
   "inline-flex min-h-[44px] min-w-[44px] items-center justify-center " +
-  "rounded-md bg-well px-3 py-2 font-mono text-sm font-bold text-ink " +
+  "rounded-md bg-well px-[12px] py-[8px] font-mono text-sm font-bold text-ink " +
   "transition-[background-color,transform] duration-tap ease-out-quart " +
   "hover:bg-hairline " +
   "active:bg-hairline motion-safe:active:scale-[0.94] " +

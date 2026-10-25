@@ -70,7 +70,7 @@ test("AFL break: deleting a goal in Fix scores clears the kicker's badge", async
 
   await page.getByRole("button", { name: /review and update scores/i }).click();
   const row = page.getByRole("listitem").filter({ hasText: kicker.full_name });
-  await row.getByRole("button", { name: "Delete this score" }).click();
+  await row.getByRole("button", { name: /^delete (goal|behind)/i }).click();
   await page.getByRole("button", { name: /^delete$/i }).click();
   await expect
     .poll(async () => {

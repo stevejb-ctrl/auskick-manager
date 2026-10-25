@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useTransition, type ReactNode } from "react";
+import { useRef, useTransition, type ReactNode } from "react";
+import { useStickyInset } from "@/components/ui/useStickyInset";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import { FeedbackHeaderButton } from "@/components/feedback/FeedbackHeaderButton";
 import type { Game } from "@/lib/types";
@@ -84,6 +85,9 @@ export function LiveTopBar({
   // close" mid-game).
   const router = useRouter();
   const [exiting, startExitTransition] = useTransition();
+  // Focus scrolls clear of the bar (the page's scroll padding).
+  const barRef = useRef<HTMLDivElement>(null);
+  useStickyInset(barRef, "top");
   const handleExit = () => {
     startExitTransition(() => {
       router.push(exitHref);
@@ -93,7 +97,7 @@ export function LiveTopBar({
     // Re-skin (design session 17 Oct 2026): a 48px bar, EXIT and the
     // icon rings in ink-dim (the old #8A948C was 3.0:1), the live title
     // in ink 15/600.
-    <div className="sticky top-0 z-20 -mx-4 border-b border-hairline bg-surface/90 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/[0.85]">
+    <div ref={barRef} className="sticky top-0 z-20 -mx-4 border-b border-hairline bg-surface/90 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/[0.85]">
       <div className="mx-auto flex min-h-12 max-w-4xl items-center justify-between gap-3 px-1 sm:px-3">
         <button
           type="button"
@@ -106,7 +110,8 @@ export function LiveTopBar({
         </button>
         {title ? (
           <div className="flex min-w-0 flex-1 flex-col items-center justify-center py-1 text-center">
-            <h1 className="max-w-full truncate text-[17px] font-bold leading-tight tracking-[-0.01em] text-ink">
+            {/* Focusable by script: the break moves focus here as it opens. */}
+            <h1 tabIndex={-1} className="max-w-full truncate text-[17px] font-bold leading-tight tracking-[-0.01em] text-ink outline-none">
               {title}
             </h1>
             {subtitle && <p className="max-w-full truncate text-xs leading-4 text-ink-dim">{subtitle}</p>}

@@ -42,6 +42,7 @@ import {
 import type { BreakIssues } from "@/lib/live/break/issues";
 import type { BreakScoreLine, SportBreakConfig } from "@/lib/sports/break";
 import type { Game } from "@/lib/types";
+import { announce } from "@/lib/a11y/announce";
 
 export type { BreakPlayer } from "@/components/quarter-break/BreakSettingsSheet";
 
@@ -175,6 +176,18 @@ export function PeriodBreak(props: PeriodBreakProps) {
   const places = useMemo(() => placeIndex(config.zones), [config.zones]);
   const periodName = config.periodName(nextPeriod);
 
+  // The break is said, and its heading takes focus, as it replaces the
+  // live screen (UX round 3, e4: a quarter running out said nothing and
+  // focus fell to BODY). Once per break.
+  const scoreLine = props.score?.line.main ?? null;
+  useEffect(() => {
+    rootRef.current?.querySelector<HTMLElement>("h1")?.focus({ preventScroll: true });
+    const said = [config.breakName(nextPeriod - 1), `${periodName} lineup`];
+    if (scoreLine) said.push(`Score ${scoreLine.replace(/\s*–\s*/, " to ")}`);
+    announce(said.join(". "), { priority: 2 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- said once, as the break opens
+  }, [nextPeriod]);
+
   // A selection that no longer points at a swappable kid (they left the
   // board, or were lent or hurt) is dropped: the next tap would swap them on.
   const selectedSlot = selected !== null ? slots[selected] : undefined;
@@ -288,7 +301,9 @@ export function PeriodBreak(props: PeriodBreakProps) {
         />
       ) : (
         <div className="px-1 py-2 text-center">
-          <h1 className="text-[17px] font-bold text-ink">{periodName} lineup</h1>
+          <h1 tabIndex={-1} className="text-[17px] font-bold text-ink outline-none">
+            {periodName} lineup
+          </h1>
           <p className="text-xs text-ink-dim">
             {config.breakName(nextPeriod - 1)} · vs {props.header.game.opponent}
           </p>
@@ -311,7 +326,8 @@ export function PeriodBreak(props: PeriodBreakProps) {
               </span>
               {props.score.line.margin !== 0 && (
                 <span
-                  className={`whitespace-nowrap text-[13px] font-semibold ${props.score.line.margin > 0 ? "text-ok" : "text-danger"}`}
+                  // win green, not ok: ok is 4.05:1 on white (UX round 3, e4).
+                  className={`whitespace-nowrap text-[13px] font-semibold ${props.score.line.margin > 0 ? "text-win" : "text-danger"}`}
                 >
                   {props.score.line.margin > 0 ? `+${props.score.line.margin}` : props.score.line.margin}
                 </span>
@@ -389,7 +405,10 @@ export function PeriodBreak(props: PeriodBreakProps) {
                 </span>
                 <span className="ml-auto text-xs text-ink-dim">{count}</span>
               </div>
-              <div className="grid grid-cols-2 gap-1.5">
+              {/* Two columns, or one once the text is large: a column is at
+                  least 8.5rem, which at 150% text and up is more than half a
+                  phone (UX round 3, e4: at 200% names cut to "Leo…"). */}
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(max(8.5rem,calc(50%_-_3px)),1fr))] gap-[6px]">
                 {inSection.map(({ s, i }) => {
                   const tile = tileFor(s);
                   return (

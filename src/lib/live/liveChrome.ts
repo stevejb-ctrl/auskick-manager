@@ -21,6 +21,15 @@ export function undoMessage(score: {
   return `${team} ${score.what}${score.side === "us" && score.scorerName ? ` — ${score.scorerName}` : ""}`;
 }
 
+/**
+ * What a sub card's per-pair button is called for a screen reader: "Swap
+ * Leo Ng off, Ava Bell on", or "Put Ava Bell on" into an empty spot. Every
+ * row's "Make swap" read the same (UX round 3, e4).
+ */
+export function swapPairLabel(offName: string | null, onName: string): string {
+  return offName ? `Swap ${offName} off, ${onName} on` : `Put ${onName} on`;
+}
+
 /** "Leo → Ava" for a sub, "Ava on" when the spot was empty. */
 export function swapToastText(offName: string | null, onName: string): string {
   return offName ? `${offName} → ${onName}` : `${onName} on`;

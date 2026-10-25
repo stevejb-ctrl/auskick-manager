@@ -23,6 +23,7 @@ import type { LeagueZoneMs } from "@/lib/sports/rugby_league/fairness";
 import { LinePlayerTile, type TileLineStyle } from "@/components/live/LinePlayerTile";
 import { PlayerVestBadge } from "./PlayerVestBadge";
 import { PlayerKickBadge } from "./PlayerKickBadge";
+import { ZONE_STRIP } from "@/components/live/zoneStrip";
 
 /** Rugby's lines on a tile, and the vest as the bar's centre share. */
 export const LEAGUE_TILE_STYLES: Record<"forwards" | "centre" | "backs", TileLineStyle> = {
@@ -31,21 +32,21 @@ export const LEAGUE_TILE_STYLES: Record<"forwards" | "centre" | "backs", TileLin
     label: "Forwards",
     textClass: "text-zone-f",
     fillClass: "bg-zone-f-fill",
-    stripClass: "border-zone-f/40 bg-zone-f/15 text-zone-f",
+    stripClass: ZONE_STRIP.f,
   },
   centre: {
     short: "",
     label: "In a vest",
     textClass: "text-zone-c",
     fillClass: "bg-zone-c-fill",
-    stripClass: "border-zone-c/40 bg-zone-c/15 text-zone-c",
+    stripClass: ZONE_STRIP.c,
   },
   backs: {
     short: "BCK",
     label: "Backs",
     textClass: "text-zone-b",
     fillClass: "bg-zone-b-fill",
-    stripClass: "border-zone-b/40 bg-zone-b/15 text-zone-b",
+    stripClass: ZONE_STRIP.b,
   },
 };
 const LEAGUE_BAR_ORDER = ["forwards", "centre", "backs"] as const;

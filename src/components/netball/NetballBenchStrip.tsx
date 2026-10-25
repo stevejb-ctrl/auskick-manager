@@ -18,6 +18,7 @@
 import type { PlayerThirdMs } from "@/lib/sports/netball/fairness";
 import type { Player } from "@/lib/types";
 import { LinePlayerTile, type TileLineStyle } from "@/components/live/LinePlayerTile";
+import { ZONE_STRIP } from "@/components/live/zoneStrip";
 
 export type OffCourtStatus = "bench" | "injured" | "loaned";
 
@@ -30,9 +31,9 @@ export interface OffCourtEntry {
 // green, defence blue). Bench tiles have no line, so only the bar uses
 // them.
 const NETBALL_THIRD_STYLES: Record<keyof PlayerThirdMs, TileLineStyle> = {
-  attack: { short: "", label: "Attack", textClass: "text-zone-f", fillClass: "bg-zone-f-fill", stripClass: "border-zone-f/40 bg-zone-f/15 text-zone-f" },
-  centre: { short: "", label: "Centre", textClass: "text-zone-c", fillClass: "bg-zone-c-fill", stripClass: "border-zone-c/40 bg-zone-c/15 text-zone-c" },
-  defence: { short: "", label: "Defence", textClass: "text-zone-b", fillClass: "bg-zone-b-fill", stripClass: "border-zone-b/40 bg-zone-b/15 text-zone-b" },
+  attack: { short: "", label: "Attack", textClass: "text-zone-f", fillClass: "bg-zone-f-fill", stripClass: ZONE_STRIP.f },
+  centre: { short: "", label: "Centre", textClass: "text-zone-c", fillClass: "bg-zone-c-fill", stripClass: ZONE_STRIP.c },
+  defence: { short: "", label: "Defence", textClass: "text-zone-b", fillClass: "bg-zone-b-fill", stripClass: ZONE_STRIP.b },
 };
 const NETBALL_BAR_ORDER = ["attack", "centre", "defence"] as const;
 

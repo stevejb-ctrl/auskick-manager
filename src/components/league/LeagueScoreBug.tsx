@@ -2,8 +2,8 @@
 
 import { rugbyScoreWords, type LeagueScore, type RugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
 import type { RugbySport } from "@/lib/sports/registry";
-import { SCORE_CHIP, SCORE_TEAM_NAME } from "@/components/live/scoreChip";
 import { RollingNumber } from "@/components/live/RollingNumber";
+import { ScoreBugFrame, type ScoreChipSpec } from "@/components/live/ScoreBugFrame";
 
 // ─── LeagueScoreBug ──────────────────────────────────────────
 // Rugby's scorebug (league and union), inside the shared
@@ -15,6 +15,8 @@ import { RollingNumber } from "@/components/live/RollingNumber";
 //   Centre: the dark clock pill: H1 / Q1 with the live dot, the time.
 //   Right : the opponent, mirrored.
 //   Under : each team's chips in one row (+T +C, U13+ +PG +FG / DG).
+//
+// The rows are the shared ScoreBugFrame's (UX round 3, e4).
 //
 // Own-team +T / +C are wired by the parent to open a player picker
 // for the scorer / kicker; the chips themselves don't mutate state
@@ -113,8 +115,7 @@ export function LeagueScoreBug({
   const live = running && !quarterEnded;
   const TOTAL = "text-[44px] font-bold leading-10 tracking-[-0.04em]";
 
-  type Chip = { key: string; text: string; label: string; onTap: () => void };
-  const ours: Chip[] = [
+  const ours: ScoreChipSpec[] = [
     ...(onTeamTry ? [{ key: "t", text: "+T", label: "Record a try for our team", onTap: onTeamTry }] : []),
     ...(kickingAllowed && onTeamConversion
       ? [{ key: "c", text: "+C", label: "Record a conversion for our team", onTap: onTeamConversion }]
@@ -126,7 +127,7 @@ export function LeagueScoreBug({
       ? [{ key: "fg", text: `+${words.fieldGoal.short}`, label: `Record a ${words.fieldGoal.label.toLowerCase()} for our team`, onTap: onTeamFieldGoal }]
       : []),
   ];
-  const theirs: Chip[] = [
+  const theirs: ScoreChipSpec[] = [
     ...(onOpponentTry ? [{ key: "t", text: "+T", label: "Record opponent try", onTap: onOpponentTry }] : []),
     ...(kickingAllowed && onOpponentConversion
       ? [{ key: "c", text: "+C", label: "Record opponent conversion", onTap: onOpponentConversion }]
@@ -138,69 +139,57 @@ export function LeagueScoreBug({
       ? [{ key: "fg", text: `+${words.fieldGoal.short}`, label: `Record opponent ${words.fieldGoal.label.toLowerCase()}`, onTap: onOpponentFieldGoal }]
       : []),
   ];
-  const chipRow = (chips: Chip[]) => (
-    <div className="flex shrink-0 gap-1.5">
-      {chips.map((c) => (
-        <button key={c.key} type="button" onClick={c.onTap} disabled={pending} className={`${SCORE_CHIP} w-12`} aria-label={c.label}>
-          {c.text}
-        </button>
-      ))}
-    </div>
+  const pill = (
+    <button
+      type="button"
+      onClick={onClockTap}
+      disabled={!onClockTap || quarterEnded}
+      className="flex min-w-[104px] flex-col items-center justify-center rounded-md bg-ink px-4 pb-2.5 pt-2 text-warm shadow-[0_6px_16px_rgba(26,30,26,0.18)] transition-colors duration-fast ease-out-quart hover:bg-ink/90 disabled:opacity-80"
+      aria-label={
+        onClockTap
+          ? `Clock — ${periodTag}, ${running ? "running" : "paused"}`
+          : `${periodLabelLine}, ${clockReadout}`
+      }
+    >
+      <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
+        {live && <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-mint" />}
+        <span>{quarterEnded ? `${periodTag} · over` : periodTag}</span>
+        {onClockTap && !quarterEnded && !running && <span aria-hidden>▶</span>}
+      </span>
+      {/* Not a live region: a ticking clock would talk over everything
+          else (the score and the period's end are said by the frame). */}
+      <span className="nums mt-1 font-mono text-[28px] font-bold leading-7 tracking-[-0.03em] tabular-nums text-warm">
+        {clockReadout}
+      </span>
+    </button>
   );
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-x-3 px-4 pb-6 pt-3">
-      {/* Left: our team. */}
-      <div className="min-w-0">
-        <p data-testid="scorebug-team-name" className={SCORE_TEAM_NAME}>{teamName}</p>
-        <p className="nums mt-1 flex flex-wrap items-baseline gap-x-2 font-mono tabular-nums text-ink">
-          <span data-testid="league-points-team"><RollingNumber value={teamScore.points} className={TOTAL} /></span>
-          <ScoreLine score={teamScore} testId="league-score-line-team" words={words} />
-        </p>
-      </div>
-
-      {/* Centre: the dark clock pill, as every sport's (tap: pause / resume). */}
-      <div className="flex flex-col items-center">
-        <button
-          type="button"
-          onClick={onClockTap}
-          disabled={!onClockTap || quarterEnded}
-          className="flex min-w-[104px] flex-col items-center justify-center rounded-md bg-ink px-4 pb-2.5 pt-2 text-warm shadow-[0_6px_16px_rgba(26,30,26,0.18)] transition-colors duration-fast ease-out-quart hover:bg-ink/90 disabled:opacity-80"
-          aria-label={
-            onClockTap
-              ? `Clock — ${periodTag}, ${running ? "running" : "paused"}`
-              : `${periodLabelLine}, ${clockReadout}`
-          }
-        >
-          <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
-            {live && <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-mint" />}
-            <span>{quarterEnded ? `${periodTag} · over` : periodTag}</span>
-            {onClockTap && !quarterEnded && !running && <span aria-hidden>▶</span>}
+    <ScoreBugFrame
+      ours={{
+        name: teamName,
+        total: (
+          <span data-testid="league-points-team">
+            <RollingNumber value={teamScore.points} className={TOTAL} />
           </span>
-          <span className="nums mt-1 font-mono text-[28px] font-bold leading-7 tracking-[-0.03em] tabular-nums text-warm" aria-live="polite">
-            {clockReadout}
+        ),
+        tally: <ScoreLine score={teamScore} testId="league-score-line-team" words={words} />,
+        chips: trackScoring ? ours : [],
+      }}
+      theirs={{
+        name: opponentName,
+        total: (
+          <span data-testid="league-points-opponent">
+            <RollingNumber value={opponentScore.points} className={TOTAL} />
           </span>
-        </button>
-      </div>
-
-      {/* Right: the opponent, mirrored. */}
-      <div className="min-w-0 text-right">
-        <p data-testid="scorebug-team-name" className={SCORE_TEAM_NAME}>{opponentName}</p>
-        <p className="nums mt-1 flex flex-wrap items-baseline justify-end gap-x-2 font-mono tabular-nums text-ink">
-          <ScoreLine score={opponentScore} testId="league-score-line-opponent" words={words} />
-          <span data-testid="league-points-opponent"><RollingNumber value={opponentScore.points} className={TOTAL} /></span>
-        </p>
-      </div>
-
-      {/* The chips, one row a side under the scores (ours left, theirs
-          right), as basketball's and AFL's. Union's four a side don't fit
-          two teams across a phone, so theirs wraps beneath, still one row. */}
-      {trackScoring && (ours.length > 0 || theirs.length > 0) && (
-        <div className="col-span-3 mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-          {chipRow(ours)}
-          <div className="ml-auto">{chipRow(theirs)}</div>
-        </div>
-      )}
-    </div>
+        ),
+        tally: <ScoreLine score={opponentScore} testId="league-score-line-opponent" words={words} />,
+        chips: trackScoring ? theirs : [],
+      }}
+      clock={pill}
+      chipsDisabled={pending}
+      scoreSaid={trackScoring ? `${teamName} ${teamScore.points}, ${opponentName} ${opponentScore.points}` : null}
+      periodOverSaid={quarterEnded ? `${periodLabel.charAt(0).toUpperCase()}${periodLabel.slice(1)} ${currentPeriod || 1} over` : null}
+    />
   );
 }

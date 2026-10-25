@@ -18,6 +18,7 @@ import type { SoccerUnitMs } from "@/lib/sports/soccer/replay";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
 import { KeepOnMarker } from "@/components/playbook/KeepOnMarker";
+import { ZONE_STRIP } from "@/components/live/zoneStrip";
 
 // Lines take AFL's three zone colours by place on the field (attack is
 // AFL's forward, midfield its centre, defence its back), so the palette
@@ -38,9 +39,9 @@ const UNIT_FILL: Record<SoccerUnit, string> = {
 };
 const UNIT_STRIP: Record<SoccerUnit, string> = {
   gk: "border-ink/30 bg-ink/10 text-ink",
-  def: "border-zone-b/40 bg-zone-b/15 text-zone-b",
-  mid: "border-zone-c/40 bg-zone-c/15 text-zone-c",
-  att: "border-zone-f/40 bg-zone-f/15 text-zone-f",
+  def: ZONE_STRIP.b,
+  mid: ZONE_STRIP.c,
+  att: ZONE_STRIP.f,
   field: "border-brand-700 bg-brand-600 text-white",
 };
 

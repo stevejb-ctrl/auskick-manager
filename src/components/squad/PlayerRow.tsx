@@ -193,7 +193,10 @@ export function PlayerRow({
         </div>
       ) : (
         <>
-          <span className="min-w-0 flex-1 text-sm font-medium text-ink">
+          {/* At least 8.5rem before the buttons wrap under it, and long
+              names break inside it (UX round 3, e4: at 320 px the name had
+              63 px and "Papadopoulos" ran under the Role button). */}
+          <span className="min-w-0 flex-[1_1_8.5rem] text-sm font-medium text-ink [overflow-wrap:anywhere]">
             {player.full_name}
             {roleText && (
               <span className="block truncate text-xs font-normal text-ink-mute" data-testid={`player-role-${player.id}`}>
@@ -217,6 +220,7 @@ export function PlayerRow({
               variant="ghost"
               onClick={() => setEditing(true)}
               disabled={isPending}
+              aria-label={`Edit ${player.full_name}`}
             >
               Edit
             </SFButton>
@@ -247,7 +251,8 @@ export function PlayerRow({
           checked={player.is_active}
           onChange={handleToggle}
           disabled={isPending}
-          label={player.is_active ? "Deactivate player" : "Reactivate player"}
+          // Named for the kid: every row read "Deactivate player" (UX round 3, e4).
+          label={`${player.is_active ? "Deactivate" : "Reactivate"} ${player.full_name}`}
         />
       )}
       {!editing && serverError && (
