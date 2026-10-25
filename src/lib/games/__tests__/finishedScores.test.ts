@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { GameEvent } from "@/lib/types";
 import { finishedScoreLog, scoreFixRows, scoreKinds, type ScoreFix } from "@/lib/games/finishedScores";
 import { scoreFromEvents, scorersFromEvents } from "@/lib/results";
+import { replayNetballGameForStats } from "@/lib/dashboard/netballAggregators";
 
 let seq = 0;
 const ev = (type: string, player_id: string | null = null, metadata: Record<string, unknown> = {}): GameEvent =>
@@ -107,6 +108,28 @@ describe("fixing a finished game's scores", () => {
       expect(scorersFromEvents(sport, after).map((s) => s.playerId)).toEqual(["ben"]);
       expect(finishedScoreLog(sport, after).find((r) => r.side === "us")).toMatchObject({ playerId: "ben", period: 1 });
     }
+  });
+
+  // Review of this branch: netball's Stats replay filed a goal, and an
+  // undo, under the quarter the replay was in, which after full time is
+  // always the last.
+  it("keeps netball's Stats by quarter right after a fix", () => {
+    const events = [
+      ev("quarter_start", null, { quarter: 1 }),
+      ev("goal", "ava", { quarter: 1 }),
+      ev("quarter_end", null, { quarter: 1, elapsed_ms: 600_000 }),
+      ev("quarter_start", null, { quarter: 4 }),
+      ev("quarter_end", null, { quarter: 4, elapsed_ms: 600_000 }),
+      ev("game_finalised", null, {}),
+    ];
+    const moved = applyFix("netball", events, { op: "reassign", eventId: events[1].id, playerId: "ben" });
+    const snap = replayNetballGameForStats("g", moved, 600);
+    expect(snap.teamGoalsByQtr).toMatchObject({ 1: 1 });
+    expect(Object.values(snap.teamGoalsByQtr).reduce((a, b) => a + b, 0)).toBe(1);
+    const gone = applyFix("netball", events, { op: "delete", eventId: events[1].id });
+    expect(Object.values(replayNetballGameForStats("g", gone, 600).teamGoalsByQtr).reduce((a, b) => a + b, 0)).toBe(0);
+    const added = applyFix("netball", events, { op: "add", type: "opponent_goal", playerId: null, period: 1 });
+    expect(replayNetballGameForStats("g", added, 600).oppGoalsByQtr).toMatchObject({ 1: 1 });
   });
 
   it("takes off any score in rugby, not just the latest", () => {
