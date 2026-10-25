@@ -279,7 +279,9 @@ export async function updateGame(
   // A new date must be a sane one; a finished game's old date can stay.
   if (patch.scheduled_at !== undefined) {
     const { data: current } = await supabase.from("games").select("scheduled_at").eq("id", gameId).eq("team_id", teamId).maybeSingle();
-    const same = current && new Date(current.scheduled_at as string).getTime() === new Date(patch.scheduled_at).getTime();
+    // To the minute: the form has no seconds.
+    const minute = (iso: string) => Math.floor(new Date(iso).getTime() / 60_000);
+    const same = current && minute(current.scheduled_at as string) === minute(patch.scheduled_at);
     const dateError = same ? null : gameDateError(patch.scheduled_at);
     if (dateError) return { success: false, error: dateError };
   }

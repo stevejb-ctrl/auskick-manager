@@ -59,7 +59,9 @@ export function FixScoresDialog({
   const who = (r: FinishedScoreRow) => (r.side === "them" ? opponentName : r.playerId ? nameOf.get(r.playerId) ?? "Unknown" : "No scorer");
   const points = (side: "us" | "them") => log.filter((r) => r.side === side).reduce((n, r) => n + r.kind.points, 0);
   const addKind = kinds.find((k) => k.type === addType);
-  const periods = Array.from({ length: periodCount }, (_, i) => i + 1);
+  // Every period a score is in, even past the team's count now (its
+  // halves or quarters may have changed since this game).
+  const periods = Array.from({ length: Math.max(periodCount, ...log.map((r) => r.period)) }, (_, i) => i + 1);
   const periodName = (p: number) => (periodCount === 1 ? "Game" : `${periodLetter}${p}`);
 
   function run(fix: ScoreFix, done: () => void) {
