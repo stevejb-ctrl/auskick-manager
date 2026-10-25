@@ -340,7 +340,7 @@ test("jersey 1.5 is refused, not saved as #1", async ({ page }) => {
   await page.goto(`/teams/${team.id}/squad`);
   await waitForHydration(page);
   await page.getByLabel("Player name").fill("Decimal Kid");
-  await page.getByLabel(/jersey/i).fill("1.5");
+  await page.getByLabel("Jersey #").fill("1.5");
   await page.getByRole("button", { name: "Add player" }).click();
   await expect(page.getByText("Jersey must be a whole number from 1 to 99.")).toBeVisible();
   const { data } = await admin.from("players").select("id").eq("team_id", team.id);
