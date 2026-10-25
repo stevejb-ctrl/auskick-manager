@@ -22,10 +22,13 @@ import { CourtDisplay } from "@/components/netball/CourtDisplay";
 import { PositionToken } from "@/components/netball/PositionToken";
 import { NetballBenchStrip } from "@/components/netball/NetballBenchStrip";
 import { NetballLineupPicker } from "@/components/netball/LineupPicker";
-import { NetballPlayerActions } from "@/components/netball/NetballPlayerActions";
+import { LockModal } from "@/components/live/LockModal";
 import { NetballQuarterBreak } from "@/components/netball/NetballQuarterBreak";
 import { NetballGameSummaryCard } from "@/components/netball/NetballGameSummaryCard";
-import { PickReplacementSheet } from "@/components/netball/PickReplacementSheet";
+import {
+  InjuryReplacementModal,
+  type InjuryReplacementCandidate,
+} from "@/components/live/InjuryReplacementModal";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { useHypeSong } from "@/lib/live/useHypeSong";
@@ -83,8 +86,10 @@ import {
   seasonPositionCounts,
   lineupAfterSubs,
   splitQuarterSegments,
+  formatMinSec,
 } from "@/lib/sports/netball/fairness";
 import { computePeriodClockMs } from "@/lib/live/periodClock";
+import { gameLoanMinutes, seasonLoanMinutes } from "@/lib/fairness";
 import {
   saveNetballLineupDraft,
   startNetballGame,
@@ -207,8 +212,8 @@ interface NetballLiveGameProps {
   } | null;
   /**
    * Steve 2026-05-16: team-level toggle (defaults false). When true,
-   * the long-press → NetballPlayerActions menu surfaces a "🔄
-   * Switch player" affordance for mid-quarter substitutions. When
+   * the long-press player actions (the shared LockModal) offer
+   * "Switch player" for mid-quarter substitutions. When
    * false (default), the affordance is hidden and the existing
    * midQuarterSubs state machine just never fires — netball is
    * overwhelmingly a "subs at the break" sport and the simpler
@@ -963,23 +968,19 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     playerId: string;
     positionId: string | null;
   } | null>(null);
-  // Pick-replacement target: set after marking a court player as
-  // injured OR lent to opposition. Either reason vacates the slot and
-  // prompts the coach to pick a bench player to fill it for the rest
-  // of the quarter; the post-sub state lives in localOverlay until the
-  // next period_break_swap makes it durable.
-  const [replacingTarget, setReplacingTarget] = useState<{
+  // A court kid leaving mid-quarter (hurt, lent, switched off): the
+  // shared InjuryReplacementModal asks who comes on at their bib, as
+  // AFL's does (UX audit 23 Oct 2026: netball's own sheet read "Amelia
+  // → Wing Attack", as if she were moving). Nothing is recorded until
+  // the coach picks someone or goes without; Cancel leaves them on.
+  const [leaving, setLeaving] = useState<{
+    playerId: string;
     positionId: string;
-    /**
-     * The player vacating the slot, or null when the coach is filling
-     * a previously-emptied slot (e.g. after a lend without an
-     * immediate replacement). The picker title flips from
-     * "Replace X → POS" to "Fill POS" when null, and the segment-
-     * rebuilder skips the bench-add for the sub since there's no
-     * sub-out player to bench.
-     */
-    vacatingPlayerId: string | null;
+    reason: "injured" | "lent" | "subbed";
   } | null>(null);
+  // An empty bib tapped mid-quarter (after going without a
+  // replacement): the shared SlotFillSheet fills it.
+  const [fillPosition, setFillPosition] = useState<string | null>(null);
   // Steve 2026-05-15: removed `pendingQuarterStart` state — the
   // Q1 await-kickoff modal now lives INSIDE NetballLineupPicker
   // (parity with AFL). The picker hosts NetballStartQuarterModal
@@ -1135,7 +1136,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   }, [thisGameEvents, quarterLengthSeconds, inProgressContribution]);
 
   // ─── F3 (Phase 12) long-press player insight ────────────────
-  // Shared, sport-agnostic summary surfaced inside NetballPlayerActions
+  // Shared, sport-agnostic summary surfaced inside the shared LockModal
   // via its `insight` slot. Mirrors the AFL LockModal wiring verbatim
   // — same PlayerInsightSummary, same buildPlayerInsight contract — so
   // a coach who runs a footy team AND a netball team sees identical
@@ -1177,6 +1178,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     }
     return out;
   }, [seasonEvents]);
+
+  // Loan minutes over completed games, for the Lend line in the player
+  // actions (AFL's: "Season total: 12m · squad avg 8m").
+  const seasonLoanMinsByPlayer = useMemo(() => seasonLoanMinutes(seasonEvents), [seasonEvents]);
 
   // Per-player, per-period, per-zone played ms (F3 / D-05). Same
   // credited ms as playerStats, split by period — reuses the SAME
@@ -1244,6 +1249,17 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         zoneMs: byPeriod[q],
       }))
       .filter((p) => Object.values(p.zoneMs).some((v) => v > 0));
+    // On court now (mid-quarter subs included)? A kid on the bench has no
+    // On time (UX audit 23 Oct 2026: "On 10:18" kept ticking after they
+    // went off). A kid who came on mid-quarter has been on since that
+    // sub, which the replay won't know until the break saves it.
+    const onField = Object.values(onCourt.positions).some((ids) => ids.includes(pid));
+    let lastSubbedOnMs = replayState.lastSubbedOnMs[pid] ?? null;
+    if (liveOverlayMs > 0) {
+      const ons = midQuarterSubs.filter((s) => s.inPlayerId === pid);
+      const cameOn = ons[ons.length - 1];
+      if (cameOn) lastSubbedOnMs = completedQuarterMs + cameOn.atMs;
+    }
     return {
       zones: insightZones,
       inGameZoneMs,
@@ -1251,8 +1267,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       seasonZoneMs: seasonZoneCounts[pid] ?? {},
       // Netball's season is counted in quarters.
       seasonPeriod: 1,
-      lastSubbedOnMs: replayState.lastSubbedOnMs[pid] ?? null,
+      lastSubbedOnMs,
       nowAbsMs,
+      onField,
     };
   };
 
@@ -1264,14 +1281,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const handleTokenTap = (positionId: string, playerId: string | null) => {
     if (currentQuarter < 1 || quarterEnded || finalised) return;
     if (!playerId) {
-      // Empty slot — common after a lend without immediate
-      // replacement (or any time the coach cancelled the picker).
-      // Tapping the empty token re-opens the replacement sheet so
-      // they can fill the slot at any point during the quarter
-      // instead of being stuck with a hole in the lineup until the
-      // break. vacatingPlayerId stays null because there's no one
-      // to vacate.
-      setReplacingTarget({ positionId, vacatingPlayerId: null });
+      // Empty slot — common after a lend without a replacement.
+      // Tapping it opens the fill sheet so the coach can fill the bib
+      // at any point in the quarter rather than wait for the break.
+      setFillPosition(positionId);
       return;
     }
     // Shooters with scoring on get the goal dock (which also offers
@@ -1350,112 +1363,87 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // ─ Modal action wiring ───
   const closeActions = () => setActionsTarget(null);
 
-  // Generic helper used by injury + loan flows. Pops the player out of
-  // their court position in the local overlay (so the picker sees a
-  // vacant slot) and opens the Pick Replacement sheet. Bench targets
-  // skip both: there's no slot to vacate.
-  const vacateAndPromptReplacement = (playerId: string, positionId: string | null) => {
-    if (!positionId) return;
-    // Recorded as a vacate at this moment, so a cancelled replacement
-    // still stops their clock (it used to leave them accruing).
+  // A court kid comes off now: recorded as a vacate at this moment, so
+  // their clock stops whether or not anyone replaces them.
+  const vacate = (playerId: string, positionId: string) => {
     setMidQuarterSubs((prev) => [
       ...prev,
       { positionId, outPlayerId: playerId, inPlayerId: null, atMs: clockMs },
     ]);
-    setReplacingTarget({ positionId, vacatingPlayerId: playerId });
+  };
+  // A bench kid goes into an empty bib. The brand halo fires on the new
+  // tile by itself (positionPulseKeys re-derives from midQuarterSubs).
+  // The sub becomes durable at the next break's period_break_swap.
+  const fill = (positionId: string, playerId: string) => {
+    setMidQuarterSubs((prev) => [
+      ...prev,
+      { positionId, outPlayerId: null, inPlayerId: playerId, atMs: clockMs },
+    ]);
+    // Light haptic — mid-quarter sub is a registered tap moment.
+    void hapticTap("light");
   };
 
-  // Mark injured: write the audit-trail event, flag the player client-side,
-  // then auto-prompt the bench replacement sheet so the coach can plug
-  // the gap in two taps. Substitution itself is local-overlay only until
-  // the next quarter break makes it durable.
-  // Mark/un-mark handlers below: they no longer optimistically mutate
-  // local injuredIds / loanedIds state — the badges + greying are
-  // derived from events, and Next.js Server Actions auto-refresh the
-  // RSC payload after they complete, so the prop update lands in the
-  // next render. That's a few hundred ms of latency before the INJ/
-  // LENT badge appears, but the localOverlay vacate fires synchronously
-  // so the slot empties immediately and the replacement picker opens
-  // straight away — the user gets the affordance they care about.
-  const handleMarkInjured = () => {
-    if (!actionsTarget) return;
-    const { playerId, positionId } = actionsTarget;
-    // Close the actions modal FIRST so it can't accidentally trap a
-    // subsequent long-press behind a stale state transition.
-    closeActions();
-    // Optimistic override — INJ badge appears instantly. Auto-
-    // reconciled when the server-derived set agrees (Steve
-    // 2026-05-17 audit fix).
-    setLocalInjuredOverride((prev) => ({ ...prev, [playerId]: true }));
+  // The injury / loan events. The badges come from the events; the
+  // overrides show them instantly until the server agrees (Steve
+  // 2026-05-17 audit fix).
+  const recordInjury = (playerId: string, injured: boolean) => {
+    setLocalInjuredOverride((prev) => ({ ...prev, [playerId]: injured }));
     enqueueLiveAction("markInjury", [
       auth,
       game.id,
-      {
-        player_id: playerId,
-        injured: true,
-        quarter: Math.max(1, currentQuarter),
-        elapsed_ms: clockMs,
-      },
+      { player_id: playerId, injured, quarter: Math.max(1, currentQuarter), elapsed_ms: clockMs },
     ]);
-    vacateAndPromptReplacement(playerId, positionId);
+  };
+  const recordLoan = (playerId: string, loaned: boolean) => {
+    setLocalLoanedOverride((prev) => ({ ...prev, [playerId]: loaned }));
+    enqueueLiveAction("markLoan", [
+      auth,
+      game.id,
+      { player_id: playerId, loaned, quarter: Math.max(1, currentQuarter), elapsed_ms: clockMs },
+    ]);
+  };
+
+  // Hurt, lent or switched off: a court kid's bib asks who comes on (if
+  // anyone can). A bench kid, or nobody to bring on, just records it.
+  // The actions sheet closes first so a stale sheet can't trap the next
+  // long-press.
+  const startLeaving = (playerId: string, positionId: string | null, reason: "injured" | "lent" | "subbed") => {
+    closeActions();
+    if (positionId && benchCandidates.length > 0) {
+      setLeaving({ playerId, positionId, reason });
+      return;
+    }
+    leaveNow(playerId, positionId, reason);
+  };
+  const leaveNow = (playerId: string, positionId: string | null, reason: "injured" | "lent" | "subbed") => {
+    if (reason === "injured") recordInjury(playerId, true);
+    else if (reason === "lent") recordLoan(playerId, true);
+    if (positionId) vacate(playerId, positionId);
+  };
+
+  const handleMarkInjured = () => {
+    if (!actionsTarget) return;
+    startLeaving(actionsTarget.playerId, actionsTarget.positionId, "injured");
   };
 
   const handleUnInjury = () => {
     if (!actionsTarget) return;
     const { playerId } = actionsTarget;
     closeActions();
-    setLocalInjuredOverride((prev) => ({ ...prev, [playerId]: false }));
-    enqueueLiveAction("markInjury", [
-      auth,
-      game.id,
-      {
-        player_id: playerId,
-        injured: false,
-        quarter: Math.max(1, currentQuarter),
-        elapsed_ms: clockMs,
-      },
-    ]);
+    recordInjury(playerId, false);
   };
 
+  // Loan = same UX as injury: the lent kid's bib asks who comes on.
   const handleMarkLoaned = () => {
     if (!actionsTarget) return;
-    const { playerId, positionId } = actionsTarget;
-    // Close the actions modal FIRST — same reason as injury: don't let
-    // a still-rendering modal block the next long-press attempt.
-    closeActions();
-    setLocalLoanedOverride((prev) => ({ ...prev, [playerId]: true }));
-    enqueueLiveAction("markLoan", [
-      auth,
-      game.id,
-      {
-        player_id: playerId,
-        loaned: true,
-        quarter: Math.max(1, currentQuarter),
-        elapsed_ms: clockMs,
-      },
-    ]);
-    // Loan = same UX as injury. The lent player vacates their slot and
-    // the coach picks a bench replacement to play out the rest of the
-    // quarter; otherwise the team is stuck playing a player short until
-    // the next break.
-    vacateAndPromptReplacement(playerId, positionId);
+    startLeaving(actionsTarget.playerId, actionsTarget.positionId, "lent");
   };
 
   const handleUnLoan = () => {
     if (!actionsTarget) return;
     const { playerId } = actionsTarget;
     closeActions();
-    setLocalLoanedOverride((prev) => ({ ...prev, [playerId]: false }));
-    enqueueLiveAction("markLoan", [
-      auth,
-      game.id,
-      {
-        player_id: playerId,
-        loaned: false,
-        quarter: Math.max(1, currentQuarter),
-        elapsed_ms: clockMs,
-      },
-    ]);
+    recordLoan(playerId, false);
   };
 
   const handleLockForNextBreak = () => {
@@ -1493,34 +1481,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     ]);
   }
 
-  // Pick-replacement: drop the picked bench player into the vacated
-  // position in the local overlay AND record the substitution
-  // timestamp so per-player time accounting can split credit
-  // accurately. Substitution becomes durable when the next quarter
-  // break confirms via period_break_swap.
+  // The coach picked who comes on: record why the kid left, then the
+  // swap at their bib, at the same moment.
   const handlePickReplacement = (replacementId: string) => {
-    if (!replacingTarget) return;
-    // The brand halo fires automatically on the new tile —
-    // setMidQuarterSubs below grows the array, positionPulseKeys
-    // useMemo re-derives, and the matching PositionToken gets a
-    // fresh pulseKey on its next render. No extra trigger
-    // needed here.
-    // The vacate is already logged; this fills the position.
-    const { positionId } = replacingTarget;
-    setMidQuarterSubs((prev) => [
-      ...prev,
-      {
-        positionId,
-        outPlayerId: null,
-        inPlayerId: replacementId,
-        atMs: clockMs,
-      },
-    ]);
-    setReplacingTarget(null);
-    // Light haptic — mid-quarter sub is a registered tap moment,
-    // same as a goal. Mirrors AFL's "swap-applied" haptic that
-    // landed in the haptics-primitive PR (d5c9518).
-    void hapticTap("light");
+    if (!leaving) return;
+    const { playerId, positionId, reason } = leaving;
+    setLeaving(null);
+    leaveNow(playerId, positionId, reason);
+    fill(positionId, replacementId);
   };
 
   // Late arrival: a squad player who wasn't marked available pre-game
@@ -1606,29 +1574,34 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     return list;
   }, [onCourt, availableIds, lateArrivedIds, squadById, injuredIds, loanedIds]);
 
-  // Build replacement candidates: active squad − on-court − injured − loaned.
-  const replacementCandidates = useMemo<Player[]>(() => {
-    if (!replacingTarget) return [];
+  // Who can come on mid-quarter: the kids here today (availableIds plus
+  // the optimistic late arrivals) who aren't on court, hurt or lent,
+  // least court time first (the suggested pick).
+  const totalMsOf = (pid: string) => {
+    const t = playerStats.get(pid);
+    return t ? t.attack + t.centre + t.defence : 0;
+  };
+  const benchCandidates = useMemo<Player[]>(() => {
     const onCourtIds = new Set<string>();
     for (const ids of Object.values(onCourt.positions)) {
       for (const id of ids) onCourtIds.add(id);
     }
-    // The candidate pool is the same "who's actually here today" set
-    // the bench strip uses: availableIds (server-confirmed) plus the
-    // optimistic lateArrivedIds (covers the brief window between a
-    // late-arrival tap and the action's auto-revalidation). Anyone
-    // marked unavailable for the day shouldn't be offered — they
-    // physically aren't at the game.
     const availableSet = new Set<string>(availableIds);
     lateArrivedIds.forEach((id) => availableSet.add(id));
-    return squad.filter(
-      (p) =>
-        availableSet.has(p.id) &&
-        !onCourtIds.has(p.id) &&
-        !injuredIds.has(p.id) &&
-        !loanedIds.has(p.id),
-    );
-  }, [replacingTarget, onCourt, squad, availableIds, lateArrivedIds, injuredIds, loanedIds]);
+    const total = (pid: string) => {
+      const t = playerStats.get(pid);
+      return t ? t.attack + t.centre + t.defence : 0;
+    };
+    return squad
+      .filter(
+        (p) =>
+          availableSet.has(p.id) &&
+          !onCourtIds.has(p.id) &&
+          !injuredIds.has(p.id) &&
+          !loanedIds.has(p.id),
+      )
+      .sort((a, b) => total(a.id) - total(b.id));
+  }, [onCourt, squad, availableIds, lateArrivedIds, injuredIds, loanedIds, playerStats]);
 
   // ─── Walkthrough state ──────────────────────────────────────
   // Mirrors AFL's first-visit walkthrough at
@@ -1818,7 +1791,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             view (Steve 2026-05-13) — the post-game summary doesn't
             need stale on-court positions, just the scoreboard +
             shareable recap. The pb on this wrapper clears the
-            sticky "Finish game" CTA below. */}
+            sticky "Done" CTA below. */}
         <NetballGameSummaryCard
           teamName={teamName}
           opponentName={game.opponent}
@@ -1830,8 +1803,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           trackScoring={trackScoring}
           presentIds={presentPlayerIds(thisGameEvents)}
         />
-        {/* Sticky-bottom "Finish game" CTA — locks to the viewport
-            so the user has a big, unmissable exit. Team-auth coach
+        {/* Sticky-bottom "Done" CTA — locks to the viewport
+            so the user has a big, unmissable exit. It said "Finish
+            game" after the game had finished; AFL says "Done" (UX
+            audit 23 Oct 2026). Team-auth coach
             goes to /dashboard. Token-auth parent-runner gets a
             "you can close this tab" success card instead — they
             don't have a /dashboard, sending them there hits the
@@ -1841,7 +1816,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
             <div className="mx-auto max-w-4xl">
               <SFButton href="/dashboard" variant="accent" size="lg" full>
-                Finish game
+                Done
               </SFButton>
             </div>
           </div>
@@ -1959,10 +1934,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             // Belt-and-braces: clear any modal-/sheet-driving state
             // that might have lingered from the previous quarter so
             // a stuck overlay can't block long-press in the new one.
-            // (closeActions / setReplacingTarget(null) on the success
-            // paths usually handle this; this is the safety net.)
+            // (closeActions / setLeaving(null) on the success paths
+            // usually handle this; this is the safety net.)
             setActionsTarget(null);
-            setReplacingTarget(null);
+            setLeaving(null);
+            setFillPosition(null);
             setPendingGoal(null);
           }}
         />
@@ -2091,6 +2067,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           field"). */}
       {clockMenuOpen && (
         <ClockMenu
+          sport="netball"
           periodAbbr={`Q${currentQuarter}`}
           running={!isPaused}
           onPause={toggleClock}
@@ -2103,7 +2080,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       {showManualEndConfirm && (
         <ManualEndQuarterConfirm
           quarter={currentQuarter}
-          playersLabel="On-court"
+          sport="netball"
+          clock={isPaused ? "paused" : "running"}
           onConfirm={() => {
             setShowManualEndConfirm(false);
             handleManualEndQuarter();
@@ -2348,114 +2326,133 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           : "Long-press any player for actions. The quarter ends automatically when the clock reaches zero."}
       </p>
 
-      {/* Action modal — opens on long-press of any token. */}
-      {actionsTarget && actionsPlayer && (
-        <NetballPlayerActions
-          player={actionsPlayer}
-          positionId={actionsTarget.positionId}
-          insight={
-            <PlayerInsightSummary input={buildInsightInput(actionsTarget.playerId)} />
-          }
-          isInjured={injuredIds.has(actionsTarget.playerId)}
-          isLoaned={loanedIds.has(actionsTarget.playerId)}
-          isLockedForNextBreak={
-            actionsTarget.positionId
-              ? nextBreakLocks[actionsTarget.positionId] === actionsTarget.playerId
-              : false
-          }
-          onMarkInjured={handleMarkInjured}
-          onUnInjury={handleUnInjury}
-          onMarkLoaned={handleMarkLoaned}
-          onUnLoan={handleUnLoan}
-          onLockForNextBreak={handleLockForNextBreak}
-          onUnlock={handleUnlock}
-          onSwitch={
-            allowMidQuarterSubs
-              ? () => {
-                  // Switch = mid-quarter sub: vacate this player's
-                  // position and surface the Pick Replacement sheet
-                  // so the GM can sub a bench player in. Field-only
-                  // path — NetballPlayerActions hides the Switch
-                  // button when positionId is null. Reuses the same
-                  // vacateAndPrompt flow that injury/loan use,
-                  // minus the injury/loan event itself.
-                  //
-                  // Steve 2026-05-16: gated on the team-level
-                  // `allow_mid_quarter_subs` toggle. When false
-                  // (default), no callback is passed —
-                  // NetballPlayerActions's `{onSwitch && …}` guard
-                  // hides the button entirely. Teams that DO use
-                  // rolling subs flip the toggle in Settings.
-                  if (!actionsTarget?.positionId) return;
-                  const { playerId, positionId } = actionsTarget;
-                  closeActions();
-                  vacateAndPromptReplacement(playerId, positionId);
-                }
-              : undefined
-          }
-          emptyPositions={
-            allowMidQuarterSubs
-              ? ageGroup.positions.filter(
-                  (pid) => (onCourt.positions[pid]?.length ?? 0) === 0,
-                )
-              : []
-          }
-          onMoveToEmpty={
-            allowMidQuarterSubs
-              ? (targetPositionId) => {
-                  // Short-squad blank-slot reshuffle (Steve 2026-05-23).
-                  // The coach picked an empty position to send the
-                  // long-pressed player to. Emit a paired vacate+fill
-                  // in midQuarterSubs at the same atMs so the next
-                  // period_break_swap snapshots the move into events
-                  // and the replay engine processes them with no
-                  // on-bench credit between (intermediate state lives
-                  // for 0ms). Optimistic local-overlay flip mirrors
-                  // the in-game vacateAndPromptReplacement pattern.
-                  if (!actionsTarget?.positionId) return;
-                  const sourcePositionId = actionsTarget.positionId;
-                  const { playerId } = actionsTarget;
-                  if (sourcePositionId === targetPositionId) return;
+      {/* Player actions — the shared LockModal, as AFL's (UX audit
+          23 Oct 2026: netball had its own copy with emoji pills, no
+          lines under the actions and an amber Mark injured). Opens on a
+          long-press of any token or a tap on a bench tile. Netball's
+          lock is "Keep in GS next break": a hint to the break's
+          suggester, not a mid-play rotation lock. */}
+      {actionsTarget && actionsPlayer && (() => {
+        const { playerId, positionId } = actionsTarget;
+        const isInjured = injuredIds.has(playerId);
+        const isLoaned = loanedIds.has(playerId);
+        const bibOf = (pid: string) => netballSport.allPositions.find((p) => p.id === pid);
+        const short = positionId ? bibOf(positionId)?.shortLabel ?? positionId.toUpperCase() : null;
+        // Short-squad blank-slot reshuffle (Steve 2026-05-23), with mid-
+        // quarter subs on: one action per empty bib.
+        // Season loan minutes: completed games plus this game so far, an
+        // open loan counted to now (a closing quarter_end at the clock).
+        const thisGameLoans = gameLoanMinutes(
+          liveOverlayMs > 0
+            ? [
+                ...thisGameEvents,
+                { type: "quarter_end", metadata: { elapsed_ms: clockMs }, created_at: "9999" } as unknown as GameEvent,
+              ]
+            : thisGameEvents,
+        );
+        const seasonLoanMins = (seasonLoanMinsByPlayer[playerId] ?? 0) + (thisGameLoans[playerId] ?? 0);
+        const squadValues = Object.values(seasonLoanMinsByPlayer).filter((v) => v > 0);
+        const squadLoanMins = squadValues.length > 0 ? squadValues.reduce((a, b) => a + b, 0) / squadValues.length : 0;
+        const emptyPositions =
+          allowMidQuarterSubs && positionId && !isInjured && !isLoaned
+            ? ageGroup.positions.filter((pid) => (onCourt.positions[pid]?.length ?? 0) === 0)
+            : [];
+        return (
+          <LockModal
+            player={actionsPlayer}
+            currentLock={positionId && nextBreakLocks[positionId] === playerId ? "zone" : null}
+            currentZone={null}
+            currentLine={short}
+            seasonLoanMins={seasonLoanMins}
+            squadLoanMins={squadLoanMins}
+            zoneLabel={short ? `${short} next break` : undefined}
+            lockZoneHint={short ? `Stays at ${short} when the next break's lineup is made` : undefined}
+            lockedNote={short ? `Kept at ${short} for the next break.` : undefined}
+            isInjured={isInjured}
+            isLoaned={isLoaned}
+            insight={<PlayerInsightSummary input={buildInsightInput(playerId)} />}
+            onLockZone={positionId ? handleLockForNextBreak : undefined}
+            onUnlock={handleUnlock}
+            onToggleInjury={isInjured ? handleUnInjury : handleMarkInjured}
+            onToggleLoan={isLoaned ? handleUnLoan : handleMarkLoaned}
+            // Mid-quarter sub, only with the team's allow_mid_quarter_subs
+            // on (Steve 2026-05-16: most netball comps ban them) and
+            // someone on the bench to bring on.
+            onSwitch={
+              allowMidQuarterSubs && positionId && benchCandidates.length > 0
+                ? () => startLeaving(playerId, positionId, "subbed")
+                : undefined
+            }
+            switchHint={short ? `Pick who comes on at ${short}` : undefined}
+            extraActions={emptyPositions.map((target) => {
+              const bib = bibOf(target);
+              return {
+                label: `Move to ${bib?.shortLabel ?? target.toUpperCase()}`,
+                hint: `${bib?.label ?? target}: leaves ${short} empty`,
+                onClick: () => {
+                  // A paired vacate + fill at the same atMs, so the next
+                  // period_break_swap snapshots the move and the replay
+                  // credits no bench time in between.
+                  if (!positionId || positionId === target) return;
                   closeActions();
                   const atMs = clockMs;
                   setMidQuarterSubs((prev) => [
                     ...prev,
-                    {
-                      positionId: sourcePositionId,
-                      outPlayerId: playerId,
-                      inPlayerId: null,
-                      atMs,
-                    },
-                    {
-                      positionId: targetPositionId,
-                      outPlayerId: null,
-                      inPlayerId: playerId,
-                      atMs,
-                    },
+                    { positionId, outPlayerId: playerId, inPlayerId: null, atMs },
+                    { positionId: target, outPlayerId: null, inPlayerId: playerId, atMs },
                   ]);
-                }
-              : undefined
-          }
-          onClose={closeActions}
-        />
-      )}
+                },
+              };
+            })}
+            onClose={closeActions}
+          />
+        );
+      })()}
 
-      {/* Replace sheet — opens after Mark Injured OR Lend to Opposition
-          for a court player, AND when the coach taps an empty position
-          token (vacatingPlayerId === null) to fill a slot left vacant
-          earlier in the quarter. Shared UX so the coach picks a bench
-          player to fill the vacant slot in two taps. */}
-      {replacingTarget && (
-        <PickReplacementSheet
-          positionId={replacingTarget.positionId}
-          vacatingPlayerName={
-            replacingTarget.vacatingPlayerId
-              ? squadById.get(replacingTarget.vacatingPlayerId)?.full_name ?? "Player"
-              : null
-          }
-          candidates={replacementCandidates}
-          onPick={handlePickReplacement}
-          onCancel={() => setReplacingTarget(null)}
+      {/* Who comes on at the bib a kid is leaving (hurt, lent, switched
+          off) — the shared InjuryReplacementModal, least court time
+          suggested. */}
+      {leaving && (() => {
+        const who = squadById.get(leaving.playerId);
+        if (!who) return null;
+        const bib = netballSport.allPositions.find((p) => p.id === leaving.positionId);
+        const candidates: InjuryReplacementCandidate[] = benchCandidates.map((p) => ({
+          player: p,
+          totalMs: totalMsOf(p.id),
+        }));
+        return (
+          <InjuryReplacementModal
+            injuredPlayer={who}
+            spotLabel={bib?.shortLabel ?? leaving.positionId.toUpperCase()}
+            reason={leaving.reason}
+            candidates={candidates}
+            onPickReplacement={handlePickReplacement}
+            onSkipReplacement={() => {
+              const { playerId, positionId, reason } = leaving;
+              setLeaving(null);
+              leaveNow(playerId, positionId, reason);
+            }}
+            onCancel={() => setLeaving(null)}
+          />
+        );
+      })()}
+
+      {/* An empty bib, tapped: fill it from the bench. */}
+      {fillPosition && (
+        <SlotFillSheet
+          slotLabel={netballSport.allPositions.find((p) => p.id === fillPosition)?.shortLabel ?? fillPosition.toUpperCase()}
+          candidates={benchCandidates.map((p) => ({
+            id: p.id,
+            name: p.full_name,
+            subLabel: `Played ${formatMinSec(totalMsOf(p.id))}`,
+          }))}
+          emptyMessage="Nobody on the bench can come on."
+          onPick={(pid) => {
+            const pos = fillPosition;
+            setFillPosition(null);
+            fill(pos, pid);
+          }}
+          onCancel={() => setFillPosition(null)}
         />
       )}
 

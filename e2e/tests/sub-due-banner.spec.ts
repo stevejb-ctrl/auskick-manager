@@ -46,7 +46,7 @@ test.beforeEach(async ({ page }) => {
  * from 40 s in it fell due at 60 s, 20 s after setup: the AFL tests'
  * 20 s waits only caught it when the page took a while to load.
  */
-async function subDueGame(sport: "afl" | "rugby_union" | "basketball" | "soccer") {
+async function subDueGame(sport: "afl" | "rugby_union" | "basketball" | "soccer", secondsIn = 10) {
   const admin = createAdminClient();
   const { data: su } = await admin.auth.admin.listUsers();
   const ownerId = su.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
@@ -83,8 +83,8 @@ async function subDueGame(sport: "afl" | "rugby_union" | "basketball" | "soccer"
   const t = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString();
   const { error: evErr } = await admin.from("game_events").insert(
     [
-      { type: "lineup_set", metadata: { lineup, sport }, created_at: t(11) },
-      { type: "quarter_start", metadata: { quarter: 1, sport }, created_at: t(10) },
+      { type: "lineup_set", metadata: { lineup, sport }, created_at: t(secondsIn + 1) },
+      { type: "quarter_start", metadata: { quarter: 1, sport }, created_at: t(secondsIn) },
     ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
   );
   if (evErr) throw new Error(evErr.message);
@@ -134,6 +134,19 @@ test("AFL: sub due is the swap card, and +G still takes the tap", async ({ page 
   await page.goto((await subDueGame("afl")).coach);
   await waitForHydration(page);
   await expectCardIsTheAlert(page);
+});
+
+// The siren ends the quarter: no sub is due any more. The quarter-end
+// modal waits on the coach, and the card behind it still said "Sub due"
+// through quarter time and full time (audit, 23 Oct 2026).
+test("AFL: the swap card stops saying Sub due when the siren goes", async ({ page }) => {
+  test.setTimeout(120_000);
+  // 95 s in at 6×: 9:30 of 12:00, a sub due within 5 s, the siren ~20 s later.
+  await page.goto((await subDueGame("afl", 95)).coach);
+  await waitForHydration(page);
+  await expect(page.getByRole("alert").filter({ hasText: /sub due/i })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("button", { name: /select team for q2/i })).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByText(/sub due/i)).toHaveCount(0);
 });
 
 // The runner link gets the same live screen (and so the same card) as

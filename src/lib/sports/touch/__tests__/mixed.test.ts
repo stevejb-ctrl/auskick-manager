@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 import {
   girlsTryCountsDouble,
+  mixedFieldBreach,
   mixedFieldMessage,
   mixedFieldPlan,
   mixedRuleColumns,
@@ -75,5 +76,33 @@ describe("mixedFieldPlan", () => {
     const plan = mixedFieldPlan(TOUCH_MIXED_RULE, 6, { boys: 3, girls: 1, unknown: 3 });
     expect(plan).toMatchObject({ size: 6, boys: 3, girls: 1, unknown: 2 });
     expect(mixedFieldMessage({ ...plan, size: 5, unknown: 1 })).toBe("You can field 5: 3 boys, 1 girl and 1 kid with no group");
+  });
+});
+
+describe("mixedFieldBreach", () => {
+  const groups: Record<string, "girl" | "boy"> = { g1: "girl", g2: "girl", b1: "boy", b2: "boy", b3: "boy", b4: "boy", b5: "boy" };
+  const groupOf = (id: string) => groups[id] ?? null;
+
+  it("says how the field breaks the rule, the boys' cap first", () => {
+    expect(mixedFieldBreach(["b1", "b2", "b3", "b4", "g1"], TOUCH_MIXED_RULE, groupOf)).toEqual({
+      text: "4 boys on: the mixed rule allows 3",
+      short: "4 boys on · rule 3",
+    });
+    expect(mixedFieldBreach(["b1", "b2", "b3", "b4", "b5"], OZTAG_MIXED_RULE, groupOf)?.text).toBe(
+      "5 boys on: the mixed rule allows 4",
+    );
+    expect(mixedFieldBreach(["b1", "b2", "b3"], TOUCH_MIXED_RULE, groupOf)).toEqual({
+      text: "No girl on: the mixed rule needs 1",
+      short: "No girl on · rule 1",
+    });
+    expect(mixedFieldBreach(["g1", "g2"], TOUCH_MIXED_RULE, groupOf)).toEqual({
+      text: "No boy on: the mixed rule needs 1",
+      short: "No boy on · rule 1",
+    });
+  });
+
+  it("is null when the field keeps the rule", () => {
+    expect(mixedFieldBreach(["b1", "b2", "b3", "g1", "g2"], TOUCH_MIXED_RULE, groupOf)).toBeNull();
+    expect(mixedFieldBreach(["b1", "b2", "b3", "b4", "g1"], OZTAG_MIXED_RULE, groupOf)).toBeNull();
   });
 });

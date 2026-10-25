@@ -1,8 +1,12 @@
 "use client";
 
 import { ActionSheet, type ActionSheetAction } from "@/components/ui/ActionSheet";
+import { clockEndEarlyHint } from "@/lib/sports/words";
+import type { SportId } from "@/lib/sports/types";
 
 interface ClockMenuProps {
+  /** The team's sport: its end cue names when to end early ("whistle"). */
+  sport: SportId;
   /** "Q2" / "H1" — names the sheet and the end action. */
   periodAbbr: string;
   running: boolean;
@@ -20,6 +24,7 @@ interface ClockMenuProps {
  * ≥ 44 pt row, still behind the existing confirm.
  */
 export function ClockMenu({
+  sport,
   periodAbbr,
   running,
   onPause,
@@ -46,7 +51,7 @@ export function ClockMenu({
     actions.push({
       id: "end",
       label: `End ${periodAbbr} now`,
-      description: "When the siren beats the app's clock.",
+      description: clockEndEarlyHint(sport),
       onSelect: onEndEarly,
     });
   }

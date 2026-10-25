@@ -37,6 +37,8 @@ export interface GameSnapshot {
   /** Team score keyed by quarter number. */
   teamScoreByQtr: Record<number, { goals: number; behinds: number }>;
   oppScoreByQtr: Record<number, { goals: number; behinds: number }>;
+  /** Quarters that reached their quarter_end, scored in or not. */
+  quartersPlayed: number[];
   lineupPeriods: LineupPeriod[];
   /** All player IDs seen in any lineup_set event for this game. */
   playerIds: string[];
@@ -126,6 +128,10 @@ export interface QuarterScoringRow {
   avgBehindsFor: number;
   avgGoalsAgainst: number;
   avgBehindsAgainst: number;
+  /** Points (goals × 6 + behinds), what a quarter is won on. */
+  avgPointsFor: number;
+  avgPointsAgainst: number;
+  result: "ahead" | "level" | "behind";
   gamesCount: number;
 }
 

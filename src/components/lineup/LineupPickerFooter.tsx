@@ -38,12 +38,11 @@ interface LineupPickerFooterProps {
   onFieldCount: number;
   benchCount: number;
   /**
-   * The word used for the on-field count chip. AFL uses "on field";
-   * netball uses "on court". Default mirrors AFL because the AFL
-   * adapter was the original implementation. Anything not falling
-   * back to the default just passes the override explicitly.
+   * The words after the on-field count: "on field", or "on court" for
+   * netball, futsal and basketball (`onSurfaceLabel(sport)`). No
+   * default: an AFL "on field" read wrong on every court.
    */
-  onFieldLabel?: string;
+  onFieldLabel: string;
 
   // ─── Save plan & exit (optional row) ────────────────────────
   /**
@@ -77,7 +76,7 @@ interface LineupPickerFooterProps {
 export function LineupPickerFooter({
   onFieldCount,
   benchCount,
-  onFieldLabel = "on field",
+  onFieldLabel,
   onSavePlan,
   savePending = false,
   savedAt = null,

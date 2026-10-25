@@ -2,11 +2,18 @@
 
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { getSportConfig } from "@/lib/sports/registry";
+import { periodEndLine } from "@/lib/sports/break";
+
+// This modal runs AFL's flow only (+G/+B chips, goals and behinds), so
+// its words are AFL's own, from AFL's config: the siren, and half-time
+// after Q2 (ten-sport UX audit, 23 Oct 2026: it said "final whistle").
+const SPORT = "afl";
 
 interface QuarterEndModalProps {
   quarter: number;
   /** Number of periods this age group plays (ageGroup.periodCount). Drives the
-   * "final whistle" copy instead of a hardcoded 4 (CONFIG-01). The AFL "Q"/
+   * "final siren" copy instead of a hardcoded 4 (CONFIG-01). The AFL "Q"/
    * "Quarter" label wording below is a conscious exclusion — only the count
    * literal is de-hardcoded; this modal renders the AFL flow only. */
   periodCount: number;
@@ -59,13 +66,14 @@ export function QuarterEndModal({
   onConfirm,
 }: QuarterEndModalProps) {
   const isLastQuarter = quarter >= periodCount;
+  const { endCue } = getSportConfig(SPORT).words;
   return (
     <Modal>
       <h2 className="text-center text-lg font-bold text-ink">
         Quarter {quarter} complete
       </h2>
       <p className="mt-1 text-center text-sm text-ink-dim">
-        {isLastQuarter ? "That's the final whistle!" : `Quarter break — Q${quarter + 1} is next.`}
+        {periodEndLine(SPORT, "quarter", quarter, periodCount)}
       </p>
 
       {/* Embedded mini-scorebug — mirrors the in-play GameHeader
@@ -117,7 +125,7 @@ export function QuarterEndModal({
             on the
           </span>
           <span className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink">
-            siren
+            {endCue}
           </span>
         </div>
 

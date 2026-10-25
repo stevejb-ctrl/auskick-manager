@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 import {
   brokenConstraints,
+  compositionFixes,
   keepsComposition,
   rollingSubDue,
   suggestRollingSubs,
@@ -117,6 +118,60 @@ describe("suggestRollingSubs", () => {
       constraints,
     });
     expect(subs).toEqual([{ off: "b1", on: "b4", line: "a" }]);
+  });
+
+  it("brings a field over the boys' cap back first: a girl on for a boy, across pools and before time evens", () => {
+    // A hand sub put a fourth boy on. The girl on the bench has more time
+    // than anyone on, and pools keep girls for girls, but the rule comes
+    // first: she comes on for the boy on longest.
+    const boys = new Set(["b1", "b2", "b3", "b4", "b5"]);
+    const tags = (id: string) => (boys.has(id) ? ["boy"] : ["girl"]);
+    const pool = (id: string) => tags(id)[0];
+    const constraints: CompositionConstraint[] = [
+      { tag: "boy", max: 3, min: 1 },
+      { tag: "girl", min: 1 },
+    ];
+    const subs = suggestRollingSubs<L>({
+      field: [
+        { id: "b1", line: "a" },
+        { id: "b2", line: "a" },
+        { id: "b3", line: "b" },
+        { id: "b4", line: "b" },
+        { id: "g1", line: "b" },
+      ],
+      bench: ["b5", "g2"],
+      gameMs: minutes({ b1: 6, b2: 8, b3: 5, b4: 1, g1: 7, b5: 0, g2: 9 }),
+      tags,
+      constraints,
+      pool,
+    });
+    expect(subs[0]).toEqual({ off: "b2", on: "g2", line: "a" });
+    // Then the evening subs keep the rule: b5 comes on for a boy.
+    expect(subs.slice(1)).toEqual([{ off: "b1", on: "b5", line: "a" }]);
+  });
+
+  it("compositionFixes: only the subs that bring the field back inside the rule", () => {
+    const tags = (id: string) => (id.startsWith("b") ? ["boy"] : ["girl"]);
+    const constraints: CompositionConstraint[] = [{ tag: "boy", max: 3 }, { tag: "girl", min: 1 }];
+    const input = {
+      field: [
+        { id: "b1", line: "a" as const },
+        { id: "b2", line: "a" as const },
+        { id: "b3", line: "b" as const },
+        { id: "b4", line: "b" as const },
+      ],
+      bench: ["b5", "g1", "g2"],
+      gameMs: minutes({ b1: 6, b2: 8, b3: 5, b4: 1, b5: 0, g1: 4, g2: 2 }),
+      held: (id: string) => id === "b2",
+      tags,
+      constraints,
+    };
+    // Four boys and no girl: one girl on fixes both (b2 is held on).
+    expect(compositionFixes<L>(input)).toEqual([{ off: "b1", on: "g2", line: "a" }]);
+    // Inside the rule already: nothing to fix.
+    expect(compositionFixes<L>({ ...input, field: [...input.field.slice(1), { id: "g3", line: "a" }] })).toEqual([]);
+    // No girl to bring on: no fix.
+    expect(compositionFixes<L>({ ...input, bench: ["b5"] })).toEqual([]);
   });
 
   it("keeps a ball handler on: the last one off only for another", () => {

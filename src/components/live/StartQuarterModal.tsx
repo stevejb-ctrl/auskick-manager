@@ -27,10 +27,12 @@ interface StartQuarterModalProps {
    */
   periodName?: string;
   /**
-   * What the coach waits for before starting the clock. AFL and
-   * league: the siren. Netball passes "umpire calls play".
+   * What the coach waits for before starting the clock, from the
+   * sport's config (`words.startCue`): AFL's "siren goes", netball's
+   * "umpire calls play". No default: league was told to wait for a
+   * siren it doesn't have.
    */
-  cue?: string;
+  cue: string;
   /**
    * Rules the lineup breaks (the period break). Any at all turns this
    * into "Start with N rules broken?": Start anyway, or Fix first (back
@@ -54,7 +56,7 @@ export function StartQuarterModal({
   onCancel,
   periodLabel = "quarter",
   periodName,
-  cue = "siren goes",
+  cue,
   brokenRules = [],
   sheet = false,
 }: StartQuarterModalProps) {

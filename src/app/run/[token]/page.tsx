@@ -83,7 +83,7 @@ export default async function RunPage({ params }: RunPageProps) {
 
   const { data: teamRow } = await admin
     .from("teams")
-    .select("name, sport, track_scoring, age_group, quarter_length_seconds, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_mode, chip_b_mode, chip_c_mode, chip_a_label, chip_b_label, chip_c_label, track_zone_time, enforce_unbroken_periods")
+    .select("name, sport, track_scoring, age_group, quarter_length_seconds, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, allow_mid_quarter_subs, song_url, song_start_seconds, song_duration_seconds, song_enabled, chip_a_mode, chip_b_mode, chip_c_mode, chip_a_label, chip_b_label, chip_c_label, track_zone_time")
     .eq("id", g.team_id)
     .single();
   // Read with the service client: no row means no such team.
@@ -199,6 +199,8 @@ export default async function RunPage({ params }: RunPageProps) {
       weight: howWePlay.balance === "off" ? 0 : seasonBalanceWeight(sport, howWePlay.balance),
       periodMs: periodSecondsS * 1000,
     };
+    // Lent minutes in the season's other games, for the long-press sheet.
+    const seasonLoanMinsS = seasonLoanMinutes((seasonRaw ?? []) as GameEvent[]);
 
     if (!hasStarted) {
       const { data: draftRow } = await admin
@@ -243,6 +245,7 @@ export default async function RunPage({ params }: RunPageProps) {
               season={season}
               keeperStrategy={howWePlay.keeperStrategy}
               keeperPrefs={howWePlay.prefs}
+              seasonLoanMinutes={seasonLoanMinsS}
               initialDraft={
                 draftRow
                   ? {
@@ -278,6 +281,7 @@ export default async function RunPage({ params }: RunPageProps) {
           season={season}
           keeperStrategy={howWePlay.keeperStrategy}
           keeperPrefs={howWePlay.prefs}
+          seasonLoanMinutes={seasonLoanMinsS}
           // A runner token can run the whole game, as in the other sports.
           isAdmin
           exitHref={`/run/${params.token}`}
@@ -331,6 +335,8 @@ export default async function RunPage({ params }: RunPageProps) {
       weight: howWePlay.balance === "off" ? 0 : seasonBalanceWeight(sport, howWePlay.balance),
       periodMs: periodSecondsB * 1000,
     };
+    // Lent minutes in the season's other games, for the long-press sheet.
+    const seasonLoanMinsB = seasonLoanMinutes((seasonRaw ?? []) as GameEvent[]);
 
     if (!hasStarted) {
       const { data: draftRow } = await admin
@@ -374,6 +380,7 @@ export default async function RunPage({ params }: RunPageProps) {
               strategy={howWePlay.strategy}
               prefs={howWePlay.prefs}
               season={season}
+              seasonLoanMinutes={seasonLoanMinsB}
               initialDraft={
                 draftRow
                   ? {
@@ -410,6 +417,7 @@ export default async function RunPage({ params }: RunPageProps) {
           strategy={howWePlay.strategy}
           prefs={howWePlay.prefs}
           season={season}
+          seasonLoanMinutes={seasonLoanMinsB}
           // A runner token can run the whole game, as in the other sports.
           isAdmin
           exitHref={`/run/${params.token}`}
@@ -754,12 +762,6 @@ export default async function RunPage({ params }: RunPageProps) {
               initialLoanedIds={leagueLoanedIds}
               initialDraft={initialDraft}
               availabilityHref={`/run/${params.token}`}
-              enforceUnbrokenPeriods={
-                (g as { enforce_unbroken_periods?: boolean | null }).enforce_unbroken_periods ??
-                (teamRow as { enforce_unbroken_periods?: boolean | null } | null)
-                  ?.enforce_unbroken_periods ??
-                false
-              }
               chipLabels={{ a: chipLabelA, b: chipLabelB }}
               chipModes={teamChipModes}
               leaguePlaybook={leaguePlaybook}
@@ -786,13 +788,6 @@ export default async function RunPage({ params }: RunPageProps) {
           subIntervalSeconds={g.sub_interval_seconds}
           clockMultiplier={g.clock_multiplier ?? 1}
           trackScoring={trackScoring}
-          enforceUnbrokenPeriods={
-            (g as { enforce_unbroken_periods?: boolean | null })
-              .enforce_unbroken_periods ??
-            (teamRow as { enforce_unbroken_periods?: boolean | null } | null)
-              ?.enforce_unbroken_periods ??
-            false
-          }
           trackZoneTime={
             (g as { track_zone_time?: boolean | null }).track_zone_time ??
             (teamRow as { track_zone_time?: boolean | null } | null)

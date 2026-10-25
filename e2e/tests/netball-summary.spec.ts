@@ -191,6 +191,11 @@ test("NETBALL-06: track_scoring=true summary card renders result + goals + playe
   await expect(summaryText).toContainText(/👟 \d+ players?/);
   // Game-time block heading + at least one per-player row.
   await expect(summaryText).toContainText(/⏱ Game time/);
+
+  // UX audit 23 Oct 2026: the game's finished, so the way out says
+  // "Done", as AFL's does, not "Finish game".
+  await expect(page.getByRole("link", { name: "Done", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: /finish game/i })).toHaveCount(0);
 });
 
 test("NETBALL-06: track_scoring=false summary card omits result and goals lines", async ({

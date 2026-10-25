@@ -62,6 +62,8 @@ import { SoccerField } from "./SoccerField";
 import { SoccerBench } from "./SoccerBench";
 import { KeeperHandoverCard } from "./KeeperHandoverCard";
 import { soccerKeeperNote, soccerSubModeNote } from "./soccerWords";
+import { squadLoanAverage } from "@/lib/live/liveChrome";
+import { onSurfaceLabel, playersOnSurfaceLabel } from "@/lib/sports/words";
 
 /**
  * Where a kid brought off the bench goes: the middle line when it has a
@@ -96,6 +98,8 @@ interface SoccerLineupPickerProps {
   initialLoanedIds: string[];
   availabilityPanel?: React.ReactNode;
   availabilityHref?: string | null;
+  /** Lent minutes in the season's other games, for the long-press sheet. */
+  seasonLoanMinutes?: Record<string, number>;
 }
 
 export function SoccerLineupPicker({
@@ -113,6 +117,7 @@ export function SoccerLineupPicker({
   initialLoanedIds,
   availabilityPanel,
   availabilityHref,
+  seasonLoanMinutes = {},
 }: SoccerLineupPickerProps) {
   const router = useRouter();
   const pickerRootRef = useRef<HTMLDivElement>(null);
@@ -129,8 +134,6 @@ export function SoccerLineupPicker({
   const [onFieldSize, setOnFieldSize] = useState(() => clampSize(initialSize));
   const playing = useMemo(() => players.filter((p) => !loanedIds.has(p.id)).map((p) => p.id), [players, loanedIds]);
   const shapes = soccerFormations(ageGroup, Math.min(onFieldSize, playing.length || onFieldSize));
-  const [formationId, setFormationId] = useState<string | null>(null);
-  const formation = shapes.find((f) => f.id === formationId) ?? shapes[0];
 
   const suggest = (size: number, shape: string | null, kids: string[]) =>
     suggestSoccerLineup({
@@ -142,6 +145,16 @@ export function SoccerLineupPicker({
       keeperStrategy,
       prefs: keeperPrefs,
     });
+  const [firstSuggestion] = useState(() =>
+    initialDraft
+      ? null
+      : suggest(clampSize(initialSize), null, players.map((p) => p.id).filter((id) => !initialLoanedIds.includes(id))),
+  );
+  // The shape on the pitch: the coach's pick, else the suggestion's (the
+  // first that fits every kid's "Plays as": futsal's diamond for a
+  // Wings-only kid, never 2-2 with them up front).
+  const [formationId, setFormationId] = useState<string | null>(firstSuggestion?.formation.id ?? null);
+  const formation = shapes.find((f) => f.id === formationId) ?? shapes[0];
 
   const [lineup, setLineup] = useState<SoccerLineup>(() => {
     if (initialDraft) {
@@ -161,7 +174,7 @@ export function SoccerLineupPicker({
         bench: [...keep(draft.bench), ...players.map((p) => p.id).filter((id) => !placed.has(id))],
       };
     }
-    return suggest(clampSize(initialSize), null, players.map((p) => p.id).filter((id) => !initialLoanedIds.includes(id))).lineup;
+    return firstSuggestion!.lineup;
   });
   const suggestedKeeper = useMemo(
     () => suggest(onFieldSize, formation.id, playing).lineup.keeper,
@@ -183,7 +196,10 @@ export function SoccerLineupPicker({
   const lineCaps = formation.lines;
 
   function resuggest(size: number, shape: string | null) {
-    setLineup(suggest(size, shape, playing).lineup);
+    const next = suggest(size, shape, playing);
+    setLineup(next.lineup);
+    // No shape picked: the suggestion's.
+    if (shape === null) setFormationId(next.formation.id);
     setSelectedId(null);
   }
 
@@ -290,7 +306,7 @@ export function SoccerLineupPicker({
   const settingsSummary = [
     `${onFieldSize} a side`,
     formation.keeper ? `${formation.id}` : "No lines",
-    soccerSubModeNote(ageGroup.subMode, subIntervalSeconds, periodWord),
+    soccerSubModeNote(ageGroup.subMode, subIntervalSeconds, periodWord, rules.rollingSubs.label),
     ...(lentPlayers.length > 0 ? [`${lentPlayers.length} lent`] : []),
   ].join(" · ");
 
@@ -337,7 +353,7 @@ export function SoccerLineupPicker({
           <div id="soccer-game-settings" className="space-y-4 border-t border-hairline px-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="soccer-on-field-size" className="text-xs">
-                Players on the field
+                {playersOnSurfaceLabel(sport)}
               </Label>
               <select
                 id="soccer-on-field-size"
@@ -400,10 +416,10 @@ export function SoccerLineupPicker({
                   onBlur={() => setSubMinInput(String(subMinutesFrom(subMinInput, defaultSubMinutes)))}
                   className="w-32"
                 />
-                <p className="text-[11px] text-ink-mute">Rolling subs: any time, as often as you like.</p>
+                <p className="text-[11px] text-ink-mute">{rules.rollingSubs.label}: {rules.rollingSubs.note}.</p>
               </div>
             ) : (
-              <p className="text-xs text-ink-dim">{soccerSubModeNote(ageGroup.subMode, subIntervalSeconds, periodWord)}</p>
+              <p className="text-xs text-ink-dim">{soccerSubModeNote(ageGroup.subMode, subIntervalSeconds, periodWord, rules.rollingSubs.label)}</p>
             )}
             <SFButton variant="ghost" size="sm" onClick={() => resuggest(onFieldSize, formation.id)}>
               Suggest again
@@ -473,6 +489,7 @@ export function SoccerLineupPicker({
       <LineupPickerFooter
         onFieldCount={fieldIds.length}
         benchCount={lineup.bench.length}
+        onFieldLabel={onSurfaceLabel(sport)}
         onSavePlan={auth.kind === "team" ? () => void handleSavePlan() : undefined}
         savePending={savePending}
         savedAt={savedAt}
@@ -487,11 +504,13 @@ export function SoccerLineupPicker({
         <LockModal
           player={actionPlayer}
           currentLock={null}
-          currentZone={null}
+          // The kid's line for the Switch hint, and the season's lent
+          // minutes, as on the live screen.
+          currentLine={soccerUnitOf(lineup, actionPlayer.id) ? words[soccerUnitOf(lineup, actionPlayer.id)!].label : null}
           isInjured={false}
           isLoaned={loanedIds.has(actionPlayer.id)}
-          seasonLoanMins={0}
-          squadLoanMins={0}
+          seasonLoanMins={seasonLoanMinutes[actionPlayer.id] ?? 0}
+          squadLoanMins={squadLoanAverage(seasonLoanMinutes)}
           onUnlock={() => setActionPlayerId(null)}
           onSwitch={() => {
             setActionPlayerId(null);

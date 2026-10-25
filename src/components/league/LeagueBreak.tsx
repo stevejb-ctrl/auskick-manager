@@ -29,15 +29,16 @@ import { rotateGroups } from "@/lib/live/break/rotateGroups";
 import { periodLabels, type RugbySport } from "@/lib/sports";
 import { rugbyForwards } from "@/lib/sports/rugby/lines";
 import { rugbyBreakCheck } from "@/lib/sports/rugby/breakCheck";
-import { withLeagueSlots, type LeaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
+import { assignLeaguePositions, withLeagueSlots, type LeaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
 import {
   playerZoneMsOnField,
   unbrokenPeriodLiveStatus,
+  unbrokenPeriodsRequired,
   type LeagueGameState,
 } from "@/lib/sports/rugby_league/fairness";
 import { currentVests } from "@/lib/sports/rugby_league/vests";
-import { availablePlayersForPlan } from "@/lib/game-plan/availableForPlan";
-import { consumePeriodPin, projectUpcomingRotation } from "@/lib/game-plan";
+import { consumePeriodPin } from "@/lib/game-plan";
+import { leagueBreakSuggestion } from "@/lib/sports/rugby/breakSuggestion";
 import { benchSidelinedInLeagueLineup, plannedLeagueLineup } from "@/lib/live/lineupOps";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { ChipKey, ChipMode } from "@/lib/chips";
@@ -65,7 +66,6 @@ interface Props {
   loaned: ReadonlySet<string>;
   /** Game time so far, ms. */
   msByPlayer: Record<string, number>;
-  enforceUnbrokenPeriods: boolean;
   leaguePlaybook?: LeaguePlaybookInput;
   chipModes?: Partial<Record<ChipKey, ChipMode>>;
   isAdmin: boolean;
@@ -87,7 +87,6 @@ export function LeagueBreak({
   injured,
   loaned,
   msByPlayer,
-  enforceUnbrokenPeriods,
   leaguePlaybook,
   chipModes,
   isAdmin,
@@ -125,31 +124,24 @@ export function LeagueBreak({
     [state.lineup, state.currentQuarter, pin, squad, injured, loaned],
   );
   const repeat = useMemo(() => benchSidelinedInLeagueLineup(previousLineup, sidelinedSet), [previousLineup, sidelinedSet]);
-  // Suggested: the next period of the planner's own projection (the
-  // "Suggested" the plan-ahead modal offers), the kids who can't play
-  // at the end of the bench.
-  const suggested = useMemo<Lineup>(() => {
-    const players = availablePlayersForPlan(squad, new Set(inGame), injured, loaned);
-    if (players.length === 0) return repeat;
-    const plan = projectUpcomingRotation({
-      sport,
-      ageGroup,
-      players,
-      onFieldSize: game.on_field_size,
-      seed: 7,
-      chipModeByKey: chipModes,
-      fromPeriodIndex: Math.max(0, state.currentQuarter - 1),
-      currentGroups: { forwards: previousLineup.forwards, backs: previousLineup.backs },
-      currentBench: previousLineup.bench,
-    });
-    const next = plan.periods.find((p) => p.period === nextPeriod) ?? plan.periods[1];
-    if (!next) return repeat;
-    const group = (id: string) => next.groups.find((g) => g.groupId === id)?.playerIds ?? [];
-    const forwards = group("forwards");
-    const backs = group("backs");
-    const placed = new Set([...forwards, ...backs]);
-    return { forwards, backs, bench: [...healthy.filter((id) => !placed.has(id)), ...sidelinedInGame] };
-  }, [squad, inGame, injured, loaned, repeat, sport, ageGroup, game.on_field_size, chipModes, state.currentQuarter, previousLineup, nextPeriod, healthy, sidelinedInGame]);
+  // Suggested: the next period of the planner's own projection, lines
+  // by the kids' roles (breakSuggestion.ts).
+  const suggested = useMemo<Lineup>(
+    () =>
+      leagueBreakSuggestion({
+        sport,
+        ageGroup,
+        squad,
+        previousLineup,
+        injured,
+        loaned,
+        onFieldSize: game.on_field_size,
+        currentQuarter: state.currentQuarter,
+        chipModes,
+        leaguePlaybook,
+      }),
+    [sport, ageGroup, squad, previousLineup, injured, loaned, game.on_field_size, state.currentQuarter, chipModes, leaguePlaybook],
+  );
   const manual = useMemo<Lineup>(() => ({ forwards: [], backs: [], bench: [...healthy, ...sidelinedInGame] }), [healthy, sidelinedInGame]);
   // Rotate: forwards and backs swap lines, the split kept, least-played on.
   const caps = useMemo(() => {
@@ -311,16 +303,36 @@ export function LeagueBreak({
     const onBoard = new Set([...l.forwards, ...l.backs, ...l.bench]);
     return { groups: s.groups, bench: [...s.bench, ...sidelinedInGame.filter((id) => !onBoard.has(id))] };
   };
-  const board = useMemo(() => buildBoard(config.zones, withOut(draft), sidelinedSet), [config.zones, draft, sidelinedSet]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Named positions: each kid's position as Start will record it, on
+  // their tile, the lines read in the list's order (UX audit, 23 Oct
+  // 2026: the break said only Forwards / Backs, so the front row going
+  // to a fullback went unseen).
+  const dealt = useMemo(
+    () => (leaguePlaybook?.positions?.length ? assignLeaguePositions(benchSidelinedInLeagueLineup(draft, sidelinedSet), leaguePlaybook) : {}),
+    [leaguePlaybook, draft, sidelinedSet],
+  );
+  const positionLabels = useMemo(() => {
+    const labelOf = new Map((leaguePlaybook?.positions ?? []).map((p) => [p.key, p.label]));
+    return Object.fromEntries(Object.entries(dealt).map(([pid, key]) => [pid, labelOf.get(key) ?? key]));
+  }, [dealt, leaguePlaybook]);
+  const inPositionOrder = (l: Lineup): Lineup => {
+    const keys = (leaguePlaybook?.positions ?? []).map((p) => p.key);
+    if (keys.length === 0) return l;
+    const at = (pid: string) => (dealt[pid] ? keys.indexOf(dealt[pid]) : keys.length);
+    const sort = (ids: string[]) => [...ids].sort((a, b) => at(a) - at(b));
+    return { ...l, forwards: sort(l.forwards), backs: sort(l.backs) };
+  };
+  const board = useMemo(() => buildBoard(config.zones, withOut(inPositionOrder(draft)), sidelinedSet), [config.zones, draft, sidelinedSet, dealt]); // eslint-disable-line react-hooks/exhaustive-deps
   const previous = useMemo(() => placesOf(stagedOf(previousLineup)), [previousLineup]);
 
   const names = useMemo(() => Object.fromEntries(squad.map((p) => [p.id, p.full_name])), [squad]);
   const unbroken = useMemo(() => {
-    const required = ageGroup.minUnbrokenPeriods ?? 0;
-    if (!enforceUnbrokenPeriods || !ageGroup.unbrokenPeriods || required <= 0) return undefined;
+    // §6 wherever the grade plays it (no switch: it's the laws).
+    const required = unbrokenPeriodsRequired(ageGroup);
+    if (required <= 0) return undefined;
     const status = unbrokenPeriodLiveStatus(events, required);
     return { required, done: Object.fromEntries(Object.entries(status).map(([pid, s]) => [pid, s.unbrokenPeriods.length])) };
-  }, [enforceUnbrokenPeriods, ageGroup, events]);
+  }, [ageGroup, events]);
   const issues = useMemo(
     () =>
       breakIssues({
@@ -347,6 +359,7 @@ export function LeagueBreak({
             minGameTimePct: leaguePlaybook?.minGameTimePct,
             homeLine: leaguePlaybook ? Object.fromEntries(Object.entries(leaguePlaybook.roles).map(([pid, r]) => [pid, r.home])) : undefined,
             unbroken,
+            positions: leaguePlaybook?.positions?.length ? leaguePlaybook : undefined,
           });
         },
         board: (l) => buildBoard(config.zones, withOut(l), sidelinedSet),
@@ -408,6 +421,7 @@ export function LeagueBreak({
       gameMs={msByPlayer}
       scores={scores}
       tags={tags}
+      positions={leaguePlaybook?.positions?.length ? positionLabels : undefined}
       sidelined={sidelined}
       onSwap={(a, b) => {
         shaped.current = true;

@@ -31,6 +31,8 @@ export interface TouchSeasonAggregate {
     losses: number;
   };
   perPlayer: Record<string, TouchSeasonPlayerStats>;
+  /** Tries nobody was named for, and their points: with the kids', points for. */
+  noScorer: { tries: number; points: number };
 }
 
 /** The season so far, from each finished game's events. */
@@ -43,6 +45,7 @@ export function aggregateTouchSeason(
   const out: TouchSeasonAggregate = {
     totals: { games: 0, pointsFor: 0, pointsAgainst: 0, wins: 0, draws: 0, losses: 0 },
     perPlayer: {},
+    noScorer: { tries: 0, points: 0 },
   };
   for (const game of games) {
     const state = replayTouchGame(eventsOf(game.id));
@@ -53,6 +56,10 @@ export function aggregateTouchSeason(
     if (state.teamScore.points > state.opponentScore.points) t.wins++;
     else if (state.teamScore.points < state.opponentScore.points) t.losses++;
     else t.draws++;
+
+    const sum = (byKid: Record<string, number>) => Object.values(byKid).reduce((s, n) => s + n, 0);
+    out.noScorer.tries += state.teamScore.tries - sum(state.playerTries);
+    out.noScorer.points += state.teamScore.points - sum(state.playerPoints);
 
     const ids = new Set([...Object.keys(state.ms), ...Object.keys(state.playerTries)]);
     ids.forEach((pid) => {

@@ -1,7 +1,9 @@
 // Steve 2026-10-21: "I'd like to show a chip in basketball to simply show
 // how many fouls a player has." Every tile (on court and on the bench)
-// carries an nF chip while the foul tally is on: muted early, amber two
-// short of fouling out, solid amber one short. The dock steps fouls up
+// carries an nF chip while the foul tally is on and the kid has a foul:
+// muted early, amber two short of fouling out, solid amber one short.
+// (UX audit 23 Oct 2026: a "0F" on every tile was clutter, so a kid
+// with no fouls has no chip.) The dock steps fouls up
 // and down; the long-press menu adds, takes back, or clears them.
 
 import { test, expect } from "@playwright/test";
@@ -41,8 +43,8 @@ test("basketball tiles show each kid's fouls, coloured by how close they are to 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
   const chip = (pid: string) => page.getByTestId(`fouls-${pid}`);
-  await expect(chip(k[0])).toHaveText("0F", { timeout: 15_000 });
-  await expect(chip(k[1])).toHaveText("3F");
+  await expect(chip(k[1])).toHaveText("3F", { timeout: 15_000 });
+  await expect(chip(k[0])).toHaveCount(0);
   await expect(chip(k[2])).toHaveText("4F");
   // On the bench too: fouls carry through the game.
   await expect(page.getByRole("group", { name: "Bench" }).getByTestId(`fouls-${k[5]}`)).toHaveText("2F");
@@ -51,7 +53,7 @@ test("basketball tiles show each kid's fouls, coloured by how close they are to 
   const amber = "rgb(168, 89, 15)";
   expect(await bg(k[2])).toBe(amber);
   expect(await bg(k[1])).not.toBe(amber);
-  expect(await bg(k[1])).not.toBe(await bg(k[0]));
+  expect(await bg(k[1])).not.toBe(await bg(k[5]));
   await expect(chip(k[1])).toHaveCSS("color", amber);
 
   // Long-press: add a foul.
@@ -71,5 +73,118 @@ test("basketball tiles show each kid's fouls, coloured by how close they are to 
   // The long-press menu clears them all.
   await page.getByTestId(`player-tile-${k[2]}`).click({ delay: 600 });
   await page.getByTestId("basketball-clear-fouls").click({ timeout: 5_000 });
-  await expect(chip(k[2])).toHaveText("0F", { timeout: 15_000 });
+  await expect(chip(k[2])).toHaveCount(0, { timeout: 15_000 });
+});
+
+async function seedFoulGame(name: string) {
+  const admin = createAdminClient();
+  const { data } = await admin.auth.admin.listUsers();
+  const ownerId = data.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, { ownerId, sport: "basketball", ageGroup: "U12", name: `${name}-${Date.now() % 100000}` });
+  await admin.from("teams").update({ track_scoring: true, track_fouls: true }).eq("id", team.id);
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 8 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  const k = players.map((p) => p.id);
+  const lineup = { lines: { guard: k.slice(0, 2), forward: k.slice(2, 5), court: [] }, bench: k.slice(5) };
+  const start = Date.now() - 60_000;
+  const ev = (type: string, s: number, metadata: Record<string, unknown>, player_id: string | null = null) => ({
+    game_id: game.id,
+    type,
+    player_id,
+    metadata: { quarter: 1, elapsed_ms: s * 1000, ...metadata, sport: "basketball" },
+    created_by: ownerId,
+    created_at: new Date(start + s * 1000).toISOString(),
+  });
+  return { admin, ownerId, team, game, k, lineup, ev };
+}
+
+// UX audit 23 Oct 2026 (P1): a mistaken fifth foul couldn't be taken
+// back — a fouled-out kid's actions said only "Fouled out … Close".
+test("a mistaken fifth foul can be taken back, and the kid is back in the game", async ({ page }) => {
+  const { admin, team, game, k, lineup, ev } = await seedFoulGame("BBL-UNFOUL");
+  // k[5] on the bench: five fouls and fouled out, as the app writes it.
+  await admin.from("game_events").insert([
+    ev("lineup_set", 0, { lineup }),
+    ev("quarter_start", 0, {}),
+    ...[1, 2, 3, 4, 5].map((s) => ev("foul", s, { kind: "personal" }, k[5])),
+    ev("injury", 6, { injured: true, reason: "fouled_out" }, k[5]),
+    ev("two_pointer", 7, {}, k[5]),
+  ]);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  const tile = page.getByRole("group", { name: "Bench" }).getByTestId(`player-tile-${k[5]}`);
+  // The bench tile's fouled-out badge fits inside the tile.
+  const out = tile.getByLabel("Fouled out");
+  await expect(out).toHaveText("OUT", { timeout: 15_000 });
+  const [outBox, tileBox] = [await out.boundingBox(), await tile.boundingBox()];
+  expect(outBox!.x + outBox!.width).toBeLessThanOrEqual(tileBox!.x + tileBox!.width - 4);
+
+  await tile.click();
+  const actions = page.getByRole("dialog");
+  await expect(actions).toContainText(/fouled out/i);
+  await actions.getByRole("button", { name: /take back the last foul/i }).click();
+
+  // The foul is undone and the foul-out lifted: 4F, no OUT, back in play.
+  await expect(page.getByTestId(`fouls-${k[5]}`)).toHaveText("4F", { timeout: 15_000 });
+  await expect(tile.getByLabel("Fouled out")).toHaveCount(0);
+  // The take-back is optimistic (live-chrome): the screen moves first and
+  // the save lands a moment later, so wait for the lift to reach the DB.
+  await expect
+    .poll(
+      async () => {
+        const { data: lifts } = await admin
+          .from("game_events")
+          .select("metadata")
+          .eq("game_id", game.id)
+          .eq("type", "injury")
+          .eq("player_id", k[5]);
+        return (lifts ?? []).some((e) => (e.metadata as { injured?: boolean }).injured === false);
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(true);
+});
+
+// UX audit 23 Oct 2026: "Fouled out" from the long-press was one tap with
+// no confirm. It asks first now.
+test("marking a kid fouled out by hand asks first", async ({ page }) => {
+  const { admin, team, game, k, lineup, ev } = await seedFoulGame("BBL-FOCONF");
+  await admin.from("game_events").insert([ev("lineup_set", 0, { lineup }), ev("quarter_start", 0, {})]);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  const fouledOut = async () => {
+    const { data } = await admin.from("game_events").select("id").eq("game_id", game.id).eq("type", "injury").eq("player_id", k[6]);
+    return (data ?? []).length;
+  };
+  const bench = page.getByRole("group", { name: "Bench" });
+  await bench.getByTestId(`player-tile-${k[6]}`).click({ delay: 600, timeout: 15_000 });
+  await page.getByTestId("basketball-foul-out").click();
+  // A confirm, not the deed.
+  const confirm = page.getByRole("button", { name: /^yes, fouled out/i });
+  await expect(confirm).toBeVisible();
+  await page.waitForTimeout(500);
+  expect(await fouledOut()).toBe(0);
+  // Back: nothing happens.
+  await page.getByRole("button", { name: /^back$/i }).click();
+  await expect(page.getByTestId("basketball-foul-out")).toBeVisible();
+  await page.getByTestId("basketball-foul-out").click();
+  await confirm.click();
+  await expect.poll(fouledOut, { timeout: 15_000 }).toBe(1);
+});
+
+// UX audit 23 Oct 2026: "2P" read like a position. Points say so.
+test("a scorer's tile says points, not 2P", async ({ page }) => {
+  const { admin, team, game, k, lineup, ev } = await seedFoulGame("BBL-PTS");
+  // The scorer is on the bench now: a court tile marked to come off
+  // shows OFF in place of the points.
+  await admin.from("game_events").insert([ev("lineup_set", 0, { lineup }), ev("quarter_start", 0, {}), ev("two_pointer", 2, {}, k[6])]);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  await expect(page.getByTestId(`player-tile-${k[6]}`).getByLabel("2 points")).toHaveText("2 PTS", { timeout: 15_000 });
 });

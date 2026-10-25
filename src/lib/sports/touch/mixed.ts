@@ -160,6 +160,41 @@ export function mixedFieldMessage(plan: MixedFieldPlan): string {
   return `You can field ${plan.size}: ${parts.length > 0 ? `${parts.join(", ")} and ${last}` : last}`;
 }
 
+/** How a field breaks the mixed rule: a sentence, and the pinned chip's short form. */
+export interface MixedFieldBreach {
+  /** "4 boys on: the mixed rule allows 3" */
+  text: string;
+  /** "4 boys on · rule 3" */
+  short: string;
+}
+
+/**
+ * How the kids on the field break the rule (the boys' cap first, then
+ * the girls and boys it needs), or null when they keep it. Kids with no
+ * group count towards neither.
+ */
+export function mixedFieldBreach(
+  onField: readonly string[],
+  rule: MixedRule,
+  groupOf: (id: string) => MixedGroup | null | undefined,
+): MixedFieldBreach | null {
+  const { boys, girls } = countMixedGroups(onField, groupOf);
+  const on = (n: number, one: string, many: string) => (n === 0 ? `No ${one} on` : `${plural(n, one, many)} on`);
+  if (boys > rule.maxBoys) {
+    const lead = on(boys, "boy", "boys");
+    return { text: `${lead}: the mixed rule allows ${rule.maxBoys}`, short: `${lead} · rule ${rule.maxBoys}` };
+  }
+  if (girls < rule.minGirls) {
+    const lead = on(girls, "girl", "girls");
+    return { text: `${lead}: the mixed rule needs ${rule.minGirls}`, short: `${lead} · rule ${rule.minGirls}` };
+  }
+  if (boys < rule.minBoys) {
+    const lead = on(boys, "boy", "boys");
+    return { text: `${lead}: the mixed rule needs ${rule.minBoys}`, short: `${lead} · rule ${rule.minBoys}` };
+  }
+  return null;
+}
+
 /** The rule in words: "At most 3 boys on the field, at least 1 girl and 1 boy." */
 export function mixedRuleSummary(rule: MixedRule): string {
   const mins = [

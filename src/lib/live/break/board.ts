@@ -174,6 +174,12 @@ export interface FixSearch<L> {
   maxSwaps?: number;
   /** Most rule checks to run (default 600). */
   budget?: number;
+  /**
+   * The sport's ranking of a swap, higher tried first, among swaps that
+   * move the rule's kids alike (hockey: the kid told to kit up goes in
+   * goal before anyone else would).
+   */
+  prefer?: (a: BoardSlot, b: BoardSlot) => number;
 }
 
 /**
@@ -210,7 +216,11 @@ export function findFix<L>(search: FixSearch<L>): [BoardSlot, BoardSlot][] | nul
       }
     }
     const names = (s: BoardSlot) => !!s.playerId && named.has(s.playerId);
-    pairs.sort((p, q) => Number(names(q[0]) || names(q[1])) - Number(names(p[0]) || names(p[1])));
+    const rank = search.prefer ?? (() => 0);
+    pairs.sort(
+      (p, q) =>
+        Number(names(q[0]) || names(q[1])) - Number(names(p[0]) || names(p[1])) || rank(q[0], q[1]) - rank(p[0], p[1]),
+    );
     let moved = false;
     for (const [a, b] of pairs) {
       if (tries++ >= budget) return null;

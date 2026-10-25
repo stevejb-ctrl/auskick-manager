@@ -62,6 +62,7 @@ import { BasketballCourt } from "./BasketballCourt";
 import { BasketballBench } from "./BasketballBench";
 import { BASKETBALL_LINE_LABEL } from "./BasketballPlayerTile";
 import { basketballStrategyLabel } from "./basketballWords";
+import { squadLoanAverage } from "@/lib/live/liveChrome";
 
 const POSITION_LABEL = Object.fromEntries(BASKETBALL_POSITION_DEFS.map((p) => [p.key, p.label])) as Record<string, string>;
 
@@ -83,6 +84,8 @@ interface BasketballLineupPickerProps {
   initialLoanedIds: string[];
   availabilityPanel?: React.ReactNode;
   availabilityHref?: string | null;
+  /** Lent minutes in the season's other games, for the long-press sheet. */
+  seasonLoanMinutes?: Record<string, number>;
 }
 
 export function BasketballLineupPicker({
@@ -99,6 +102,7 @@ export function BasketballLineupPicker({
   initialLoanedIds,
   availabilityPanel,
   availabilityHref,
+  seasonLoanMinutes = {},
 }: BasketballLineupPickerProps) {
   const router = useRouter();
   const pickerRootRef = useRef<HTMLDivElement>(null);
@@ -415,6 +419,7 @@ export function BasketballLineupPicker({
       <LineupPickerFooter
         onFieldCount={courtIds.length}
         benchCount={lineup.bench.length}
+        onFieldLabel="on court"
         onSavePlan={auth.kind === "team" ? () => void handleSavePlan() : undefined}
         savePending={savePending}
         savedAt={savedAt}
@@ -429,11 +434,16 @@ export function BasketballLineupPicker({
         <LockModal
           player={actionPlayer}
           currentLock={null}
-          currentZone={null}
+          // The kid's line for the Switch hint, and the season's lent
+          // minutes, as on the live screen.
+          currentLine={(() => {
+            const line = basketballLineOf(lineup, actionPlayer.id);
+            return !line ? null : line === "court" ? "court" : BASKETBALL_LINE_LABEL[line];
+          })()}
           isInjured={false}
           isLoaned={loanedIds.has(actionPlayer.id)}
-          seasonLoanMins={0}
-          squadLoanMins={0}
+          seasonLoanMins={seasonLoanMinutes[actionPlayer.id] ?? 0}
+          squadLoanMins={squadLoanAverage(seasonLoanMinutes)}
           onUnlock={() => setActionPlayerId(null)}
           onSwitch={() => {
             setActionPlayerId(null);

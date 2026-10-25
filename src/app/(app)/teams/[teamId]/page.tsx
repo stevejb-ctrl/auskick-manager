@@ -14,7 +14,8 @@ import {
 import { getSeasonEvents } from "@/lib/season";
 import { outcomeOf, scoreFromEvents, seasonRecord, type GameScore } from "@/lib/results";
 import type { Game, GameEvent, Sport } from "@/lib/types";
-import { teamSport } from "@/lib/sports";
+import { getSportConfig, teamSport, type SurfaceArt } from "@/lib/sports";
+import { SurfaceMotif } from "@/components/brand/SurfaceMotif";
 import { PLAYHQ_TENANT } from "@/lib/playhq";
 import { teamSportById } from "@/lib/sports/teamSportById";
 import { notFound } from "next/navigation";
@@ -177,6 +178,7 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
           available={availMap.get(featuredGame.id) ?? 0}
           playerCount={playerCount}
           canRun={canRun}
+          surfaceArt={getSportConfig(sport).surfaceArt}
         />
       ) : (
         <EmptyHero teamId={params.teamId} />
@@ -408,31 +410,25 @@ function NextUpHero({
   available,
   playerCount,
   canRun,
+  surfaceArt,
 }: {
   teamId: string;
   game: Game;
   available: number;
   playerCount: number;
   canRun: boolean;
+  /** The sport's own surface: AFL's oval, a netball court, a pitch. */
+  surfaceArt: SurfaceArt;
 }) {
   const startsGameDay = canRun && isGameDay(game);
   return (
     <SFCard pad={0} className="overflow-hidden">
       <div className="relative overflow-hidden bg-gradient-to-br from-brand-700 to-brand-800 px-5 py-6 text-warm sm:px-8 sm:py-8">
-        {/* Decorative footy-field oval, top-right */}
-        <svg
-          aria-hidden="true"
+        {/* Decorative outline of the sport's surface, top-right */}
+        <SurfaceMotif
+          art={surfaceArt}
           className="pointer-events-none absolute -right-10 -top-8 opacity-[0.12]"
-          width="240"
-          height="260"
-          viewBox="0 0 200 220"
-          fill="none"
-          stroke="currentColor"
-        >
-          <ellipse cx="100" cy="110" rx="80" ry="100" strokeWidth="1.5" />
-          <ellipse cx="100" cy="110" rx="55" ry="75" strokeWidth="1" />
-          <line x1="100" y1="35" x2="100" y2="185" strokeWidth="1" opacity="0.6" />
-        </svg>
+        />
 
         <div className="relative">
           <Eyebrow className="!text-warm/70">

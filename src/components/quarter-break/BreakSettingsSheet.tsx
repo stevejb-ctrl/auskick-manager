@@ -222,6 +222,8 @@ export function BreakSettingsSheet({ size, injured, lent, arrived, markOut, pend
             injured.onToggle(id, true);
           }}
           onCancel={() => setPicker(null)}
+          // Settings pickers: a stray tap just closes, nothing is lost.
+          dismissOnBackdrop
         />
       )}
       {picker === "lend" && lent && (
@@ -236,6 +238,8 @@ export function BreakSettingsSheet({ size, injured, lent, arrived, markOut, pend
             lent.onToggle(id, true);
           }}
           onCancel={() => setPicker(null)}
+          // Settings pickers: a stray tap just closes, nothing is lost.
+          dismissOnBackdrop
         />
       )}
       {picker === "arrive" && arrived && (
@@ -250,6 +254,8 @@ export function BreakSettingsSheet({ size, injured, lent, arrived, markOut, pend
             arrived.onAdd(id);
           }}
           onCancel={() => setPicker(null)}
+          // Settings pickers: a stray tap just closes, nothing is lost.
+          dismissOnBackdrop
         />
       )}
       {picker === "out" && markOut && (
@@ -266,6 +272,8 @@ export function BreakSettingsSheet({ size, injured, lent, arrived, markOut, pend
             else markOut.onOut(id, null);
           }}
           onCancel={() => setPicker(null)}
+          // Settings pickers: a stray tap just closes, nothing is lost.
+          dismissOnBackdrop
         />
       )}
       {outFor &&

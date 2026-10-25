@@ -29,6 +29,7 @@ import { SOCCER_OUTFIELD_LINES, type SoccerFamilyRules, type SoccerKeeperStrateg
 import type {
   AgePolicy,
   EffectivePolicy,
+  LawRulesTeam,
   LineDef,
   LockedRule,
   PlaybookSnapshot,
@@ -182,9 +183,11 @@ export function soccerFamilyPlaybook(sport: SoccerSport, rules: SoccerFamilyRule
       return [];
     },
 
-    lawRules(policy: EffectivePolicy): LockedRule[] {
+    lawRules(policy: EffectivePolicy, _agePolicy: AgePolicy, team?: LawRulesTeam): LockedRule[] {
       return rules.ruleSource.laws
         .filter((law) => !law.ages || law.ages.includes(policy.ageGroup))
+        // "No scores are kept" isn't this team's rule once it keeps score.
+        .filter((law) => !(law.noScoreboard && team?.trackScoring))
         .map(({ id, text, source }) => ({ id, text, source }));
     },
 

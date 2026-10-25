@@ -10,8 +10,10 @@
 // netball/fairness.ts and is reused here verbatim.
 
 import {
+  playedZoneMsByPeriod,
   playerThirdMs,
   type PlayerThirdMs,
+  type ThirdLookup,
 } from "@/lib/sports/netball/fairness";
 import { primaryThirdFor, netballSport } from "@/lib/sports/netball";
 import type { Game, GameEvent, GameAvailability, Player } from "@/lib/types";
@@ -31,6 +33,12 @@ export interface NetballGameSnapshot {
   playerGoals: Record<string, number>;
   /** Per-player position-appearance count for THIS game (lineup events). */
   playerPositionCounts: Record<string, Partial<Record<NetballPosition, number>>>;
+  /**
+   * Per-player ms at each position THIS game: the same credit as
+   * playerThirdMs (mid-quarter subs included), split by bib, so a kid's
+   * positions add up to their thirds (UX audit 23 Oct 2026).
+   */
+  playerPositionMs: Record<string, Partial<Record<NetballPosition, number>>>;
   /** Team and opponent goals by quarter. Goals-only — netball has no behinds. */
   teamGoalsByQtr: Record<number, number>;
   oppGoalsByQtr: Record<number, number>;
@@ -57,6 +65,8 @@ export interface NetballPlayerSeasonStats {
   thirdMs: PlayerThirdMs;
   /** Per-position appearance count across the season. */
   positionCounts: Partial<Record<NetballPosition, number>>;
+  /** Per-position ms across the season; sums to totalMs. */
+  positionMs: Partial<Record<NetballPosition, number>>;
   goals: number;
   /** % of total possible on-court time across games they played. */
   teamGameTimePct: number;
@@ -107,6 +117,21 @@ export function replayNetballGameForStats(
   thirdMsMap.forEach((v, k) => {
     playerThirdMsRecord[k] = { ...v };
   });
+
+  // The same segments split by bib instead of by third: the per-period
+  // replay with each position as its own "zone", summed over periods.
+  const byBib = playedZoneMsByPeriod(sorted, quarterLengthSeconds, ((posId: string) => posId) as unknown as ThirdLookup);
+  const playerPositionMs: Record<string, Partial<Record<NetballPosition, number>>> = {};
+  for (const [pid, periods] of Object.entries(byBib)) {
+    const out: Partial<Record<NetballPosition, number>> = {};
+    for (const zoneMs of Object.values(periods)) {
+      for (const [pos, ms] of Object.entries(zoneMs)) {
+        const p = pos as NetballPosition;
+        if (ms > 0) out[p] = (out[p] ?? 0) + ms;
+      }
+    }
+    playerPositionMs[pid] = out;
+  }
 
   const playerGoals: Record<string, number> = {};
   const playerPositionCounts: Record<
@@ -212,6 +237,7 @@ export function replayNetballGameForStats(
     playerThirdMs: playerThirdMsRecord,
     playerGoals,
     playerPositionCounts,
+    playerPositionMs,
     teamGoalsByQtr,
     oppGoalsByQtr,
     quarterLengthMs,
@@ -234,6 +260,7 @@ export function computeNetballPlayerStats(
       totalMs: number;
       thirdMs: PlayerThirdMs;
       positionCounts: Partial<Record<NetballPosition, number>>;
+      positionMs: Partial<Record<NetballPosition, number>>;
       goals: number;
       onCourtCapacityMs: number;
     }
@@ -246,6 +273,7 @@ export function computeNetballPlayerStats(
         totalMs: 0,
         thirdMs: { attack: 0, centre: 0, defence: 0 },
         positionCounts: {},
+        positionMs: {},
         goals: 0,
         onCourtCapacityMs: 0,
       };
@@ -274,6 +302,10 @@ export function computeNetballPlayerStats(
         const p = pos as NetballPosition;
         row.positionCounts[p] = (row.positionCounts[p] ?? 0) + (n ?? 0);
       }
+      for (const [pos, ms] of Object.entries(snap.playerPositionMs?.[pid] ?? {})) {
+        const p = pos as NetballPosition;
+        row.positionMs[p] = (row.positionMs[p] ?? 0) + (ms ?? 0);
+      }
       row.goals += snap.playerGoals[pid] ?? 0;
     }
   }
@@ -289,6 +321,7 @@ export function computeNetballPlayerStats(
       avgMsPerGame: row.gamesPlayed > 0 ? row.totalMs / row.gamesPlayed : 0,
       thirdMs: row.thirdMs,
       positionCounts: row.positionCounts,
+      positionMs: row.positionMs,
       goals: row.goals,
       teamGameTimePct:
         row.onCourtCapacityMs > 0

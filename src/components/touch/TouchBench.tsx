@@ -4,7 +4,8 @@
 // The bench under the field. Mirrors AFL's Bench (the reference),
 // soccer's and basketball's: a "Bench (n)" card with a four-column grid
 // of tiles. A kid who can't come on (hurt, lent) has their tap open
-// their actions instead.
+// their actions instead. With a field kid picked, a bench kid whose
+// swap would break a mixed team's rule dims and says why.
 
 import type { Player } from "@/lib/types";
 import type { TouchLineMs } from "@/lib/sports/touch/replay";
@@ -30,6 +31,8 @@ interface TouchBenchProps {
   lockModes?: Record<string, "field" | "zone">;
   /** Tries each kid has scored; omitted when scoring is off. */
   triesByPlayer?: Record<string, number>;
+  /** Kids a swap with the selected kid would break a rule for, and why: their tiles dim. */
+  ruleNotes?: Record<string, string>;
 }
 
 export function TouchBench({
@@ -47,6 +50,7 @@ export function TouchBench({
   loanedIds,
   lockModes,
   triesByPlayer,
+  ruleNotes,
 }: TouchBenchProps) {
   const injuredSet = new Set(injuredIds ?? []);
   const loanedSet = new Set(loanedIds ?? []);
@@ -85,6 +89,7 @@ export function TouchBench({
                 loaned={loanedSet.has(pid)}
                 lockMode={lockModes?.[pid] ?? null}
                 score={triesByPlayer ? touchTryChip(triesByPlayer[pid]) : null}
+                ruleNote={ruleNotes?.[pid] ?? null}
               />
             );
           })}

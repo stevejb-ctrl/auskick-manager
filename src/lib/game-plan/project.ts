@@ -38,7 +38,7 @@ import type {
   GamePlanPlayerTotal,
   ProjectGamePlanInput,
 } from "./types";
-import { assignLeagueLines } from "@/lib/sports/rugby_league/engine";
+import { assignLeagueLines, canPlayPosition, restrictedKeysInForce } from "@/lib/sports/rugby_league/engine";
 import { rugbyForwards } from "@/lib/sports/rugby/lines";
 import { periodLabels } from "@/lib/sports";
 
@@ -448,6 +448,24 @@ function projectLeagueGamePlan(input: ProjectGamePlanInput): GamePlan {
     );
     const onFieldIds = ordered.slice(0, onFieldSize);
     const benchIds = ordered.slice(onFieldSize);
+    // A restricted spot in force (union's front row) keeps a kid picked
+    // for it on: if none is on and one sits out, they swap with the last
+    // kid in who isn't picked for any (UX audit, 23 Oct 2026).
+    if (pb?.positions) {
+      const inForce = restrictedKeysInForce(pb);
+      const pickedFor = (id: string, key: string) => canPlayPosition(pb, id, key, inForce);
+      inForce.forEach((key) => {
+        if (onFieldIds.some((id) => pickedFor(id, key))) return;
+        const sub = benchIds.find((id) => pickedFor(id, key));
+        if (!sub) return;
+        const out = [...onFieldIds]
+          .reverse()
+          .find((id) => !pb.roles[id]?.keepOn && !Array.from(inForce).some((k) => pickedFor(id, k)));
+        if (!out) return;
+        onFieldIds[onFieldIds.indexOf(out)] = sub;
+        benchIds[benchIds.indexOf(sub)] = out;
+      });
+    }
 
     // Split forwards / backs: by the kids' roles with How we play (the
     // same as the lineup), else re-shuffled per block so the same kids

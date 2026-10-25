@@ -34,8 +34,12 @@ export interface LeaguePlaybookInput {
   rules?: RuleInstance[];
   vestStrategy: VestStrategy;
   minGameTimePct?: number;
-  /** Named positions (5.7): the catalogue in force and each kid's home / also. */
-  positions?: { key: string; label: string; line: LeagueLine }[];
+  /**
+   * Named positions (5.7): the catalogue in force and each kid's home /
+   * also. `restricted`: only kids picked for it play there (union's
+   * front row).
+   */
+  positions?: { key: string; label: string; line: LeagueLine; restricted?: boolean }[];
   positionRoles?: Record<string, { home: string | null; also: string[]; never: string[] }>;
   /** ms per player per named position this season (since a reset), from recorded slots. */
   seasonPositions?: UnitTime;
@@ -61,7 +65,13 @@ export function leaguePlaybookInput(
   let positionRoles: LeaguePlaybookInput["positionRoles"];
   if (model?.unit === "position") {
     // Named positions: a kid's home position decides their line.
-    positions = resolved.positions.map((p) => ({ key: p.key, label: p.label, line: p.line as LeagueLine }));
+    const restricted = resolved.positionModel.restricted;
+    positions = resolved.positions.map((p) => ({
+      key: p.key,
+      label: p.label,
+      line: p.line as LeagueLine,
+      ...(restricted?.(p) ? { restricted: true } : {}),
+    }));
     const lineOf = new Map(positions.map((p) => [p.key, p.line]));
     positionRoles = {};
     for (const [pid, r] of Object.entries(rolesFromPrefs(prefs, "position"))) {
@@ -186,9 +196,61 @@ export function nextInOrder(
 }
 
 /**
+ * Restricted spots in force (union's front row): those the coach has
+ * picked at least one kid for. Until anyone's picked, a spot is open to
+ * all — Siren can't know who's been trained for it.
+ */
+export function restrictedKeysInForce(input: LeaguePlaybookInput | null | undefined): Set<string> {
+  const out = new Set<string>();
+  const roles = Object.values(input?.positionRoles ?? {});
+  for (const p of input?.positions ?? []) {
+    if (p.restricted && roles.some((r) => r.home === p.key || r.also.includes(p.key))) out.add(p.key);
+  }
+  return out;
+}
+
+/** Whether a kid may play a position: not never-plays, and picked for a restricted spot in force. */
+export function canPlayPosition(
+  input: LeaguePlaybookInput | null | undefined,
+  pid: string,
+  key: string,
+  inForce: ReadonlySet<string> = restrictedKeysInForce(input),
+): boolean {
+  const role = input?.positionRoles?.[pid];
+  if (role?.never.includes(key)) return false;
+  if (!inForce.has(key)) return true;
+  return role?.home === key || (role?.also ?? []).includes(key);
+}
+
+export interface RestrictedMisfit {
+  playerId: string;
+  key: string;
+  label: string;
+}
+
+/** Kids holding a restricted spot in force they aren't picked for (playerId → position key in). */
+export function restrictedMisfits(
+  slots: Record<string, string>,
+  input: LeaguePlaybookInput | null | undefined,
+): RestrictedMisfit[] {
+  const inForce = restrictedKeysInForce(input);
+  if (inForce.size === 0) return [];
+  const labelOf = new Map((input?.positions ?? []).map((p) => [p.key, p.label]));
+  return Object.entries(slots)
+    .filter(([pid, key]) => inForce.has(key) && !canPlayPosition(input, pid, key, inForce))
+    .map(([playerId, key]) => ({ playerId, key, label: labelOf.get(key) ?? key }));
+}
+
+/**
  * Named positions (UX plan 5.7, Mod League): who wears which catalogue
  * position within each line — home first, then also-plays, then the
  * line's positions in formation order. playerId → label for the tiles.
+ *
+ * A restricted spot in force (union's front row) goes only to a kid
+ * picked for it: one with nowhere yet, else one moved up from a spot
+ * that isn't restricted. An unpicked kid takes it only when nothing
+ * else is left in the line (restrictedMisfits flags it). UX audit,
+ * 23 Oct 2026: half time dealt the front row to a fullback and a lock.
  *
  * `held`: mid-period, the slots kids already hold (leagueSlotsNow — a
  * sub takes over the slot of the kid they replace). They keep them, and
@@ -208,9 +270,11 @@ export function assignLeaguePositions(
   // they've played least this season. Off = catalogue order.
   const season = input.seasonWeight > 0 ? input.seasonPositions : undefined;
   const msAt = (pid: string, key: string) => season?.[pid]?.[key] ?? 0;
+  const inForce = restrictedKeysInForce(input);
+  const picked = (pid: string, key: string) => canPlayPosition(input, pid, key, inForce);
   for (const line of ["forwards", "backs"] as const) {
     const players = lineup[line];
-    const free = input.positions.filter((p) => p.line === line);
+    const free: NonNullable<LeaguePlaybookInput["positions"]> = input.positions.filter((p) => p.line === line);
     const taken = new Set<string>();
     const place = (pid: string, key: string) => {
       if (out[pid] || taken.has(key) || !free.some((p) => p.key === key)) return false;
@@ -226,23 +290,41 @@ export function assignLeaguePositions(
       const home = roles[pid]?.home;
       if (home) place(pid, home);
     }
+    // Restricted spots in force: a picked kid with nowhere yet, else one
+    // moved up from a spot that isn't restricted (never from a slot held
+    // mid-period).
+    for (const p of free) {
+      if (!inForce.has(p.key) || taken.has(p.key)) continue;
+      const candidates: string[] = players.filter(
+        (pid) => picked(pid, p.key) && !(out[pid] && inForce.has(out[pid])) && !(held?.[pid] && out[pid] === held[pid]),
+      );
+      const pick = candidates.find((pid) => !out[pid]) ?? candidates[0];
+      if (!pick) continue;
+      if (out[pick]) {
+        taken.delete(out[pick]);
+        delete out[pick];
+      }
+      place(pick, p.key);
+    }
     for (const pid of players) {
       if (out[pid]) continue;
       const also = [...(roles[pid]?.also ?? [])].sort((a, b) => msAt(pid, a) - msAt(pid, b));
       for (const k of also) if (place(pid, k)) break;
     }
-    // Everyone else fills the free spots, least-played pairing first.
+    // Everyone else fills the free spots, least-played pairing first —
+    // a restricted spot in force only for a kid picked for it.
     const open = players.filter((pid) => !out[pid]);
     const pairs: { pid: string; key: string; ms: number; i: number; j: number }[] = [];
     open.forEach((pid, i) =>
       free.forEach((p, j) => {
-        if (!(roles[pid]?.never ?? []).includes(p.key)) pairs.push({ pid, key: p.key, ms: msAt(pid, p.key), i, j });
+        if (picked(pid, p.key)) pairs.push({ pid, key: p.key, ms: msAt(pid, p.key), i, j });
       }),
     );
     pairs.sort((a, b) => a.ms - b.ms || a.i - b.i || a.j - b.j);
     for (const c of pairs) place(c.pid, c.key);
+    // Anyone left takes what's left, a restricted spot last.
     for (const pid of open) {
-      const pos = free.find((p) => !taken.has(p.key));
+      const pos = free.find((p) => !taken.has(p.key) && !inForce.has(p.key)) ?? free.find((p) => !taken.has(p.key));
       if (!out[pid] && pos) place(pid, pos.key);
     }
   }

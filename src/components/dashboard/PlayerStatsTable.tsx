@@ -165,7 +165,8 @@ export function PlayerStatsTable({ stats, hasData }: Props) {
   );
 }
 
-function Metric({
+/** One number with its label under it (shared with netball's stats cards). */
+export function Metric({
   label,
   value,
   accent,
@@ -190,7 +191,8 @@ function Metric({
   );
 }
 
-function ZonePill({
+/** A zone's share in its colour (shared with netball's stats cards). */
+export function ZonePill({
   abbr,
   pct,
   tone,

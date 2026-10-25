@@ -18,7 +18,7 @@ import { Bench } from "@/components/live/Bench";
 import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import { GameHeader } from "@/components/live/GameHeader";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
-import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
+import { SwapDoneToast } from "@/components/live/SwapDoneToast";
 import { SwapCard } from "@/components/live/SwapCard";
 import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
@@ -1195,8 +1195,12 @@ export function LiveGame({
     quarterMs,
     effectiveSubIntervalMs: subIntervalMs,
   });
+  // No sub is due once the siren's gone: the quarter-end modal waits on
+  // the coach with quarterEnded still false, and a "Sub due" card sat
+  // behind it through quarter time and full time (AFL audit, 23 Oct 2026).
+  const periodClockDone = quarterEnded || showQuarterEndModal || (quarterMs > 0 && nowMs >= quarterMs);
   const msUntilDue =
-    subBaseMs !== null && !isPreGame && !isFinished
+    subBaseMs !== null && !isPreGame && !isFinished && !periodClockDone
       ? subBaseMs + subIntervalMs - nowMs
       : null;
   // Steve's real-game scenario: lent a player to the opposition,
@@ -1569,46 +1573,10 @@ export function LiveGame({
         />
       )}
 
-      {/* Swap-done toast — flashes briefly after a substitution lands.
-          Wrapped in SirenPulseHalo so the brand pulse halos the toast
-          on appearance. The toast is conditionally rendered (mounts +
-          unmounts each swap), so a constant triggerKey is enough — the
-          halo's inner span re-mounts with the wrapper and the
-          animation restarts each time.
-
-          OVERLAY, not in flow (UI polish audit §7): rendered in-flow
-          it pushed the whole field ~44px down on mount and snapped
-          back 2.5s later — twice per sub, right as the coach's eye is
-          on the two tiles that changed. The zero-height relative
-          wrapper keeps the document where it is; the toast floats
-          over the content below. */}
-      {swapToast && !isPreGame && !isFinished && (
-        <div className="relative z-30 h-0">
-          <div className="absolute inset-x-0 top-0">
-            <SirenPulseHalo triggerKey="swap" size="sm" display="block" className="rounded-sm">
-              {/* slide-in-bottom (220ms) so the toast rises from below
-                  instead of popping in. The SirenPulseHalo wraps it and
-                  fires its own one-shot halo on the same beat. Exit is a
-                  hard cut at 2.5s — coach is on to the next moment, no
-                  value in animating the disappearance. P1-6 in
-                  MICRO-INTERACTIONS-PLAN.md. */}
-              <div
-                role="status"
-                aria-live="polite"
-                className="flex items-center gap-2 rounded-sm border border-brand-200 bg-brand-50 px-3 py-1.5 text-brand-800 shadow-pop motion-safe:animate-slide-in-bottom"
-              >
-                <span
-                  aria-hidden
-                  className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-[11px] font-bold leading-none text-warm"
-                >
-                  ✓
-                </span>
-                <span className="text-xs font-semibold">{swapToast}</span>
-              </div>
-            </SirenPulseHalo>
-          </div>
-        </div>
-      )}
+      {/* Swap-done toast — flashes briefly after a substitution lands
+          (the shared SwapDoneToast, an overlay that doesn't push the
+          field down). */}
+      {swapToast && !isPreGame && !isFinished && <SwapDoneToast text={swapToast} />}
 
       {/* Undo strip is rendered inside the sticky-bottom bar
           during live play (Steve 2026-05-13). The lastScore +
@@ -1834,13 +1802,10 @@ export function LiveGame({
             isAdmin={isAdmin}
             finished={finalised}
             // Steve 2026-05-20: mid-game settings affordance —
-            // currently just the sub-interval override (drives
-            // the sub-due reminder cadence), but the settings modal
-            // is set up to take more knobs over time without
-            // adding new buttons to this row. AFL-only — the
-            // netball live shell doesn't pass this slot because
-            // netball has no sub-interval concept.
-            extra={
+            // the sub interval and players on field. The row's
+            // standard settings slot; every sport with a sub
+            // interval passes one (netball has none).
+            settings={
               <LiveGameSettingsButton
                 auth={auth}
                 gameId={gameId}
@@ -2023,6 +1988,7 @@ export function LiveGame({
           SwapConfirmDialog so the visual language stays consistent. */}
       {clockMenuOpen && (
         <ClockMenu
+          sport="afl"
           periodAbbr={`Q${currentQuarter}`}
           running={running}
           onPause={handlePause}
@@ -2037,6 +2003,8 @@ export function LiveGame({
       {showManualEndConfirm && (
         <ManualEndQuarterConfirm
           quarter={currentQuarter}
+          sport="afl"
+          clock={running ? "running" : "paused"}
           onConfirm={() => {
             setShowManualEndConfirm(false);
             handleEndQuarter({ creditFullQuarter: true });
@@ -2618,6 +2586,7 @@ export function LiveGame({
               setSubOffSelected(null);
             }}
             onCancel={() => setSubOffSelected(null)}
+            dismissOnBackdrop
           />
         );
       })()}
@@ -2632,6 +2601,8 @@ export function LiveGame({
           opponentName={opponentName}
           trackScoring={trackScoring}
           playersById={playersById}
+          // Finishing refreshes the route, so the replay has every swap.
+          subCount={initialState.subCount}
           presentIds={[
             ...(["back", "hback", "mid", "hfwd", "fwd"] as Zone[]).flatMap((z) => lineup[z]),
             ...lineup.bench,

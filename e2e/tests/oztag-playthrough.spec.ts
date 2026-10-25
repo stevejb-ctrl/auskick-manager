@@ -7,10 +7,11 @@
 //      "Move to wings" moves a kid mid-half.
 //   2. A U10 mixed team (ITF rule 3.3: at most 4 boys, at least 1 girl):
 //      a try credited to a girl records a girl's try and scores 2, a boy's
-//      scores 1; the opponent's chips are +1 and +2 (girl); "Not sure who
-//      — a girl's try" counts 2 with no scorer, and undo takes it back.
+//      scores 1; the opponent's chips are +T and +2 (girl), on one row
+//      beside ours at 390 px; "Not sure who — a girl's try" counts 2
+//      with no scorer, and undo takes it back.
 
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
@@ -122,7 +123,7 @@ test("oztag U10 single-gender: lanes 2-4-2, no Girl/Boy, lanes rotate at half-ti
   expect(errors).toEqual([]);
 });
 
-test("oztag U10 mixed: a girl's try scores 2, a boy's 1, the opponent's +1 and +2 (girl), undo", async ({ page }) => {
+test("oztag U10 mixed: a girl's try scores 2, a boy's 1, the opponent's +T and +2 (girl) on one row, undo", async ({ page }) => {
   test.setTimeout(240_000);
   const errors: string[] = [];
   page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
@@ -162,6 +163,10 @@ test("oztag U10 mixed: a girl's try scores 2, a boy's 1, the opponent's +1 and +
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
   await expect(page.getByRole("heading", { name: /under 10 starting side/i })).toBeVisible({ timeout: 15_000 });
+  // The pre-game rule check: four boys is Oztag's cap, kept.
+  await expect(page.getByTestId("rule-check-summary")).toHaveText("All rules kept");
+  await page.getByTestId("rule-check-summary").click();
+  await expect(page.getByTestId("rule-check")).toContainText("Mixed rule kept: 4 of 4 boys, 4 girls");
   await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
   await page.getByRole("button", { name: /^start h1 now$/i }).click({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: /^clock — h1, running$/i })).toBeVisible({ timeout: 15_000 });
@@ -184,10 +189,26 @@ test("oztag U10 mixed: a girl's try scores 2, a boy's 1, the opponent's +1 and +
   await page.getByTestId("touch-dock-try").click({ timeout: 5_000 });
   await expect.poll(() => count("try")).toBe(1);
 
-  // The opponent: +1 and +2 (girl).
-  await page.getByRole("button", { name: "Add a try, Charlestown Chargers" }).click({ timeout: 5_000 });
+  // The opponent: a try, "+T" as ours reads, and a girl's try, "+2"
+  // marked girl, one row a side on an iPhone (audit 23 Oct, P2: "+1" and
+  // "+2 (girl)" stacked into a column at 390 px and the bar covered
+  // about 30% of the screen, Finish game included).
+  await page.setViewportSize({ width: 390, height: 844 });
+  const ourTry = page.getByRole("button", { name: `Add a try, ${teamName}` });
+  const theirTry = page.getByRole("button", { name: "Add a try, Charlestown Chargers" });
+  const theirGirls = page.getByRole("button", { name: "Add a girl's try, 2 points, Charlestown Chargers" });
+  await expect(ourTry).toHaveText("+T");
+  await expect(theirTry).toHaveText("+T");
+  await expect(theirGirls).toContainText("+2");
+  const bottomOf = async (chip: Locator) => {
+    const box = (await chip.boundingBox())!;
+    return box.y + box.height;
+  };
+  expect(Math.abs((await bottomOf(theirTry)) - (await bottomOf(theirGirls))), "the opponent's chips share a row").toBeLessThan(4);
+  expect(Math.abs((await bottomOf(ourTry)) - (await bottomOf(theirTry))), "one row of chips a side").toBeLessThan(4);
+  await theirTry.click({ timeout: 5_000 });
   await expect.poll(() => count("opponent_try")).toBe(1);
-  await page.getByRole("button", { name: "Add a girl's try, 2 points, Charlestown Chargers" }).click({ timeout: 5_000 });
+  await theirGirls.click({ timeout: 5_000 });
   await expect.poll(() => count("opponent_girls_try")).toBe(1);
 
   // Not sure who scored, but it was a girl: 2 with no scorer.
@@ -220,7 +241,9 @@ test("oztag U10 mixed: a girl's try scores 2, a boy's 1, the opponent's +1 and +
   await page.getByRole("button", { name: /^end\s*h\s*1$/i }).click();
   await expect(page.getByRole("heading", { name: /^2nd half lineup$/i })).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: /review and update scores/i }).click({ timeout: 5_000 });
-  await expect(page.getByRole("button", { name: "Add a girl's try, Charlestown Chargers" })).toBeVisible();
+  // The break's editor offers the same chips.
+  await expect(page.getByRole("button", { name: "Add a try, Charlestown Chargers" })).toHaveText("+T");
+  await expect(page.getByRole("button", { name: "Add a girl's try, 2 points, Charlestown Chargers" })).toBeVisible();
 
   expect(errors).toEqual([]);
 });

@@ -8,10 +8,10 @@
 // Defence / Keeper, futsal's Front / Wings / Back, hockey's Strikers /
 // Midfield / Defenders) and its age group's halves or quarters. Where
 // keeper kit takes minutes (hockey), the kid told to kit up before the
-// break starts in goal. The plan is staged in the shared break draft (so
-// it survives a reload or the app being backgrounded) and Start commits
-// it as one lineup_set before the period starts. The layout lives in
-// PeriodBreak.
+// break starts in goal, whichever plan the coach picks (Manual aside).
+// The plan is staged in the shared break draft (so it survives a reload
+// or the app being backgrounded) and Start commits it as one lineup_set
+// before the period starts. The layout lives in PeriodBreak.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -43,7 +43,7 @@ import {
   type SoccerUnit,
 } from "@/lib/sports/soccer/types";
 import type { Game, LiveAuth, Player } from "@/lib/types";
-import { kitUpKey, readKitUp, withAnnouncedKeeper, writeKitUp } from "./keeperKitUp";
+import { breakPlansWithKeeper, kitUpKey, preferAnnouncedKeeper, readKitUp, writeKitUp } from "./keeperKitUp";
 
 const GROUPS = ["att", "mid", "def", "field", "gk"] as const;
 
@@ -82,6 +82,8 @@ interface Props {
   /** The game at the break (no open stints). */
   state: SoccerGameState;
   periodMs: number;
+  /** Our name, over our column in the score sheet. */
+  teamName: string;
   trackScoring: boolean;
   season?: SoccerSeasonBalance;
   keeperStrategy?: SoccerKeeperStrategy;
@@ -99,6 +101,7 @@ export function SoccerBreak({
   ageGroup,
   state,
   periodMs,
+  teamName,
   trackScoring,
   season,
   keeperStrategy,
@@ -109,7 +112,9 @@ export function SoccerBreak({
   const period = state.currentPeriod; // the half just ended
   const nextPeriod = period + 1;
   const rules = soccerFamilyRules(sport);
-  const periodLetter = periodLabels(sport, ageGroup).label.charAt(0).toUpperCase();
+  const periodLabel = periodLabels(sport, ageGroup).label;
+  const periodLetter = periodLabel.charAt(0).toUpperCase();
+  const periodTitle = periodLetter + periodLabel.slice(1);
   const strategyForKeeper = keeperStrategy ?? ageGroup.keeper;
   const playerById = useMemo(() => new Map(squad.map((p) => [p.id, p])), [squad]);
   const injuredSet = useMemo(() => new Set(state.injuredIds), [state.injuredIds]);
@@ -152,14 +157,6 @@ export function SoccerBreak({
   useEffect(() => {
     setAnnouncedKeeper(readKitUp(kitUpKey(game.id, period)));
   }, [game.id, period]);
-  const suggested = useMemo(
-    () => withAnnouncedKeeper(plan.lineup, announcedKeeper, sidelinedSet) ?? plan.lineup,
-    [plan.lineup, announcedKeeper, sidelinedSet],
-  );
-  const repeat = useMemo(
-    () => (previousLineup ? benchOutInSoccerLineup(previousLineup, sidelinedSet) : suggested),
-    [previousLineup, sidelinedSet, suggested],
-  );
   const manual = useMemo<SoccerLineup>(
     () => ({ keeper: null, lines: { def: [], mid: [], att: [], field: [] }, bench: [...healthy, ...sidelinedInGame] }),
     [healthy, sidelinedInGame],
@@ -167,8 +164,8 @@ export function SoccerBreak({
   // Rotate: the half-time plan's keeper goes in goal; everyone else moves
   // up a line (defence → midfield → attack → defence), the shape kept,
   // least-played on.
-  const rotated = useMemo<SoccerLineup>(() => {
-    const keeper = plan.formation.keeper ? suggested.keeper : null;
+  const rotatedPlan = useMemo<SoccerLineup>(() => {
+    const keeper = plan.formation.keeper ? plan.lineup.keeper : null;
     const shape = plan.formation.lines;
     const out = rotateGroups({
       players: healthy.filter((id) => id !== keeper),
@@ -185,7 +182,26 @@ export function SoccerBreak({
       sidelinedIds: sidelinedInGame,
     });
     return lineupOf({ groups: { ...out.groups, gk: keeper ? [keeper] : [] }, bench: out.bench });
-  }, [plan, suggested, healthy, state.ms, gameMs, previousLineup, sidelinedInGame]);
+  }, [plan, healthy, state.ms, gameMs, previousLineup, sidelinedInGame]);
+  // Every plan but Manual puts the kit-up keeper in goal.
+  const {
+    suggested,
+    rotate: rotated,
+    repeat,
+  } = useMemo(
+    () =>
+      breakPlansWithKeeper(
+        {
+          suggested: plan.lineup,
+          rotate: rotatedPlan,
+          repeat: previousLineup ? benchOutInSoccerLineup(previousLineup, sidelinedSet) : plan.lineup,
+          manual,
+        },
+        announcedKeeper,
+        sidelinedSet,
+      ),
+    [plan.lineup, rotatedPlan, previousLineup, sidelinedSet, manual, announcedKeeper],
+  );
 
   // ── The staged plan ─────────────────────────────────────────
   const persistedRotationMode = useLiveGame((s) => s.rotationMode);
@@ -206,13 +222,13 @@ export function SoccerBreak({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [strategy]);
   // The kit-up keeper is read after the first render: put them in goal
-  // then, once, unless the coach has already shaped the plan or a staged
-  // one was restored.
+  // then, once, in the plan on screen (Manual's is empty), unless the
+  // coach has already shaped the plan or a staged one was restored.
   const shaped = useRef(false);
   useEffect(() => {
-    if (!announcedKeeper || shaped.current || lastApplied.current !== "suggested") return;
+    if (!announcedKeeper || shaped.current || lastApplied.current === "manual") return;
     shaped.current = true;
-    setDraft(suggested);
+    setDraft(forStrategy(lastApplied.current));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [announcedKeeper]);
 
@@ -344,9 +360,11 @@ export function SoccerBreak({
         sidelined: sidelinedSet,
         // Soccer's own check already says "playing short".
         emptySpots: false,
+        // Fix puts the kit-up keeper in goal before anyone else.
+        preferFix: preferAnnouncedKeeper(announcedKeeper),
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [draft, sidelinedSet, state, ageGroup, rules, game.on_field_size, nextPeriod, periodMs, names, strategyForKeeper, keeperPrefs, config.zones],
+    [draft, sidelinedSet, state, ageGroup, rules, game.on_field_size, nextPeriod, periodMs, names, strategyForKeeper, keeperPrefs, config.zones, announcedKeeper],
   );
 
   const asBreakPlayer = (p: Player): BreakPlayer => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number });
@@ -400,12 +418,23 @@ export function SoccerBreak({
                     currentQuarter={period}
                     quarterEnded={true}
                     sport="netball"
+                    totalQuarters={ageGroup.periodCount}
                     periodLetter={periodLetter}
-                    teamName="Us"
+                    periodWord={periodTitle}
+                    teamName={teamName}
                     opponentName={game.opponent || "Them"}
                   />
                   <div className="border-t border-hairline pt-4">
-                    <ScoreReviewPanel auth={auth} gameId={game.id} players={squad} includeBehinds={false} defaultQuarter={period} />
+                    <ScoreReviewPanel
+                      auth={auth}
+                      gameId={game.id}
+                      players={squad}
+                      includeBehinds={false}
+                      defaultQuarter={period}
+                      periodCount={ageGroup.periodCount}
+                      periodLetter={periodLetter}
+                      periodWord={periodTitle}
+                    />
                   </div>
                 </div>
               ),

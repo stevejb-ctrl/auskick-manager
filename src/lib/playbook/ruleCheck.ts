@@ -37,6 +37,13 @@ export interface RuleCheckInput {
   period: number;
   periodCount: number;
   periodMs: number;
+  /**
+   * How much of the coming period a kid who starts it on the bench can
+   * still play: the whole period where subs roll on at any time, from
+   * the first window where they come in windows. 0 or absent: none (subs
+   * at the breaks), so a bench kid is held to the periods after.
+   */
+  benchReachMs?: number;
   periodWord: string;
   /** "line" (AFL, league) or "third" (netball). */
   lineWord: string;
@@ -70,10 +77,12 @@ export function checkRules(input: RuleCheckInput): RuleCheckItem[] {
   };
   const sev = (rule: RuleInstance): CheckStatus => (rule.strength === "must" ? "fail" : "warn");
 
-  // Game-time floor: can everyone still reach it?
+  // Game-time floor: can everyone still reach it? A kid on the bench at
+  // the start can still come on this period where subs roll.
   const gameMs = input.periodCount * input.periodMs;
+  const benchReach = Math.min(input.periodMs, Math.max(0, input.benchReachMs ?? 0));
   const short = squad.filter((pid) => {
-    const best = played(pid) + (input.onField[pid] ? input.periodMs : 0) + remainingAfter * input.periodMs;
+    const best = played(pid) + (input.onField[pid] ? input.periodMs : benchReach) + remainingAfter * input.periodMs;
     return gameMs > 0 && best / gameMs < input.minGameTimePct / 100;
   });
   items.push(

@@ -130,7 +130,9 @@ test("netball: Keep in GS is saved and shows on another phone", async ({ page })
 
   // Letting them rotate again is saved too.
   await gsToken().click({ delay: 600 });
-  await page.getByRole("button", { name: /let rotate next break/i }).click();
+  // The shared LockModal (UX audit 23 Oct 2026): a held kid's sheet offers
+  // "Let them rotate again", as AFL's does.
+  await page.getByRole("button", { name: /let them rotate again/i }).click();
   await expect.poll(async () => (await locksFor(admin, game.id)).at(-1)?.lock).toBeNull();
   await reloadAsAnotherPhone(page);
   await expect(gsToken()).toBeVisible({ timeout: 15_000 });

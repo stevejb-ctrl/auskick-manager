@@ -270,12 +270,10 @@ export interface Game {
   share_token: string;
   on_field_size: number;
   /**
-   * Junior Rugby League §6 opt-in. When true, the sub-rotation
-   * planner enforces the "each player must complete an unbroken
-   * quarter/half" rule. False = rule ignored (default for casual
-   * comps). Editable per-game via Game Settings; team-level
-   * default lives on `teams.enforce_unbroken_periods`.
-   * Optional: column added in migration 0046; defaults to false.
+   * The old Junior Rugby League §6 switch (migration 0046). No longer
+   * read: §6 applies wherever the grade plays it, with no switch (UX
+   * audit, 23 Oct 2026 — How we play shows it as a locked Must, but the
+   * switch started off, so nothing kept it).
    */
   enforce_unbroken_periods?: boolean;
   /**
@@ -498,6 +496,13 @@ export interface GameEvent {
   metadata: Record<string, unknown>;
   created_by: string | null;
   created_at: string;
+  /**
+   * The write queue's op id (game_events.idempotency_key, migration
+   * 0033). The live pages select every column, so it's here at runtime;
+   * an optimistic event on screen carries its op's id and gives way when
+   * the server's copy arrives (src/lib/live/optimisticEvents.ts).
+   */
+  idempotency_key?: string | null;
 }
 
 // ─── Supabase database shape (minimal — expand as schema grows) ───

@@ -10,8 +10,10 @@ import { getBrand } from "@/lib/brand";
  * the prototype's `<LoginMobileBand>`.
  *
  * Steve 2026-05-17: caption is now brand-aware via getBrand().
- * AFL host serves "Junior AFL · Team management", netball serves
- * "Junior Netball · Team management". Was hard-coded to AFL.
+ * The brand says who it's for (`BrandConfig.audience`): the main Siren
+ * brand serves every sport, so "Junior sport · Team management";
+ * netball's site says "Junior netball". It used to say "Junior AFL" to
+ * hockey and union coaches (ten-sport UX audit, 23 Oct 2026).
  */
 export function LoginMobileBand() {
   const brand = getBrand();
@@ -19,7 +21,7 @@ export function LoginMobileBand() {
     <div className="flex items-center justify-between border-b border-hairline bg-surface px-5 py-4 md:hidden">
       <SirenWordmark size="sm" />
       <span className="font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-ink-mute">
-        Junior {brand.shortName} · Team management
+        {brand.brand.audience} · Team management
       </span>
     </div>
   );

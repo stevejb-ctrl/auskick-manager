@@ -19,8 +19,9 @@
 //     ({ tag, min?, max? }) that no sub breaks. A mixed team's boys' cap
 //     is `{ tag: "boy", max: 3 }`: at the cap a boy only comes on for a
 //     boy. Basketball's "a ball handler stays on" is `{ tag: "handler",
-//     min: 1 }`. A field already outside a constraint only takes subs
-//     that don't take it further out.
+//     min: 1 }`. A field already outside a constraint (a hand sub put a
+//     fourth boy on) is brought back first, before anything evens time
+//     (compositionFixes), and never takes a sub further out.
 //   - Pools: fair time is evened within each pool, so a kid comes on
 //     only for a kid of their own pool (a mixed team's girls and boys).
 //   - Lines: a kid can be held to one line (a line hold, like-for-like),
@@ -133,11 +134,93 @@ export function keepsComposition(
   });
 }
 
+/** How far a field's counts are outside every constraint, summed (0 inside them all). */
+function totalDistance(counts: Readonly<Record<string, number>>, constraints: readonly CompositionConstraint[]): number {
+  return constraints.reduce((sum, c) => sum + distance(c, counts[c.tag] ?? 0), 0);
+}
+
+/** Apply a sub to a field's tag counts, in place. */
+function applyTags(counts: Record<string, number>, off: string, on: string, tags: (id: string) => readonly string[]) {
+  for (const t of tags(off)) if (t in counts) counts[t]--;
+  for (const t of tags(on)) if (t in counts) counts[t]++;
+}
+
 /**
- * A sub-due batch: the bench, least time this game first, on for the
- * kids on the field with the most, while each sub evens their time and
- * keeps to the lines, pools and constraints. Ranked in the order they
- * should be made. Empty when no sub evens time.
+ * The subs that bring a field outside a constraint back inside it (a
+ * hand sub that put a fourth boy on): each one a bench kid, least time
+ * first, on for the kid on the field with the most whose swap takes the
+ * field closer to the rule. The rule outweighs everything else here:
+ * pools, rest and evening time don't stop a fix, but holds, Keep on and
+ * the lines do. Empty when the field keeps every constraint, or nobody
+ * on the bench can bring it back.
+ */
+export function compositionFixes<L extends string>(input: RollingSubsInput<L>): RollingSub<L>[] {
+  return fixComposition(input).subs;
+}
+
+function fixComposition<L extends string>(
+  input: RollingSubsInput<L>,
+): { subs: RollingSub<L>[]; counts: Record<string, number>; usedOff: Set<string>; usedOn: Set<string> } {
+  const { field, gameMs } = input;
+  const tags = input.tags ?? (() => []);
+  const constraints = input.constraints ?? [];
+  const held = input.held ?? (() => false);
+  const keepOn = input.keepOn ?? (() => false);
+  const justOff = input.justOff ?? (() => false);
+  const plays = input.plays ?? (() => true);
+  const lineOf = new Map(field.map((f) => [f.id, f.line]));
+  const counts = countTags(
+    field.map((f) => f.id),
+    tags,
+    constraints,
+  );
+  const usedOff = new Set<string>();
+  const usedOn = new Set<string>();
+  const subs: RollingSub<L>[] = [];
+  if (totalDistance(counts, constraints) === 0) return { subs, counts, usedOff, usedOn };
+
+  // Rested kids first, then least time; the kid on longest goes off.
+  const bench = sortByKeys(input.bench, (p) => [justOff(p) ? 1 : 0, gameMs(p)]);
+  const court = sortByKeys(
+    field.map((f) => f.id).filter((p) => !held(p) && !keepOn(p)),
+    (p) => [-gameMs(p)],
+  );
+  while (totalDistance(counts, constraints) > 0) {
+    if (input.maxSubs !== undefined && subs.length >= input.maxSubs) break;
+    const before = totalDistance(counts, constraints);
+    let fix: RollingSub<L> | null = null;
+    for (const on of bench) {
+      if (usedOn.has(on)) continue;
+      const only = input.onlyLine?.(on) ?? null;
+      const off = court.find((p) => {
+        if (usedOff.has(p)) return false;
+        const line = lineOf.get(p) as L;
+        if ((only && line !== only) || !plays(on, line)) return false;
+        const after = { ...counts };
+        applyTags(after, p, on, tags);
+        return totalDistance(after, constraints) < before;
+      });
+      if (off) {
+        fix = { off, on, line: lineOf.get(off) as L };
+        break;
+      }
+    }
+    if (!fix) break;
+    usedOff.add(fix.off);
+    usedOn.add(fix.on);
+    applyTags(counts, fix.off, fix.on, tags);
+    subs.push(fix);
+  }
+  return { subs, counts, usedOff, usedOn };
+}
+
+/**
+ * A sub-due batch: first any subs that bring a field outside a
+ * constraint back inside it (compositionFixes), then the bench, least
+ * time this game first, on for the kids on the field with the most,
+ * while each sub evens their time and keeps to the lines, pools and
+ * constraints. Ranked in the order they should be made. Empty when the
+ * field keeps the rules and no sub evens time.
  */
 export function suggestRollingSubs<L extends string>(input: RollingSubsInput<L>): RollingSub<L>[] {
   const { field, gameMs } = input;
@@ -151,22 +234,22 @@ export function suggestRollingSubs<L extends string>(input: RollingSubsInput<L>)
   const pool = input.pool;
   const lineOf = new Map(field.map((f) => [f.id, f.line]));
 
-  const rested = input.bench.filter((p) => !justOff(p));
+  // The rule first: a field outside a constraint is brought back.
+  const fixed = fixComposition(input);
+  const counts = fixed.counts;
+  const used = fixed.usedOff;
+  const subs: RollingSub<L>[] = [...fixed.subs];
+
+  const free = input.bench.filter((p) => !fixed.usedOn.has(p));
+  const rested = free.filter((p) => !justOff(p));
   // Bench kids who haven't rested wait while anyone else can come on.
-  const bench = sortByKeys(rested.length > 0 ? rested : input.bench, (p) => [keepOn(p) ? 0 : 1, gameMs(p)]);
+  const bench = sortByKeys(rested.length > 0 ? rested : free, (p) => [keepOn(p) ? 0 : 1, gameMs(p)]);
   // Kids who just came on go off last; kids who play every minute stay on.
   const court = sortByKeys(
     field.map((f) => f.id).filter((p) => !held(p) && !keepOn(p)),
     (p) => [justOn(p) ? 1 : 0, -gameMs(p)],
   );
 
-  const counts = countTags(
-    field.map((f) => f.id),
-    tags,
-    constraints,
-  );
-  const used = new Set<string>();
-  const subs: RollingSub<L>[] = [];
   for (const on of bench) {
     if (input.maxSubs !== undefined && subs.length >= input.maxSubs) break;
     const only = input.onlyLine?.(on) ?? null;
@@ -185,8 +268,7 @@ export function suggestRollingSubs<L extends string>(input: RollingSubsInput<L>)
     const off = (prefer ? candidates.find((p) => lineOf.get(p) === prefer && evens(p)) : undefined) ?? candidates[0];
     if (!off || !evens(off)) continue;
     used.add(off);
-    for (const t of tags(off)) if (t in counts) counts[t]--;
-    for (const t of tags(on)) if (t in counts) counts[t]++;
+    applyTags(counts, off, on, tags);
     subs.push({ off, on, line: lineOf.get(off) as L });
   }
   return subs;

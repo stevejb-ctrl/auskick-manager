@@ -139,7 +139,7 @@ function buildSummary(
   const satOut = didntGetOn(presentIds, playerStats.map((ps) => ps.id)).filter((id) => playersById.has(id));
 
   const stats: string[] = [playersHeadline(playedCount, satOut.length)];
-  if (swapCount > 0) stats.push(`${swapCount} subs`);
+  if (swapCount > 0) stats.push(`${swapCount} sub${swapCount === 1 ? "" : "s"}`);
   lines.push(`\n👟 ${stats.join(" · ")}`);
 
   if (playerStats.length > 0 || satOut.length > 0) {
@@ -177,6 +177,7 @@ export interface GameSummaryViewProps {
   opponentScore: { goals: number; behinds: number };
   playerScores: Record<string, { goals: number; behinds: number }>;
   playersById: Map<string, PlayerLike>;
+  /** Subs made: the replay's subCount (swap events), never the live store's tally. */
   swapCount: number;
   basePlayedZoneMs: Record<string, ZoneMs>;
   /** Everyone at the game (presentPlayerIds), so kids who never got on show at 0:00. */
@@ -255,6 +256,12 @@ interface GameSummaryCardProps {
   playersById: Map<string, Player>;
   /** Everyone at the game, so kids who never got on show at 0:00. */
   presentIds?: readonly string[];
+  /**
+   * Subs made, from the event log (replayGame's subCount), as the game
+   * page counts them. The store's swapCount also ticks at every break,
+   * so a game with 2 swaps went out as "5 subs" (UX audit, 23 Oct 2026).
+   */
+  subCount: number;
 }
 
 export function GameSummaryCard({
@@ -263,11 +270,11 @@ export function GameSummaryCard({
   trackScoring,
   playersById,
   presentIds,
+  subCount,
 }: GameSummaryCardProps) {
   const teamScore = useLiveGame((s) => s.teamScore);
   const opponentScore = useLiveGame((s) => s.opponentScore);
   const playerScores = useLiveGame((s) => s.playerScores);
-  const swapCount = useLiveGame((s) => s.swapCount);
   const basePlayedZoneMs = useLiveGame((s) => s.basePlayedZoneMs);
 
   return (
@@ -279,7 +286,7 @@ export function GameSummaryCard({
       opponentScore={opponentScore}
       playerScores={playerScores}
       playersById={playersById}
-      swapCount={swapCount}
+      swapCount={subCount}
       basePlayedZoneMs={basePlayedZoneMs}
       presentIds={presentIds}
       showArrivalPulse

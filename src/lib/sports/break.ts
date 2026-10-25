@@ -68,6 +68,18 @@ export function breakName(word: PeriodWord, n: number): string {
   return `Period ${n} break`;
 }
 
+/**
+ * The line under "Quarter 2 complete" when a period ends: "That's the
+ * final siren!" after the last (the sport's own end cue), "Half-time —
+ * Q3 is next." at the middle of a quarters game, else the break's name.
+ */
+export function periodEndLine(sport: SportId, word: PeriodWord, n: number, periodCount: number): string {
+  if (n >= periodCount) return `That's the final ${getSportConfig(sport).words.endCue}!`;
+  const brk =
+    word === "quarter" ? (n * 2 === periodCount ? "Half-time" : "Quarter break") : breakName(word, n);
+  return `${brk} — ${periodName(word, n + 1)} is next.`;
+}
+
 export function breakConfigFor(
   sport: SportId,
   ageGroup: AgeGroupConfig,

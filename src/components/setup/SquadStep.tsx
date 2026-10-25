@@ -5,6 +5,7 @@ import { BulkAddPlayers } from "@/components/squad/BulkAddPlayers";
 import { PlayerRow } from "@/components/squad/PlayerRow";
 import { getSportConfig } from "@/lib/sports";
 import type { AgeGroupConfig } from "@/lib/sports/types";
+import { squadSizeHint } from "@/lib/sports/words";
 import type { Player, Sport } from "@/lib/types";
 import type { PlayerRole, RoleModel } from "@/lib/playbook/roles";
 
@@ -17,6 +18,12 @@ interface SquadStepProps {
   /** How we play role sheet (from the step before); null where roles don't apply. */
   roleModel?: RoleModel | null;
   roles?: Record<string, PlayerRole>;
+  /**
+   * A touch or Oztag mixed team: each kid is asked Girl or Boy as
+   * they're added and on their row, as Team basics promised (the Squad
+   * tab's PlayerList does the same).
+   */
+  mixed?: boolean;
 }
 
 export function SquadStep({
@@ -26,6 +33,7 @@ export function SquadStep({
   sportId,
   roleModel = null,
   roles = {},
+  mixed = false,
 }: SquadStepProps) {
   // The sport decides (AFL and league number their kids; netball's
   // bib is the position).
@@ -43,8 +51,7 @@ export function SquadStep({
         <p className="text-sm text-ink-dim">
           Add the regulars you know are signed up. You can add more players
           anytime, and fill-ins can jump in on match day without joining the
-          permanent roster. 15–20 kids gives you plenty of cover for injuries
-          and missed Saturdays.
+          permanent roster. {squadSizeHint(ageGroup)}
         </p>
       </div>
 
@@ -56,6 +63,7 @@ export function SquadStep({
           maxPlayers={maxPlayers}
           takenJerseys={takenJerseys}
           showJersey={showJersey}
+          mixed={mixed}
         />
         <div className="mt-3 border-t border-hairline pt-3">
           <BulkAddPlayers
@@ -95,6 +103,7 @@ export function SquadStep({
                 showJersey={showJersey}
                 roleModel={roleModel}
                 role={roles[player.id]}
+                mixed={mixed}
               />
             ))}
           </ul>

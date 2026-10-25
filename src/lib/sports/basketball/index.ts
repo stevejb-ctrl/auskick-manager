@@ -34,6 +34,7 @@ import { aflSport } from "@/lib/sports/afl";
 import { validateBasketballLineup } from "@/lib/sports/basketball/lineup";
 import type {
   BasketballAgeGroupConfig,
+  BasketballLine,
   BasketballPositionDef,
   BasketballShape,
   BasketballStrategy,
@@ -192,13 +193,24 @@ export function basketballAgeGroupForTeam(
   };
 }
 
+/**
+ * Each line's colour, one token wherever it's drawn: the live tiles and
+ * the break (UX audit 23 Oct 2026: guards were green on court, blue at
+ * the break). Forwards take AFL's forward colour, guards its centre.
+ */
+export const BASKETBALL_LINE_ZONE: Record<BasketballLine, BreakZoneColor> = {
+  forward: "zone1",
+  guard: "zone2",
+  court: "zone2",
+};
+
 // Break screen: forwards over guards, or one Court zone under Equal
 // minutes (no lines). Slots are the staged lineup's lines, else the age
 // group's suggested strategy's default shape.
-const BASKETBALL_BREAK_ZONES: { key: "forward" | "guard" | "court"; label: string; short: string; color: BreakZoneColor }[] = [
-  { key: "forward", label: "FORWARDS", short: "Fwd", color: "zone1" },
-  { key: "guard", label: "GUARDS", short: "Guard", color: "zone3" },
-  { key: "court", label: "COURT", short: "Court", color: "zone2" },
+const BASKETBALL_BREAK_ZONES: { key: BasketballLine; label: string; short: string; color: BreakZoneColor }[] = [
+  { key: "forward", label: "FORWARDS", short: "Fwd", color: BASKETBALL_LINE_ZONE.forward },
+  { key: "guard", label: "GUARDS", short: "Guard", color: BASKETBALL_LINE_ZONE.guard },
+  { key: "court", label: "COURT", short: "Court", color: BASKETBALL_LINE_ZONE.court },
 ];
 
 const basketballPeriodBreak: SportBreakSpec = {
@@ -242,5 +254,8 @@ export const basketballSport: SportConfig = {
   // As soccer's and rugby's, basketball's live screen plays no team song.
   teamSong: false,
   periodBreak: basketballPeriodBreak,
+  // The jump ball starts a half; the buzzer ends it.
+  words: { sportName: "basketball", surface: "court", startCue: "ball goes up", endCue: "buzzer" },
+  surfaceArt: "basketball-court",
   validateLineup: validateBasketballLineup,
 };

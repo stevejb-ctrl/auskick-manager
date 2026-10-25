@@ -23,6 +23,12 @@ export interface GameReportInput {
   periodMs: number;
   /** How long each period actually ran (its quarter_end), when known. */
   periodPlayedMs?: Record<number, number>;
+  /**
+   * ms per player → period → time they couldn't play: before a late
+   * arrival, injured or fouled out, lent (awayMsByPeriod). Their floor
+   * is over the rest of the game, and they aren't held to the line rules.
+   */
+  away?: Record<string, Record<number, number>>;
   minGameTimePct: number;
   /**
    * A mixed team (touch, Oztag): who each kid counts as. Fair time is
@@ -48,21 +54,25 @@ const joinNames = (names: string[]) =>
   names.length <= 2 ? names.join(" and ") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 
 /**
- * Each kid's time floor, as a share of the game. Without groups it's
- * the team's floor. With them, each group's floor is the team's scaled
- * by how the group's even share compares with the team's, never above
- * the team's: under touch's cap with 8 boys and 4 girls the team's even
- * share is 50 %, the boys' 37.5 %, so a 50 % floor is 37.5 % for a boy.
+ * Each kid's time floor, as a share of the time they could play. Without
+ * groups it's the team's floor. With them, each group's floor is the
+ * team's scaled by how the group's even share compares with the team's,
+ * never above the team's: under touch's cap with 8 boys and 4 girls the
+ * team's even share is 50 %, the boys' 37.5 %, so a 50 % floor is 37.5 %
+ * for a boy.
  */
 function groupFloors(
   players: readonly string[],
   total: (pid: string) => number,
-  gameMs: number,
+  available: (pid: string) => number,
   floor: number,
   groupOf: ((pid: string) => string | null | undefined) | undefined,
 ): (pid: string) => number {
-  if (!groupOf || gameMs <= 0 || players.length === 0) return () => floor;
-  const even = (ids: readonly string[]) => ids.reduce((s, p) => s + total(p), 0) / (ids.length * gameMs);
+  if (!groupOf || players.length === 0) return () => floor;
+  const even = (ids: readonly string[]) => {
+    const could = ids.reduce((s, p) => s + available(p), 0);
+    return could > 0 ? ids.reduce((s, p) => s + total(p), 0) / could : 0;
+  };
   const teamEven = even(players);
   const byGroup = new Map<string, number>();
   for (const g of Array.from(new Set(players.map((p) => groupOf(p) ?? "")))) {
@@ -106,19 +116,28 @@ export function gameReport(input: GameReportInput): GameReport {
     const ran = input.periodPlayedMs?.[p];
     gameMs += ran && ran > 0 ? ran : input.periodMs;
   }
-  const floorFor = groupFloors(players, total, gameMs, input.minGameTimePct / 100, input.mixedGroupOf);
-  const short = players.filter((pid) => gameMs > 0 && total(pid) / gameMs < floorFor(pid));
+  // Time a kid couldn't play (late, hurt, fouled out, lent) is off their
+  // game: the floor is over the rest (UX audit 23 Oct 2026: every sport
+  // flagged injured kids "under 50%").
+  const awayIn = (pid: string, p: number) => (p <= periodsPlayed ? (input.away?.[pid]?.[p] ?? 0) : 0);
+  const awayMs = (pid: string) => Array.from({ length: periodsPlayed }, (_, i) => awayIn(pid, i + 1)).reduce((a, b) => a + b, 0);
+  const available = (pid: string) => Math.max(0, gameMs - awayMs(pid));
+  const missedTime = (pid: string) => awayMs(pid) > 0;
+  const anyMissedTime = players.some(missedTime);
+  const ofTheirTime = anyMissedTime ? " of the time they could play" : "";
+  const floorFor = groupFloors(players, total, available, input.minGameTimePct / 100, input.mixedGroupOf);
+  const short = players.filter((pid) => available(pid) > 0 && total(pid) / available(pid) < floorFor(pid));
   items.push(
     input.mixedGroupOf
       ? short.length === 0
         ? { id: "min-game-time", status: "ok", text: `Everyone played a fair share. ${MIXED_NOTE}` }
         : { id: "min-game-time", status: "fail", text: `${joinNames(short.map(input.name))} played under a fair share. ${MIXED_NOTE}` }
       : short.length === 0
-      ? { id: "min-game-time", status: "ok", text: `Everyone played at least ${input.minGameTimePct}%` }
+      ? { id: "min-game-time", status: "ok", text: `Everyone played at least ${input.minGameTimePct}%${ofTheirTime}` }
       : {
           id: "min-game-time",
           status: "fail",
-          text: `${joinNames(short.map(input.name))} played under ${input.minGameTimePct}%`,
+          text: `${joinNames(short.map(input.name))} played under ${input.minGameTimePct}%${ofTheirTime}`,
         },
   );
 
@@ -128,11 +147,13 @@ export function gameReport(input: GameReportInput): GameReport {
       case "every-line-per-game":
       case "distinct-lines": {
         const need = rule.kind === "every-line-per-game" ? input.lines.length : (rule.params.count ?? 2);
-        const missed = players.filter((pid) => linesPlayed(pid).size < need);
+        // A kid who missed time couldn't be rotated through every line.
+        const missed = players.filter((pid) => !missedTime(pid) && linesPlayed(pid).size < need);
+        const everyone = anyMissedTime ? "Everyone who could play all game" : "Everyone";
         items.push(
           missed.length
             ? { id: rule.id, status: sev(rule), text: `${joinNames(missed.map(input.name))} didn't get ${rule.kind === "every-line-per-game" ? `every ${input.lineWord}` : `${need} ${input.lineWord}s`}` }
-            : { id: rule.id, status: "ok", text: rule.kind === "every-line-per-game" ? `Everyone played every ${input.lineWord}` : `Everyone played ${need} ${input.lineWord}s` },
+            : { id: rule.id, status: "ok", text: rule.kind === "every-line-per-game" ? `${everyone} played every ${input.lineWord}` : `${everyone} played ${need} ${input.lineWord}s` },
         );
         break;
       }
@@ -144,7 +165,8 @@ export function gameReport(input: GameReportInput): GameReport {
           const first = periods.find((p) => onIn(pid, p)) ?? 0;
           let streak = 0;
           for (const p of periods.filter((x) => x > first)) {
-            streak = onIn(pid, p) ? 0 : streak + 1;
+            // A period they were away for isn't one they sat out.
+            streak = onIn(pid, p) || awayIn(pid, p) > 0 ? 0 : streak + 1;
             if (streak >= run) return true;
           }
           return false;

@@ -169,5 +169,7 @@ export const rugbyUnionSport: SportConfig = {
   // Like league, union's live screen plays no team song.
   teamSong: false,
   periodBreak: { zones: rugbyBreakZones, scoreDetail: "points", lowTimeMs: 4 * 60_000 },
+  words: { sportName: "rugby union", surface: "field", startCue: "whistle goes", endCue: "whistle" },
+  surfaceArt: "rugby-field",
   validateLineup: validateRugbyLineup,
 };

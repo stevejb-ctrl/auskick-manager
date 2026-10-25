@@ -102,6 +102,27 @@ export function benchPlayerInPositionLineup<
 }
 
 /**
+ * Repeat at the break: last period's court again, for the kids who can
+ * still play (`pool`). A kid who joined during the period (a late
+ * arrival) isn't in last period's lineup, so they join the end of the
+ * bench rather than vanish from both. A kid no longer in the pool
+ * (hurt, lent) leaves their spot empty. Never mutates `previous`.
+ */
+export function repeatPositionLineup<
+  T extends { positions: Record<string, string[]>; bench: string[] },
+>(previous: T, pool: readonly string[]): T {
+  const canPlay = new Set(pool);
+  const positions: Record<string, string[]> = {};
+  for (const [pos, ids] of Object.entries(previous.positions)) {
+    positions[pos] = ids.filter((id) => canPlay.has(id));
+  }
+  const placed = new Set(Object.values(positions).flat());
+  const bench = previous.bench.filter((id) => canPlay.has(id) && !placed.has(id));
+  for (const id of pool) if (!placed.has(id) && !bench.includes(id)) bench.push(id);
+  return { ...previous, positions, bench };
+}
+
+/**
  * Rugby-league reconcile: move every sidelined (injured / loaned) player
  * off the field (forwards + backs) onto the bench. Used when committing
  * the next period's lineup at the Start tap — league has no persistent

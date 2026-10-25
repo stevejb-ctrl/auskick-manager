@@ -21,6 +21,9 @@ const WalkthroughModal = dynamic(
 //
 // `storageKey` is the sport's existing "seen" flag, so a coach who has
 // already done the tour (or dismissed it) never sees the card again.
+//
+// The card is every sport's, so it says "breaks", not "quarter breaks"
+// (halves sports read it too; ten-sport UX audit, 23 Oct 2026).
 
 interface WalkthroughOfferProps {
   storageKey: string;
@@ -59,7 +62,7 @@ export function WalkthroughOffer({ storageKey, steps }: WalkthroughOfferProps) {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-ink">First game day with Siren?</p>
             <p className="text-xs text-ink-dim">
-              A one-minute tour of the clock, subs and quarter breaks.
+              A one-minute tour of the clock, subs and breaks.
             </p>
           </div>
           <div className="flex shrink-0 gap-1.5">
