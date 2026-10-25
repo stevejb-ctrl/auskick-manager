@@ -91,7 +91,7 @@ test("basketball: two hurt with nobody on, a late arrival goes on into the empty
   const pair = page.getByTestId("basketball-swap-pair-0");
   await expect(pair).toContainText("Empty spot");
   await expect(pair).toContainText(nameOf(ids[5]).split(" ")[0]);
-  await pair.getByRole("button", { name: "Put on" }).click();
+  await pair.getByRole("button", { name: /^Put .+ on$/ }).click();
   await expect.poll(() => lastSwap(admin, game.id), { timeout: 15_000 }).toMatchObject({ off_player_id: null, on_player_id: ids[5] });
 });
 
@@ -118,7 +118,7 @@ test("hockey: the keeper hurt with nobody on — 'No keeper', and the card fills
   const pair = page.getByTestId("soccer-swap-pair-0");
   await expect(pair).toContainText("GK");
   await expect(pair).toContainText("Empty spot");
-  await pair.getByRole("button", { name: "Put on" }).click();
+  await pair.getByRole("button", { name: /^Put .+ on$/ }).click();
   await expect.poll(async () => (await lastSwap(admin, game.id))?.line, { timeout: 15_000 }).toBe("gk");
   const fill = await lastSwap(admin, game.id);
   expect(fill?.off_player_id ?? null).toBeNull();

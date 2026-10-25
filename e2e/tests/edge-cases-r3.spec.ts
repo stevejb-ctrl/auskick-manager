@@ -153,7 +153,7 @@ test("deactivating a kid who's on the field now asks first, and they stay in tha
   await gotoStable(page, `/teams/${team.id}/squad`);
   await waitForHydration(page);
   const row = page.getByTestId(`player-row-${leo.id}`);
-  await row.getByRole("switch", { name: /deactivate player/i }).click();
+  await row.getByRole("switch", { name: /^deactivate /i }).click();
   await expect(row.getByRole("alert")).toContainText(`${leo.full_name} is in the game against Eagles that's on now.`);
   const active = async () => (await admin.from("players").select("is_active").eq("id", leo.id).single()).data;
   expect(await active()).toEqual({ is_active: true });

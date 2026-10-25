@@ -15,7 +15,7 @@ import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 /** The league scorebug's countdown (m:ss left in the half), in seconds. */
 async function secondsLeft(page: Page): Promise<number> {
   const text = await page
-    .locator('button[aria-label^="Clock"] [aria-live="polite"]')
+    .locator('button[aria-label^="Clock"]')
     .first()
     .textContent();
   const m = (text ?? "").match(/(\d+):(\d{2})/);

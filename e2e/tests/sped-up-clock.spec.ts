@@ -112,7 +112,7 @@ test("AFL at 8×: tiles count game time after a reload, like the replay", async 
 /** The league scorebug's countdown (m:ss left in the half), in seconds. */
 async function leagueClockSecondsLeft(page: Page): Promise<number> {
   const text = await page
-    .locator('button[aria-label^="Clock"] [aria-live="polite"]')
+    .locator('button[aria-label^="Clock"]')
     .first()
     .textContent();
   const m = (text ?? "").match(/(\d+):(\d{2})/);

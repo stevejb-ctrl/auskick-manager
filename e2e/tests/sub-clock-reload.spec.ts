@@ -143,7 +143,7 @@ test("AFL: making one of two due swaps keeps the other due", async ({ page }) =>
   const before = Number(((await card.textContent()) ?? "").match(/Sub due — (\d+) swaps/)![1]);
   expect(before).toBeGreaterThan(1);
   // The card is open when due; make the first pair only.
-  await page.getByRole("button", { name: "Make swap" }).first().click();
+  await page.getByRole("button", { name: /^Swap .+ off, .+ on$/ }).first().click();
   // Still due, with the rest of the batch. Before the fix: "Suggested —
   // 1 swap" on a fresh countdown, and a different pair.
   const left = before - 1;
