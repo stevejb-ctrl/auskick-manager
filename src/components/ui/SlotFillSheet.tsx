@@ -114,7 +114,8 @@ export function SlotFillSheet({
   const names = useSquadNames();
   const label = (c: Candidate) => {
     const full = names.full({ id: c.id, full_name: c.name });
-    return full.toLocaleLowerCase().startsWith(c.name.trim().toLocaleLowerCase()) ? full : c.name;
+    // Only the duplicate's suffix is added: a first name a caller passed stays as it is.
+    return full.startsWith(c.name.trim()) && /^ (#\d+|\(\d+\))$/.test(full.slice(c.name.trim().length)) ? full : c.name;
   };
   return (
     <div
