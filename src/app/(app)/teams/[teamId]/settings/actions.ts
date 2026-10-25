@@ -9,6 +9,7 @@ import { mixedRuleColumns } from "@/lib/sports/touch/mixed";
 import type { MixedRule } from "@/lib/sports/touch/types";
 import type { ActionResult, Sport } from "@/lib/types";
 import { storedOnFieldSize } from "@/lib/games/newGameDefaults";
+import { teamNameError, teamNameMatches } from "@/lib/strings";
 
 const BUCKET = "team-songs";
 const MAX_BYTES = 20 * 1024 * 1024; // 20 MB
@@ -211,8 +212,8 @@ export async function renameTeam(
   if (error) return { success: false, error };
 
   const trimmed = newName.trim();
-  if (trimmed.length === 0) return { success: false, error: "Name can't be empty." };
-  if (trimmed.length > 80) return { success: false, error: "Name is too long (80 chars max)." };
+  const nameError = teamNameError(trimmed);
+  if (nameError) return { success: false, error: nameError };
 
   const { error: updateError } = await supabase
     .from("teams")
@@ -364,8 +365,8 @@ export async function deleteTeam(teamId: string, confirmName: string): Promise<A
 
   const { data: team } = await supabase.from("teams").select("name").eq("id", teamId).single();
   if (!team) return { success: false, error: "Team not found." };
-  if (confirmName.trim() !== (team.name as string).trim()) {
-    return { success: false, error: "Type the team name exactly to confirm." };
+  if (!teamNameMatches(confirmName, team.name as string)) {
+    return { success: false, error: "Type the team name to confirm." };
   }
 
   const { error: deleteError } = await supabase.from("teams").delete().eq("id", teamId);

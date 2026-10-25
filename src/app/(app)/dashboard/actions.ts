@@ -12,6 +12,7 @@ import {
   sendTelegramNotification,
 } from "@/lib/notifications/telegram";
 import { storedOnFieldSize, storedPeriodSeconds } from "@/lib/games/newGameDefaults";
+import { teamNameError } from "@/lib/strings";
 
 /**
  * What the coach set on the Basics step: their competition's players on
@@ -45,6 +46,12 @@ export async function createTeam(
     console.error("[createTeam] unauthenticated", { hasUser: !!user, userId });
     return { success: false, error: "Unauthenticated." };
   }
+
+  // The rename's rule at create too (round 3 edge testing, 24 Oct 2026:
+  // create took 98 characters, then rename refused any edit to it).
+  const nameError = teamNameError(name);
+  if (nameError) return { success: false, error: nameError };
+  name = name.trim();
 
   // A server action takes anything a client posts: check the sport
   // before looking it up (an unknown one is never filed under AFL).
