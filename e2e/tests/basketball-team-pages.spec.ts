@@ -1,6 +1,6 @@
 // ─── Basketball: a coach makes a team, every page opens, settings save ──
 // Basketball plan, phase 3. The setup wizard offers Junior Basketball,
-// marked Beta; a U12 team starts with the scoreboard on and basketball's
+// open to every coach; a U12 team starts with the scoreboard on and basketball's
 // own How we play (Guards and forwards ★, positions optional); none of
 // the team's pages stops for basketball or borrows another sport's
 // screen; and the team's halves/quarters and foul tally (migration
@@ -19,7 +19,8 @@ test("basketball: the wizard makes a U12 team, every page opens, quarters and th
   await gotoStable(page, "/teams/new");
   await waitForHydration(page);
   const pill = page.getByRole("button", { name: "Junior Basketball" });
-  await expect(pill).toContainText("Beta");
+  // Every sport left beta with the ten-sport homepage.
+  await expect(pill).not.toContainText("Beta");
   await pill.click();
   const teamName = `BBL-WIZ-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   await page.getByLabel(/team name/i).fill(teamName);

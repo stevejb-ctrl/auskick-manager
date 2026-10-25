@@ -35,12 +35,11 @@ describe("llms.txt", () => {
     expect(txt).toContain(APP_STORE_URL);
   });
 
-  it("lists every sport, marking the beta ones", () => {
+  it("lists every sport, none of them in beta", () => {
     expect(txt).toContain(
-      ["- AFL", "- Netball", "- Rugby league", "- Rugby union", "- Football (soccer) (beta)", "- Basketball (beta)"].join(
-        "\n",
-      ),
+      ["- AFL", "- Netball", "- Rugby league", "- Rugby union", "- Football (soccer)", "- Basketball"].join("\n"),
     );
+    expect(txt).not.toMatch(/beta/i);
   });
 
   it("links every page in the sitemap, once, on this site", () => {

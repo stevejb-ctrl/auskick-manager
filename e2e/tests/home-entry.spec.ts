@@ -26,10 +26,9 @@ test.describe("unauthenticated entry", () => {
     // The picker opens on AFL, spelt as an acronym.
     await expect(page.getByRole("heading", { name: "See Siren in AFL mode." })).toBeVisible();
     const card = page.getByTestId("sport-card-football");
-    // Soccer is in beta (src/lib/siren-facts.ts), and says so.
-    await expect(card).toHaveAttribute("aria-label", "Show Siren in Football (soccer) mode (beta)");
-    await expect(card).toContainText(/beta/i);
-    await expect(page.getByTestId("sport-card-afl")).not.toContainText(/beta/i);
+    // No sport is in beta any more (src/lib/siren-facts.ts).
+    await expect(card).toHaveAttribute("aria-label", "Show Siren in Football (soccer) mode");
+    await expect(card).not.toContainText(/beta/i);
     // "RL", not the NRL's trade mark (Siren isn't affiliated).
     await expect(page.getByTestId("sport-card-league")).toContainText("RL");
     await expect(page.getByTestId("sport-card-league")).not.toContainText("NRL");

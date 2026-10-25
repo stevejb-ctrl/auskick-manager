@@ -30,14 +30,16 @@ const SPORT_FACTS: Record<SportId, Omit<SportFact, "id">> = {
   netball: { name: "netball", beta: false },
   rugby_league: { name: "rugby league", beta: false },
   rugby_union: { name: "rugby union", beta: false },
-  // Open to every coach in beta (soccer since 17 Oct 2026, then
-  // basketball, then futsal, hockey, touch and Oztag on 22 Oct).
-  soccer: { name: "football (soccer)", beta: true },
-  basketball: { name: "basketball", beta: true },
-  futsal: { name: "futsal", beta: true },
-  hockey: { name: "hockey", beta: true },
-  touch: { name: "touch football", beta: true },
-  oztag: { name: "Oztag", beta: true },
+  // Soccer, basketball, futsal, hockey, touch and Oztag opened in beta
+  // (17–22 Oct 2026) and left it together when the ten-sport homepage
+  // shipped (Steve, 22 Oct: "We'll get rid of Beta before we push this
+  // live"). A new sport can still open as one.
+  soccer: { name: "football (soccer)", beta: false },
+  basketball: { name: "basketball", beta: false },
+  futsal: { name: "futsal", beta: false },
+  hockey: { name: "hockey", beta: false },
+  touch: { name: "touch football", beta: false },
+  oztag: { name: "Oztag", beta: false },
 };
 
 /** Every sport Siren runs, launched ones first as in the registry. */

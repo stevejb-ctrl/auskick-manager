@@ -50,7 +50,7 @@ test("the homepage names every sport, in its title, description and server HTML"
   // the server sends, not just behind the sport picker.
   const html = await (await request.get("/")).text();
   expect(html).toContain(
-    "One app, ten sports: junior AFL, netball, rugby league and rugby union, plus football (soccer), basketball, futsal, hockey, touch football and Oztag in beta.",
+    "One app, ten sports: junior AFL, netball, rugby league, rugby union, football (soccer), basketball, futsal, hockey, touch football and Oztag.",
   );
 
   await page.goto("/");
@@ -66,7 +66,7 @@ test("the homepage names every sport, in its title, description and server HTML"
     "futsal",
     "hockey",
     "touch football",
-    "Oztag in beta",
+    "Oztag",
   ]) {
     expect(description, sport).toContain(sport);
   }
@@ -118,7 +118,8 @@ test("llms.txt is public plain text: what Siren is, its sports and its pages", a
   expect(res.headers()["content-type"]).toContain("text/plain");
   const txt = await res.text();
   expect(txt).toMatch(/^# Siren\n\n> Siren is a game-day app for junior sport coaches/);
-  expect(txt).toContain("- Basketball (beta)");
+  expect(txt).toContain("- Basketball\n");
+  expect(txt).not.toMatch(/\(beta\)/);
   expect(txt).toMatch(/\]\(https:\/\/www\.siren[a-z]+\.com\.au\/help\/faq\)/);
 });
 
@@ -191,7 +192,7 @@ test("the home page tells search engines who makes Siren and that it's an app", 
     applicationCategory: "SportsApplication",
     offers: { "@type": "Offer", price: "0", priceCurrency: "AUD" },
     installUrl: expect.stringContaining("apps.apple.com"),
-    description: expect.stringContaining("plus football (soccer), basketball, futsal, hockey, touch football and Oztag in beta"),
+    description: expect.stringContaining("football (soccer), basketball, futsal, hockey, touch football and Oztag"),
   });
   expect((app?.featureList as string[]).length).toBeGreaterThan(3);
   // No ratings until they're real ones from a review source.

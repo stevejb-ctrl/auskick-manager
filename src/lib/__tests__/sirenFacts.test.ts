@@ -92,22 +92,15 @@ describe("Siren facts", () => {
     }
   });
 
-  it("marks the six newest sports as beta, and only them", () => {
-    expect(SIREN_SPORTS.filter((s) => s.beta).map((s) => s.id)).toEqual([
-      "soccer",
-      "basketball",
-      "futsal",
-      "hockey",
-      "touch",
-      "oztag",
-    ]);
-    expect(isBetaSport("soccer")).toBe(true);
+  it("has no sport in beta (they all left it with the ten-sport homepage)", () => {
+    expect(SIREN_SPORTS.filter((s) => s.beta).map((s) => s.id)).toEqual([]);
+    expect(isBetaSport("soccer")).toBe(false);
     expect(isBetaSport("afl")).toBe(false);
   });
 
-  it("says the sports in one sentence, beta ones last", () => {
+  it("says the sports in one sentence", () => {
     expect(sportsSentence()).toBe(
-      "AFL, netball, rugby league and rugby union, plus football (soccer), basketball, futsal, hockey, touch football and Oztag in beta",
+      "AFL, netball, rugby league, rugby union, football (soccer), basketball, futsal, hockey, touch football and Oztag",
     );
     expect(SPORT_COUNT_WORD).toBe("ten");
     expect(sirenOneLiner()).toContain(sportsSentence());
