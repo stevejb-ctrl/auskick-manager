@@ -216,7 +216,8 @@ test("live netball: running and the scorer dock", async ({ page }, testInfo) => 
   await open(page, `/teams/${team.id}/games/${game.id}/live`);
   await expect(clockPill(page)).toBeVisible({ timeout: 15_000 });
   await expectDarkAndReadable(page, testInfo, "live-netball");
-  await page.getByRole("button", { name: /^goal shooter, /i }).click();
+  // Tokens are named kid first ("Alicia, Goal Shooter, …"; the a11y follow-up).
+  await page.getByRole("button", { name: /, goal shooter, /i }).click();
   await expect(page.getByText(/^Record goal for/)).toBeVisible();
   await expectDarkAndReadable(page, testInfo, "live-netball-scorer");
 });
