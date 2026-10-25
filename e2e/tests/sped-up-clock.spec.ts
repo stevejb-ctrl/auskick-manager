@@ -115,7 +115,8 @@ async function leagueClockSecondsLeft(page: Page): Promise<number> {
     .locator('button[aria-label^="Clock"]')
     .first()
     .textContent();
-  const m = (text ?? "").match(/(\d+):(\d{2})/);
+  // The button reads the period tag, then the m:ss ("H119:53"): the trailing m:ss.
+  const m = (text ?? "").match(/(\d{1,2}):(\d{2})\s*$/);
   return m ? Number(m[1]) * 60 + Number(m[2]) : NaN;
 }
 
