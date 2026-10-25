@@ -17,6 +17,7 @@ import { describeRole, EMPTY_ROLE, type PlayerRole, type RoleModel } from "@/lib
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { MixedGroupPicker } from "@/components/squad/MixedGroupPicker";
 import type { MixedGroup } from "@/lib/types";
+import { parseWholeNumber } from "@/lib/wholeNumber";
 
 interface PlayerRowProps {
   player: Player;
@@ -77,11 +78,12 @@ export function PlayerRow({
       return;
     }
 
-    const jerseyNum = jersey.trim() === "" ? null : parseInt(jersey, 10);
-    if (jerseyNum !== null && (isNaN(jerseyNum) || jerseyNum < 1 || jerseyNum > 99)) {
-      setJerseyError("1–99 only.");
+    const parsedJersey = parseWholeNumber(jersey, { min: 1, max: 99, what: "Jersey" });
+    if (parsedJersey.error) {
+      setJerseyError("Whole number, 1–99.");
       return;
     }
+    const jerseyNum = parsedJersey.value;
 
     if (jerseyNum !== null) {
       const otherJerseys = takenJerseys.filter((j) => j !== player.jersey_number);
@@ -161,9 +163,9 @@ export function PlayerRow({
           />
           {showJersey && (
             <Input
-              type="number"
-              min={1}
-              max={99}
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
               value={jersey}
               onChange={(e) => setJersey(e.target.value)}
               error={jerseyError}

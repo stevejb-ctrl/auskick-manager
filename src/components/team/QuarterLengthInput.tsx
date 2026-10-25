@@ -13,6 +13,7 @@
 import { useState, useTransition } from "react";
 import { setQuarterLengthSeconds } from "@/app/(app)/teams/[teamId]/games/actions";
 import { PERIOD_MINUTES_MAX } from "@/lib/games/newGameDefaults";
+import { parseWholeNumber } from "@/lib/wholeNumber";
 import { SFButton } from "@/components/sf";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -51,9 +52,10 @@ export function QuarterLengthInput({
   function handleSave() {
     if (!isAdmin) return;
     setError(null);
-    const next = parseInt(minutes, 10);
-    if (!Number.isInteger(next) || next < 1 || next > PERIOD_MINUTES_MAX) {
-      setError(`${periodWord} length must be a whole number between 1 and ${PERIOD_MINUTES_MAX}.`);
+    // "1.5" used to save as 1 minute without a word (parseInt).
+    const { value: next, error: wholeError } = parseWholeNumber(minutes, { min: 1, max: PERIOD_MINUTES_MAX, what: `${periodWord} length` });
+    if (next === null) {
+      setError(wholeError ?? `${periodWord} length must be a whole number from 1 to ${PERIOD_MINUTES_MAX}.`);
       return;
     }
     const overrideSeconds = next === ageGroupMinutes ? null : next * 60;

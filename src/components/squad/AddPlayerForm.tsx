@@ -9,6 +9,7 @@ import { InlineAlert } from "@/components/ui/InlineAlert";
 import { MixedGroupPicker } from "@/components/squad/MixedGroupPicker";
 import type { MixedGroup } from "@/lib/types";
 import { nameKey, type SquadKid } from "@/lib/squadPaste";
+import { parseWholeNumber } from "@/lib/wholeNumber";
 
 interface AddPlayerFormProps {
   teamId: string;
@@ -65,17 +66,15 @@ export function AddPlayerForm({
       valid = false;
     }
 
-    if (jersey.trim() !== "") {
-      const jerseyNum = parseInt(jersey, 10);
-      if (isNaN(jerseyNum) || jerseyNum < 1 || jerseyNum > 99) {
-        setJerseyError("Jersey must be 1–99.");
+    const parsed = parseWholeNumber(jersey, { min: 1, max: 99, what: "Jersey" });
+    if (parsed.error) {
+      setJerseyError(parsed.error);
+      valid = false;
+    } else if (parsed.value !== null) {
+      const owner = squad.find((k) => k.jersey_number === parsed.value);
+      if (owner) {
+        setJerseyError(`#${parsed.value} is ${owner.full_name}'s${owner.is_active ? "" : " (inactive)"}.`);
         valid = false;
-      } else {
-        const owner = squad.find((k) => k.jersey_number === jerseyNum);
-        if (owner) {
-          setJerseyError(`#${jerseyNum} is ${owner.full_name}'s${owner.is_active ? "" : " (inactive)"}.`);
-          valid = false;
-        }
       }
     }
 
@@ -93,7 +92,7 @@ export function AddPlayerForm({
     }
 
     startTransition(async () => {
-      const jerseyValue = jersey.trim() === "" ? null : parseInt(jersey, 10);
+      const jerseyValue = parseWholeNumber(jersey, { min: 1, max: 99, what: "Jersey" }).value;
       const result = await addPlayer(
         teamId,
         name.trim(),
@@ -144,9 +143,9 @@ export function AddPlayerForm({
             <Label htmlFor="jersey">Jersey #</Label>
             <Input
               id="jersey"
-              type="number"
-              min={1}
-              max={99}
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
               value={jersey}
               onChange={(e) => {
                 setJersey(e.target.value);

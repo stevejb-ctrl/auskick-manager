@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { gameDateError, gameDateRange, opponentIsTeam, toLocalInputValue } from "@/lib/games/gameDates";
+import { parseWholeNumber } from "@/lib/wholeNumber";
 
 interface CreateGameFormProps {
   teamId: string;
@@ -83,9 +84,9 @@ export function CreateGameForm({
       return;
     }
 
-    const roundNum = round ? parseInt(round, 10) : null;
-    if (round && (isNaN(roundNum!) || roundNum! < 1 || roundNum! > 30)) {
-      setServerError("Round must be between 1 and 30.");
+    const { value: roundNum, error: roundError } = parseWholeNumber(round, { min: 1, max: 30, what: "Round" });
+    if (roundError) {
+      setServerError(roundError);
       return;
     }
 
