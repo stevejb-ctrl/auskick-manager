@@ -58,6 +58,7 @@ import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
 import { liveEvents, optimisticUndo } from "@/lib/live/optimisticEvents";
 import { useLiveChrome } from "@/components/live/useLiveChrome";
+import { undoSwaps } from "@/lib/live/liveChrome";
 import {
   computePeriodClockMs,
   togglePeriodPause,
@@ -1115,8 +1116,13 @@ export function LeagueLiveGame({
   function handleApplyAllSubs() {
     if (nextSubSuggestions.length === 0) return;
     for (const swap of nextSubSuggestions) sub(swap.off.playerId, swap.on.playerId);
-    if (nextSubSuggestions.length === 1) chrome.swapped(nextSubSuggestions[0].off.playerId, nextSubSuggestions[0].on.playerId);
-    else chrome.showToast(`${nextSubSuggestions.length} subs made`);
+    // The toast's Undo puts them back, last first (undoSwaps).
+    const undo = undoSwaps(
+      nextSubSuggestions.map((s) => ({ off: s.off.playerId, on: s.on.playerId })),
+      (s) => sub(s.off, s.on),
+    );
+    if (nextSubSuggestions.length === 1) chrome.swapped(nextSubSuggestions[0].off.playerId, nextSubSuggestions[0].on.playerId, undo);
+    else chrome.showToast(`${nextSubSuggestions.length} subs made`, undo);
     handleClearSelection();
   }
 

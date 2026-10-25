@@ -53,6 +53,7 @@ import { LockModal } from "@/components/live/LockModal";
 import { NextSubCard } from "@/components/live/NextSubCard";
 import { LiveGameSettingsButton } from "@/components/live/LiveGameSettingsButton";
 import { useLiveChrome } from "@/components/live/useLiveChrome";
+import { undoSwaps } from "@/lib/live/liveChrome";
 import {
   InjuryReplacementModal,
   type InjuryReplacementCandidate,
@@ -453,8 +454,13 @@ export function SoccerLiveGame({
   function applyAllSubs() {
     if (nextSubs.length === 0) return;
     for (const s of nextSubs) sub(s.off_player_id, s.on_player_id, s.line);
-    if (nextSubs.length === 1) chrome.swapped(nextSubs[0].off_player_id, nextSubs[0].on_player_id);
-    else chrome.showToast(`${nextSubs.length} subs made`);
+    // The toast's Undo puts them back, last first (undoSwaps).
+    const undo = undoSwaps(
+      nextSubs.map((s) => ({ off: s.off_player_id, on: s.on_player_id, line: s.line })),
+      (s) => sub(s.off, s.on, s.line),
+    );
+    if (nextSubs.length === 1) chrome.swapped(nextSubs[0].off_player_id, nextSubs[0].on_player_id, undo);
+    else chrome.showToast(`${nextSubs.length} subs made`, undo);
     setSubAckKey(subDueKey);
   }
 
