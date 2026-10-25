@@ -131,7 +131,7 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
     accentSoft: "#F6E7D3",
     liveScreenshot: `${SHOTS}/basketball/live.png`,
     liveScreenshotAlt: "Basketball live game, guards and forwards on the court and suggested swaps",
-    hasDemo: false,
+    hasDemo: true,
     tour: "live",
   },
   {
@@ -159,7 +159,7 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
     accentSoft: "#F6DFEA",
     liveScreenshot: `${SHOTS}/touch-football/live.png`,
     liveScreenshotAlt: "Touch football live game for a mixed team, mid-game",
-    hasDemo: false,
+    hasDemo: true,
     tour: "shared",
   },
   {
@@ -173,7 +173,7 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
     accentSoft: "#ECEFD6",
     liveScreenshot: `${SHOTS}/oztag/live.png`,
     liveScreenshotAlt: "Oztag live game for a mixed team, mid-game",
-    hasDemo: false,
+    hasDemo: true,
     tour: "shared",
   },
   {
@@ -187,7 +187,7 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
     accentSoft: "#E3E6F5",
     liveScreenshot: `${SHOTS}/hockey/live.png`,
     liveScreenshotAlt: "Hockey live game with the keeper, mid-game",
-    hasDemo: false,
+    hasDemo: true,
     tour: "shared",
   },
   {
@@ -201,7 +201,7 @@ export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
     accentSoft: "#DDF0F1",
     liveScreenshot: `${SHOTS}/futsal/live.png`,
     liveScreenshotAlt: "Futsal live game on the court with the keeper, mid-game",
-    hasDemo: false,
+    hasDemo: true,
     tour: "shared",
   },
 ] as const;
