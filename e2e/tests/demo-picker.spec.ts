@@ -1,8 +1,7 @@
 // Covers the multi-sport demo picker at /demo.
 //
-//   1. Picker renders 5 cards: AFL, Rugby League, Netball, Rugby
-//      Union and Football (soccer), all clickable (union opened with
-//      its phase 5, football with its homepage launch).
+//   1. Picker renders a card for each of the ten sports, all
+//      clickable.
 //   2. Clicking a card POSTs to runDemoGame and redirects to
 //      /run/{token} (the public live-game view). Verified by URL
 //      assertion + presence of live-game chrome.
@@ -60,7 +59,53 @@ const TEST_DEMO_SEED = {
     age_group: "U9",
     players: ["Mia Torres", "Leo Nguyen", "Zara Kowalski", "Noah Petrakis"],
   },
+  basketball: {
+    name: "Demo Basketball",
+    age_group: "U10",
+    players: ["Jayden Cruz", "Imogen Hart", "Marcus Odum", "Priya Shah"],
+  },
+  // Touch and Oztag demos are mixed teams on their sport's rule, as the
+  // seed route makes them (TOUCH_MIXED_RULE / OZTAG_MIXED_RULE).
+  touch: {
+    name: "Demo Touch",
+    age_group: "U10",
+    players: ["Matilda Rees", "Lucas Ferreira", "Evie Callaghan", "Oscar Lindsay"],
+    mixedGroups: ["girl", "boy", "girl", "boy"],
+    settings: { mixed_max_boys: 3, mixed_min_girls: 1, mixed_min_boys: 1 },
+  },
+  oztag: {
+    name: "Demo Oztag",
+    age_group: "U10",
+    players: ["Scarlett Byers", "Ryder Collins", "Harriet Vu", "Flynn Morrow"],
+    mixedGroups: ["girl", "boy", "girl", "boy"],
+    settings: { mixed_max_boys: 4, mixed_min_girls: 1, mixed_min_boys: 0 },
+  },
+  hockey: {
+    name: "Demo Hockey",
+    age_group: "U10",
+    players: ["Elsie Marsh", "Rohan Kapoor", "Tilly Beaumont", "Callum Pryce"],
+  },
+  futsal: {
+    name: "Demo Futsal",
+    age_group: "U10",
+    players: ["Mateo Silva", "Lucia Romano", "Yusuf Demir", "Clara Novotny"],
+  },
 } as const;
+
+// Every marketing sport id (the picker's test ids), with the app sport
+// its demo plays.
+const DEMO_CARDS = [
+  ["netball", "netball"],
+  ["afl", "afl"],
+  ["league", "rugby_league"],
+  ["football", "soccer"],
+  ["basketball", "basketball"],
+  ["union", "rugby_union"],
+  ["touch", "touch"],
+  ["oztag", "oztag"],
+  ["hockey", "hockey"],
+  ["futsal", "futsal"],
+] as const;
 
 type SeededSport = keyof typeof TEST_DEMO_SEED;
 
@@ -83,6 +128,8 @@ async function seedDemoTeamIfMissing(
   // membership row on INSERT — don't explicitly insert it here or the
   // unique constraint trips.
   const settings = "settings" in cfg ? cfg.settings : {};
+  const mixedGroups: readonly string[] | null =
+    "mixedGroups" in cfg ? cfg.mixedGroups : null;
   const { data: team, error: teamErr } = await admin
     .from("teams")
     .insert({
@@ -103,10 +150,11 @@ async function seedDemoTeamIfMissing(
   }
 
   const { error: playersErr } = await admin.from("players").insert(
-    cfg.players.map((name) => ({
+    cfg.players.map((name, i) => ({
       team_id: team.id,
       full_name: name,
       jersey_number: null as number | null,
+      mixed_group: mixedGroups?.[i] ?? null,
       is_active: true,
       created_by: ownerId,
     })),
@@ -131,14 +179,12 @@ test.describe("Demo picker", () => {
       fullName: "E2E Demo Owner",
       superAdmin: true,
     });
-    await seedDemoTeamIfMissing(admin, owner.id, "afl");
-    await seedDemoTeamIfMissing(admin, owner.id, "netball");
-    await seedDemoTeamIfMissing(admin, owner.id, "rugby_league");
-    await seedDemoTeamIfMissing(admin, owner.id, "rugby_union");
-    await seedDemoTeamIfMissing(admin, owner.id, "soccer");
+    for (const sport of Object.keys(TEST_DEMO_SEED) as SeededSport[]) {
+      await seedDemoTeamIfMissing(admin, owner.id, sport);
+    }
   });
 
-  test("renders all 5 sport cards with the expected affordances", async ({
+  test("renders all 10 sport cards with the expected affordances", async ({
     page,
   }) => {
     await page.goto("/demo");
@@ -147,21 +193,26 @@ test.describe("Demo picker", () => {
       page.getByRole("heading", { name: /pick a sport/i }),
     ).toBeVisible();
 
-    for (const sport of ["afl", "league", "netball", "union", "football"] as const) {
-      const card = page.getByTestId(`demo-card-${sport}`);
+    await expect(page.locator('[data-testid^="demo-card-"]')).toHaveCount(10);
+    for (const [id, sport] of DEMO_CARDS) {
+      const card = page.getByTestId(`demo-card-${id}`);
       await expect(card).toBeVisible();
       await expect(card).toHaveAttribute("aria-label", /start.*demo/i);
       await expect(card).not.toContainText(/coming soon/i);
+      // Each card carries its own sport's field drawing.
+      await expect(card.locator(`svg[data-sport-field="${sport}"]`)).toHaveCount(1);
     }
+    // No sport is in beta any more (src/lib/siren-facts.ts).
+    await expect(page.getByTestId("demo-card-football")).not.toContainText(/beta/i);
   });
 
-  for (const sport of ["afl", "league", "netball", "union", "football"] as const) {
-    test(`${sport} card starts a demo game and redirects to /run/{token}`, async ({
+  for (const [id, sport] of DEMO_CARDS) {
+    test(`${id} card starts a demo game and redirects to /run/{token}`, async ({
       page,
     }) => {
       await page.goto("/demo");
 
-      await page.getByTestId(`demo-card-${sport}`).click();
+      await page.getByTestId(`demo-card-${id}`).click();
 
       await page.waitForURL(/\/run\/[a-zA-Z0-9_-]+/, { timeout: 15_000 });
 
@@ -181,6 +232,52 @@ test.describe("Demo picker", () => {
       await expect(
         page.getByText(/you're running today's game for/i),
       ).toBeVisible({ timeout: 10_000 });
+
+      // The game belongs to this sport's demo team, sped up 8×.
+      const token = page.url().match(/\/run\/([a-zA-Z0-9_-]+)/)![1];
+      const { data: game } = await createAdminClient()
+        .from("games")
+        .select("clock_multiplier, teams!inner(sport, is_demo)")
+        .eq("share_token", token)
+        .single();
+      expect(game).toMatchObject({
+        clock_multiplier: 8,
+        teams: { sport, is_demo: true },
+      });
+    });
+  }
+
+  // The five sports added to the picker last each play their own U10
+  // format: on-field size and sub interval from the sport's age-group
+  // config (src/lib/sports/<sport>/index.ts).
+  const U10_FORMATS = [
+    ["basketball", "basketball", 5, 240],
+    ["touch", "touch", 5, 300],
+    ["oztag", "oztag", 8, 300],
+    ["hockey", "hockey", 7, 240],
+    ["futsal", "futsal", 5, 240],
+  ] as const;
+  for (const [id, sport, onField, subInterval] of U10_FORMATS) {
+    test(`the ${id} demo plays ${sport} U10: ${onField} on the field`, async ({ page }) => {
+      await page.goto("/demo");
+      await page.getByTestId(`demo-card-${id}`).click();
+      await page.waitForURL(/\/run\/[a-zA-Z0-9_-]+/, { timeout: 15_000 });
+      const token = page.url().match(/\/run\/([a-zA-Z0-9_-]+)/)![1];
+      const { data: game } = await createAdminClient()
+        .from("games")
+        .select("on_field_size, sub_interval_seconds, teams!inner(sport, age_group, mixed_max_boys)")
+        .eq("share_token", token)
+        .single();
+      expect(game).toMatchObject({
+        on_field_size: onField,
+        sub_interval_seconds: subInterval,
+        teams: {
+          sport,
+          age_group: "U10",
+          // Touch and Oztag demos are mixed teams under the boys' cap.
+          mixed_max_boys: sport === "touch" ? 3 : sport === "oztag" ? 4 : null,
+        },
+      });
     });
   }
 

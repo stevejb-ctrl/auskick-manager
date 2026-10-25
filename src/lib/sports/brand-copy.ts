@@ -22,6 +22,7 @@ import netballJson from "../../../content/marketing/brands/netball.json";
 import leagueJson from "../../../content/marketing/brands/league.json";
 import unionJson from "../../../content/marketing/brands/union.json";
 import soccerJson from "../../../content/marketing/brands/soccer.json";
+import basketballJson from "../../../content/marketing/brands/basketball.json";
 
 /**
  * A heading split into three parts so a single word can render in
@@ -97,15 +98,13 @@ const COPY: Record<SportId, BrandCopy> = {
   // Junior rugby league copy lives in
   // content/marketing/brands/league.json. Wired here so any future
   // sirenleague.com.au host (or a runtime brand override) renders
-  // the dedicated copy. The marketing homepage's client picker also
-  // resolves through this map via src/lib/sports/marketing-copy.ts.
+  // the dedicated copy.
   rugby_league: LEAGUE_COPY,
   // Union has no site of its own: it lives under the main Siren brand,
-  // so a brand lookup for it reads the main brand's copy. The
-  // homepage's union sport section reads marketing-copy.ts.
+  // so a brand lookup for it reads the main brand's copy. Its sport
+  // page reads its own tour (sportTourCopy, below).
   rugby_union: AFL_COPY,
-  // Football (soccer) too: the main brand's copy. Its homepage section
-  // reads its own copy (SOCCER_MARKETING_COPY, marketing-copy.ts).
+  // Football (soccer) too: the main brand's copy.
   soccer: AFL_COPY,
   // Basketball too: the main brand's copy.
   basketball: AFL_COPY,
@@ -116,19 +115,30 @@ const COPY: Record<SportId, BrandCopy> = {
   oztag: AFL_COPY,
 };
 
-/**
- * Union's own long-form copy for the homepage sport picker (union has
- * no site of its own, so no brand reads it): marketing-copy.ts.
- */
-export const UNION_MARKETING_COPY = unionJson as BrandCopy;
-
-/**
- * Football (soccer)'s own long-form copy for the homepage sport picker
- * (content/marketing/brands/soccer.json; soccer has no site of its own
- * either): marketing-copy.ts.
- */
-export const SOCCER_MARKETING_COPY = soccerJson as BrandCopy;
-
 export function getBrandCopy(id: SportId): BrandCopy {
   return COPY[id] ?? AFL_COPY;
+}
+
+/**
+ * The feature tour a sport page scrolls through: its long-form copy in
+ * content/marketing/brands/. Union, soccer and basketball have no site
+ * of their own, so only their sport pages read theirs. Futsal, hockey,
+ * touch and Oztag have none yet (null): their pages show the
+ * homepage's six shared features instead.
+ */
+const TOUR_COPY: Record<SportId, BrandCopy | null> = {
+  afl: AFL_COPY,
+  netball: NETBALL_COPY,
+  rugby_league: LEAGUE_COPY,
+  rugby_union: unionJson as BrandCopy,
+  soccer: soccerJson as BrandCopy,
+  basketball: basketballJson as BrandCopy,
+  futsal: null,
+  hockey: null,
+  touch: null,
+  oztag: null,
+};
+
+export function sportTourCopy(id: SportId): BrandCopy | null {
+  return TOUR_COPY[id];
 }

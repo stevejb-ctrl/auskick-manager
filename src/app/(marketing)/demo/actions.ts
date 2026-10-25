@@ -5,20 +5,25 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
 import { netballSport } from "@/lib/sports";
 import { aflBranch, getAgeGroupConfig, getSportConfig, isBasketball, isRugby, isSoccer, isTouch } from "@/lib/sports/registry";
+import type { MarketingSportId } from "@/lib/sports/marketing-sports";
 import type { Sport } from "@/lib/types";
 
-// Marketing-side sport IDs (the homepage picker uses these — afl,
-// league, netball, union) map to the in-app SportId space that's
-// used in the DB and rule modules. The picker URL/form sends the
-// marketing id; this server action translates.
-type MarketingSportId = "afl" | "league" | "union" | "netball" | "football";
-
+// Marketing-side sport IDs (the demo picker's form sends these — afl,
+// league, football, …) map to the in-app SportId space that's used in
+// the DB and rule modules. Every sport on the site has a demo, so the
+// map covers them all; the picker form sends the marketing id and this
+// server action translates.
 const MARKETING_TO_SPORT: Record<MarketingSportId, Sport> = {
+  netball: "netball",
   afl: "afl",
   league: "rugby_league",
-  union: "rugby_union",
-  netball: "netball",
   football: "soccer",
+  basketball: "basketball",
+  union: "rugby_union",
+  touch: "touch",
+  oztag: "oztag",
+  hockey: "hockey",
+  futsal: "futsal",
 };
 
 /**
@@ -204,8 +209,9 @@ function buildDemoGamePayload({
   }
 
   if (isSoccer(sport) || isBasketball(sport) || isTouch(sport)) {
-    // The team's own age group (the soccer demo plays MiniRoos U9). Touch
-    // and Oztag have no demo team yet; one would play its own age.
+    // The team's own age group: football plays MiniRoos U9; basketball,
+    // touch, Oztag, hockey and futsal play U10, each on its own format
+    // (on-field size, halves, sub interval).
     const ageCfg = getAgeGroupConfig(sport, teamAgeGroup);
     return {
       ...base,

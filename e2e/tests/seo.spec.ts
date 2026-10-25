@@ -33,13 +33,84 @@ test("the sitemap lists every public page, and each opens signed out", async ({ 
   const paths = Array.from(xml.matchAll(/<loc>([^<]+)<\/loc>/g), (m) => new URL(m[1]).pathname);
 
   expect(paths).toEqual(
-    expect.arrayContaining(["/", "/demo", "/why-siren", "/support", "/help", "/help/faq", "/login"]),
+    expect.arrayContaining(["/", "/demo", "/why-siren", "/support", "/help", "/help/faq", "/netball", "/futsal"]),
   );
+  // A sign-in form has little to index (it stays crawlable).
+  expect(paths).not.toContain("/login");
   expect(new Set(paths).size).toBe(paths.length);
 
   for (const path of paths) {
     const page = await request.get(path, { maxRedirects: 0 });
     expect(page.status(), path).toBe(200);
+  }
+});
+
+test("the homepage names every sport, in its title, description and server HTML", async ({ page, request }) => {
+  // AI crawlers don't run JavaScript, so the sports must be in the HTML
+  // the server sends: each as a link to its own page, with a line on
+  // what Siren knows about it.
+  const html = await (await request.get("/")).text();
+  for (const path of [
+    "/netball",
+    "/afl",
+    "/rugby-league",
+    "/soccer",
+    "/basketball",
+    "/rugby-union",
+    "/touch-football",
+    "/oztag",
+    "/hockey",
+    "/futsal",
+  ]) {
+    expect(html, path).toContain(`href="${path}"`);
+  }
+  expect(html).toContain("a girl&#x27;s try counts two");
+
+  await page.goto("/");
+  await expect(page).toHaveTitle("Siren: fair rotations and subs for junior footy, netball, league and more");
+  const description = await page.locator('meta[name="description"]').getAttribute("content");
+  for (const sport of [
+    "AFL",
+    "netball",
+    "rugby league",
+    "rugby union",
+    "football (soccer)",
+    "basketball",
+    "futsal",
+    "hockey",
+    "touch football",
+    "Oztag",
+  ]) {
+    expect(description, sport).toContain(sport);
+  }
+});
+
+test("the homepage H1 paints before JavaScript runs", async ({ request }) => {
+  // RevealOnScroll renders opacity:0 on the server and fades in after
+  // hydration. Around the H1, the largest paint, that delayed LCP.
+  const html = await (await request.get("/")).text();
+  const beforeH1 = html.slice(0, html.indexOf("<h1"));
+  const hero = beforeH1.slice(beforeH1.lastIndexOf("<section"));
+  expect(hero).not.toContain("opacity:0");
+});
+
+test("help screenshots are served resized, and load", async ({ page }) => {
+  // next/image, not the 780px PNGs straight from /public.
+  await page.goto("/help/getting-started");
+  const shot = page.locator("figure.help-figure img").first();
+  await expect(shot).toHaveAttribute("src", /^\/_next\/image\?url=%2Fhelp-screenshots%2F/);
+  await shot.scrollIntoViewIfNeeded();
+  await expect.poll(() => shot.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+});
+
+test("sign-in and help have titles and descriptions of their own", async ({ page }) => {
+  await page.goto("/login");
+  await expect(page).toHaveTitle("Sign in · Siren");
+
+  for (const path of ["/help", "/help/faq"]) {
+    await page.goto(path);
+    const description = await page.locator('meta[name="description"]').getAttribute("content");
+    expect(description?.length, path).toBeGreaterThan(100);
   }
 });
 
@@ -51,6 +122,18 @@ test("robots.txt keeps crawlers out of the app and token links", async ({ reques
     expect(txt, prefix).toContain(`Disallow: ${prefix}`);
   }
   expect(txt).toMatch(/Sitemap: https:\/\/www\.siren[a-z]+\.com\.au\/sitemap\.xml/);
+});
+
+test("llms.txt is public plain text: what Siren is, its sports and its pages", async ({ request }) => {
+  // It used to 307 to /login, like any path the middleware didn't know.
+  const res = await request.get("/llms.txt", { maxRedirects: 0 });
+  expect(res.status()).toBe(200);
+  expect(res.headers()["content-type"]).toContain("text/plain");
+  const txt = await res.text();
+  expect(txt).toMatch(/^# Siren\n\n> Siren is a game-day app for junior sport coaches/);
+  expect(txt).toContain("- Basketball\n");
+  expect(txt).not.toMatch(/\(beta\)/);
+  expect(txt).toMatch(/\]\(https:\/\/www\.siren[a-z]+\.com\.au\/help\/faq\)/);
 });
 
 test("a trailing slash redirects to the page's one URL", async ({ request }) => {
@@ -111,6 +194,9 @@ test("the home page tells search engines who makes Siren and that it's an app", 
     name: "Siren",
     url: expect.stringMatching(/^https:\/\/www\.siren[a-z]+\.com\.au\/$/),
     logo: expect.stringMatching(/\.png$/),
+    sameAs: [expect.stringContaining("apps.apple.com")],
+    founder: { "@type": "Person", name: "Steve Bull" },
+    areaServed: { "@type": "Country", name: "Australia" },
   });
   expect(ofType(blocks, "WebSite")).toMatchObject({ name: expect.stringMatching(/^Siren /) });
 
@@ -119,7 +205,9 @@ test("the home page tells search engines who makes Siren and that it's an app", 
     applicationCategory: "SportsApplication",
     offers: { "@type": "Offer", price: "0", priceCurrency: "AUD" },
     installUrl: expect.stringContaining("apps.apple.com"),
+    description: expect.stringContaining("football (soccer), basketball, futsal, hockey, touch football and Oztag"),
   });
+  expect((app?.featureList as string[]).length).toBeGreaterThan(3);
   // No ratings until they're real ones from a review source.
   expect(app).not.toHaveProperty("aggregateRating");
 });
@@ -136,4 +224,28 @@ test("help pages carry breadcrumbs", async ({ page, request }) => {
 
   await page.goto("/help");
   expect(ofType(await jsonLd(page), "BreadcrumbList")?.itemListElement).toHaveLength(2);
+});
+
+test("help pages say when they were updated and who wrote them, as the sitemap does", async ({ page, request }) => {
+  const sitemap = await (await request.get("/sitemap.xml")).text();
+  const lastmod = sitemap.match(/\/help\/faq<\/loc>\s*<lastmod>(\d{4}-\d{2}-\d{2})/)?.[1];
+  expect(lastmod).toBeTruthy();
+
+  // In the server HTML, for crawlers that don't run JavaScript.
+  const html = await (await request.get("/help/faq")).text();
+  expect(html).toContain('"@type":"TechArticle"');
+
+  await page.goto("/help/faq");
+  const updated = page.getByTestId("help-updated");
+  await expect(updated).toContainText(/^Updated \d{1,2} [A-Z][a-z]{2} \d{4} · Steve Bull, parent-coach$/);
+  await expect(updated.locator("time")).toHaveAttribute("datetime", lastmod!);
+  expect(ofType(await jsonLd(page), "TechArticle")).toMatchObject({
+    headline: "FAQ",
+    dateModified: lastmod,
+    author: { "@type": "Person", name: "Steve Bull" },
+  });
+
+  // Visitors from search get a way to what Siren is and a demo.
+  await expect(page.locator('footer a[href="/why-siren"]')).toBeVisible();
+  await expect(page.locator('footer a[href="/demo"]')).toBeVisible();
 });

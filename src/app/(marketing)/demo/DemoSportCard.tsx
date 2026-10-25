@@ -2,14 +2,9 @@
 
 import { useFormStatus } from "react-dom";
 import type { MarketingSportConfig } from "@/lib/sports/marketing-sports";
+import { isBetaSport } from "@/lib/siren-facts";
 import { PulseMark } from "@/components/brand/PulseMark";
-import {
-  AflOvalField,
-  LeagueRectField,
-  NetballCourtField,
-  RugbyUnionField,
-  SoccerPitchField,
-} from "@/components/marketing/sport-fields";
+import { SportFieldGlyph } from "@/components/marketing/SportFieldGlyph";
 
 // Card for ONE sport in the demo picker. Lives in a client
 // component (not the server page) so it can use `useFormStatus`
@@ -54,7 +49,7 @@ function DemoSportCardButton({ sport }: { sport: MarketingSportConfig }) {
       // Disable while pending so re-clicks during the action's
       // ~1-2s round-trip don't trigger a second submission.
       disabled={pending}
-      aria-label={`Start ${sport.label} demo game`}
+      aria-label={`Start ${sport.label} demo game${isBetaSport(sport.sport) ? " (beta)" : ""}`}
       aria-busy={pending}
       data-testid={`demo-card-${sport.id}`}
       className="
@@ -122,15 +117,18 @@ function CardFieldDecoration({
   dimmed?: boolean;
 }) {
   return (
+    // The sport's field in white line work, cropped off the bottom-right
+    // corner: the same drawing (SportFieldGlyph) the homepage tiles, the
+    // Sports menu and the sport pages use, so all ten read as one set.
     <div
       aria-hidden="true"
       className={`
-        pointer-events-none absolute left-2/3 top-[20%] w-[60%] aspect-[200/220]
+        pointer-events-none absolute -bottom-[14%] -right-[22%] aspect-[16/10] w-[88%] text-white
         transition-opacity duration-[240ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]
         ${dimmed ? "opacity-40" : "opacity-45 group-hover:opacity-60"}
       `}
     >
-      <FieldForSport sport={sport} />
+      <SportFieldGlyph sport={sport.sport} weight={1.5} className="h-full w-full" />
     </div>
   );
 }
@@ -149,6 +147,8 @@ function CardTextOverlay({
         style={{ color: "rgba(255,255,255,0.75)" }}
       >
         {sport.code}
+        {/* Beta sports say so, as on the homepage picker. */}
+        {isBetaSport(sport.sport) && " · Beta"}
       </p>
       <div>
         <p
@@ -168,19 +168,4 @@ function CardTextOverlay({
       </div>
     </div>
   );
-}
-
-function FieldForSport({ sport }: { sport: MarketingSportConfig }) {
-  switch (sport.id) {
-    case "afl":
-      return <AflOvalField accent={sport.accent} tintOpacity={0} />;
-    case "league":
-      return <LeagueRectField accent={sport.accent} tintOpacity={0} />;
-    case "netball":
-      return <NetballCourtField accent={sport.accent} tintOpacity={0} />;
-    case "union":
-      return <RugbyUnionField accent={sport.accent} tintOpacity={0} />;
-    case "football":
-      return <SoccerPitchField accent={sport.accent} tintOpacity={0} />;
-  }
 }

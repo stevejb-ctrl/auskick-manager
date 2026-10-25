@@ -40,7 +40,7 @@
       "body": "Siren counts how many times each player has rostered into each position across the season (GS through GK) and nudges you toward an even spread. No more 'you were GS last week too' arguments.",
       "bullets": [
         "Per-position appearance counts, season and game",
-        "Coefficient-of-variation fairness score (0–100)",
+        "A rule check on every lineup: thirds, game time and season balance",
         "Suggests next-quarter lineup with one tap"
       ],
       "image": "/marketing/screenshots/netball/live-game.png",
@@ -66,7 +66,7 @@
       "body": "Most teams rotate positions at quarter breaks. At every break, Siren lines up the next quarter's suggested squad, weighted by who's played least and who hasn't had a turn at their preferred position.",
       "bullets": [
         "One tap to accept the suggested lineup",
-        "Drag-and-drop to rearrange manually",
+        "Tap two players to swap them, across thirds or to the bench",
         "Mid-quarter subs available if this is how you do it"
       ],
       "image": "/marketing/screenshots/netball/quarterly.png",
@@ -127,11 +127,11 @@
     {
       "id": "playhq",
       "eyebrow": "PlayHQ integration",
-      "title": { "before": "Fixtures imported ", "italic": "automatically", "after": "." },
-      "body": "Connect your PlayHQ club URL and Siren pulls in your draw. Rounds, opponents, and results stay in sync so you never have to enter a game twice.",
+      "title": { "before": "Your fixtures, straight from ", "italic": "PlayHQ", "after": "." },
+      "body": "Paste your team's PlayHQ link and Siren lists your draw. Pick the games you want and they arrive with the round, date, time, venue and opponent filled in, so you never type a fixture twice. Import again and any changed games are updated.",
       "bullets": [
-        "Fixtures imported from PlayHQ automatically",
-        "Round results synced after each game",
+        "Fixtures imported from your team's PlayHQ link",
+        "Round, date, time, venue and opponent filled in",
         "Works alongside manually created games"
       ],
       "image": "/marketing/screenshots/netball/fixtures.png",

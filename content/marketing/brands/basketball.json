@@ -1,0 +1,185 @@
+{
+  "banner": {
+    "prefix": "Free for the entire 2026 season.",
+    "linkText": "Sign up in under a minute →"
+  },
+  "trustBand": [
+    {
+      "stat": "300+",
+      "label": "Coaches"
+    },
+    {
+      "stat": "9k",
+      "label": "Games tracked"
+    },
+    {
+      "stat": "4.9★",
+      "label": "Parent rating"
+    },
+    {
+      "stat": "0",
+      "label": "Clipboards"
+    }
+  ],
+  "tagline": "Made for volunteer coaches.",
+  "finalCtaEyebrow": "Tip-off is coming",
+  "heroEyebrow": "Built for junior basketball",
+  "heroSubtitle": "Fair subs at every dead ball, time at guard and forward for every kid, and the fouls counted for you. Halves or quarters, Under 8 to Under 18, Siren keeps playing time even so you can stop juggling a clipboard and watch your kid play.",
+  "metaDescription": "Junior basketball game manager. Fair rolling subs, time at guard and forward, a foul tally with foul-outs, halves or quarters, live points and season stats.",
+  "centerpiece": {
+    "before": "Everything you need to make game day a ",
+    "italic": "breeze",
+    "after": "."
+  },
+  "productName": "Siren",
+  "finalCtaBody": "Free for the entire 2026 season. Works on the phone you already have. Optional app download, no credit card.",
+  "features": [
+    {
+      "id": "rotations",
+      "eyebrow": "Fair rotations",
+      "title": {
+        "before": "Every kid gets a ",
+        "italic": "fair",
+        "after": " run."
+      },
+      "body": "Basketball subs roll at every dead ball. At each interval Siren lines up the kids whose turn on court evens out the minutes. Send them to the table, tap On at the whistle, and the minutes stay right without you counting.",
+      "bullets": [
+        "Total minutes visible at a glance",
+        "A sub card that says who goes to the table",
+        "Season totals carry across all games"
+      ],
+      "image": "/marketing/screenshots/rotations.png",
+      "imageAlt": "Rotation view showing each player's time on court"
+    },
+    {
+      "id": "lines",
+      "eyebrow": "Guards and forwards",
+      "title": {
+        "before": "Every kid gets to ",
+        "italic": "bring",
+        "after": " it up."
+      },
+      "body": "Over the game and the season Siren moves kids through guard and forward, so nobody spends the year parked under the ring. Younger teams just play equal minutes with a ball handler on. Older teams give kids a home line, or fill all five positions, 1 to 5.",
+      "bullets": [
+        "Time at guard and forward on every player tile",
+        "Season balance across both lines",
+        "Equal minutes, home lines or all five positions"
+      ],
+      "image": "/marketing/screenshots/img_3855.png",
+      "imageAlt": "Player tiles showing time at guard and forward"
+    },
+    {
+      "id": "fouls",
+      "eyebrow": "Fouls",
+      "title": {
+        "before": "Know who's in foul ",
+        "italic": "trouble",
+        "after": "."
+      },
+      "body": "Tap Foul on a player and Siren keeps the count on their tile. One away from fouling out, their count turns amber and the next sub takes them off first. At five they foul out: Siren takes them out of the rotation for the game and asks who comes on.",
+      "bullets": [
+        "Each kid's fouls on their tile",
+        "Kids in foul trouble come off first",
+        "Turn the tally on or off for your team"
+      ],
+      "image": "/marketing/screenshots/flexibility.png",
+      "imageAlt": "Player tile with its foul count and the sub card"
+    },
+    {
+      "id": "sizes",
+      "eyebrow": "Your competition",
+      "title": {
+        "before": "Halves or quarters, ",
+        "italic": "your",
+        "after": " way."
+      },
+      "body": "Siren starts each age at a junior format: 2 × 20-minute halves on a running clock, a short game with no score at Under 8, and no 3-pointers until Under 12. Your association plays 4 × 10 quarters? Set it once for the team.",
+      "bullets": [
+        "Defaults from Under 8 to Under 18",
+        "Halves or quarters, and your own period length",
+        "Five on court, squads of up to twelve"
+      ],
+      "image": "/marketing/screenshots/availability.png",
+      "imageAlt": "Pre-game squad screen with the players available for the day"
+    },
+    {
+      "id": "scoring",
+      "eyebrow": "Score tracking",
+      "title": {
+        "before": "Ones, twos and ",
+        "italic": "threes",
+        "after": "."
+      },
+      "body": "Tap a player and +1, +2 or +3, or log the other team's points from the scorebug. Three-pointers switch on from Under 12, and the scoreboard starts off for the youngest ages, one switch away.",
+      "bullets": [
+        "Points for both teams from the bench",
+        "Scorers in the post-game summary",
+        "Undo the last basket in one tap"
+      ],
+      "image": "/marketing/screenshots/scoring.png",
+      "imageAlt": "Score view with points for both teams"
+    },
+    {
+      "id": "flexibility",
+      "eyebrow": "Full control",
+      "title": {
+        "before": "Handle anything the game ",
+        "italic": "throws",
+        "after": " at you."
+      },
+      "body": "Long-press any player to sit them out for five minutes, flag an injury, or lend them to the opposition. A sit-out counts down in clock time, so timeouts don't count, and the kid comes back through the rotation.",
+      "bullets": [
+        "A 5-minute sit-out in two taps",
+        "Injured players skip the rotation",
+        "Lend a player to the opposition and track their time separately"
+      ],
+      "image": "/marketing/screenshots/rl-long-press.png",
+      "imageAlt": "Player actions sheet with sit-out, injury and lend options"
+    },
+    {
+      "id": "share",
+      "eyebrow": "Share with parents",
+      "title": {
+        "before": "Hand the bench to any parent in ",
+        "italic": "one",
+        "after": " tap."
+      },
+      "body": "Send the run-link to a parent courtside and they run the subs and the score for the day. No app download, no account, no setup. A magic link gets them straight in.",
+      "bullets": [
+        "Full game access via a single shareable link",
+        "No app download or account needed",
+        "Coach stays focused on the court"
+      ],
+      "image": "/marketing/screenshots/share.png",
+      "imageAlt": "Public run-link view for parents"
+    },
+    {
+      "id": "stats",
+      "eyebrow": "Season stats",
+      "title": {
+        "before": "See how the ",
+        "italic": "season",
+        "after": " is going."
+      },
+      "body": "After every game, minutes, points, fouls and time at guard and forward update automatically. Spot who's spent the season at forward, and even it out next week.",
+      "bullets": [
+        "Minutes and points for every kid",
+        "Season balance across guard and forward",
+        "Fouls across the season"
+      ],
+      "image": "/marketing/screenshots/stats.png",
+      "imageAlt": "Season stats with minutes, points and time at guard and forward"
+    }
+  ],
+  "finalCtaTitle": {
+    "before": "Set up your team in about ",
+    "italic": "five",
+    "after": " minutes."
+  },
+  "heroTitle": {
+    "before": "Run the bench. Keep your head up.",
+    "italic": "",
+    "after": ""
+  },
+  "heroTrust": "FREE 2026 SEASON · WORKS ON ANY PHONE · NO APP TO INSTALL"
+}

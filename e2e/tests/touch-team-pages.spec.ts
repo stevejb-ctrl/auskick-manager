@@ -1,6 +1,6 @@
 // ─── Touch and Oztag: a coach makes a team, every page opens, settings save ──
 // Four-sports plan, track B. The setup wizard offers Junior Touch
-// football and Junior Oztag, marked Beta, with a "Mixed team" toggle that
+// football and Junior Oztag, with a "Mixed team" toggle that
 // starts the team on its sport's rule; none of the team's pages stops for
 // them or borrows another sport's screen; and the team's settings from
 // migration 0071 save from the Team tab and the squad: one period, the
@@ -27,8 +27,9 @@ test("touch: the wizard makes a mixed U11 team, every page opens, one period and
   await gotoStable(page, "/teams/new");
   await waitForHydration(page);
   const pill = page.getByRole("radio", { name: "Junior Touch football" });
-  await expect(pill).toContainText("Beta");
-  await expect(page.getByRole("radio", { name: "Junior Oztag" })).toContainText("Beta");
+  // Every sport left beta with the ten-sport homepage.
+  await expect(pill).not.toContainText("Beta");
+  await expect(page.getByRole("radio", { name: "Junior Oztag" })).not.toContainText("Beta");
   await pill.click();
   const teamName = `TCH-WIZ-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   await page.getByLabel(/team name/i).fill(teamName);

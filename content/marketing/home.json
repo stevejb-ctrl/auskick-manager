@@ -1,20 +1,18 @@
 {
   "hero": {
+    "eyebrow": "For junior coaches · Ten sports",
     "headline": "Run game day. Keep your head up.",
-    "subtitle": "One app, five sports. Junior AFL, rugby league, rugby union, netball and football (soccer). Siren knows the intricacies each code throws at a coach — so you can stop juggling a clipboard and watch your kid play.",
-    "trustLine": "FREE 2026 SEASON · WORKS ON ANY PHONE · NOW ON THE APP STORE"
-  },
-  "sportEyebrows": {
-    "afl": "Built for junior AFL",
-    "league": "Built for junior rugby league",
-    "netball": "Built for junior netball",
-    "union": "Built for junior rugby union",
-    "football": "Built for junior football (soccer)"
+    "subtitle": "Fair game time, subs and scores, built on the junior rules of ten sports. Siren does the counting, so you can put the clipboard down and watch your kid play."
   },
   "trustBand": [
-    { "stat": "1,200+", "label": "Coaches" },
-    { "stat": "38k", "label": "Games tracked" },
-    { "stat": "4.9★", "label": "Parent rating" },
+    { "stat": "10", "label": "Junior sports" },
+    { "stat": "$0", "label": "For the 2026 season" },
+    { "stat": "Any phone", "label": "App Store or browser" },
     { "stat": "0", "label": "Clipboards" }
-  ]
+  ],
+  "finalCta": {
+    "finalCtaEyebrow": "Saturday morning is coming",
+    "finalCtaTitle": { "before": "Set up your team in about ", "italic": "five", "after": " minutes." },
+    "finalCtaBody": "Pick your sport and age group, add your kids, and you're set. Free for the 2026 season, on the phone you already have."
+  }
 }

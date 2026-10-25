@@ -9,6 +9,9 @@ import { ROLE_LABEL } from "@/lib/roles";
 import type { TeamRole } from "@/lib/types";
 
 export const metadata: Metadata = {
+  title: "Sign in · Siren",
+  description:
+    "Sign in to Siren, or create an account, to run your junior team's rotations, subs and scores on game day.",
   alternates: { canonical: "/login" },
 };
 

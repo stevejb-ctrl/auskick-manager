@@ -8,7 +8,7 @@ export interface HelpPage {
 // Sport-neutral copy: this registry is the single source of truth for help-page
 // titles and descriptions across every brand (sirenfooty.com.au and
 // sirennetball.com.au). Avoid sport-specific wording — pages themselves cover
-// both football and netball mechanics in unified prose.
+// every sport's mechanics in unified prose.
 export const HELP_PAGES: HelpPage[] = [
   {
     slug: "overview",

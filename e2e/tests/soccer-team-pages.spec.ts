@@ -1,6 +1,6 @@
 // ─── Football (soccer): a coach makes a team and every page opens ──
 // Soccer plan, phase 3. The setup wizard offers Football (soccer),
-// marked Beta (open to every coach, Steve 17 Oct 2026); a U9 team
+// open to every coach; a U9 team
 // starts with MiniRoos' rules (no scoreboard) and soccer's own How we
 // play ("Everyone has a turn in goal"); and none of the team's pages
 // stops for soccer or borrows another sport's screen.
@@ -18,7 +18,8 @@ test("soccer: the wizard makes a U9 team with MiniRoos rules, and every team pag
   await gotoStable(page, "/teams/new");
   await waitForHydration(page);
   const pill = page.getByRole("radio", { name: "Junior Football (soccer)" });
-  await expect(pill).toContainText("Beta");
+  // Every sport left beta with the ten-sport homepage.
+  await expect(pill).not.toContainText("Beta");
   await pill.click();
   const teamName = `SOC-WIZ-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   await page.getByLabel(/team name/i).fill(teamName);

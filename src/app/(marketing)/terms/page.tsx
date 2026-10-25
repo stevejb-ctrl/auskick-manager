@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { sportsSentence } from "@/lib/siren-facts";
 
 export const metadata: Metadata = {
   title: "Terms of Service · Siren",
   description:
-    "The terms that govern your use of Siren, the junior football and netball team and game manager.",
+    "The terms that govern your use of Siren, the team and game manager for junior sport.",
   alternates: { canonical: "/terms" },
 };
 
@@ -32,7 +33,7 @@ export default function TermsPage() {
         <Section title="1. What Siren is">
           <p>
             Siren is a web app that helps coaches and team managers run junior
-            football and netball teams: rotating players fairly, tracking
+            sport teams ({sportsSentence()}): rotating players fairly, tracking
             availability, managing game-day subs, and keeping a simple record of
             each season. It is a tool for adults managing junior teams; it is
             not for use by children directly.

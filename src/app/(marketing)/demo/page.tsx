@@ -1,15 +1,17 @@
 import type { Metadata } from "next";
 import { unstable_noStore as noStore } from "next/cache";
 import { MARKETING_SPORTS } from "@/lib/sports/marketing-sports";
-import { DemoSportCard, DemoSportCardDisabled } from "./DemoSportCard";
+import { DemoSportCard } from "./DemoSportCard";
 import { runDemoGame } from "./actions";
+
+const DEMO_SPORTS = MARKETING_SPORTS.filter((s) => s.hasDemo);
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Try Siren — pick a sport",
   description:
-    "Run a sped-up junior demo game in AFL, rugby league, rugby union, netball or football (soccer). See Siren handle rotations, scoring, and breaks in a couple of minutes.",
+    "Run a sped-up junior demo game in any of ten sports: netball, AFL, rugby league, football (soccer), basketball, rugby union, touch football, Oztag, hockey or futsal. See Siren handle rotations, scoring, and breaks in a couple of minutes.",
   alternates: { canonical: "/demo" },
 };
 
@@ -30,11 +32,9 @@ export const metadata: Metadata = {
  *   - A disabled (coming-soon) card stays server-rendered — no form,
  *     no client JS needed. Every sport is open today.
  *
- * Visual styling intentionally mirrors the homepage
- * MultiSportSection card grid (same field illustrations cropped
- * bottom-right, same accent-fill on active) but on the cream
- * surface background instead of the dark plate — per Steve's
- * "use the same buttons but not on the dark background".
+ * Each card is filled with the sport's accent and carries its field
+ * drawing (SportFieldGlyph, as on the homepage tiles and the Sports
+ * menu) cropped bottom-right, on the cream surface background.
  */
 export default function DemoPage() {
   noStore();
@@ -55,26 +55,20 @@ export default function DemoPage() {
         </p>
       </div>
 
-      {/* Picker grid — 2 cols on phone (an odd last card spans both),
-          3 from sm, all five in a row on lg+. Active sports render
-          through DemoSportCard (form + useFormStatus loader);
-          coming-soon sports use the lightweight server-only disabled
-          variant. */}
-      <div className="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
-        {MARKETING_SPORTS.map((sport, index) => (
+      {/* Picker grid — 2 cols on phone and tablet (an odd last card
+          spans both), two rows of five on lg+. Only the sports with a
+          seeded demo team (hasDemo; /api/admin/seed-demo) are listed. */}
+      <div className="mt-12 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
+        {DEMO_SPORTS.map((sport, index) => (
           <div
             key={sport.id}
             className={
-              MARKETING_SPORTS.length % 2 === 1 && index === MARKETING_SPORTS.length - 1
-                ? "col-span-2 sm:col-span-1"
+              DEMO_SPORTS.length % 2 === 1 && index === DEMO_SPORTS.length - 1
+                ? "col-span-2 lg:col-span-1"
                 : undefined
             }
           >
-            {sport.comingSoon ? (
-              <DemoSportCardDisabled sport={sport} />
-            ) : (
-              <DemoSportCard sport={sport} action={runDemoGame} />
-            )}
+            <DemoSportCard sport={sport} action={runDemoGame} />
           </div>
         ))}
       </div>

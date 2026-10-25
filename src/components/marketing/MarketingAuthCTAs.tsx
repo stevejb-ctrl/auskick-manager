@@ -52,9 +52,12 @@ export function MarketingAuthCTAs({ variant }: MarketingAuthCTAsProps) {
       </Link>
     ) : (
       <>
+        {/* On a phone the header has room for Sports, Try demo and
+            Start free (which goes to the same sign-in page) but not
+            Sign in as well; the hero and the footer CTA carry it. */}
         <Link
           href="/login"
-          className="rounded-md px-3 py-1.5 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-surface-alt hover:text-ink"
+          className="hidden rounded-md px-3 py-1.5 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-surface-alt hover:text-ink sm:inline-flex"
         >
           Sign in
         </Link>

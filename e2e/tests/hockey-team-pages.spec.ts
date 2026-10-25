@@ -1,6 +1,6 @@
 // ─── Hockey: a coach makes a team, every page opens, halves save ──
 // Four-sports plan, track A. The setup wizard offers Junior Hockey,
-// marked Beta (open to every coach, as soccer was); a U13 team starts
+// open to every coach; a U13 team starts
 // with hockey's own How we play (named keepers, FIH's laws, no MiniRoos)
 // in 4 × 15 quarters; none of the team's pages stops for hockey; and a
 // team switched to halves (teams.period_count, VIC's 2 × 30) plays them
@@ -20,7 +20,8 @@ test("hockey: the wizard makes a U13 team in quarters, every page opens, and the
   await gotoStable(page, "/teams/new");
   await waitForHydration(page);
   const pill = page.getByRole("radio", { name: "Junior Hockey" });
-  await expect(pill).toContainText("Beta");
+  // Every sport left beta with the ten-sport homepage.
+  await expect(pill).not.toContainText("Beta");
   await pill.click();
   const teamName = `HOC-WIZ-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   await page.getByLabel(/team name/i).fill(teamName);
