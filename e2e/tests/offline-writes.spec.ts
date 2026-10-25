@@ -204,35 +204,44 @@ test("Netball: goals, the quarter's hooter and Start Q2 with no signal all save 
     .toEqual(["opponent_goal", "opponent_goal", "quarter_end 1", "quarter_start 2"]);
 });
 
-test("Soccer: a tap still queued at a reload is still drawn, and saves once", async ({ page }) => {
-  test.setTimeout(120_000);
-  const admin = createAdminClient();
-  const { team, game } = await liveGame(admin, "soccer", 20, 600);
-  await skipTours(page);
-  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await waitForHydration(page);
-  const theirs = page.getByTestId("scorebug-team-name").last().locator("xpath=following-sibling::p[1]");
-  await expect(theirs).toHaveText("0", { timeout: 30_000 });
+// Routing a save needs the service worker out of the way: WebKit's
+// requests through it never reach Playwright's routes, so the save got
+// through (merge e2e, 25 Oct 2026).
+test.describe("with saves routed", () => {
+  test.use({ serviceWorkers: "block" });
 
-  // The saves don't get through (a dead zone the phone calls online);
-  // the page itself still loads, as it would from the phone's cache.
-  // (Playwright's offline mode can't reload a page at all.)
-  const dropSaves = (route: import("@playwright/test").Route) =>
-    route.request().method() === "POST" ? route.abort("internetdisconnected") : route.continue();
-  await page.route(`**/games/${game.id}/live`, dropSaves);
-  await page.getByRole("button", { name: "Add goal, Rovers" }).click();
-  await expect(theirs).toHaveText("1");
-  await page.waitForTimeout(20_000);
-  await page.reload();
-  await waitForHydration(page);
-  // Still there after the reload: before, it vanished (and was tapped again).
-  await expect(theirs).toHaveText("1", { timeout: 30_000 });
-  await expect(page.getByTestId("offline-banner")).toContainText(/Saving 1 change/);
-  expect((await eventTypes(admin, game.id)).filter((e) => e.type === "opponent_goal")).toHaveLength(0);
+  test("Soccer: a tap still queued at a reload is still drawn, and saves once", async ({ page }) => {
+    test.setTimeout(120_000);
+    const admin = createAdminClient();
+    const { team, game } = await liveGame(admin, "soccer", 20, 600);
+    await skipTours(page);
+    await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+    await waitForHydration(page);
+    const theirs = page.getByTestId("scorebug-team-name").last().locator("xpath=following-sibling::p[1]");
+    await expect(theirs).toHaveText("0", { timeout: 30_000 });
 
-  await page.unroute(`**/games/${game.id}/live`, dropSaves);
-  await expect
-    .poll(async () => (await eventTypes(admin, game.id)).filter((e) => e.type === "opponent_goal").length, { timeout: 30_000 })
-    .toBe(1);
-  await expect(theirs).toHaveText("1");
+    // The saves don't get through (a dead zone the phone calls online);
+    // the page itself still loads, as it would from the phone's cache.
+    // (Playwright's offline mode can't reload a page at all.)
+    const dropSaves = (route: import("@playwright/test").Route) =>
+      route.request().method() === "POST" ? route.abort("internetdisconnected") : route.continue();
+    // By path, on the whole context.
+    const livePage = (url: URL) => url.pathname.endsWith(`/games/${game.id}/live`);
+    await page.context().route(livePage, dropSaves);
+    await page.getByRole("button", { name: "Add goal, Rovers" }).click();
+    await expect(theirs).toHaveText("1");
+    await page.waitForTimeout(20_000);
+    await page.reload();
+    await waitForHydration(page);
+    // Still there after the reload: before, it vanished (and was tapped again).
+    await expect(theirs).toHaveText("1", { timeout: 30_000 });
+    await expect(page.getByTestId("offline-banner")).toContainText(/Saving 1 change/);
+    expect((await eventTypes(admin, game.id)).filter((e) => e.type === "opponent_goal")).toHaveLength(0);
+
+    await page.context().unroute(livePage, dropSaves);
+    await expect
+      .poll(async () => (await eventTypes(admin, game.id)).filter((e) => e.type === "opponent_goal").length, { timeout: 30_000 })
+      .toBe(1);
+    await expect(theirs).toHaveText("1");
+  });
 });
