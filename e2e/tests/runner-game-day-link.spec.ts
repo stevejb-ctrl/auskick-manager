@@ -152,10 +152,10 @@ test("netball: the runner's picker starts from the coach's saved plan, as the co
   const runner = await runnerPhone(browser);
   await runner.goto(`/run/${game.share_token}`);
   for (const phone of [page, runner]) {
-    await expect(phone.getByRole("button", { name: new RegExp(`^Goal Shooter,\\s*${players[8].full_name}`, "i") })).toBeVisible({
+    await expect(phone.getByRole("button", { name: new RegExp(`^${players[8].full_name}, Goal Shooter`, "i") })).toBeVisible({
       timeout: 15_000,
     });
-    await expect(phone.getByRole("button", { name: new RegExp(`^Goal Attack,\\s*${players[7].full_name}`, "i") })).toBeVisible();
+    await expect(phone.getByRole("button", { name: new RegExp(`^${players[7].full_name}, Goal Attack`, "i") })).toBeVisible();
   }
   await runner.context().close();
 });

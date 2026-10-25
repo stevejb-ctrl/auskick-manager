@@ -175,7 +175,7 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
 
   // ─── Phase 2: Q1 goal ─────────────────────────────────────
   // Tap GS (players[0]) → pendingGoal sheet's "+ Goal" CTA. The
-  // PositionToken's accessible name is "Goal Shooter, ${playerName}"
+  // PositionToken's accessible name is "${playerName}, Goal Shooter, …"
   // — see PositionToken.tsx:84+157 (uses pos.label, the FULL name,
   // not the shortLabel).
   const scorer = players[0];
@@ -187,7 +187,7 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   ).toBeVisible({ timeout: 15_000 });
   await page
     .getByRole("button", {
-      name: new RegExp(`^Goal Shooter,\\s*${scorer.full_name}`, "i"),
+      name: new RegExp(`^${scorer.full_name}, Goal Shooter`, "i"),
     })
     .click({ timeout: 10_000 });
   await page
