@@ -75,7 +75,9 @@ export function ScoreRecordingDock({
           <button
             type="button"
             onClick={onCancel}
-            className="flex-shrink-0 font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim hover:text-ink-dim"
+            // A 44 px target round the small word, without growing the
+            // row (it was 50×17; UX round 3, e4).
+            className="-my-3 -mr-2 inline-flex min-h-[44px] min-w-[44px] flex-shrink-0 items-center justify-center px-2 font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim hover:text-ink"
           >
             {cancelLabel}
           </button>

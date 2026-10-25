@@ -293,7 +293,7 @@ test("soccer: one of two due swaps leaves the other due, and the clock waits for
   await waitForHydration(page);
   // Both bench kids are due on.
   await expect(page.getByText(/^sub due — 2 swaps$/i)).toBeVisible({ timeout: 20_000 });
-  await page.getByTestId("soccer-swap-pair-0").getByRole("button", { name: "Make swap" }).click();
+  await page.getByTestId("soccer-swap-pair-0").getByRole("button", { name: /^swap .+ off, .+ on$/i }).click();
   await expect.poll(async () => (await swaps()).length).toBe(1);
   // The swap says one of its batch is still to make…
   expect((await swaps())[0].metadata.batch_left).toBe(1);
@@ -303,7 +303,7 @@ test("soccer: one of two due swaps leaves the other due, and the clock waits for
 
   // The last of the batch restarts the clock.
   await page.getByText(/^sub due — 1 swap$/i).click();
-  await page.getByTestId("soccer-swap-pair-0").getByRole("button", { name: "Make swap" }).click();
+  await page.getByTestId("soccer-swap-pair-0").getByRole("button", { name: /^swap .+ off, .+ on$/i }).click();
   await expect.poll(async () => (await swaps()).length).toBe(2);
   expect((await swaps())[1].metadata.batch_left).toBeUndefined();
   await expect(page.getByText(/^sub due —/i)).toHaveCount(0, { timeout: 15_000 });

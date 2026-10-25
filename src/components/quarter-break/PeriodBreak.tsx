@@ -322,7 +322,8 @@ export function PeriodBreak(props: PeriodBreakProps) {
               </span>
               {props.score.line.margin !== 0 && (
                 <span
-                  className={`whitespace-nowrap text-[13px] font-semibold ${props.score.line.margin > 0 ? "text-ok" : "text-danger"}`}
+                  // win green, not ok: ok is 4.05:1 on white (UX round 3, e4).
+                  className={`whitespace-nowrap text-[13px] font-semibold ${props.score.line.margin > 0 ? "text-win" : "text-danger"}`}
                 >
                   {props.score.line.margin > 0 ? `+${props.score.line.margin}` : props.score.line.margin}
                 </span>
@@ -400,7 +401,10 @@ export function PeriodBreak(props: PeriodBreakProps) {
                 </span>
                 <span className="ml-auto text-xs text-ink-dim">{count}</span>
               </div>
-              <div className="grid grid-cols-2 gap-1.5">
+              {/* Two columns, or one once the text is large: a column is at
+                  least 8.5rem, which at 150% text and up is more than half a
+                  phone (UX round 3, e4: at 200% names cut to "Leo…"). */}
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(max(8.5rem,calc(50%_-_3px)),1fr))] gap-[6px]">
                 {inSection.map(({ s, i }) => {
                   const tile = tileFor(s);
                   return (

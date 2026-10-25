@@ -17,6 +17,7 @@
 import { useEffect, useState } from "react";
 import type { Player } from "@/lib/types";
 import { SUB_DUE_RING, SUB_IDLE_SHADOW, SubDueHeading, SubDueRoot } from "@/components/live/SubDue";
+import { swapPairLabel } from "@/lib/live/liveChrome";
 
 export interface NextSubPair {
   offId: string;
@@ -262,7 +263,11 @@ export function NextSubCard({
                       // the coach can see the field update immediately.
                       setOpen(false);
                     }}
-                    className="ml-auto flex-shrink-0 rounded-sm bg-brand-600 px-2.5 py-1 font-mono text-[11px] font-bold text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
+                    // Named for its kids, 44 px tall as AFL's (it was 79×25 and
+                    // every row read "Make swap"; UX round 3, e4). Null-safe
+                    // for a fill into an empty spot (nobody off).
+                    aria-label={swapPairLabel(off ? off.full_name : null, on.full_name)}
+                    className="ml-auto min-h-11 flex-shrink-0 rounded-sm bg-brand-600 px-3 font-mono text-[11px] font-bold text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
                   >
                     {pending ? "…" : "Make swap"}
                   </button>

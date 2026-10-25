@@ -13,6 +13,7 @@ import {
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { hapticSuccess } from "@/lib/haptics";
+import { swapPairLabel } from "@/lib/live/liveChrome";
 
 interface SwapCardProps {
   suggestions: SwapSuggestion[];
@@ -480,6 +481,7 @@ export function SwapCard({
                           void hapticSuccess();
                           onApplyOne(s);
                         }}
+                        aria-label={swapPairLabel(off.full_name, on.full_name)}
                         className="min-h-11 flex-shrink-0 whitespace-nowrap rounded-sm bg-white/10 px-3 font-mono text-[11px] font-bold text-warm transition-colors duration-fast ease-out-quart hover:bg-white/15 disabled:opacity-60"
                       >
                         {pending ? "…" : "Make swap"}

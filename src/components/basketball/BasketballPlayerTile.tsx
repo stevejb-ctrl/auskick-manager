@@ -17,6 +17,7 @@ import { BASKETBALL_LINE_ZONE } from "@/lib/sports/basketball";
 import type { BasketballLineMs } from "@/lib/sports/basketball/replay";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
+import { ZONE_STRIP } from "@/components/live/zoneStrip";
 
 /** Each line's short label, as the tile and the swap strip print it. */
 export const BASKETBALL_LINE_SHORT: Record<BasketballLine, string> = {
@@ -36,8 +37,8 @@ export const BASKETBALL_LINE_LABEL: Record<BasketballLine, string> = {
 // (BASKETBALL_LINE_ZONE): guards AFL's centre colour, forwards its
 // forward colour. The court (no positions) prints in ink.
 const ZONE_CLASSES: Record<"zone1" | "zone2", { text: string; fill: string; strip: string }> = {
-  zone1: { text: "text-zone-f", fill: "bg-zone-f-fill", strip: "border-zone-f/40 bg-zone-f/15 text-zone-f" },
-  zone2: { text: "text-zone-c", fill: "bg-zone-c-fill", strip: "border-zone-c/40 bg-zone-c/15 text-zone-c" },
+  zone1: { text: "text-zone-f", fill: "bg-zone-f-fill", strip: ZONE_STRIP.f },
+  zone2: { text: "text-zone-c", fill: "bg-zone-c-fill", strip: ZONE_STRIP.c },
 };
 const zoneOf = (line: BasketballLine) => ZONE_CLASSES[BASKETBALL_LINE_ZONE[line] as "zone1" | "zone2"];
 const LINE_TEXT: Record<BasketballLine, string> = {

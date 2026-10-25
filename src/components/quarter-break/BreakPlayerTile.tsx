@@ -6,6 +6,10 @@
 // of where the kid ended last period, where they've come from ("Stays",
 // "From Fwd", "From bench") and their game time, orange when they're
 // well under the team average. Every sport's break uses it.
+//
+// The name is in rem, so it grows with the phone's text size as the tag
+// and time do; the padding is in px, so the growth goes to the words
+// (UX round 3, e4: at 200% px names stayed small and cut to "Leo…").
 
 import { useLongPress } from "@/lib/live/useLongPress";
 import { ZONE_SWATCH, ZONE_TEXT, type BreakColor } from "@/components/quarter-break/breakZoneTokens";
@@ -75,11 +79,11 @@ export function BreakPlayerTile({ tile, testId, selected, target, onTap, onLongP
       {...longPress.handlers}
       aria-pressed={selected}
       disabled={tile.sidelined}
-      className={`flex min-h-[56px] w-full min-w-0 flex-col justify-center gap-[3px] rounded-[12px] border-2 px-2.5 py-2 text-left text-ink transition-colors duration-fast ease-out-quart disabled:cursor-not-allowed disabled:opacity-55 ${border} ${
+      className={`flex min-h-[56px] w-full min-w-0 flex-col justify-center gap-[3px] rounded-[12px] border-2 px-[10px] py-[8px] text-left text-ink transition-colors duration-fast ease-out-quart disabled:cursor-not-allowed disabled:opacity-55 ${border} ${
         longPress.arming ? "ring-2 ring-brand-300" : ""
       }`}
     >
-      <span className="flex w-full min-w-0 items-baseline gap-1.5">
+      <span className="flex w-full min-w-0 items-baseline gap-[6px]">
         {tile.tag && (
           <span
             className={`shrink-0 font-mono text-xs ${tile.tagIsBib ? `font-bold ${ZONE_TEXT[tile.zoneColor]}` : "font-medium text-ink-dim"}`}
@@ -87,7 +91,7 @@ export function BreakPlayerTile({ tile, testId, selected, target, onTap, onLongP
             {tile.tag}
           </span>
         )}
-        <span className="min-w-0 flex-1 truncate whitespace-nowrap text-[15px] font-semibold">{tile.name}</span>
+        <span className="min-w-0 flex-1 truncate whitespace-nowrap text-[0.9375rem] font-semibold">{tile.name}</span>
         {tile.tags?.map((t) => (
           <span key={t} className="shrink-0 font-mono text-[10px] font-bold uppercase text-ink-dim">
             {t}
@@ -99,7 +103,7 @@ export function BreakPlayerTile({ tile, testId, selected, target, onTap, onLongP
           </span>
         )}
       </span>
-      <span className="flex w-full min-w-0 items-center gap-1.5 text-xs text-ink-dim">
+      <span className="flex w-full min-w-0 items-center gap-[6px] text-xs text-ink-dim">
         <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${tile.sidelined ? "bg-danger" : ZONE_SWATCH[tile.fromColor]}`} />
         <span className={`min-w-0 truncate ${tile.sidelined ? "font-semibold text-danger" : ""}`}>{tile.movement}</span>
         <span className={`ml-auto shrink-0 font-mono tabular-nums ${tile.lowTime ? "font-semibold text-zone-f" : ""}`}>
