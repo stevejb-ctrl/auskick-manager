@@ -7,6 +7,8 @@
 //   - A phone that's behind can't write a second kickoff or break: its
 //     Start is refused ("Another phone already started Q1") and it shows
 //     the game as it stands.
+//   - Both phones tapping Start in the same instant start the period
+//     once: the database refuses the second (migration 0075).
 //   - Undo on one phone takes back the score its strip names, never the
 //     other phone's later one.
 //
@@ -16,10 +18,10 @@
 // Covers: src/components/live/LiveSync.tsx, src/lib/live/periodGuard.ts,
 // src/lib/live/undoTarget.ts and every live/*-actions.ts that uses them.
 
-import { test, expect, type Browser, type Page } from "@playwright/test";
+import { test, expect, type Browser, type Locator, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
-import { startFromBreak } from "../helpers/break";
+import { closeGameSettings, liveWritesSaved, startFromBreak } from "../helpers/break";
 import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
 import { aflPositionModel, getAgeGroupConfig } from "../../src/lib/sports";
 import type { Lineup } from "../../src/lib/types";
@@ -197,6 +199,84 @@ test("netball: a phone that's behind can't start the next quarter a second time"
   await expect(runner.getByRole("button", { name: /^start q2$/i })).toBeHidden(SYNC);
   expect(await events(admin, game.id, "quarter_start")).toHaveLength(2);
   expect(await events(admin, game.id, "period_break_swap")).toHaveLength(1);
+  await runner.context().close();
+});
+
+// ─── Both phones tap Start in the same instant ───────────────
+// The guard reads, then writes: two Starts ~100 ms apart both passed it.
+// Migration 0075's unique indexes refuse the second in the database.
+
+test("the database holds one start per period and one Finish per game", async () => {
+  const admin = createAdminClient();
+  const { players, game, ownerId } = await netballGame(admin);
+  await seedNetballQ1(admin, game.id, ownerId, players.map((p) => p.id), { ended: true });
+
+  const start = () =>
+    admin.from("game_events").insert({ game_id: game.id, type: "quarter_start", metadata: { quarter: 2, sport: "netball" }, created_by: ownerId });
+  const results = await Promise.all([start(), start()]);
+  expect(results.filter((r) => !r.error)).toHaveLength(1);
+  expect(results.find((r) => r.error)?.error).toMatchObject({ code: "23505", message: expect.stringContaining("game_events_one_start_per_period") });
+  expect(await events(admin, game.id, "quarter_start")).toHaveLength(2);
+
+  const finish = () => admin.from("game_events").insert({ game_id: game.id, type: "game_finalised", metadata: { quarter: 2 }, created_by: ownerId });
+  const finishes = await Promise.all([finish(), finish()]);
+  expect(finishes.filter((r) => !r.error)).toHaveLength(1);
+  expect(await events(admin, game.id, "game_finalised")).toHaveLength(1);
+});
+
+test("netball: both phones tapping Start Q2 at once start it once", async ({ page, browser }) => {
+  const admin = createAdminClient();
+  const { team, players, game, ownerId } = await netballGame(admin);
+  await seedNetballQ1(admin, game.id, ownerId, players.map((p) => p.id), { ended: true });
+
+  await coachPhone(page, team.id, game.id);
+  const runner = await runnerPhone(browser, game.share_token, { behind: true });
+  // Two taps a few ms apart still reach the server one after the other,
+  // so each phone's Start Q2 request (the server action called with
+  // period 2: [auth, gameId, 2, key]) is held until both have been sent,
+  // then both go at once: the race two phones ~100 ms apart can hit.
+  let release: () => void = () => {};
+  const bothSent = new Promise<void>((resolve) => (release = resolve));
+  let held = 0;
+  for (const phone of [page, runner]) {
+    await phone.route("**/*", async (route) => {
+      const req = route.request();
+      let args: unknown = null;
+      try {
+        args = req.method() === "POST" && req.headers()["next-action"] ? JSON.parse(req.postData() ?? "null") : null;
+      } catch {}
+      if (Array.isArray(args) && args.length === 4 && args[2] === 2) {
+        if (++held === 2) release();
+        // Never wait for ever: a phone that doesn't send one lets the other go.
+        await Promise.race([bothSent, new Promise((r) => setTimeout(r, 5_000))]);
+      }
+      await route.fallback();
+    });
+  }
+  // Both phones at the break, each with its confirm sheet open.
+  const nowButtons: Locator[] = [];
+  for (const phone of [page, runner]) {
+    await closeGameSettings(phone);
+    await phone.getByRole("button", { name: /^start q2$/i }).click({ timeout: 15_000 });
+    const anyway = phone.getByRole("button", { name: "Start anyway" });
+    const now = phone.getByRole("button", { name: /^start q2 now$/i });
+    await expect(anyway.or(now)).toBeVisible();
+    nowButtons.push((await anyway.isVisible()) ? anyway : now);
+  }
+  // Both tap in the same instant.
+  await Promise.all(nowButtons.map((b) => b.click()));
+
+  await expect.poll(async () => (await events(admin, game.id, "quarter_start")).length, SYNC).toBeGreaterThanOrEqual(2);
+  await liveWritesSaved(page);
+  await liveWritesSaved(runner);
+  // Both phones really did send a start, together.
+  expect(held).toBe(2);
+  const starts = (await events(admin, game.id, "quarter_start")).filter((e) => e.metadata.quarter === 2);
+  expect(starts).toHaveLength(1);
+  // Both phones are in Q2, neither on its break.
+  for (const phone of [page, runner]) {
+    await expect(phone.getByRole("button", { name: /^start q2$/i })).toBeHidden(SYNC);
+  }
   await runner.context().close();
 });
 

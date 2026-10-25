@@ -33,7 +33,15 @@ import { countMixedGroups, girlsTryCountsDouble, mixedFieldPlan, teamMixedRule }
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
 import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvailability";
-import { checkPeriodWrite, periodWordOf, revalidateLivePage, scoreRowsOf, staleRefusal } from "@/lib/live/liveWriteGuard";
+import {
+  checkPeriodWrite,
+  kickoffRaceRefusal,
+  periodWordOf,
+  raceVerdictOf,
+  revalidateLivePage,
+  scoreRowsOf,
+  staleRefusal,
+} from "@/lib/live/liveWriteGuard";
 import { lineupWrite, type PeriodWrite } from "@/lib/live/periodGuard";
 import { resolveUndoTarget, undoArgs, type UndoTargetRef } from "@/lib/live/undoTarget";
 import type { ActionResult, LiveAuth, MixedGroup } from "@/lib/types";
@@ -161,6 +169,10 @@ async function insertEvent(
     idempotency_key: idempotencyKey ?? null,
   });
   if (error) {
+    // The other phone's start or Finish landed after the guard looked.
+    const race = await raceVerdictOf(w.supabase, gameId, error, { type, guard }, await periodWordFor(w.teamId), idempotencyKey);
+    if (race?.kind === "stale") return staleRefusal(auth, w.teamId, gameId, race.message);
+    if (race?.kind === "duplicate") return { success: true };
     // Unique-violation on the idempotency_key partial index means this
     // op already landed (write queue retry). Treat as success.
     if (error.code === "23505" && idempotencyKey) return { success: true };
@@ -210,7 +222,10 @@ export async function startTouchGame(
   const firstError = check.issues.find((i) => i.kind === "error");
   if (firstError) return { success: false, error: firstError.message };
 
+  // Their ids, so a kickoff that loses the race can take them back out.
+  const written = [crypto.randomUUID()];
   const { error: insertError } = await w.supabase.from("game_events").insert({
+    id: written[0],
     game_id: gameId,
     type: "lineup_set",
     metadata: { lineup, sport },
@@ -223,7 +238,10 @@ export async function startTouchGame(
     const here = [...touchOnField(lineup), ...lineup.bench];
     const plan = mixedFieldPlan(mixed, size, countMixedGroups(here, (id) => groups.get(id)));
     if (plan.short) {
+      const shrinkId = crypto.randomUUID();
+      written.push(shrinkId);
       const { error: shrinkError } = await w.supabase.from("game_events").insert({
+        id: shrinkId,
         game_id: gameId,
         type: "roster_shrink",
         metadata: { on_field_size: plan.size, quarter: 0, elapsed_ms: 0, sport },
@@ -240,7 +258,11 @@ export async function startTouchGame(
       metadata: { quarter: 1, sport },
       created_by: w.userId,
     });
-    if (startError) return { success: false, error: startError.message };
+    if (startError) {
+      const raced = await kickoffRaceRefusal(gameId, written, startError, await periodWordFor(w.teamId));
+      if (raced) return staleRefusal(auth, w.teamId, gameId, raced);
+      return { success: false, error: startError.message };
+    }
   }
 
   const gameUpdate: {
