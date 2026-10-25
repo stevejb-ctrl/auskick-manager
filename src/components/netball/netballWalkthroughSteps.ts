@@ -42,8 +42,8 @@ export function buildNetballWalkthroughSteps(opts: {
     },
     {
       emoji: "👇",
-      title: "Long-press for player actions",
-      body: "Hold a player for half a second to open the actions sheet. From here you can Mark injured, Lend to opposition, or 🔒 Keep at this position next break (a soft signal the suggester respects across all subsequent quarters).",
+      title: "Tap for player actions",
+      body: "Tap a player to open the actions sheet (for GS or GA with scoring on, tap Player actions under the goal button). From here you can Mark injured, Lend to opposition, or 🔒 Keep at this position next break (a soft signal the suggester respects across all subsequent quarters).",
     },
     {
       emoji: "🏥",

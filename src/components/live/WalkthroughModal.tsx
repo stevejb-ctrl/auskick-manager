@@ -43,8 +43,8 @@ export function buildWalkthroughSteps(trackScoring: boolean): WalkthroughStep[] 
     },
     {
       emoji: "👇",
-      title: "Long-press for player actions",
-      body: "Hold a player tile for half a second to open the actions sheet. From here you can Switch player, Keep on field (never subbed), Keep in their zone (rotates off but always back to the same spot), Mark injured (sits on the bench, skipped by auto-rotation), or Lend to opposition (counts toward season fairness). One gesture — works on field and bench tiles.",
+      title: "Tap for player actions",
+      body: "Tap a player, then Player actions at the bottom of the screen to open the actions sheet. From here you can Switch player, Keep on field (never subbed), Keep in their zone (rotates off but always back to the same spot), Mark injured (sits on the bench, skipped by auto-rotation), or Lend to opposition (counts toward season fairness).",
     },
     {
       emoji: "↩️",

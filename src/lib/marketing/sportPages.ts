@@ -75,7 +75,7 @@ export const SHARED_FEATURES: readonly SharedFeature[] = [
   },
   {
     title: "Curveballs, handled",
-    body: "Late arrivals, injuries, a kid lent to the other side. Long-press a player and play on.",
+    body: "Late arrivals, injuries, a kid lent to the other side. Tap a player, then Player actions, and play on.",
     shownIn: "rugby_league",
     image: `${SHOTS}/rl-long-press.png`,
     imageAlt: "Rugby league player actions: switch, mark injured or lend to the opposition",
