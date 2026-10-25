@@ -87,6 +87,17 @@ describe("shortNames", () => {
     expect(names.get("c")).toBe("Zoe");
   });
 
+  // Review: the count followed each page's query order, so one Mia was
+  // "(1)" live and "(2)" on the game page.
+  it("numbers the same way whatever order the squad comes in", () => {
+    const a = shortNames([kid("id-2", "Mia Chen"), kid("id-1", "Mia Chen")]);
+    const b = shortNames([kid("id-1", "Mia Chen"), kid("id-2", "Mia Chen")]);
+    expect(a.get("id-1")).toBe("Mia (1)");
+    expect(b.get("id-1")).toBe("Mia (1)");
+    const c = distinctFullNames([kid("id-2", "Mia Chen"), kid("id-1", "Mia Chen")]);
+    expect(c.get("id-1")).toBe("Mia Chen (1)");
+  });
+
   it("tells a kid with no surname from one with", () => {
     const names = shortNames([kid("a", "Mia"), kid("b", "Mia Chen")]);
     expect(names.get("a")).toBe("Mia");

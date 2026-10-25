@@ -51,11 +51,13 @@ export function shortName(full: string, style: NameStyle = "first"): string {
 }
 
 const key = (s: string) => s.toLocaleLowerCase();
+const byId = (ps: NamedPlayer[]) => [...ps].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
 /**
  * Each kid's short name, told apart from the rest of the squad: more of
  * the surname until it differs ("Jack Sm", "Jack St"), else the jersey
- * number ("Jack S #5"), else a count in squad order ("Mia (2)").
+ * number ("Jack S #5"), else a count ("Mia (2)", in id order, so every
+ * page numbers the same kid the same way whatever order it loaded them).
  * `numberShown`: the surface prints the jersey number beside the name
  * already (the share text's "#5 Jack"), so a number isn't added again.
  */
@@ -91,7 +93,7 @@ export function shortNames(
       unresolved.push(p);
     });
     // A count only among the kids a number can't tell apart.
-    const unnumbered = unresolved.filter((p) => p.jersey_number == null);
+    const unnumbered = byId(unresolved.filter((p) => p.jersey_number == null));
     for (const p of unresolved) {
       const base = shortName(p.full_name, style);
       if (p.jersey_number != null) out.set(p.id, opts.numberShown ? base : `${base} #${p.jersey_number}`);
@@ -115,7 +117,7 @@ export function distinctFullNames(players: NamedPlayer[]): Map<string, string> {
     groups.set(k, [...(groups.get(k) ?? []), p]);
   }
   for (const group of Array.from(groups.values())) {
-    const unnumbered = group.filter((p) => p.jersey_number == null);
+    const unnumbered = byId(group.filter((p) => p.jersey_number == null));
     for (const p of group) {
       const name = p.full_name.trim();
       if (group.length === 1) out.set(p.id, name);
