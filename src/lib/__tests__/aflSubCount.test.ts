@@ -35,6 +35,25 @@ describe("replayGame subCount", () => {
     expect(replayGame(events).subCount).toBe(2);
   });
 
+  it("a batch and its 'Undo swaps' net to zero", () => {
+    // Round 3 follow-up: "Make all swaps" then the toast's Undo wrote four
+    // swaps, and full time said "4 subs" for a game with none.
+    const swap = (off: string, on: string, extra: Record<string, unknown> = {}) =>
+      ev("swap", { off_player_id: off, on_player_id: on, zone: "fwd", quarter: 1, elapsed_ms: 60_000, ...extra }, on);
+    const events: GameEvent[] = [
+      ev("lineup_set", lineup("c", "d")),
+      ev("quarter_start", { quarter: 1 }),
+      swap("c", "d"),
+      swap("a", "e"),
+      // The batch back, last first (lib/live/liveChrome undoSwaps).
+      swap("e", "a", { manual: true, undo: true }),
+      swap("d", "c", { manual: true, undo: true }),
+      // A real sub after it still counts.
+      swap("c", "d"),
+    ];
+    expect(replayGame(events).subCount).toBe(1);
+  });
+
   it("is 0 before anyone comes off", () => {
     expect(replayGame([ev("lineup_set", lineup("c", "d")), ev("quarter_start", { quarter: 1 })]).subCount).toBe(0);
   });

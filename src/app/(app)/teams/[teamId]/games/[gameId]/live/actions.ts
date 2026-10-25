@@ -942,6 +942,8 @@ export async function recordSwap(
     manual?: boolean;
     /** One swap of a due batch, with this many still to make. */
     batch_left?: number;
+    /** "Undo swaps" putting one of a batch back: nets to zero subs. */
+    undo?: boolean;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {

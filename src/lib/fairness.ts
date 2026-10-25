@@ -1294,7 +1294,9 @@ export function replayGame(events: GameEvent[]): GameState {
       elapsed_ms?: number;
     };
     const elapsed = meta.elapsed_ms ?? 0;
-    if (ev.type === "swap") state.subCount++;
+    // "Undo swaps" writes the batch back as swaps marked `undo`: each
+    // takes back one of the batch's, so a batch and its undo net to zero.
+    if (ev.type === "swap") state.subCount = Math.max(0, state.subCount + ((ev.metadata as { undo?: unknown }).undo === true ? -1 : 1));
 
     if (ev.type === "lineup_set" && meta.lineup) {
       const prevOnField = state.lineup ? onFieldSet(state.lineup) : new Set<string>();

@@ -12,6 +12,9 @@ import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { finishedGame, playPeriod, fullTime } from "../helpers/finished-game";
 import { waitForHydration } from "../helpers/navigation";
+import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
+import { aflPositionModel, getAgeGroupConfig } from "../../src/lib/sports";
+import type { Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -461,4 +464,63 @@ test("'Make all swaps' can be undone from the toast", async ({ page }) => {
   for (let i = 0; i < n; i++) {
     expect(swaps[n + i]).toMatchObject({ off_player_id: swaps[n - 1 - i].on_player_id, on_player_id: swaps[n - 1 - i].off_player_id });
   }
+});
+
+test("AFL: a batch of swaps and its Undo aren't subs at full time", async ({ page }) => {
+  // The undo wrote the batch back as more swaps, so full time's share
+  // text said "4 subs" for a game with none. A swap and its undo net to
+  // zero (replayGame's subCount; the undo's swaps are marked `undo`).
+  test.setTimeout(90_000);
+  const ownerId = await ownerIdOf();
+  const admin = createAdminClient();
+  const team = await makeTeam(admin, { ownerId, sport: "afl", ageGroup: "U10", name: `R7 Undo AFL ${tag()}` });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  const ids = players.map((p) => p.id);
+  await allIn(game.id, ids, ownerId);
+  // A two-minute sub clock, three minutes into Q1: subs are due.
+  await admin.from("games").update({ sub_interval_seconds: 120 }).eq("id", game.id);
+  const caps = zoneCapsFor(game.on_field_size, aflPositionModel(getAgeGroupConfig("afl", "U10")));
+  const lineup: Lineup = { back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [] };
+  let cursor = 0;
+  for (const z of ALL_ZONES) for (let i = 0; i < caps[z]; i++) lineup[z].push(ids[cursor++]);
+  lineup.bench = ids.slice(cursor);
+  const at = (ms: number) => new Date(Date.now() - 180_000 + ms).toISOString();
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "lineup_set", metadata: { lineup }, created_at: at(-2000), created_by: ownerId },
+    { game_id: game.id, type: "quarter_start", metadata: { quarter: 1 }, created_at: at(-1000), created_by: ownerId },
+  ]);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  const makeAll = page.getByRole("button", { name: /^Make all \d+ swaps$/ });
+  await expect(makeAll).toBeVisible({ timeout: 20_000 });
+  const n = Number((await makeAll.innerText()).match(/\d+/)![0]);
+  await makeAll.click();
+  const toast = page.getByTestId("swap-toast");
+  await expect(toast).toContainText(`${n} subs made`);
+  const undo = toast.getByRole("button", { name: "Undo swaps" });
+  await expect(undo).toBeVisible();
+  await page.waitForTimeout(400);
+  await undo.click({ force: true });
+  await expect(toast).toContainText("Swaps undone");
+
+  const swapRows = async () =>
+    ((await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "swap").order("created_at")).data ?? []).map(
+      (r) => r.metadata as { undo?: boolean },
+    );
+  await expect.poll(async () => (await swapRows()).length, { timeout: 20_000 }).toBe(2 * n);
+  expect((await swapRows()).map((m) => m.undo === true)).toEqual([...Array(n).fill(false), ...Array(n).fill(true)]);
+
+  // Full time, then the game page's share text.
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 200_000 }, created_by: ownerId },
+    { game_id: game.id, type: "game_finalised", metadata: { quarter: 1, elapsed_ms: 200_000 }, created_by: ownerId },
+  ]);
+  await admin.from("games").update({ status: "completed" }).eq("id", game.id);
+  await page.goto(`/teams/${team.id}/games/${game.id}`);
+  const shareText = page.locator("#game-summary-text");
+  await expect(shareText).toContainText("Game time", { timeout: 15_000 });
+  await expect(shareText).not.toContainText(/\bsubs?\b/);
 });
