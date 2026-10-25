@@ -1,0 +1,142 @@
+{
+  "netball": {
+    "tileLine": "Seven positions, three thirds: every kid gets a turn at GS, not just the same three all season.",
+    "menuLine": "Seven positions, three thirds",
+    "eyebrow": "Junior netball · 4 quarters · 7 positions",
+    "heroTitle": { "before": "Seven positions. Every kid gets a ", "italic": "go", "after": "." },
+    "heroSubtitle": "Seven positions, three thirds, no rolling subs. Siren tracks who's played what, respects the rules of play, and suggests a fair rotation for every quarter, so every kid gets a turn at GS, not just the same three all season.",
+    "metaTitle": "Junior netball team app: fair positions and quarter rotations | Siren",
+    "metaDescription": "Junior netball game-day app: fair rotations through all seven positions, quarter-by-quarter lineups, live scores and season stats, from NetSetGO to Open. Free for the 2026 season.",
+    "knows": [
+      { "stat": "7 · 3", "title": "Seven positions, three thirds", "body": "GS through GK, each kept to its thirds, with every kid's time in attack, centre and defence counted." },
+      { "stat": "Q1–Q4", "title": "Changes at the breaks", "body": "Netball has no rolling subs, so Siren plans each quarter at the break and suggests who moves where." },
+      { "stat": "5 or 7", "title": "NetSetGO to Open", "body": "Set plays 5 a side, Go and up play 7. Quarters are 10 minutes unless your league plays longer." }
+    ]
+  },
+  "afl": {
+    "tileLine": "Forward, centre and back time for every kid, across every quarter and the whole season.",
+    "menuLine": "Forward, centre and back",
+    "eyebrow": "Junior AFL · 4 quarters · 3 zones",
+    "heroTitle": { "before": "Every kid gets a go in every ", "italic": "zone", "after": "." },
+    "heroSubtitle": "Three-zone rotations. Fair game time across the quarters. Late arrivals, injuries, fill-ins. Siren knows the intricacies of junior AFL that generic sub-timers miss, so you can stop juggling a clipboard and watch your kid play.",
+    "metaTitle": "Junior AFL rotation app: fair zones and subs | Siren",
+    "metaDescription": "Junior AFL game-day app: fair time in forward, centre and back, sub alerts on the clock, quarter-break plans and season stats, Under 8 to Under 18. Free for the 2026 season.",
+    "knows": [
+      { "stat": "F · C · B", "title": "Three zones", "body": "Siren balances each kid's minutes in forward, centre and back, not just their time on the ground." },
+      { "stat": "6–18", "title": "6 to 18 a side", "body": "From 6 a side at Under 8 to 18 a side at Under 18, with scores off until Under 11 as the junior rules have it." },
+      { "stat": "Sub due", "title": "Subs on the clock", "body": "A sub alert every few minutes, with the swaps that even out time already picked." }
+    ]
+  },
+  "rugby_league": {
+    "tileLine": "Rolling subs, First Receiver and Dummy Half rotated, and the Junior Laws built in.",
+    "menuLine": "Rolling subs, FR and DH",
+    "eyebrow": "Junior rugby league · quarters, then halves from Under 10",
+    "heroTitle": { "before": "Every kid gets a run, by the ", "italic": "Junior Laws", "after": "." },
+    "heroSubtitle": "Rolling subs, First Receiver and Dummy Half vests, kicks shared round, and every kid's unbroken period. Siren knows the Junior Laws that generic sub-timers miss, so you can stop juggling a clipboard and watch your kid play.",
+    "metaTitle": "Junior rugby league team app: fair subs, vests and Junior Laws | Siren",
+    "metaDescription": "Junior rugby league game-day app: rolling subs, First Receiver and Dummy Half vests rotated, conversions shared, every kid's unbroken period, Under 6 to Under 17. Free for the 2026 season.",
+    "knows": [
+      { "stat": "FR · DH", "title": "Vests rotated", "body": "First Receiver and Dummy Half move round the team each period, and no kid wears either twice." },
+      { "stat": "Unbroken", "title": "An unbroken period each", "body": "Under 10 to Under 12, every kid plays at least one unbroken half; younger teams get two unbroken quarters." },
+      { "stat": "4 + 2", "title": "Tries and conversions", "body": "A try is 4 and a conversion 2, and the kicks are shared round so everyone gets a shot at goal." }
+    ]
+  },
+  "soccer": {
+    "tileLine": "A fair turn in goal for every kid and time in every line, from 4 a side to 11 a side.",
+    "menuLine": "Keeper turns, every line",
+    "eyebrow": "Junior football (soccer) · 2 halves · 4 to 11 a side",
+    "heroTitle": { "before": "Everyone gets a ", "italic": "turn", "after": " in goal." },
+    "heroSubtitle": "Rolling subs, a fair turn in goal for every kid, and time across defence, midfield and attack. From MiniRoos 4 a side to 11 a side, Siren keeps playing time even so you can stop juggling a clipboard and watch your kid play.",
+    "metaTitle": "Junior soccer team app: fair subs and keeper turns | Siren",
+    "metaDescription": "Junior football (soccer) game-day app: fair rolling subs, keeper turns, time in every line, MiniRoos 4 a side to 11 a side, live goals and season stats. Free for the 2026 season.",
+    "knows": [
+      { "stat": "GK", "title": "Keeper turns", "body": "From Under 8 Siren shares the keeper top fairly across the season; from Under 12 you can name your keepers instead." },
+      { "stat": "D · M · A", "title": "Every line", "body": "Kids move through defence, midfield and attack over the season, so nobody's stuck at the back." },
+      { "stat": "4–11", "title": "MiniRoos to 11 a side", "body": "4 a side with no keeper at Under 6, up to 11 a side, with scores off until Under 12." }
+    ]
+  },
+  "basketball": {
+    "tileLine": "Subs at every dead ball, time at guard and forward for every kid, and the fouls counted for you.",
+    "menuLine": "Guards, forwards and fouls",
+    "eyebrow": "Junior basketball · halves or quarters · 5 on court",
+    "heroTitle": { "before": "Every kid gets to ", "italic": "bring it up", "after": "." },
+    "heroSubtitle": "Fair subs at every dead ball, time at guard and forward for every kid, and the fouls counted for you. Halves or quarters, Under 8 to Under 18, Siren keeps playing time even so you can stop juggling a clipboard and watch your kid play.",
+    "metaTitle": "Junior basketball team app: fair subs, positions and fouls | Siren",
+    "metaDescription": "Junior basketball game-day app: fair subs at dead balls, time at guard and forward for every kid, fouls and foul-outs counted, halves or quarters, Under 8 to Under 18. Free for the 2026 season.",
+    "knows": [
+      { "stat": "G · F", "title": "Guards and forwards", "body": "Siren evens out each kid's time at guard and forward, not just their minutes on court." },
+      { "stat": "5 fouls", "title": "Foul trouble, counted", "body": "Tap a foul on a kid's tile and Siren keeps the tally; at five they foul out and the rotation carries on without them." },
+      { "stat": "1 · 2 · 3", "title": "Ones, twos and threes", "body": "Free throws, twos and threes on the scoreboard, with threes off until Under 12." }
+    ]
+  },
+  "rugby_union": {
+    "tileLine": "TriTag to fifteen a side, with named positions numbered as on the jersey.",
+    "menuLine": "Tag to fifteen a side",
+    "eyebrow": "Junior rugby union · 2 halves · tag to 15 a side",
+    "heroTitle": { "before": "Props, locks and a ", "italic": "number 8", "after": "." },
+    "heroSubtitle": "Rolling subs, forwards and backs, named positions numbered as on the jersey, and your competition's own side size, from TriTag to 15 a side. Siren keeps playing time fair so you can stop juggling a clipboard and watch your kid play.",
+    "metaTitle": "Junior rugby union team app: fair subs, forwards and backs | Siren",
+    "metaDescription": "Junior rugby union game-day app: rolling subs, time across forwards and backs, named positions from 1 to 15, and your competition's side size from tag to 15 a side. Free for the 2026 season.",
+    "knows": [
+      { "stat": "1–15", "title": "Named positions", "body": "From Under 12, positions are numbered as on the jersey, front row to fullback." },
+      { "stat": "F · B", "title": "Forwards and backs", "body": "Younger teams share time across forwards and backs, so every kid learns both." },
+      { "stat": "5–15", "title": "Your competition's size", "body": "Tag at Under 6 and 7, then 7, 10, 12 and 15 a side, set to what your competition plays." }
+    ]
+  },
+  "touch": {
+    "tileLine": "Mixed teams kept legal: no more than three boys on, and time evened among the girls and among the boys.",
+    "menuLine": "The mixed boys' cap",
+    "eyebrow": "Junior touch football · 2 halves · 5 or 6 a side",
+    "heroTitle": { "before": "Mixed teams, kept ", "italic": "legal", "after": "." },
+    "heroSubtitle": "Rolling subs, a fair run for every kid, and the mixed rule kept for you: no more than three boys on, with a girl and a boy always on. Siren evens out time among the girls and among the boys, so you can stop juggling a clipboard and watch your kid play.",
+    "metaTitle": "Junior touch football team app: fair subs and the mixed boys' cap | Siren",
+    "metaDescription": "Junior touch football game-day app: rolling subs, fair time for every kid, and mixed teams kept to the boys' cap, Under 6 to Under 17. Free for the 2026 season.",
+    "knows": [
+      { "stat": "≤ 3", "title": "The boys' cap", "body": "On a mixed team Siren never puts more than three boys on, and keeps a girl and a boy on the field." },
+      { "stat": "G · B", "title": "Time evened in each group", "body": "Fair time is shared among the girls and among the boys, so the cap doesn't leave anyone on the bench." },
+      { "stat": "5 or 6", "title": "Half field to full field", "body": "5 a side on a half field to Under 10, then 6 a side from Under 11." }
+    ]
+  },
+  "oztag": {
+    "tileLine": "Boys capped on the field in mixed teams, and a girl's try counts two when your competition says so.",
+    "menuLine": "Mixed teams, girls' tries",
+    "eyebrow": "Junior Oztag · 2 halves · 6 or 8 a side",
+    "heroTitle": { "before": "A girl's try counts ", "italic": "two", "after": "." },
+    "heroSubtitle": "Rolling subs, a fair run for every kid, and mixed teams kept to your competition's boys' cap. Turn on double points and a girl's try counts two on the scoreboard. Siren keeps playing time even so you can stop juggling a clipboard and watch your kid play.",
+    "metaTitle": "Junior Oztag team app: fair subs, mixed teams and girls' tries | Siren",
+    "metaDescription": "Junior Oztag game-day app: rolling subs, fair time for every kid, mixed teams kept to the boys' cap and girls' tries worth two, Under 6 to Under 17. Free for the 2026 season.",
+    "knows": [
+      { "stat": "≤ 4", "title": "The boys' cap", "body": "On a mixed team Siren keeps to your competition's cap: four boys on by default." },
+      { "stat": "2 pts", "title": "Girls' tries", "body": "With double points on, a try by a girl counts two, for your team and the other." },
+      { "stat": "6 or 8", "title": "6 to 8 a side", "body": "6 a side to Under 8, then 8 a side from Under 9." }
+    ]
+  },
+  "hockey": {
+    "tileLine": "Keeper turns from Under 9, halves to Under 12 and quarters from Under 13.",
+    "menuLine": "Keeper turns, halves or quarters",
+    "eyebrow": "Junior hockey · halves or quarters · 6 to 11 a side",
+    "heroTitle": { "before": "Halves or quarters, every kid gets a ", "italic": "fair", "after": " run." },
+    "heroSubtitle": "Rolling subs, a fair run for every kid, and keeper turns shared across the season. Halves to Under 12, quarters from Under 13, 6 a side up to 11 a side: Siren keeps playing time even so you can stop juggling a clipboard and watch your kid play.",
+    "metaTitle": "Junior hockey team app: fair subs and keeper turns | Siren",
+    "metaDescription": "Junior hockey game-day app: rolling subs, fair time for every kid, keeper turns from Under 9, halves or quarters, 6 a side to 11 a side. Free for the 2026 season.",
+    "knows": [
+      { "stat": "GK", "title": "Keeper turns", "body": "From Under 9 Siren shares the keeper's turns fairly; from Under 13 you can name your keepers." },
+      { "stat": "2 or 4", "title": "Halves or quarters", "body": "Halves to Under 12, then four 15-minute quarters from Under 13." },
+      { "stat": "6–11", "title": "6 a side to 11 a side", "body": "6 a side with no keeper at Under 7 and 8, up to 11 a side from Under 12." }
+    ]
+  },
+  "futsal": {
+    "tileLine": "Rolling subs on a court, keeper turns shared fairly, and named keepers once kids specialise.",
+    "menuLine": "Rolling subs on a court",
+    "eyebrow": "Junior futsal · 2 halves · 5 a side",
+    "heroTitle": { "before": "Fast subs, and a ", "italic": "fair", "after": " turn in goal." },
+    "heroSubtitle": "Rolling subs as fast as futsal plays, a fair turn in goal for every kid, and time evened across the whole squad. Siren keeps playing time even on the court, so you can stop juggling a clipboard and watch your kid play.",
+    "metaTitle": "Junior futsal team app: fair rolling subs and keeper turns | Siren",
+    "metaDescription": "Junior futsal game-day app: fair rolling subs, keeper turns to Under 11 and named keepers from Under 12, 5 a side, Under 6 to Under 17. Free for the 2026 season.",
+    "knows": [
+      { "stat": "GK", "title": "Keeper turns", "body": "To Under 11 Siren shares turns in goal fairly; from Under 12 you can name your keepers." },
+      { "stat": "5", "title": "5 a side", "body": "Five on court with a keeper at every age, and the bench rolling on and off all game." },
+      { "stat": "2 × 20", "title": "Halves", "body": "15-minute halves to Under 9, then 20-minute halves, with scores from Under 10." }
+    ]
+  }
+}
