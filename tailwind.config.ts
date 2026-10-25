@@ -10,6 +10,12 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      screens: {
+        // A short screen: a phone held sideways (844×390), or a short
+        // browser window. The live bars and footers go compact (UX round
+        // 3, e4: in landscape they took 205–232 of 390 px).
+        short: { raw: "(max-height: 500px)" },
+      },
       colors: {
         // Surfaces & neutral ink
         warm:           "#F7F5F1",   // page background (warm off-white)

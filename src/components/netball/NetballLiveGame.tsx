@@ -114,7 +114,7 @@ import { UndoStrip } from "@/components/live/UndoStrip";
 import { pairScoreUndos } from "@/lib/live/scoreUndo";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { periodLabels } from "@/lib/sports";
-import { SCORE_CHIP, SCORE_TEAM_NAME } from "@/components/live/scoreChip";
+import { ScoreBugFrame } from "@/components/live/ScoreBugFrame";
 
 interface NetballLiveGameProps {
   game: Game;
@@ -2719,177 +2719,115 @@ function NetballScoreBug({
   const teamGhost = useScoreGhost(team.goals);
   const oppGhost = useScoreGhost(opponent.goals);
   const tapDown = () => void hapticTap("light");
-  return (
-    <div
-      className={`grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-x-3 px-4 pb-6 pt-3 ${
-        flat ? "" : "rounded-md bg-surface shadow-card"
+  const TOTAL = "text-[44px] font-bold leading-10 tracking-[-0.04em]";
+  const total = (goals: number) =>
+    showScores ? (
+      <RollingNumber value={goals} className={TOTAL} />
+    ) : (
+      <span className={TOTAL}>—</span>
+    );
+  // The dark clock pill: tappable when onClockTap is wired (live play)
+  // so the coach can pause/resume; paused, it picks up a brand ring and
+  // a small ▶. suppressHydrationWarning on the countdown: the parent's
+  // clock ticks on an interval that can land inside the hydration commit.
+  const inner = (
+    <>
+      <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
+        {/* Running: the mint live dot, as AFL's pill. Paused keeps
+            its ▶ badge + ring below. */}
+        {onClockTap && !paused && (
+          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-mint" />
+        )}
+        <span>{quarterLabel}</span>
+      </span>
+      <span
+        className="nums mt-1 font-mono text-[28px] font-bold leading-7 tracking-[-0.03em] tabular-nums text-warm"
+        suppressHydrationWarning
+      >
+        {clockText}
+      </span>
+    </>
+  );
+  const baseClass =
+    "relative flex min-w-[104px] flex-col items-center justify-center rounded-md bg-ink px-4 pb-2.5 pt-2 text-warm shadow-[0_6px_16px_rgba(26,30,26,0.18)]";
+  const pill = !onClockTap ? (
+    <div className={baseClass}>{inner}</div>
+  ) : (
+    <button
+      type="button"
+      onClick={onClockTap}
+      aria-label={clockLabel}
+      className={`${baseClass} transition-shadow hover:bg-ink/90 ${
+        paused ? "ring-2 ring-brand-500" : ""
       }`}
     >
-      {/* Left: home team. Re-skin (design session 17 Oct 2026):
-          mirrors GameHeader — total 44/700 tabular, names recede,
-          one baseline across the three columns. */}
-      <div className="flex min-w-0 flex-col gap-2">
-        <div className="min-w-0">
-          <p data-testid="scorebug-team-name" className={SCORE_TEAM_NAME}>
-            {teamName}
-          </p>
-          <p className="nums mt-1 font-mono tabular-nums text-ink">
-            {/* Pre-Q1 the scoreboard renders "—" instead of zero so a
-                freshly-mounted game doesn't look like it's already
-                0-0 (visually identical to a finished 0-0 result).
-                Once Q1 starts (showScores=true), RollingNumber takes
-                over and rolls one slot on each goal. */}
-            {showScores ? (
-              <RollingNumber
-                value={team.goals}
-                className="text-[44px] font-bold leading-10 tracking-[-0.04em]"
-              />
-            ) : (
-              <span className="text-[44px] font-bold leading-10 tracking-[-0.04em]">—</span>
-            )}
-          </p>
-        </div>
-        {/* Own-team +G chip. Mirrors the opponent +G on the right
-            side and AFL GameHeader's onTeam("goal") chip. Tap
-            opens a player picker (parent owns UI) so the coach can
-            attribute the goal without first hunting for the GS/GA
-            tile on the court. Steve 2026-05-16. */}
-        {onTeamGoal && (
-          <div className="relative flex">
-            {teamGhost && (
-              <span key={teamGhost.key} aria-hidden className={`${SCORE_GHOST} left-3`}>
-                {teamGhost.text}
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={onTeamGoal}
-              onPointerDown={tapDown}
-              disabled={isPending}
-              className={`${SCORE_CHIP} w-12`}
-              aria-label={`Add goal, ${teamName}`}
-            >
-              +G
-            </button>
-          </div>
-        )}
-      </div>
+      {/* ▶ glyph top-left when paused — tap to resume. */}
+      {paused && (
+        <span className="pointer-events-none absolute -left-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-brand-500 text-[8px] font-bold leading-none text-warm shadow-card">
+          ▶
+        </span>
+      )}
+      {inner}
+    </button>
+  );
+  // Wrapped in SirenPulseHalo so the clock pill briefly halos when a
+  // sirenic moment fires (quarter-end hooter, game finalised). When
+  // clockPulseKey is null (every render before the first hooter), the
+  // halo renders inert.
+  const haloPill = (
+    <SirenPulseHalo triggerKey={clockPulseKey} size="md" className="rounded-md">
+      {pill}
+    </SirenPulseHalo>
+  );
 
-      {/* Centre: dark clock pill. Tappable when onClockTap is wired
-          (live play only) so the coach can pause/resume. When
-          paused, the pill picks up a brand-tinted ring + a small
-          ▶ glyph in the top corner so the state's unmistakable.
-          suppressHydrationWarning on the countdown text because the
-          parent's clockMs state is updated by an interval tick after
-          hydration; React 18 occasionally flags the first post-mount
-          setState as a hydration diff if the tick lands inside the
-          hydration commit. */}
-      {(() => {
-        const inner = (
-          <>
-            <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
-              {/* Running: the mint live dot, as AFL's pill. Paused keeps
-                  its ▶ badge + ring below. */}
-              {onClockTap && !paused && (
-                <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-mint" />
-              )}
-              <span>{quarterLabel}</span>
-            </span>
-            <span
-              className="nums mt-1 font-mono text-[28px] font-bold leading-7 tracking-[-0.03em] tabular-nums text-warm"
-              suppressHydrationWarning
-            >
-              {clockText}
-            </span>
-          </>
-        );
-        const baseClass =
-          "relative flex min-w-[104px] flex-col items-center justify-center rounded-md bg-ink px-4 pb-2.5 pt-2 text-warm shadow-[0_6px_16px_rgba(26,30,26,0.18)]";
-        const pill = !onClockTap ? (
-          <div className={baseClass}>{inner}</div>
-        ) : (
+  // The rows are the shared ScoreBugFrame's (UX round 3, e4), as AFL's
+  // GameHeader. Pre-Q1 the totals read "—" instead of zero so a freshly
+  // mounted game doesn't look like a finished 0-0; once Q1 starts
+  // (showScores) RollingNumber rolls one slot on each goal.
+  return (
+    <ScoreBugFrame
+      card={!flat}
+      ours={{
+        name: teamName,
+        total: total(team.goals),
+        // Own-team +G mirrors the opponent's and AFL's onTeam("goal"):
+        // the parent opens a player picker, so the coach can attribute
+        // the goal without first hunting for the GS/GA tile.
+        chips: onTeamGoal ? [{ key: "g", text: "+G", label: `Add goal, ${teamName}`, onTap: onTeamGoal }] : [],
+        ghost: teamGhost && (
+          <span key={teamGhost.key} aria-hidden className={`${SCORE_GHOST} left-3`}>
+            {teamGhost.text}
+          </span>
+        ),
+      }}
+      theirs={{
+        name: opponentName,
+        total: total(opponent.goals),
+        chips: onOpponentGoal ? [{ key: "g", text: "+G", label: `Add goal, ${opponentName}`, onTap: onOpponentGoal }] : [],
+        ghost: oppGhost && (
+          <span key={oppGhost.key} aria-hidden className={`${SCORE_GHOST} right-3`}>
+            {oppGhost.text}
+          </span>
+        ),
+      }}
+      clock={haloPill}
+      // 44pt text button (the old bordered 9px pill was ~20px).
+      underClock={
+        onShowQuarterScores && (
           <button
             type="button"
-            onClick={onClockTap}
-            aria-label={clockLabel}
-            className={`${baseClass} transition-shadow hover:bg-ink/90 ${
-              paused ? "ring-2 ring-brand-500" : ""
-            }`}
+            onClick={onShowQuarterScores}
+            className="min-h-[44px] px-3 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
+            aria-label="Show quarter-by-quarter scores"
           >
-            {/* ▶ glyph top-left when paused — tap to resume. */}
-            {paused && (
-              <span className="pointer-events-none absolute -left-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-brand-500 text-[8px] font-bold leading-none text-warm shadow-card">
-                ▶
-              </span>
-            )}
-            {inner}
+            Q-by-Q
           </button>
-        );
-        // Wrap in SirenPulseHalo so the clock pill briefly halos
-        // when a sirenic moment fires (quarter-end hooter, game
-        // finalised). When clockPulseKey is null (every render
-        // before the first hooter), the halo renders inert.
-        // The flex-col wrapper is so the new "Q-by-Q" chip sits
-        // immediately below the pill (mirrors AFL GameHeader's
-        // arrangement).
-        return (
-          <div className="flex flex-col items-center">
-            <SirenPulseHalo triggerKey={clockPulseKey} size="md" className="rounded-md">
-              {pill}
-            </SirenPulseHalo>
-            {/* 44pt text button (the old bordered 9px pill was ~20px). */}
-            {onShowQuarterScores && (
-              <button
-                type="button"
-                onClick={onShowQuarterScores}
-                className="min-h-[44px] px-3 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
-                aria-label="Show quarter-by-quarter scores"
-              >
-                Q-by-Q
-              </button>
-            )}
-          </div>
-        );
-      })()}
-
-      {/* Right: opponent — mirror layout */}
-      <div className="flex min-w-0 flex-col items-end gap-2 text-right">
-        <div className="min-w-0 max-w-full">
-          <p data-testid="scorebug-team-name" className={SCORE_TEAM_NAME}>
-            {opponentName}
-          </p>
-          <p className="nums mt-1 font-mono tabular-nums text-ink">
-            {showScores ? (
-              <RollingNumber
-                value={opponent.goals}
-                className="text-[44px] font-bold leading-10 tracking-[-0.04em]"
-              />
-            ) : (
-              <span className="text-[44px] font-bold leading-10 tracking-[-0.04em]">—</span>
-            )}
-          </p>
-        </div>
-        {onOpponentGoal && (
-          <div className="relative flex justify-end">
-            {oppGhost && (
-              <span key={oppGhost.key} aria-hidden className={`${SCORE_GHOST} right-3`}>
-                {oppGhost.text}
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={onOpponentGoal}
-              onPointerDown={tapDown}
-              disabled={isPending}
-              className={`${SCORE_CHIP} w-12`}
-              aria-label={`Add goal, ${opponentName}`}
-            >
-              +G
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+        )
+      }
+      chipsDisabled={isPending}
+      onChipPointerDown={tapDown}
+      scoreSaid={showScores ? `${teamName} ${team.goals}, ${opponentName} ${opponent.goals}` : null}
+    />
   );
 }
 
