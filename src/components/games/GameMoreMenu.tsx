@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { SFButton, SFIcon } from "@/components/sf";
 import { ActionSheet, type ActionSheetAction } from "@/components/ui/ActionSheet";
 import { ResetGameDialog } from "@/components/games/ResetGameButton";
 import { DeleteGameDialog } from "@/components/games/DeleteGameDialog";
 import { GameDayLinkDialog } from "@/components/games/GameDayLinkDialog";
 import { EditGameDialog } from "@/components/games/EditGameDialog";
+import { FixScoresDialog, type FixScoresProps } from "@/components/games/FixScoresDialog";
 import { restartGameHint } from "@/lib/sports/words";
 
 interface GameMoreMenuProps {
@@ -15,8 +15,11 @@ interface GameMoreMenuProps {
   gameId: string;
   /** games.share_token — enables "Game-day link". */
   shareToken?: string;
-  /** Opens the game screen (for a final game that's no longer the primary). */
-  liveHref?: string;
+  /**
+   * A finished game's scores, fixable here (it used to be "Open game
+   * screen: fix scores", which opened a read-only summary).
+   */
+  fixScores?: FixScoresProps;
   /** Enables "Edit details" (upcoming games). */
   edit?: {
     game: {
@@ -38,7 +41,7 @@ interface GameMoreMenuProps {
   live?: boolean;
 }
 
-type Dialog = "link" | "edit" | "restart" | "delete" | null;
+type Dialog = "link" | "edit" | "fix" | "restart" | "delete" | null;
 
 /**
  * The game hub's overflow: everything that isn't the one primary action
@@ -49,24 +52,23 @@ export function GameMoreMenu({
   teamId,
   gameId,
   shareToken,
-  liveHref,
+  fixScores,
   edit,
   canRestart,
   canDelete,
   periodLabel,
   live = false,
 }: GameMoreMenuProps) {
-  const router = useRouter();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
 
   const actions: ActionSheetAction[] = [];
-  if (liveHref) {
+  if (fixScores) {
     actions.push({
-      id: "open-live",
-      label: "Open game screen",
-      description: "Fix scores or review the full-time screen.",
-      onSelect: () => router.push(liveHref),
+      id: "fix-scores",
+      label: "Fix scores",
+      description: "Take a score off, change who scored, or add a missed one.",
+      onSelect: () => setDialog("fix"),
     });
   }
   if (shareToken) {
@@ -123,6 +125,7 @@ export function GameMoreMenu({
         <ActionSheet title="Game actions" actions={actions} onClose={() => setSheetOpen(false)} />
       )}
       {dialog === "link" && shareToken && <GameDayLinkDialog token={shareToken} onClose={close} />}
+      {dialog === "fix" && fixScores && <FixScoresDialog {...fixScores} onClose={close} />}
       {dialog === "edit" && edit && (
         <EditGameDialog teamId={teamId} game={edit.game} teamName={edit.teamName} onClose={close} />
       )}

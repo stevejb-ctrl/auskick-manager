@@ -8,7 +8,9 @@ import { clearGameRollup } from "@/lib/playbook/rollupStore";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { gameBelongsToTeam } from "@/lib/auth/gameOwnership";
 import { invalidateSeasonEvents } from "@/lib/season";
-import type { ActionResult, AvailabilityStatus, LiveAuth } from "@/lib/types";
+import type { ActionResult, AvailabilityStatus, GameEvent, LiveAuth } from "@/lib/types";
+import { scoreFixRows, type ScoreFix } from "@/lib/games/finishedScores";
+import { teamSport } from "@/lib/sports";
 
 interface FillInInput {
   full_name: string;
@@ -394,6 +396,65 @@ export async function deleteGame(
   invalidateSeasonEvents(teamId);
 
   revalidatePath(`/teams/${teamId}/games`);
+  revalidatePath(`/teams/${teamId}`);
+  return { success: true };
+}
+
+/**
+ * Fix a finished game's scores (round 3 edge testing, 24 Oct 2026: the
+ * game page promised a fix and opened a read-only summary). Add a missed
+ * score, take one off, or change who scored: each is written as events
+ * (lib/games/finishedScores), so the summary, scorers and Stats
+ * recompute. Coaches and managers only, on a finished game.
+ */
+export async function fixFinishedScore(teamId: string, gameId: string, fix: ScoreFix): Promise<ActionResult> {
+  const userId = readValidatedUserId();
+  if (!userId) return { success: false, error: "Unauthenticated." };
+  const membership = await getMembership(teamId, userId);
+  if (!membership || (membership.role !== "admin" && membership.role !== "game_manager")) {
+    return { success: false, error: "Only the team's coaches can fix scores." };
+  }
+
+  const supabase = createClient();
+  const [{ data: game }, { data: team }, { data: events }] = await Promise.all([
+    supabase.from("games").select("status").eq("id", gameId).eq("team_id", teamId).maybeSingle(),
+    supabase.from("teams").select("sport").eq("id", teamId).maybeSingle(),
+    supabase.from("game_events").select("*").eq("game_id", gameId).order("created_at"),
+  ]);
+  if (!game || !team) return { success: false, error: "Game not found for this team." };
+  if (game.status !== "completed") return { success: false, error: "Scores are fixed here once the game is finished." };
+
+  const rows = scoreFixRows(teamSport(team.sport as string), (events ?? []) as GameEvent[], fix);
+  if ("error" in rows) return { success: false, error: rows.error };
+
+  // A named scorer is one of the squad or the game's fill-ins.
+  const scorer = fix.op === "delete" ? null : fix.playerId;
+  if (scorer) {
+    const [{ data: kid }, { data: fillIn }] = await Promise.all([
+      supabase.from("players").select("id").eq("id", scorer).eq("team_id", teamId).maybeSingle(),
+      supabase.from("game_fill_ins").select("id").eq("id", scorer).eq("game_id", gameId).maybeSingle(),
+    ]);
+    if (!kid && !fillIn) return { success: false, error: "Pick a player from this game." };
+  }
+
+  // A millisecond apart, so the undo lands before the score that replaces it.
+  const now = Date.now();
+  const { error: insertError } = await supabase.from("game_events").insert(
+    rows.map((r, i) => ({
+      game_id: gameId,
+      type: r.type,
+      player_id: r.player_id,
+      metadata: r.metadata,
+      created_by: userId,
+      created_at: new Date(now + i).toISOString(),
+    })),
+  );
+  if (insertError) return { success: false, error: insertError.message };
+
+  invalidateSeasonEvents(teamId);
+  revalidatePath(`/teams/${teamId}/games/${gameId}`);
+  revalidatePath(`/teams/${teamId}/games`);
+  revalidatePath(`/teams/${teamId}/stats`);
   revalidatePath(`/teams/${teamId}`);
   return { success: true };
 }

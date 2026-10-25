@@ -28,6 +28,8 @@ import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
 import { distinctFullNames } from "@/lib/names";
 import { isNotPlayed, playedInSiren } from "@/lib/games/notPlayed";
 import { NotPlayedActions } from "@/components/games/NotPlayedGames";
+import { finishedScoreLog, scoreKinds } from "@/lib/games/finishedScores";
+import type { FixScoresProps } from "@/components/games/FixScoresDialog";
 
 interface GameDetailPageProps {
   params: { teamId: string; gameId: string };
@@ -220,6 +222,32 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   // A game marked played (not run in Siren) has no events: no summary,
   // score or report, rather than a 0–0 draw with nobody on.
   const ranInSiren = summaryEvents !== null && playedInSiren(summaryEvents);
+  // A finished game's scores, fixable from More (round 3 edge testing:
+  // "Open game screen: fix scores" opened a read-only summary).
+  const teamAge = teamAgeGroup(
+    sport,
+    (team as { age_group?: string } | null)?.age_group,
+    (team as { period_count?: number | null } | null)?.period_count,
+  );
+  const scoreNames = distinctFullNames(summarySquad);
+  const fixScores: FixScoresProps | undefined =
+    isFinal && summaryEvents && ranInSiren && canManageMatch && (team as { track_scoring?: boolean } | null)?.track_scoring
+      ? {
+          teamId: params.teamId,
+          gameId: params.gameId,
+          kinds: scoreKinds(sport, {
+            goalsFromPlay: (teamAge as { goalsFromPlay?: boolean }).goalsFromPlay ?? true,
+            girlsTry: sport === "oztag" && teamMixedRule(touchTeam) !== null,
+          }),
+          log: finishedScoreLog(sport, summaryEvents),
+          players: summarySquad.map((p) => ({ id: p.id, name: scoreNames.get(p.id) ?? p.full_name })),
+          periodCount: teamAge.periodCount,
+          periodLetter: periodLabel.charAt(0).toUpperCase(),
+          teamName,
+          opponentName: g.opponent,
+        }
+      : undefined;
+
   const howWePlayed =
     isFinal && summaryEvents && ranInSiren
       ? await buildGameReport(
@@ -481,11 +509,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                         }
                       : undefined
                   }
-                  liveHref={
-                    isFinal
-                      ? `/teams/${params.teamId}/games/${params.gameId}/live`
-                      : undefined
-                  }
+                  fixScores={fixScores}
                   canRestart={role === "admin" && !isUp}
                   canDelete={role === "admin"}
                   periodLabel={periodLabel}
