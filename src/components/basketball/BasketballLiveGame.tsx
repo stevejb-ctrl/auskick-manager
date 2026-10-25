@@ -47,6 +47,7 @@ import { LockModal } from "@/components/live/LockModal";
 import { NextSubCard } from "@/components/live/NextSubCard";
 import { LiveGameSettingsButton } from "@/components/live/LiveGameSettingsButton";
 import { useLiveChrome } from "@/components/live/useLiveChrome";
+import { undoSwaps } from "@/lib/live/liveChrome";
 import {
   InjuryReplacementModal,
   type InjuryReplacementCandidate,
@@ -451,8 +452,13 @@ export function BasketballLiveGame({
   function applyAllSubs() {
     if (nextSubs.length === 0) return;
     for (const s of nextSubs) sub(s.off_player_id, s.on_player_id, s.line);
-    if (nextSubs.length === 1) chrome.swapped(nextSubs[0].off_player_id, nextSubs[0].on_player_id);
-    else chrome.showToast(`${nextSubs.length} subs made`);
+    // The toast's Undo puts them back, last first (undoSwaps).
+    const undo = undoSwaps(
+      nextSubs.map((s) => ({ off: s.off_player_id, on: s.on_player_id, line: s.line })),
+      (s) => sub(s.off, s.on, s.line),
+    );
+    if (nextSubs.length === 1) chrome.swapped(nextSubs[0].off_player_id, nextSubs[0].on_player_id, undo);
+    else chrome.showToast(`${nextSubs.length} subs made`, undo);
     setSubAckKey(subDueKey);
   }
 
@@ -1098,6 +1104,7 @@ export function BasketballLiveGame({
           quarter={1}
           periodLabel={periodWord}
           cue="ball goes up"
+          shortSide={{ playing: state.lineup ? basketballOnCourt(state.lineup).length : 0, size: game.on_field_size, min: ageGroup.minOnFieldSize }}
           loading={pending}
           onStart={() => {
             setStartConfirmOpen(false);
@@ -1305,7 +1312,7 @@ export function BasketballLiveGame({
                     hint: "Out for the rest of the game",
                     testId: "basketball-foul-out",
                     // One tap was final; it asks first (UX audit 23 Oct 2026).
-                    confirm: `${actionPlayer.full_name.trim().split(/\s+/)[0]} is out for the rest of the game.`,
+                    confirm: `${chrome.firstName(actionPlayer.id)} is out for the rest of the game.`,
                     onClick: () => {
                       const pid = actionPlayer.id;
                       setActionPlayerId(null);

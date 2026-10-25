@@ -154,7 +154,9 @@ export function replayNetballGameForStats(
 
   // Track score-undo: an undo takes back the goal it names (two phones
   // can score: "the latest" may be the other's), else the latest.
-  const undoStack: Array<({ kind: "team-anon" | "opp" } | { kind: "team-player"; player: string }) & { id: string }> = [];
+  // Each keeps its quarter, so an undo takes it off that quarter (a fix
+  // after full time runs while the replay is in the last).
+  const undoStack: Array<({ kind: "team-anon" | "opp" } | { kind: "team-player"; player: string }) & { id: string; q: number }> = [];
   let currentQuarter = 0;
 
   // Per-pair time tally: walk the lineup_set + period_break_swap
@@ -175,7 +177,10 @@ export function replayNetballGameForStats(
       quarter?: number;
       elapsed_ms?: number;
       target?: string;
+      intended_quarter?: number;
     };
+    // A goal added later (Fix scores) says which quarter it was in.
+    const goalQ = typeof meta.intended_quarter === "number" ? meta.intended_quarter : currentQuarter;
     if (ev.type === "lineup_set" || ev.type === "period_break_swap") {
       const lineup = meta.lineup ?? {};
       const positions = lineup.positions ?? {};
@@ -209,28 +214,28 @@ export function replayNetballGameForStats(
     } else if (ev.type === "quarter_start" && meta.quarter) {
       currentQuarter = meta.quarter;
     } else if (ev.type === "goal") {
-      teamGoalsByQtr[currentQuarter] = (teamGoalsByQtr[currentQuarter] ?? 0) + 1;
+      teamGoalsByQtr[goalQ] = (teamGoalsByQtr[goalQ] ?? 0) + 1;
       if (ev.player_id) {
         playerGoals[ev.player_id] = (playerGoals[ev.player_id] ?? 0) + 1;
-        undoStack.push({ id: ev.id, kind: "team-player", player: ev.player_id });
+        undoStack.push({ id: ev.id, kind: "team-player", player: ev.player_id, q: goalQ });
       } else {
-        undoStack.push({ id: ev.id, kind: "team-anon" });
+        undoStack.push({ id: ev.id, kind: "team-anon", q: goalQ });
       }
     } else if (ev.type === "opponent_goal") {
-      oppGoalsByQtr[currentQuarter] = (oppGoalsByQtr[currentQuarter] ?? 0) + 1;
-      undoStack.push({ id: ev.id, kind: "opp" });
+      oppGoalsByQtr[goalQ] = (oppGoalsByQtr[goalQ] ?? 0) + 1;
+      undoStack.push({ id: ev.id, kind: "opp", q: goalQ });
     } else if (ev.type === "score_undo" && undoStack.length > 0) {
       const last = takeUndoTarget(undoStack, ev.metadata);
       if (!last) continue;
       if (last.kind === "opp") {
-        oppGoalsByQtr[currentQuarter] = Math.max(
+        oppGoalsByQtr[last.q] = Math.max(
           0,
-          (oppGoalsByQtr[currentQuarter] ?? 0) - 1,
+          (oppGoalsByQtr[last.q] ?? 0) - 1,
         );
       } else {
-        teamGoalsByQtr[currentQuarter] = Math.max(
+        teamGoalsByQtr[last.q] = Math.max(
           0,
-          (teamGoalsByQtr[currentQuarter] ?? 0) - 1,
+          (teamGoalsByQtr[last.q] ?? 0) - 1,
         );
         if (last.kind === "team-player") {
           playerGoals[last.player] = Math.max(

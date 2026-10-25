@@ -1220,6 +1220,7 @@ export function LineupPicker({
         <StartQuarterModal
           quarter={1}
           cue={getSportConfig("afl").words.startCue}
+          shortSide={{ playing: onFieldCount, size: defaultOnFieldSize, min: minOnFieldSize }}
           loading={isPending}
           onStart={handleConfirmStart}
           onCancel={() => setStartModalOpen(false)}

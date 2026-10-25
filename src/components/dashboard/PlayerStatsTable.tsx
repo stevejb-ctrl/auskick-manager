@@ -84,8 +84,10 @@ export function PlayerStatsTable({ stats, hasData }: Props) {
         </div>
       )}
 
-      {/* One explicit column, as netball's cards: at 320 px the implicit
-          one grew to the metric row and clipped it (UX round 3, e4). */}
+      {/* One explicit column (minmax(0, 1fr)), as netball's cards: at 320 px
+          the implicit one grew to the metric row and clipped it (UX round 3,
+          e4), and a long name truncates in its card instead of widening every
+          card (e1). */}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {sorted.map((p) => {
           // Zone split as a % of the player's own on-field time (sums to

@@ -52,6 +52,7 @@ import { LockModal } from "@/components/live/LockModal";
 import { NextSubCard } from "@/components/live/NextSubCard";
 import { InjuryReplacementModal, type InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
 import { useLiveChrome } from "@/components/live/useLiveChrome";
+import { undoSwaps } from "@/lib/live/liveChrome";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
@@ -453,8 +454,13 @@ export function TouchLiveGame({
   function applyAllSubs() {
     if (nextSubs.length === 0) return;
     for (const s of nextSubs) sub(s.off_player_id, s.on_player_id, s.line);
-    if (nextSubs.length === 1) chrome.swapped(nextSubs[0].off_player_id, nextSubs[0].on_player_id);
-    else chrome.showToast(`${nextSubs.length} subs made`);
+    // The toast's Undo puts them back, last first (undoSwaps).
+    const undo = undoSwaps(
+      nextSubs.map((s) => ({ off: s.off_player_id, on: s.on_player_id, line: s.line })),
+      (s) => sub(s.off, s.on, s.line),
+    );
+    if (nextSubs.length === 1) chrome.swapped(nextSubs[0].off_player_id, nextSubs[0].on_player_id, undo);
+    else chrome.showToast(`${nextSubs.length} subs made`, undo);
     setSubAckKey(subDueKey);
   }
 
@@ -1128,6 +1134,7 @@ export function TouchLiveGame({
           quarter={base.currentPeriod + 1}
           periodLabel={periodLabel}
           cue={getSportConfig(sport).words.startCue}
+          shortSide={{ playing: state.lineup ? touchOnField(state.lineup).length : 0, size: game.on_field_size, min: ageGroup.minOnFieldSize }}
           loading={pending}
           onStart={() => {
             setStartConfirmOpen(false);

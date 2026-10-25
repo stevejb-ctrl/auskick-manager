@@ -61,7 +61,7 @@ export function SquadStep({
           teamId={teamId}
           activeCount={activePlayers.length}
           maxPlayers={maxPlayers}
-          takenJerseys={takenJerseys}
+          squad={players.map((p) => ({ full_name: p.full_name, jersey_number: p.jersey_number, is_active: p.is_active }))}
           showJersey={showJersey}
           mixed={mixed}
         />
@@ -70,6 +70,7 @@ export function SquadStep({
             teamId={teamId}
             withJersey={showJersey}
             room={Math.max(0, maxPlayers - activePlayers.length)}
+            squad={players.map((p) => ({ full_name: p.full_name, jersey_number: p.jersey_number, is_active: p.is_active }))}
           />
         </div>
       </div>

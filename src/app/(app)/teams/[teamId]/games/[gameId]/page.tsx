@@ -27,6 +27,11 @@ import { BackLink } from "@/components/ui/BackLink";
 import { teamSportById } from "@/lib/sports/teamSportById";
 import { teamAgeGroup } from "@/lib/sports/teamAgeGroup";
 import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
+import { distinctFullNames } from "@/lib/names";
+import { isNotPlayed, playedInSiren } from "@/lib/games/notPlayed";
+import { NotPlayedActions } from "@/components/games/NotPlayedGames";
+import { finishedScoreLog, scoreKinds } from "@/lib/games/finishedScores";
+import type { FixScoresProps } from "@/components/games/FixScoresDialog";
 
 interface GameDetailPageProps {
   params: { teamId: string; gameId: string };
@@ -147,6 +152,8 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   // adds up to the score (UX round 2, 24 Oct 2026).
   const unnamedScore = unnamedScoreFromEvents(sport, (scoringEvents ?? []) as GameEvent[]);
   const scorerWords = SCORER_WORDS[sport];
+  // Two kids with the same name read "Ava Smith #3" / "#12" (lib/names).
+  const scorerNames = distinctFullNames(Array.from(playerById.values()));
 
   const isLive = g.status === "in_progress";
   const isFinal = g.status === "completed";
@@ -256,8 +263,37 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   // sport. The coach's and managers' only: it names the kids who played
   // under a fair share, and a parent shouldn't read that about someone
   // else's child (round 2 usability, 24 Oct 2026).
+  // A game marked played (not run in Siren) has no events: no summary,
+  // score or report, rather than a 0–0 draw with nobody on.
+  const ranInSiren = summaryEvents !== null && playedInSiren(summaryEvents);
+  // A finished game's scores, fixable from More (round 3 edge testing:
+  // "Open game screen: fix scores" opened a read-only summary).
+  const teamAge = teamAgeGroup(
+    sport,
+    (team as { age_group?: string } | null)?.age_group,
+    (team as { period_count?: number | null } | null)?.period_count,
+  );
+  const scoreNames = distinctFullNames(summarySquad);
+  const fixScores: FixScoresProps | undefined =
+    isFinal && summaryEvents && ranInSiren && canManageMatch && (team as { track_scoring?: boolean } | null)?.track_scoring
+      ? {
+          teamId: params.teamId,
+          gameId: params.gameId,
+          kinds: scoreKinds(sport, {
+            goalsFromPlay: (teamAge as { goalsFromPlay?: boolean }).goalsFromPlay ?? true,
+            girlsTry: sport === "oztag" && teamMixedRule(touchTeam) !== null,
+          }),
+          log: finishedScoreLog(sport, summaryEvents),
+          players: summarySquad.map((p) => ({ id: p.id, name: scoreNames.get(p.id) ?? p.full_name })),
+          periodCount: teamAge.periodCount,
+          periodLetter: periodLabel.charAt(0).toUpperCase(),
+          teamName,
+          opponentName: g.opponent,
+        }
+      : undefined;
+
   const howWePlayed =
-    isFinal && summaryEvents && canManageMatch
+    isFinal && summaryEvents && ranInSiren && canManageMatch
       ? await buildGameReport(
           supabase,
           {
@@ -349,6 +385,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 canRestart={role === "admin"}
                 canDelete={role === "admin"}
                 periodLabel={periodLabel}
+                live
               />
             </div>
           )}
@@ -394,6 +431,12 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 <p className="mt-3 whitespace-pre-wrap text-sm text-ink-dim">
                   {g.notes}
                 </p>
+              )}
+              {/* Well past its start and never run (lib/games/notPlayed). */}
+              {isUp && isNotPlayed(g) && (
+                <div className="mt-4 rounded-md bg-surface-alt p-3" data-testid="not-played">
+                  <NotPlayedActions teamId={params.teamId} gameId={g.id} canEdit={role === "admin"} afterDelete="games" />
+                </div>
               )}
             </div>
           </div>
@@ -499,7 +542,9 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                   shareToken={g.share_token}
                   canReplaceLink={role === "admin"}
                   edit={
-                    isUp && role === "admin"
+                    // A finished game's opponent or date can be fixed too
+                    // (round 3: a typo stayed in the history for good).
+                    (isUp || isFinal) && role === "admin"
                       ? {
                           game: {
                             id: g.id,
@@ -509,14 +554,11 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                             round_number: g.round_number,
                             notes: g.notes,
                           },
+                          teamName,
                         }
                       : undefined
                   }
-                  liveHref={
-                    isFinal
-                      ? `/teams/${params.teamId}/games/${params.gameId}/live`
-                      : undefined
-                  }
+                  fixScores={fixScores}
                   canRestart={role === "admin" && !isUp}
                   canDelete={role === "admin"}
                   periodLabel={periodLabel}
@@ -576,7 +618,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 key={r.player!.id}
                 className="flex items-center justify-between py-3 text-sm"
               >
-                <span className="flex items-center gap-3">
+                <span className="flex min-w-0 items-center gap-3">
                   <span
                     className={`font-mono text-[11px] font-bold tracking-[0.06em] ${
                       i === 0 ? "text-warn" : "text-ink-mute"
@@ -587,8 +629,8 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                   {getSportConfig(sport).jerseyNumbers && (
                     <Guernsey num={r.player!.jersey_number} size={32} />
                   )}
-                  <span className="font-semibold text-ink">
-                    {r.player!.full_name}
+                  <span className="min-w-0 break-words font-semibold text-ink">
+                    {scorerNames.get(r.player!.id) ?? r.player!.full_name}
                   </span>
                 </span>
                 <span className="font-mono tabular-nums text-ink-dim">
@@ -619,7 +661,15 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
           text + "Copy for group chat"), so a coach or parent revisiting
           a finished game gets the score and game time here. The
           dashboard's "Last result" links straight to it. */}
-      {isFinal && summaryEvents && (
+      {isFinal && !ranInSiren && (
+        <SFCard id="summary">
+          <p className="text-sm text-ink-dim">
+            Marked as played. It wasn&apos;t run in Siren, so there&apos;s no score or game time for it.
+          </p>
+        </SFCard>
+      )}
+
+      {isFinal && summaryEvents && ranInSiren && (
         <SFCard id="summary">
           {/* A game played with scoring off says so, whatever the switch
               says now (UX round 3, 24 Oct 2026: it read "0 drew with 0"). */}

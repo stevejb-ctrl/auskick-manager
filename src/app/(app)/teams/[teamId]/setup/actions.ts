@@ -8,6 +8,7 @@ import type { ActionResult, Sport } from "@/lib/types";
 import { storedOnFieldSize, storedPeriodSeconds } from "@/lib/games/newGameDefaults";
 import { pinPlayedPeriodLength } from "@/lib/games/pinPlayedPeriodLength";
 import type { TeamGameShape } from "@/app/(app)/dashboard/actions";
+import { teamNameError } from "@/lib/strings";
 
 /**
  * Edit an existing team's basics from the setup wizard's "Basics"
@@ -42,8 +43,8 @@ export async function updateTeamBasics(
   }
 
   const trimmed = name.trim();
-  if (trimmed.length === 0) return { success: false, error: "Team name is required." };
-  if (trimmed.length > 80) return { success: false, error: "Name is too long (80 chars max)." };
+  const nameError = teamNameError(trimmed);
+  if (nameError) return { success: false, error: nameError };
 
   const { data: team } = await supabase
     .from("teams")

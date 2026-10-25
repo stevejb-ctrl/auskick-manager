@@ -27,7 +27,7 @@ export function HeadToHead({ records, hasData }: Props) {
   }
 
   return (
-    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
       {records.map((r) => {
         const teamScore = r.goalsFor * 6 + r.behindsFor;
         const oppScore = r.goalsAgainst * 6 + r.behindsAgainst;

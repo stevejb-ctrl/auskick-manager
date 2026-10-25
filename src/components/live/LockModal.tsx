@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import type { Player, Zone } from "@/lib/types";
 import { ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 import { Modal } from "@/components/ui/Modal";
+import { useSquadNames } from "@/components/live/SquadNames";
 
 interface LockModalProps {
   player: Player;
@@ -208,7 +209,7 @@ export function LockModal({
   outForGameActions,
   onClose,
 }: LockModalProps) {
-  const firstName = player.full_name.trim().split(/\s+/)[0];
+  const firstName = useSquadNames().first(player);
   const zoneLabel = zoneLabelProp ?? (currentZone ? ZONE_SHORT_LABELS[currentZone] : currentLine);
   const loanedLabel = seasonLoanMins === undefined ? null : Math.round(seasonLoanMins);
   const squadLabel = Math.round(squadLoanMins ?? 0);

@@ -16,6 +16,8 @@
 
 import { useEffect, useState } from "react";
 import type { Player } from "@/lib/types";
+import { firstName, shortName } from "@/lib/names";
+import { useSquadNames } from "@/components/live/SquadNames";
 import { SUB_DUE_RING, SUB_IDLE_SHADOW, SubDueHeading, SubDueRoot } from "@/components/live/SubDue";
 import { swapPairLabel } from "@/lib/live/liveChrome";
 
@@ -59,15 +61,11 @@ function formatCountdown(ms: number): string {
   return `${m}:${r.toString().padStart(2, "0")}`;
 }
 
-function first(name: string): string {
-  return name.split(" ")[0];
-}
-
+// The avatar's letters, from the words with letters ("😀 Emoji Kid" is EK).
 function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  const a = parts[0]?.[0] ?? "";
-  const b = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  return (a + b).toUpperCase();
+  const first = firstName(name);
+  const rest = shortName(name, "initial").slice(first.length).trim();
+  return (Array.from(first)[0] ?? "") + (rest ? Array.from(rest)[0] : "");
 }
 
 function TimerRing({
@@ -135,6 +133,7 @@ export function NextSubCard({
   pairTestIdPrefix,
   dueHint,
 }: NextSubCardProps) {
+  const names = useSquadNames();
   const [open, setOpen] = useState(due);
   // When the sub-due window opens, auto-expand so the coach can see
   // the full list. AFL's SwapCard does the same.
@@ -200,7 +199,7 @@ export function NextSubCard({
           hint={dueHint}
           summary={
             <span className="truncate">
-              {valid.map(({ off, on }) => `${off ? first(off.full_name) : "Empty"}→${first(on.full_name)}`).join(" · ")}
+              {valid.map(({ off, on }) => `${off ? names.first(off) : "Empty"}→${names.first(on)}`).join(" · ")}
             </span>
           }
         />
@@ -248,7 +247,7 @@ export function NextSubCard({
                         {initials(off.full_name)}
                       </span>
                       <span className="truncate text-xs font-semibold text-warm/70">
-                        {first(off.full_name)}
+                        {names.first(off)}
                       </span>
                     </>
                   ) : (
@@ -259,7 +258,7 @@ export function NextSubCard({
                     {initials(on.full_name)}
                   </span>
                   <span className="truncate text-xs font-bold text-brand-300">
-                    {first(on.full_name)}
+                    {names.first(on)}
                   </span>
                 </span>
                 {onApplyOne && (

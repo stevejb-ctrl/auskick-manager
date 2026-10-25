@@ -15,6 +15,7 @@ import type { TouchAgeGroupConfig } from "@/lib/sports/touch/types";
 import { PERIOD_MINUTES_MAX, teamOnFieldSize } from "@/lib/games/newGameDefaults";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Sport } from "@/lib/types";
+import { TEAM_NAME_MAX, teamNameError } from "@/lib/strings";
 
 interface TeamBasicsFormProps {
   userId: string;
@@ -138,8 +139,9 @@ export function TeamBasicsForm({
     e.preventDefault();
     setError(null);
 
-    if (!name.trim()) {
-      setError("Team name is required.");
+    const nameError = teamNameError(name);
+    if (nameError) {
+      setError(nameError);
       return;
     }
     const minutes = Number(periodMinutes);
@@ -276,6 +278,7 @@ export function TeamBasicsForm({
         <Input
           id="team-name"
           type="text"
+          maxLength={TEAM_NAME_MAX}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder={NAME_EXAMPLE[sport]}

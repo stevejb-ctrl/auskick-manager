@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { SFButton } from "@/components/sf";
 import type { LiveAuth, MixedGroup } from "@/lib/types";
 import { MixedGroupPicker } from "@/components/squad/MixedGroupPicker";
+import { parseWholeNumber } from "@/lib/wholeNumber";
 
 interface AddFillInFormProps {
   auth: LiveAuth;
@@ -48,9 +49,9 @@ export function AddFillInForm({
       setError("Name is required.");
       return;
     }
-    const num = jersey.trim() === "" ? null : Number(jersey);
-    if (num !== null && (!Number.isInteger(num) || num < 0)) {
-      setError("Number must be a positive integer.");
+    const { value: num, error: numError } = parseWholeNumber(jersey, { min: 0, max: 99, what: "Number" });
+    if (numError) {
+      setError(numError);
       return;
     }
     if (mixed && !group) {
@@ -109,15 +110,16 @@ export function AddFillInForm({
         />
         {showJerseyNumber && (
           <Input
-            type="number"
+            type="text"
             inputMode="numeric"
+            autoComplete="off"
+            aria-label="Fill-in's number"
             value={jersey}
             onChange={(e) => {
               setJersey(e.target.value);
               setError(null);
             }}
             placeholder="#"
-            min={0}
             disabled={isPending}
             className="w-16 tabular-nums"
           />

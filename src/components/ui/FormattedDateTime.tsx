@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatGameDateTime } from "@/lib/games/gameDates";
 
 interface Props {
   iso: string;
@@ -11,18 +12,9 @@ export function FormattedDateTime({ iso, mode }: Props) {
   const [formatted, setFormatted] = useState<string>("");
 
   useEffect(() => {
-    const d = new Date(iso);
-    const dateOpts: Intl.DateTimeFormatOptions =
-      mode === "long"
-        ? { weekday: "long", day: "numeric", month: "long", year: "numeric" }
-        : { weekday: "short", day: "numeric", month: "short" };
-    const timeOpts: Intl.DateTimeFormatOptions = {
-      hour: "numeric",
-      minute: "2-digit",
-    };
-    setFormatted(
-      `${d.toLocaleDateString(undefined, dateOpts)} · ${d.toLocaleTimeString(undefined, timeOpts)}`
-    );
+    // Short form adds the year when it isn't this year's (a 2027 opener
+    // under "2026 Season" read as this season's).
+    setFormatted(formatGameDateTime(new Date(iso), mode));
   }, [iso, mode]);
 
   return <span suppressHydrationWarning>{formatted || "\u00A0"}</span>;

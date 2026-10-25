@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { Spinner } from "@/components/ui/Spinner";
 import type { LiveAuth } from "@/lib/types";
+import { shortNames } from "@/lib/names";
 
 interface GameDayAvailabilityPanelProps {
   auth: LiveAuth;
@@ -44,7 +45,8 @@ export async function GameDayAvailabilityPanel({
   const out = squad.filter((p) => !inSet.has(p.id));
   const total = squad.length + fillInCount;
   const inCount = total - out.length;
-  const firstName = (n: string) => n.trim().split(/\s+/)[0] ?? n;
+  // "Out: Mia C, Mia T" when two Mias are out (lib/names).
+  const outNames = shortNames(squad);
 
   // Who has a row for this game at all. Only once some kids are marked
   // does an unmarked one stand out (a game nobody has marked yet opens
@@ -54,13 +56,13 @@ export async function GameDayAvailabilityPanel({
   const marked = new Set(((rows ?? []) as { player_id: string }[]).map((r) => r.player_id));
   const notMarked = marked.size > 0 ? out.filter((p) => !marked.has(p.id)) : [];
   const notMarkedIds = new Set(notMarked.map((p) => p.id));
-  const notMarkedNames = notMarked.map((p) => firstName(p.full_name));
+  const notMarkedNames = notMarked.map((p) => outNames.get(p.id) ?? p.full_name);
 
   return (
     <GameDayAvailability
       inCount={inCount}
       total={total}
-      outNames={out.filter((p) => !notMarkedIds.has(p.id)).map((p) => firstName(p.full_name))}
+      outNames={out.filter((p) => !notMarkedIds.has(p.id)).map((p) => outNames.get(p.id) ?? p.full_name)}
       notMarkedNames={notMarkedNames}
       notice={
         notMarked.length > 0 ? (

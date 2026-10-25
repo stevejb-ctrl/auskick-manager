@@ -7,6 +7,7 @@
 // here but didn't get on.
 
 import type { Player } from "@/lib/types";
+import { shortName, shortNames } from "@/lib/names";
 import { DIDNT_GET_ON, didntGetOn } from "@/lib/live/presentPlayers";
 import { byJerseyThenName } from "@/lib/share/neutralOrder";
 import { basketballGameMs, type BasketballGameState } from "@/lib/sports/basketball/replay";
@@ -31,7 +32,9 @@ export interface BasketballSummaryInput {
 export function buildBasketballSummary(input: BasketballSummaryInput): string {
   const { teamName, opponentName, trackScoring, state, squad, presentIds } = input;
   const byId = new Map(squad.map((p) => [p.id, p]));
-  const first = (p: Player | undefined) => (p ? p.full_name.trim().split(/\s+/)[0] : "Unknown");
+  // Two Mias read "Mia C" and "Mia T" (the number is printed beside them).
+  const short = shortNames(squad, "first", { numberShown: true });
+  const first = (p: Player | undefined) => (p ? short.get(p.id) ?? shortName(p.full_name) : "Unknown");
   const jersey = (p: Player | undefined) => (p?.jersey_number != null ? `#${p.jersey_number} ` : "");
   const lines: string[] = [`🏀 Full time — ${teamName} v ${opponentName}`];
 

@@ -2,6 +2,7 @@
 
 import { useId, useRef } from "react";
 import { useDialogFocus } from "@/components/ui/useDialogFocus";
+import { useSquadNames } from "@/components/live/SquadNames";
 
 // ─── Slot Fill Sheet ─────────────────────────────────────────
 // Modal sheet that opens when a coach taps an empty slot in the
@@ -117,6 +118,14 @@ export function SlotFillSheet({
   const sheetRef = useRef<HTMLDivElement>(null);
   useDialogFocus(sheetRef, true, onCancel);
   const titleId = useId();
+  // Two kids with the same full name read "Jack Smith (1)" / "(2)" (or
+  // their numbers), as their tiles do; any other label stays as given.
+  const names = useSquadNames();
+  const label = (c: Candidate) => {
+    const full = names.full({ id: c.id, full_name: c.name });
+    // Only the duplicate's suffix is added: a first name a caller passed stays as it is.
+    return full.startsWith(c.name.trim()) && /^ (#\d+|\(\d+\))$/.test(full.slice(c.name.trim().length)) ? full : c.name;
+  };
   return (
     <div
       // z-60 (one step above Modal's z-50) because SlotFillSheet is
@@ -233,7 +242,7 @@ export function SlotFillSheet({
                     )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium text-ink">
-                        {c.name}
+                        {label(c)}
                       </span>
                       {c.subLabel && (
                         <span className="block truncate text-[11px] text-ink-mute">

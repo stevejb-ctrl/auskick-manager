@@ -18,6 +18,7 @@ import type { BasketballLineMs } from "@/lib/sports/basketball/replay";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
 import { ZONE_STRIP } from "@/components/live/zoneStrip";
+import { useSquadNames } from "@/components/live/SquadNames";
 
 /** Each line's short label, as the tile and the swap strip print it. */
 export const BASKETBALL_LINE_SHORT: Record<BasketballLine, string> = {
@@ -176,10 +177,8 @@ function BasketballPlayerTileImpl({
                 ? "bg-surface shadow-lift-field ring-1 ring-inset ring-warn/50"
                 : "bg-surface shadow-lift-field";
 
-  const parts = player.full_name.trim().split(/\s+/);
-  const firstName = parts[0] ?? "";
-  const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  const displayName = lastInitial ? `${firstName} ${lastInitial}` : firstName;
+  // "First L", told apart from a squad-mate with the same (SquadNames).
+  const displayName = useSquadNames().tile(player);
 
   const lineLabel = positionLabel ?? (line ? BASKETBALL_LINE_SHORT[line] || null : null);
 

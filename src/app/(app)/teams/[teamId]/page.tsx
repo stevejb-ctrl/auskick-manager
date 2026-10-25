@@ -20,6 +20,8 @@ import { PLAYHQ_TENANT } from "@/lib/playhq";
 import { teamSportById } from "@/lib/sports/teamSportById";
 import { notFound } from "next/navigation";
 import { emptyHeroCopy } from "@/lib/teamHome/emptyHero";
+import { NotPlayedGames } from "@/components/games/NotPlayedGames";
+import { notPlayedCutoffIso, playedInSiren } from "@/lib/games/notPlayed";
 
 interface TeamDashboardProps {
   params: { teamId: string };
@@ -44,6 +46,11 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
     data: { user },
   } = await getUser();
 
+  // A game well past its start that was never run isn't "Next up"; it's
+  // listed under Not played (lib/games/notPlayed).
+  const cutoff = notPlayedCutoffIso();
+  const nextOrLive = `status.eq.in_progress,scheduled_at.gte."${cutoff}"`;
+
   const [
     { data: upcomingRaw },
     { count: totalActive },
@@ -58,6 +65,7 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
       .select("*")
       .eq("team_id", params.teamId)
       .neq("status", "completed")
+      .or(nextOrLive)
       .order("scheduled_at", { ascending: true })
       .limit(3),
 
@@ -71,7 +79,8 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
       .from("games")
       .select("*", { count: "exact", head: true })
       .eq("team_id", params.teamId)
-      .neq("status", "completed"),
+      .neq("status", "completed")
+      .or(nextOrLive),
 
     user
       ? supabase
@@ -120,11 +129,20 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
       byGame.set(ev.game_id, list);
     }
     for (const g of finals) {
+      // A game marked played (not run in Siren) has no score: not a 0–0.
       const events = byGame.get(g.id) ?? [];
-      if (scoresKept(sport, g, trackScoring, events)) scoresById.set(g.id, scoreFromEvents(sport, events));
+      if (playedInSiren(events) && scoresKept(sport, g, trackScoring, events)) scoresById.set(g.id, scoreFromEvents(sport, events));
     }
   }
   const lastFinal = finals[0] ?? null;
+  const { data: notPlayedRaw } = await supabase
+    .from("games")
+    .select("id, opponent, scheduled_at, round_number")
+    .eq("team_id", params.teamId)
+    .eq("status", "upcoming")
+    .lt("scheduled_at", cutoff)
+    .order("scheduled_at", { ascending: false })
+    .limit(5);
 
   const upcomingIds = (upcomingRaw ?? []).map((g) => g.id);
   const { data: availabilityRaw } = upcomingIds.length
@@ -187,6 +205,8 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
           playHq={!!PLAYHQ_TENANT[sport]}
         />
       )}
+
+      <NotPlayedGames teamId={params.teamId} games={notPlayedRaw ?? []} canEdit={isAdmin} />
 
       {todos.length > 0 && <TodoList todos={todos} />}
 

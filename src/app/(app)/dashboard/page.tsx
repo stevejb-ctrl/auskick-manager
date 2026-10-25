@@ -4,6 +4,7 @@ import { createClient, getUser } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import { Eyebrow, SFCard, SFIcon } from "@/components/sf";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
+import { isNotPlayed } from "@/lib/games/notPlayed";
 import { ROLE_LABEL } from "@/lib/roles";
 import { getAgeGroupConfig, getSportConfig, teamSport } from "@/lib/sports";
 import type { Sport, Team, TeamRole } from "@/lib/types";
@@ -82,6 +83,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   );
   for (const { data: upcoming } of results) {
     for (const g of upcoming ?? []) {
+      // A past game never run isn't "Next" (lib/games/notPlayed).
+      if (isNotPlayed(g)) continue;
       if (!nextByTeam.has(g.team_id)) nextByTeam.set(g.team_id, g);
     }
   }

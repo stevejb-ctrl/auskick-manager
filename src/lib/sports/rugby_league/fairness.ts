@@ -647,6 +647,12 @@ export function replayRugbyGame(events: GameEvent[], points: RugbyPoints): Leagu
 
 /** §7 carve-out threshold — three minutes of playing time. */
 const INJURY_CARVEOUT_MS = 3 * 60 * 1000;
+/**
+ * A swap put straight back (the toast's Undo after "Make all swaps", or
+ * a mistapped sub undone by hand) within this long isn't a break: the
+ * kid never really left the field.
+ */
+const SWAP_UNDONE_MS = 10 * 1000;
 
 export interface UnbrokenPeriodCompliance {
   /**
@@ -707,6 +713,9 @@ function walkUnbrokenPeriods(events: GameEvent[]): {
     t.pendingInjury.delete(pid);
     if (elapsed - startedAt > INJURY_CARVEOUT_MS) t.removed.add(pid);
   };
+  // This period's swap-offs: when, and whether the kid's period was
+  // already broken (an undo mustn't mend an earlier break).
+  let swappedOff = new Map<string, { at: number; wasBroken: boolean }>();
 
   for (const ev of sorted) {
     const meta = ev.metadata as {
@@ -747,6 +756,7 @@ function walkUnbrokenPeriods(events: GameEvent[]): {
           pendingInjury: new Map(),
           closed: false,
         });
+        swappedOff = new Map();
         break;
       }
       case "quarter_end": {
@@ -768,10 +778,17 @@ function walkUnbrokenPeriods(events: GameEvent[]): {
         // injury-only). A hurt kid being replaced keeps their incident
         // open: it closes if they come back on in time.
         if (off && slots.has(off)) {
-          if (onField(off)) tracker()?.removed.add(off);
+          const t = tracker();
+          if (onField(off) && t) {
+            swappedOff.set(off, { at: elapsed, wasBroken: t.removed.has(off) });
+            t.removed.add(off);
+          }
           slots.delete(off);
         }
         if (on) {
+          const back = swappedOff.get(on);
+          if (back && !back.wasBroken && elapsed - back.at <= SWAP_UNDONE_MS) tracker()?.removed.delete(on);
+          swappedOff.delete(on);
           slots.add(on);
           allPlayers.add(on);
           if (onField(on)) closeIncident(on, elapsed);

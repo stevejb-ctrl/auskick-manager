@@ -37,6 +37,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SFButton } from "@/components/sf";
+import { shortName } from "@/lib/names";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
@@ -51,6 +52,7 @@ import { LockModal } from "@/components/live/LockModal";
 import { NextSubCard } from "@/components/live/NextSubCard";
 import { LiveGameSettingsButton } from "@/components/live/LiveGameSettingsButton";
 import { useLiveChrome } from "@/components/live/useLiveChrome";
+import { undoSwaps } from "@/lib/live/liveChrome";
 import {
   InjuryReplacementModal,
   type InjuryReplacementCandidate,
@@ -171,7 +173,7 @@ const KEEPER_AT_BREAKS =
   "The keeper changes at the break: kit takes a few minutes to put on. If the keeper's hurt, long-press them to mark the injury.";
 
 function firstName(p: Player): string {
-  return p.full_name.trim().split(/\s+/)[0] ?? p.full_name;
+  return shortName(p.full_name);
 }
 
 export function SoccerLiveGame({
@@ -475,8 +477,13 @@ export function SoccerLiveGame({
   function applyAllSubs() {
     if (nextSubs.length === 0) return;
     for (const s of nextSubs) sub(s.off_player_id, s.on_player_id, s.line);
-    if (nextSubs.length === 1) chrome.swapped(nextSubs[0].off_player_id, nextSubs[0].on_player_id);
-    else chrome.showToast(`${nextSubs.length} subs made`);
+    // The toast's Undo puts them back, last first (undoSwaps).
+    const undo = undoSwaps(
+      nextSubs.map((s) => ({ off: s.off_player_id, on: s.on_player_id, line: s.line })),
+      (s) => sub(s.off, s.on, s.line),
+    );
+    if (nextSubs.length === 1) chrome.swapped(nextSubs[0].off_player_id, nextSubs[0].on_player_id, undo);
+    else chrome.showToast(`${nextSubs.length} subs made`, undo);
     setSubAckKey(subDueKey);
   }
 
@@ -986,6 +993,7 @@ export function SoccerLiveGame({
           quarter={base.currentPeriod + 1}
           periodLabel={periodWord}
           cue="whistle goes"
+          shortSide={{ playing: state.lineup ? soccerOnField(state.lineup).length : 0, size: game.on_field_size, min: ageGroup.minOnFieldSize }}
           loading={pending}
           onStart={() => {
             setStartConfirmOpen(false);

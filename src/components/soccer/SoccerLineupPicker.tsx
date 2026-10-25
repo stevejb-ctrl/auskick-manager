@@ -564,6 +564,7 @@ export function SoccerLineupPicker({
           quarter={1}
           periodLabel={periodWord}
           cue="whistle goes"
+          shortSide={{ playing: fieldIds.length, size: initialSize, min: ageGroup.minOnFieldSize }}
           loading={isPending}
           onStart={handleConfirmStart}
           onCancel={() => setStartModalOpen(false)}

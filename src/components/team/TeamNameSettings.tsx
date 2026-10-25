@@ -5,6 +5,7 @@ import { renameTeam } from "@/app/(app)/teams/[teamId]/settings/actions";
 import { SFButton } from "@/components/sf";
 import { Input } from "@/components/ui/Input";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { TEAM_NAME_MAX } from "@/lib/strings";
 
 interface TeamNameSettingsProps {
   teamId: string;
@@ -53,7 +54,7 @@ export function TeamNameSettings({ teamId, currentName, isAdmin }: TeamNameSetti
             setSaved(false);
           }}
           disabled={!isAdmin || isPending}
-          maxLength={80}
+          maxLength={TEAM_NAME_MAX}
           className="min-w-0 flex-1"
         />
         <SFButton

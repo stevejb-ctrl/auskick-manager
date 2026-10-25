@@ -36,6 +36,24 @@ export function swapToastText(offName: string | null, onName: string): string {
 }
 
 /**
+ * The toast's Undo after "Make all swaps": the same swaps back, last
+ * first, each kid coming back on where they went off (the sport's own
+ * swap, called with the pair flipped). Round 3 edge testing (24 Oct
+ * 2026): a mistaken batch took two hand swaps and two confirms to put
+ * back. Nothing to undo when a swap filled an empty spot (taking a kid
+ * off with nobody for them isn't a swap).
+ */
+export function undoSwaps<S extends { off: string | null; on: string }>(
+  made: S[],
+  swap: (s: S & { off: string }) => void,
+): (() => void) | undefined {
+  if (made.length === 0 || made.some((s) => s.off === null)) return undefined;
+  return () => {
+    for (const s of [...made].reverse()) swap({ ...s, off: s.on, on: s.off as string });
+  };
+}
+
+/**
  * A kid's lent minutes for the long-press sheet: the season's (other
  * games), plus this game's — the stint still open counted up to now
  * when a period is in play (`openElapsedMs`, the period's elapsed ms;

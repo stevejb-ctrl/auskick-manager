@@ -19,6 +19,8 @@ import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import { GameHeader } from "@/components/live/GameHeader";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { SwapDoneToast } from "@/components/live/SwapDoneToast";
+import { undoSwaps } from "@/lib/live/liveChrome";
+import { useSquadNames } from "@/components/live/SquadNames";
 import { SwapCard } from "@/components/live/SwapCard";
 import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
@@ -303,6 +305,7 @@ export function LiveGame({
   quarterMs,
   ageGroup,
 }: LiveGameProps) {
+  const names = useSquadNames();
   const activeZones = useMemo(() => positionsFor(positionModel), [positionModel]);
   // F3 (Phase 12): labelled zones for the long-press player summary, derived
   // from the AFL sport config in display order and filtered to this age
@@ -494,6 +497,8 @@ export function LiveGame({
 
   // Swap-done toast — confirms that a substitution landed.
   const [swapToast, setSwapToast] = useState<string | null>(null);
+  // "Make all swaps"' Undo on the toast, while it shows (undoSwaps).
+  const [swapToastUndo, setSwapToastUndo] = useState<{ run: () => void } | null>(null);
   const swapToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // When the coach taps the own-team `+G`/`+B` chip in the
@@ -899,17 +904,22 @@ export function LiveGame({
     undoTimerRef.current = setTimeout(() => setUndoToastVisible(false), 8000);
   }
 
+  // "Jack", or "Jack S" beside another Jack (SquadNames).
   function shortName(playerId: string): string {
     const p = playersById.get(playerId);
     if (!p) return "Player";
-    const [first] = p.full_name.trim().split(/\s+/);
-    return first ?? p.full_name;
+    return names.first(p);
   }
 
-  function showSwapToast(text: string) {
+  function showSwapToast(text: string, undo?: () => void) {
     if (swapToastTimerRef.current !== null) clearTimeout(swapToastTimerRef.current);
     setSwapToast(text);
-    swapToastTimerRef.current = setTimeout(() => setSwapToast(null), 2500);
+    setSwapToastUndo(undo ? { run: undo } : null);
+    // Long enough to tap Undo when there's one.
+    swapToastTimerRef.current = setTimeout(() => {
+      setSwapToast(null);
+      setSwapToastUndo(null);
+    }, undo ? 6000 : 2500);
     // Light haptic tap on mobile — confirms the swap landed. Goes
     // via the haptics primitive so iOS users get a real Taptic tap
     // instead of the silent navigator.vibrate no-op WebKit ships.
@@ -948,7 +958,7 @@ export function LiveGame({
       kind,
       forTeam: "us",
       playerId,
-      playerName: p ? p.full_name.trim().split(/\s+/)[0] : null,
+      playerName: p ? names.first(p) : null,
       quarter,
       key,
     });
@@ -1779,7 +1789,20 @@ export function LiveGame({
       {/* Swap-done toast — flashes briefly after a substitution lands
           (the shared SwapDoneToast, an overlay that doesn't push the
           field down). */}
-      {swapToast && !isPreGame && !isFinished && <SwapDoneToast text={swapToast} />}
+      {swapToast && !isPreGame && !isFinished && (
+        <SwapDoneToast
+          text={swapToast}
+          undoLabel={swapToast.endsWith(" subs made") ? "Undo swaps" : "Undo"}
+          onUndo={
+            swapToastUndo
+              ? () => {
+                  swapToastUndo.run();
+                  showSwapToast("Swaps undone");
+                }
+              : undefined
+          }
+        />
+      )}
 
       {/* Undo strip is rendered inside the sticky-bottom bar
           during live play (Steve 2026-05-13). The lastScore +
@@ -1865,13 +1888,20 @@ export function LiveGame({
                   for (const s of suggestions) {
                     persistSwap(s.off_player_id, s.on_player_id, s.zone);
                   }
+                  // The toast's Undo puts them back, last first, without
+                  // restarting the sub clock again (undoSwaps).
+                  const undo = undoSwaps(
+                    suggestions.map((s) => ({ off: s.off_player_id, on: s.on_player_id, zone: s.zone })),
+                    (s) => persistSwap(s.off, s.on, s.zone, false),
+                  );
                   if (suggestions.length === 1) {
                     const s = suggestions[0];
                     showSwapToast(
-                      `${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`
+                      `${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`,
+                      undo,
                     );
                   } else if (suggestions.length > 1) {
-                    showSwapToast(`${suggestions.length} subs made`);
+                    showSwapToast(`${suggestions.length} subs made`, undo);
                   }
                   // The pinned plan-ahead sub (if any) has now been
                   // applied — consume it so it can't re-fire next window.
@@ -2084,7 +2114,7 @@ export function LiveGame({
                 )}
                 {selected.kind === "bench" && (
                   <p className="text-xs text-ink-dim">
-                    Tap a field player to swap {p ? p.full_name.split(" ")[0] : "them"} on.
+                    Tap a field player to swap {p ? names.first(p) : "them"} on.
                   </p>
                 )}
                 {/* Swap player — covers both cases:

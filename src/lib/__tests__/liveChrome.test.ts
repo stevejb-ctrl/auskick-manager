@@ -12,6 +12,7 @@ import {
   swapPairLabel,
   swapToastText,
   undoMessage,
+  undoSwaps,
 } from "@/lib/live/liveChrome";
 import { soccerLikelyScorers } from "@/lib/sports/soccer/scorers";
 import { rugbyScoreWhat } from "@/lib/sports/rugby_league/fairness";
@@ -123,5 +124,33 @@ describe("what the undo strip says was scored, in rugby's and touch's words", ()
   it("says a girl's try where it counts double", () => {
     expect(touchTryWhat(false)).toBe("try");
     expect(touchTryWhat(true)).toBe("girl's try");
+  });
+});
+
+// Round 3 (24 Oct 2026): "Make all 2 swaps" by mistake took two swaps by
+// hand, with two confirms, to put back. The toast offers Undo now; it
+// writes the reverse swaps, last first, so each kid goes back where
+// they were.
+describe("undoSwaps", () => {
+  it("swaps each pair back, last first", () => {
+    const made: { off: string; on: string; line: string }[] = [];
+    const undo = undoSwaps(
+      [
+        { off: "lily", on: "max", line: "def" },
+        { off: "noah", on: "jack", line: "mid" },
+      ],
+      (s) => made.push(s),
+    );
+    expect(made).toEqual([]);
+    undo!();
+    expect(made).toEqual([
+      { off: "jack", on: "noah", line: "mid" },
+      { off: "max", on: "lily", line: "def" },
+    ]);
+  });
+
+  it("offers nothing to undo when a swap filled an empty spot", () => {
+    expect(undoSwaps([{ off: null, on: "max" }], () => {})).toBeUndefined();
+    expect(undoSwaps([], () => {})).toBeUndefined();
   });
 });

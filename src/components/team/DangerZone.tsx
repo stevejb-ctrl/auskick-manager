@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Modal } from "@/components/ui/Modal";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { teamNameMatches } from "@/lib/strings";
 
 interface DangerZoneProps {
   teamId: string;
@@ -98,7 +99,8 @@ export function DangerZone({ teamId, teamName, isAdmin, soleCoach = false }: Dan
             <SFButton
               variant="alarm"
               size="md"
-              disabled={typed.trim() !== teamName.trim()}
+              // Case, curly quotes and emoji don't count (teamNameMatches).
+              disabled={!teamNameMatches(typed, teamName)}
               loading={isPending}
               onClick={() => run(() => deleteTeam(teamId, typed))}
             >

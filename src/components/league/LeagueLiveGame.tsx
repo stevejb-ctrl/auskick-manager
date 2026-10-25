@@ -61,6 +61,7 @@ import { liveEvents } from "@/lib/live/optimisticEvents";
 import { UNDO_GONE_MESSAGE, UNDO_MISSING_MESSAGE, undoTap } from "@/lib/live/undoTarget";
 import { announceLiveNotice } from "@/lib/live/liveSync";
 import { useLiveChrome } from "@/components/live/useLiveChrome";
+import { undoSwaps } from "@/lib/live/liveChrome";
 import { computePeriodClockMs } from "@/lib/live/periodClock";
 import { clockPauseInput } from "@/lib/live/clockPause";
 import { useEventPeriodPause } from "@/lib/live/useClockPause";
@@ -1187,9 +1188,18 @@ export function LeagueLiveGame({
     // The fills first (a whole lineup), then the swaps on top of it.
     fillSpots(fillSuggestions);
     for (const swap of nextSubSuggestions) sub(swap.off.playerId, swap.on.playerId);
+    // The toast's Undo puts the swaps back, last first (undoSwaps); a fill
+    // has nobody to bring back, so there's no Undo once one is made.
+    const undo =
+      fillSuggestions.length === 0
+        ? undoSwaps(
+            nextSubSuggestions.map((s) => ({ off: s.off.playerId, on: s.on.playerId })),
+            (s) => sub(s.off, s.on),
+          )
+        : undefined;
     if (made === 1 && fillSuggestions.length === 1) chrome.swapped(null, fillSuggestions[0].playerId);
-    else if (made === 1) chrome.swapped(nextSubSuggestions[0].off.playerId, nextSubSuggestions[0].on.playerId);
-    else chrome.showToast(`${made} subs made`);
+    else if (made === 1) chrome.swapped(nextSubSuggestions[0].off.playerId, nextSubSuggestions[0].on.playerId, undo);
+    else chrome.showToast(`${made} subs made`, undo);
     handleClearSelection();
   }
 

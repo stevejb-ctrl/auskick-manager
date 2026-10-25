@@ -60,7 +60,7 @@ export function CopyableTextBlock({
       <pre
         id={textId}
         ref={preRef}
-        className="select-all whitespace-pre-wrap rounded-md [overflow-wrap:anywhere] bg-surface-alt px-3 py-2.5 font-sans text-sm leading-relaxed text-ink-dim"
+        className="select-all whitespace-pre-wrap break-words rounded-md bg-surface-alt [overflow-wrap:anywhere] px-3 py-2.5 font-sans text-sm leading-relaxed text-ink-dim"
       >
         {text}
       </pre>

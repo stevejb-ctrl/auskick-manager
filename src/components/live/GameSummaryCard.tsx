@@ -7,6 +7,7 @@ import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
 import { DIDNT_GET_ON, didntGetOn, playersHeadline } from "@/lib/live/presentPlayers";
 import { byJerseyThenName } from "@/lib/share/neutralOrder";
+import { shortName, shortNames } from "@/lib/names";
 
 const ZONE_ABBREV: Record<string, string> = {
   back: "BCK",
@@ -48,6 +49,7 @@ type PlayerLike = Pick<Player, "id" | "full_name" | "jersey_number">;
 function buildPlayerStats(
   basePlayedZoneMs: Record<string, ZoneMs>,
   playersById: Map<string, PlayerLike>,
+  nameOf: Map<string, string>,
 ): PlayerStat[] {
   const stats: PlayerStat[] = [];
   for (const [id, zm] of Object.entries(basePlayedZoneMs)) {
@@ -62,7 +64,7 @@ function buildPlayerStats(
       .sort((a, b) => b.pct - a.pct);
     stats.push({
       id,
-      name: p ? p.full_name.split(" ")[0] : "Unknown",
+      name: p ? nameOf.get(id) ?? shortName(p.full_name) : "Unknown",
       number: p?.jersey_number ?? null,
       totalMs,
       zones,
@@ -84,6 +86,9 @@ function buildSummary(
   presentIds: readonly string[],
 ): string {
   const lines: string[] = [];
+  // Two Jacks read "Jack S" and "Jack M" (the number is printed beside
+  // the name already), and "😀 Emoji Kid" reads "Emoji".
+  const nameOf = shortNames(Array.from(playersById.values()), "first", { numberShown: true });
 
   lines.push(`🏉 Full time — ${teamName} v ${opponentName}`);
 
@@ -118,7 +123,7 @@ function buildSummary(
         const p = playersById.get(id);
         const jerseyTag =
           p?.jersey_number != null ? ` (#${p.jersey_number})` : "";
-        const name = p ? `${p.full_name.split(" ")[0]}${jerseyTag}` : "Unknown";
+        const name = p ? `${nameOf.get(id) ?? shortName(p.full_name)}${jerseyTag}` : "Unknown";
         return `${name} ${s.goals}.${s.behinds}`;
       });
 
@@ -132,7 +137,7 @@ function buildSummary(
   // field count. Earlier this was `squadPlayers.length` from the call site,
   // which over-counted when a squad member was marked available but never
   // came on (e.g. lent to opp before kickoff, or set up but not played).
-  const playerStats = buildPlayerStats(basePlayedZoneMs, playersById);
+  const playerStats = buildPlayerStats(basePlayedZoneMs, playersById, nameOf);
   const playedCount = playerStats.length;
   // Kids who were there but never got on stay in the list (Stagehand
   // round 3: the one How we played flagged was missing), and in the
@@ -153,7 +158,7 @@ function buildSummary(
     for (const id of satOut) {
       const p = playersById.get(id)!;
       const prefix = p.jersey_number != null ? `#${p.jersey_number} ` : "";
-      rows.push({ id, text: `${prefix}${p.full_name.split(" ")[0]} — ${DIDNT_GET_ON}` });
+      rows.push({ id, text: `${prefix}${nameOf.get(id) ?? shortName(p.full_name)} — ${DIDNT_GET_ON}` });
     }
     // By number, never by minutes: this goes to every parent.
     for (const row of rows.sort(byJerseyThenName((r) => playersById.get(r.id)))) lines.push(row.text);

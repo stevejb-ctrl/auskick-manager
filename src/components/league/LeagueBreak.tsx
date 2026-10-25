@@ -47,6 +47,7 @@ import { leagueBreakRotation, leagueBreakSuggestion } from "@/lib/sports/rugby/b
 import { benchSidelinedInLeagueLineup, plannedLeagueLineup } from "@/lib/live/lineupOps";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
+import { useSquadNames } from "@/components/live/SquadNames";
 
 type Lineup = { forwards: string[]; backs: string[]; bench: string[] };
 const GROUPS = ["forwards", "backs"] as const;
@@ -101,6 +102,7 @@ export function LeagueBreak({
   const nextPeriod = state.currentQuarter + 1;
   const { label: periodWord } = periodLabels(sport, ageGroup);
   const playerById = useMemo(() => new Map(squad.map((p) => [p.id, p])), [squad]);
+  const squadNames = useSquadNames();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -429,7 +431,8 @@ export function LeagueBreak({
     for (const [key, label, need] of [["fr", "FR", reqs?.fr], ["dh", "DH", reqs?.dh]] as const) {
       if (!need) continue;
       const id = v[key];
-      const name = id ? playerById.get(id)?.full_name.split(" ")[0] : null;
+      const kid = id ? playerById.get(id) : null;
+      const name = kid ? squadNames.first(kid) : null;
       if (!id || !name || !onFieldNow.includes(id)) {
         attention = true;
         parts.push(`${label} to pick`);

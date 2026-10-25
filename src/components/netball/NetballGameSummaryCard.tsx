@@ -21,6 +21,7 @@ import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
 import { DIDNT_GET_ON, didntGetOn, playersHeadline } from "@/lib/live/presentPlayers";
 import { byJerseyThenName } from "@/lib/share/neutralOrder";
+import { shortName, shortNames } from "@/lib/names";
 
 // Permissive subset — buildPlayerTimes only reads id + full_name.
 // Lets the game-detail page pass the slim projection it loads
@@ -73,12 +74,13 @@ function buildPlayerTimes(
   squad: PlayerLike[],
 ): PlayerTimeRow[] {
   const byId = new Map(squad.map((p) => [p.id, p]));
+  const short = shortNames(squad);
   const rows: PlayerTimeRow[] = [];
   playerStats.forEach((stats, id) => {
     const totalMs = stats.attack + stats.centre + stats.defence;
     if (totalMs < 1000) return; // skip never-on-court / negligible-time
     const player = byId.get(id);
-    const name = player ? player.full_name.split(/\s+/)[0] : "Unknown";
+    const name = player ? short.get(id) ?? shortName(player.full_name) : "Unknown";
     const thirds = (Object.keys(THIRD_LABEL) as (keyof PlayerThirdMs)[])
       .map((k) => ({
         label: THIRD_LABEL[k],
@@ -103,6 +105,8 @@ function buildSummary(
   presentIds: readonly string[],
 ): string {
   const lines: string[] = [];
+  // Two Mias read "Mia C" and "Mia T" (SquadNames' rule).
+  const short = shortNames(squad);
 
   lines.push(`🏐 Full time — ${teamName} v ${opponentName}`);
 
@@ -137,7 +141,7 @@ function buildSummary(
       .sort((a, b) => b[1] - a[1])
       .map(([id, n]) => {
         const p = byId.get(id);
-        const name = p ? p.full_name.split(/\s+/)[0] : "Unknown";
+        const name = p ? short.get(id) ?? shortName(p.full_name) : "Unknown";
         return n > 1 ? `${name} ${n}` : name;
       });
     if (scorers.length > 0) {
@@ -161,7 +165,7 @@ function buildSummary(
   // Kids who were there but never got on stay in the list (Stagehand
   // round 3: the one How we played flagged was missing), and in the
   // headline, so it matches the list (round 4).
-  const nameOf = new Map(squad.map((p) => [p.id, p.full_name.split(/\s+/)[0]]));
+  const nameOf = new Map(squad.map((p) => [p.id, short.get(p.id) ?? shortName(p.full_name)]));
   const satOut = didntGetOn(presentIds, rows.map((r) => r.id)).filter((id) => nameOf.has(id));
   lines.push(`\n👟 ${playersHeadline(playedCount, satOut.length)}`);
   if (rows.length > 0 || satOut.length > 0) {

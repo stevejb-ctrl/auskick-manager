@@ -12,15 +12,72 @@ export interface ParsedPlayer {
   jersey_number: number | null;
 }
 
+/** A kid already on the squad, active or not (names and numbers to check against). */
+export interface SquadKid {
+  full_name: string;
+  jersey_number: number | null;
+  is_active: boolean;
+}
+
 export interface SquadPasteResult {
   players: ParsedPlayer[];
   /** One message per line that couldn't be used, with its line number. */
   errors: string[];
+  /**
+   * Lines that were kept but may be a mistake: a name listed twice or
+   * already on the squad. The single add warns the same way (round 3
+   * edge testing, 24 Oct 2026: one path took a duplicate silently, the
+   * other refused it).
+   */
+  warnings: string[];
+  /**
+   * Lines that aren't a kid: a group-chat message's greeting, headings,
+   * links, emoji and sign-off (round 3 edge testing, 24 Oct 2026: they
+   * became "players", and a phone number became jersey #678).
+   */
+  skipped: SkippedLine[];
   /** Numbers left off the names (the sport has no jersey numbers). */
   numbersLeftOff: number;
 }
 
+export interface SkippedLine {
+  line: number;
+  text: string;
+  /** "a heading", "a link", "a phone number", "no name", "a greeting", "too many words". */
+  why: string;
+}
+
 const NUM = /^#?(\d{1,3})$/;
+
+// Built at runtime: the project's TS target predates the `u` flag.
+const LETTER = new RegExp("\\p{L}", "u");
+const NOT_LETTER = new RegExp("[^\\p{L}\\s']", "gu");
+
+/** Whole lines a group-chat message carries that are never a kid. */
+const CHAT_WORDS = new Set([
+  "hi", "hello", "hey", "hiya", "g'day", "hi all", "hi everyone", "hey all", "hello all",
+  "thanks", "thank you", "thanks all", "thanks everyone", "ta", "cheers", "regards", "kind regards",
+  "see you", "see you saturday", "see you sunday", "go team",
+  "team", "squad", "players", "list", "the team", "our team",
+  "forwards", "backs", "mids", "midfield", "defence", "attack", "reserves", "subs", "bench",
+  "coach", "coaches", "manager", "managers",
+]);
+
+/** Why a pasted line isn't a kid, or null when it may be one. */
+function junkReason(line: string): string | null {
+  if (!LETTER.test(line)) return "no name";
+  if (/https?:\/\/|www\./i.test(line)) return "a link";
+  if (/:\s*$/.test(line)) return "a heading";
+  if ((line.match(/\d/g) ?? []).length >= 8) return "a phone number";
+  const words = line.replace(NOT_LETTER, " ").trim().toLocaleLowerCase().split(/\s+/);
+  const bare = words.join(" ");
+  // "Thanks 🙏", "Cheers", "Reserves"; or "Hi all, …" ("Hi Nguyen" is a kid).
+  if (CHAT_WORDS.has(bare) || (/^(hi|hey|hello|g'day)\b/.test(bare) && words.length > 1 && /[,!]/.test(line))) {
+    return "a greeting";
+  }
+  if (words.length > 5) return "too many words";
+  return null;
+}
 
 function splitNameAndNumber(line: string): { name: string; num: string | null; bareTrailing?: boolean } {
   // Spreadsheet paste: columns split by tabs (or 2+ spaces).
@@ -39,18 +96,27 @@ function splitNameAndNumber(line: string): { name: string; num: string | null; b
 
 export function parseSquadPaste(
   text: string,
-  opts: { withJersey: boolean } = { withJersey: true },
+  opts: { withJersey: boolean; squad?: SquadKid[] } = { withJersey: true },
 ): SquadPasteResult {
   const players: ParsedPlayer[] = [];
   const errors: string[] = [];
+  const warnings: string[] = [];
+  const skipped: SkippedLine[] = [];
   const seenNames = new Set<string>();
   const seenJerseys = new Set<number>();
+  const squad = opts.squad ?? [];
+  const squadNames = new Set(squad.map((k) => nameKey(k.full_name)));
   let numbersLeftOff = 0;
 
   text.split(/\r?\n/).forEach((raw, i) => {
     const line = raw.trim();
     if (!line) return;
     const lineNo = i + 1;
+    const why = junkReason(line);
+    if (why) {
+      skipped.push({ line: lineNo, text: line, why });
+      return;
+    }
     const split = splitNameAndNumber(line);
     let rawName = split.name;
     let num = split.num;
@@ -77,16 +143,26 @@ export function parseSquadPaste(
         errors.push(`Line ${lineNo}: jersey #${jersey_number} is listed twice.`);
         return;
       }
+      // The number is the squad's already (the database refuses it, and
+      // the coach needs to know whose).
+      const owner = squad.find((k) => k.jersey_number === jersey_number);
+      if (owner) {
+        errors.push(`Line ${lineNo}: #${jersey_number} is ${owner.full_name}'s${owner.is_active ? "" : " (inactive)"}.`);
+        return;
+      }
       seenJerseys.add(jersey_number);
     }
-    const key = full_name.toLowerCase();
-    if (seenNames.has(key)) {
-      errors.push(`Line ${lineNo}: ${full_name} is listed twice.`);
-      return;
-    }
+    const key = nameKey(full_name);
+    if (seenNames.has(key)) warnings.push(`Line ${lineNo}: ${full_name} is listed twice.`);
+    else if (squadNames.has(key)) warnings.push(`Line ${lineNo}: there's already a ${full_name} on the squad.`);
     seenNames.add(key);
     players.push({ full_name, jersey_number });
   });
 
-  return { players, errors, numbersLeftOff };
+  return { players, errors, warnings, skipped, numbersLeftOff };
+}
+
+/** A name to compare: case and spacing don't count. */
+export function nameKey(name: string): string {
+  return name.trim().replace(/\s+/g, " ").toLocaleLowerCase();
 }

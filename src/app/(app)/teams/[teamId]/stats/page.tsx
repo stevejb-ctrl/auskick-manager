@@ -38,6 +38,7 @@ import { teamMixedRule } from "@/lib/sports/touch/mixed";
 import { aggregateSoccerSeason } from "@/lib/dashboard/soccerAggregators";
 import { soccerFamilyAgeGroupForTeam } from "@/lib/sports/soccer/family";
 import type { GameEvent } from "@/lib/types";
+import { distinctFullNames } from "@/lib/names";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { scoresKept } from "@/lib/results";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
@@ -83,7 +84,10 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         .eq("status", "available"),
     ]);
 
-  const players = playersRaw ?? [];
+  // Two kids with the same name read "Ava Smith #3" / "#12" (or (1) / (2))
+  // in every table and the chat text (round 3 edge testing, 24 Oct 2026).
+  const fullNames = distinctFullNames(playersRaw ?? []);
+  const players = (playersRaw ?? []).map((p) => ({ ...p, full_name: fullNames.get(p.id) ?? p.full_name }));
   const allGames = gamesRaw ?? [];
   const availability = availabilityRaw ?? [];
 

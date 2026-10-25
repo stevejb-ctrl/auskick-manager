@@ -21,6 +21,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { UndoStrip } from "@/components/live/UndoStrip";
 import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { SwapDoneToast } from "@/components/live/SwapDoneToast";
+import { useSquadNames } from "@/components/live/SquadNames";
 import { hapticTap } from "@/lib/haptics";
 import {
   liveLoanMinutes,
@@ -34,6 +35,8 @@ import type { GameEvent, Player } from "@/lib/types";
 const UNDO_FLASH_MS = 8000;
 /** How long the swap toast shows (AFL's 2.5 s). */
 const TOAST_MS = 2500;
+/** Long enough to tap Undo after "Make all swaps". */
+const UNDO_TOAST_MS = 6000;
 
 interface PendingSwap {
   offId: string | null;
@@ -65,10 +68,13 @@ export interface LiveChrome {
   undoStrip(opts: { show: boolean; onUndo: () => void; disabled?: boolean }): ReactNode;
   /** Ask before a tap-tap sub; on Confirm it runs and the toast shows. */
   confirmSwap(swap: PendingSwap): void;
-  /** A swap landed without asking (a suggested sub, a filled spot): toast it. */
-  swapped(offId: string | null, onId: string): void;
-  /** Any other change worth a toast ("Ava ⇄ Leo"). */
-  showToast(text: string): void;
+  /**
+   * A swap landed without asking (a suggested sub, a filled spot): toast
+   * it. `undo`: "Make all swaps"' Undo on the toast (lib/live undoSwaps).
+   */
+  swapped(offId: string | null, onId: string, undo?: () => void): void;
+  /** Any other change worth a toast ("Ava ⇄ Leo", "2 subs made" with its Undo). */
+  showToast(text: string, undo?: () => void): void;
   /** The swap toast, near the top of the screen (an overlay). */
   toast: ReactNode;
   /** The swap confirm. */
@@ -96,8 +102,10 @@ export function useLiveChrome(opts: {
   const [namedScoreKey, setNamedScoreKey] = useState<string | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [toastText, setToastText] = useState<string | null>(null);
+  const [toastUndo, setToastUndo] = useState<{ run: () => void } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pendingSwap, setPendingSwap] = useState<PendingSwap | null>(null);
+  const names = useSquadNames();
 
   useEffect(
     () => () => {
@@ -111,21 +119,27 @@ export function useLiveChrome(opts: {
     (playerId: string) => {
       const p = playersById.get(playerId);
       if (!p) return "Player";
-      return p.full_name.trim().split(/\s+/)[0] ?? p.full_name;
+      // "Jack", or "Jack S" beside another Jack (SquadNames).
+      return names.first(p);
     },
-    [playersById],
+    [playersById, names],
   );
 
-  const showToast = useCallback((text: string) => {
+  const showToast = useCallback((text: string, undo?: () => void) => {
     if (toastTimer.current !== null) clearTimeout(toastTimer.current);
     setToastText(text);
-    toastTimer.current = setTimeout(() => setToastText(null), TOAST_MS);
+    setToastUndo(undo ? { run: undo } : null);
+    toastTimer.current = setTimeout(() => {
+      setToastText(null);
+      setToastUndo(null);
+    }, undo ? UNDO_TOAST_MS : TOAST_MS);
     // Light haptic tap on mobile — confirms the swap landed.
     void hapticTap("light");
   }, []);
 
   const swapped = useCallback(
-    (offId: string | null, onId: string) => showToast(swapToastText(offId ? firstName(offId) : null, firstName(onId))),
+    (offId: string | null, onId: string, undo?: () => void) =>
+      showToast(swapToastText(offId ? firstName(offId) : null, firstName(onId)), undo),
     [firstName, showToast],
   );
 
@@ -158,7 +172,20 @@ export function useLiveChrome(opts: {
     confirmSwap: setPendingSwap,
     swapped,
     showToast,
-    toast: toastText ? <SwapDoneToast text={toastText} /> : null,
+    toast: toastText ? (
+      <SwapDoneToast
+        text={toastText}
+        undoLabel={toastText.endsWith(" subs made") ? "Undo swaps" : "Undo"}
+        onUndo={
+          toastUndo
+            ? () => {
+                toastUndo.run();
+                showToast("Swaps undone");
+              }
+            : undefined
+        }
+      />
+    ) : null,
     overlays: pendingSwap ? (
       <SwapConfirmDialog
         off={pendingSwap.offId ?? ""}

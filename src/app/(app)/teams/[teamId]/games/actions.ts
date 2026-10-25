@@ -9,6 +9,7 @@ import { pinPlayedPeriodLength } from "@/lib/games/pinPlayedPeriodLength";
 import { gameWriteError } from "@/lib/games/gameWriteError";
 import { teamSport } from "@/lib/sports/registry";
 import { onSurfaceLabel } from "@/lib/sports/words";
+import { gameDateError } from "@/lib/games/gameDates";
 import type { ActionResult } from "@/lib/types";
 
 async function getAuthedAdmin(teamId: string) {
@@ -57,9 +58,8 @@ export async function createGame(
   if (!input.opponent.trim()) {
     return { success: false, error: "Opponent is required." };
   }
-  if (!input.scheduled_at) {
-    return { success: false, error: "Date and time are required." };
-  }
+  const dateError = gameDateError(input.scheduled_at);
+  if (dateError) return { success: false, error: dateError };
 
   // Pre-generate the row UUID server-side so we don't need an
   // `.insert(...).select("id").single()` read-back. Even though
@@ -303,6 +303,19 @@ export async function updateGame(
 ): Promise<ActionResult> {
   const { supabase, error } = await getAuthedAdmin(teamId);
   if (error) return { success: false, error };
+
+  if (patch.opponent !== undefined && !patch.opponent.trim()) {
+    return { success: false, error: "Opponent is required." };
+  }
+  // A new date must be a sane one; a finished game's old date can stay.
+  if (patch.scheduled_at !== undefined) {
+    const { data: current } = await supabase.from("games").select("scheduled_at").eq("id", gameId).eq("team_id", teamId).maybeSingle();
+    // To the minute: the form has no seconds.
+    const minute = (iso: string) => Math.floor(new Date(iso).getTime() / 60_000);
+    const same = current && minute(current.scheduled_at as string) === minute(patch.scheduled_at);
+    const dateError = same ? null : gameDateError(patch.scheduled_at);
+    if (dateError) return { success: false, error: dateError };
+  }
 
   const { error: updateError } = await supabase
     .from("games")
