@@ -6,6 +6,13 @@
 // teams in multiple sports get a consistent live-game shell —
 // shared `LiveTopBar` / `LiveStickyScoreBar` / `LiveAdminUtilityRow`
 // chrome wrapped around RL-specific surfaces.
+//
+// In-game writes are optimistic (useOptimisticEvents): a try, an undo, a
+// sub or a move shows the moment it's tapped and the screen replays the
+// server's events plus the ones on their way, as soccer's and touch's
+// do. The shared live chrome (useLiveChrome) is AFL's undo strip flash,
+// tap-tap swap confirm and toast, and lent minutes on the long-press
+// sheet (UX audit 23 Oct 2026, "Drift from AFL").
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -17,7 +24,6 @@ import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { LeagueGameSettingsButton } from "./LeagueGameSettingsButton";
 import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
 import { ClockMenu } from "@/components/live/ClockMenu";
-import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { buildLeagueWalkthroughSteps } from "./leagueWalkthroughSteps";
 // Walkthrough modal is heavy (animations, slide tracking) and only
 // mounts on first visit or "?" tap. Dynamic-import keeps it out of
@@ -35,7 +41,9 @@ const GamePlanModal = dynamic(
   { ssr: false },
 );
 import { SubDueBanner } from "@/components/live/SubDueBanner";
+import { subDueBannerShows } from "@/components/live/SubDue";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
+import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import { hapticTap } from "@/lib/haptics";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
@@ -48,38 +56,50 @@ import {
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
-import {
-  computePeriodClockMs,
-  togglePeriodPause,
-  RUNNING_CLOCK,
-  type PeriodPause,
-} from "@/lib/live/periodClock";
+import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
+import { liveEvents } from "@/lib/live/optimisticEvents";
+import { UNDO_GONE_MESSAGE, UNDO_MISSING_MESSAGE, undoTap } from "@/lib/live/undoTarget";
+import { announceLiveNotice } from "@/lib/live/liveSync";
+import { useLiveChrome } from "@/components/live/useLiveChrome";
+import { undoSwaps } from "@/lib/live/liveChrome";
+import { computePeriodClockMs } from "@/lib/live/periodClock";
+import { clockPauseInput } from "@/lib/live/clockPause";
+import { useEventPeriodPause } from "@/lib/live/useClockPause";
 import { resolveLeagueSubAnchorElapsed } from "@/lib/sports/rugby_league/subAnchor";
+import { leagueSwapPossible } from "@/lib/sports/rugby_league/legalSwap";
 import { finaliseLeagueGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/league-actions";
 import { LeagueField } from "./LeagueField";
 import { LeagueBenchStrip } from "./LeagueBenchStrip";
 import { LeagueScoreBug } from "./LeagueScoreBug";
 import { LeagueNextSubCard } from "./LeagueNextSubCard";
+import { UnbrokenPeriodWarning } from "./UnbrokenPeriodWarning";
 import { LeagueScorerPicker } from "./LeagueScorerPicker";
 import { LeagueFullTimeReview } from "./LeagueFullTimeReview";
 import { LeagueGameSummaryCard } from "./LeagueGameSummaryCard";
 import { VestAssignmentCard } from "./VestAssignmentCard";
+import { LeagueBreak } from "./LeagueBreak";
 import { RecordConversionDialog } from "./RecordConversionDialog";
 import { KickoffPicker } from "./KickoffPicker";
-import { currentVests, type VestType } from "@/lib/sports/rugby_league/vests";
+import { currentVests, missingVestOnField, type VestType } from "@/lib/sports/rugby_league/vests";
 import {
+  conversionTryEventId,
   playerConversionStatusInCycle,
   kickoffTakers,
   kickoffRecordedForPeriod,
+  RUGBY_SCORE_EVENT_TYPES,
 } from "@/lib/sports/rugby_league/kicks";
 import {
   leagueSlotsNow,
   playedZoneMsByPeriod,
   playerMsOnField,
   playerZoneMsOnField,
+  replayRugbyGame,
+  rugbyPoints,
+  rugbyScoreWhat,
   rugbyScoreWords,
   suggestLeagueSubs,
-  swapInLeagueLineup,
+  unbrokenPeriodsRequired,
+  type LeagueSubLaws,
 } from "@/lib/sports/rugby_league/fairness";
 import { getSportConfig, type RugbySport } from "@/lib/sports/registry";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
@@ -93,16 +113,22 @@ import {
   clearPeriodToBench,
   type GamePlan,
 } from "@/lib/game-plan";
-import { benchSidelinedInLeagueLineup, plannedLeagueLineup } from "@/lib/live/lineupOps";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Game, GameEvent, LeagueLineup, LiveAuth, Player } from "@/lib/types";
 import type { LeagueGameState } from "@/lib/sports/rugby_league/fairness";
 
-import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_league/engine";
+import {
+  assignLeaguePositionLabels,
+  assignLeaguePositions,
+  restrictedMisfits,
+  withLeagueSlots,
+} from "@/lib/sports/rugby_league/engine";
 import { linePositionOrder } from "@/lib/sports/rugby/fieldPositions";
+import { rugbyFills, type RugbyFill } from "@/lib/sports/rugby/fills";
+import { rugbyForwards } from "@/lib/sports/rugby/lines";
 import { Modal } from "@/components/ui/Modal";
-import { UndoStrip } from "@/components/live/UndoStrip";
 import { periodLabels } from "@/lib/sports";
+import { seasonLoanMinutes } from "@/lib/fairness";
 import { centreVest } from "@/lib/sports/rugby/zoneTime";
 interface LeagueLiveGameProps {
   auth: LiveAuth;
@@ -123,12 +149,6 @@ interface LeagueLiveGameProps {
   clockMultiplier?: number;
   /** Team-level scoring toggle (sport-agnostic). U6/U7 default off; U8+ default on. */
   trackScoring: boolean;
-  /**
-   * Whether the §6 unbroken-period rule is enforced for this game.
-   * Stored on games.enforce_unbroken_periods; the team default lives
-   * on teams.enforce_unbroken_periods. Both start false (off).
-   */
-  enforceUnbrokenPeriods: boolean;
   /**
    * Whether the AFL-style F/C/B time bar renders on every player
    * tile (centre = time wearing FR or DH vest). Stored on
@@ -178,10 +198,9 @@ export function LeagueLiveGame({
   subIntervalSeconds,
   clockMultiplier = 1,
   trackScoring,
-  enforceUnbrokenPeriods,
   trackZoneTime,
-  state,
-  thisGameEvents,
+  state: serverState,
+  thisGameEvents: serverEvents,
   seasonEvents,
   chipModes,
   leaguePlaybook,
@@ -193,25 +212,22 @@ export function LeagueLiveGame({
   // Empty spot tapped with nobody selected: the bench picker is open.
   const [fillSpotZone, setFillSpotZone] = useState<"forward" | "back" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The server's events, then the writes it hasn't returned yet, and the
+  // game they replay to (the server's own replay while nothing's pending).
+  const { events: thisGameEvents, write, queueReady } = useOptimisticEvents(serverEvents, { gameId: game.id, onError: setError });
+  const state = useMemo(
+    () => (thisGameEvents === serverEvents ? serverState : replayRugbyGame(thisGameEvents, rugbyPoints(sport))),
+    [thisGameEvents, serverEvents, serverState, sport],
+  );
+  const isPeriodActive = state.currentQuarter >= 1 && !state.quarterEnded && !state.finalised;
+  const isAtFinalQ = state.quarterEnded && state.currentQuarter >= ageGroup.periodCount && !state.finalised;
+  // Mirrors AFL's `isFinished` — covers both the post-final-period
+  // review phase (LeagueFullTimeReview is up, coach is reconciling
+  // scores) and the post-finalise phase (LeagueGameSummaryCard with
+  // "Copy for group chat"). Used to hide the field + bench layout
+  // once the game is over, and the late-arrival offer.
+  const isFinished = state.finalised || isAtFinalQ;
   const [endQConfirmOpen, setEndQConfirmOpen] = useState(false);
-  /**
-   * "Ready for H/Q{n}" confirmation step — shown when the coach taps
-   * the quarter-break "Ready for {period}" button. Mirrors AFL's
-   * `StartQuarterModal` pattern: the coach confirms by tapping "Start
-   * {H|Q}{n}" when the hooter goes. Closing without confirming returns
-   * to the quarter-break view with zero server state changed.
-   */
-  const [startPeriodConfirmOpen, setStartPeriodConfirmOpen] = useState(false);
-  // ── Auto-open the StartQuarterModal at every quarter-break ──
-  // AFL's `QuarterBreak` requires the coach to tap "Ready for Q{n}"
-  // in a sticky-bottom bar before the modal pops. RL has an inline
-  // q-break card and Steve flagged that the "Tap when the siren
-  // goes" modal felt missing in practice. Solution: auto-pop the
-  // modal the first time we enter q-break for each period. If the
-  // coach taps "Back to lineup" they fall back to the inline card
-  // (Ready button there manually re-opens the modal). Tracked per-
-  // period via a ref so dismissing once doesn't keep auto-reopening.
-  const autoOpenedForQbreakRef = useRef<number | null>(null);
   // ── Walkthrough state (mirrors AFL + netball) ──
   // First-visit auto-open uses `league-walkthrough-seen` in
   // localStorage so a coach doesn't see the welcome again on
@@ -270,25 +286,6 @@ export function LeagueLiveGame({
     zone: "forward" | "back";
   } | null>(null);
 
-  // ── Break-time Manage-availability (AVAIL-02 / B2) ────────────
-  // Mirrors AFL `QuarterBreak.tsx` + netball `NetballQuarterBreak.tsx`.
-  // At a period break the coach can ADD an arrived player (reuses the
-  // canonical addLateArrival writer) or MARK a player OUT — the latter
-  // forces a bench-replacement pick via the shared InjuryReplacementModal
-  // and records the out player with reason:"out" PLUS a recordLeagueSwap
-  // so the replacement physically takes the vacated field slot.
-  const [addArrivedPickerOpen, setAddArrivedPickerOpen] = useState(false);
-  const [markOutPickerOpen, setMarkOutPickerOpen] = useState(false);
-  const [breakInjuredPickerOpen, setBreakInjuredPickerOpen] = useState(false);
-  /**
-   * When set, the InjuryReplacementModal is shown for the mark-OUT flow
-   * (distinct from the in-game injury flow above). `zone` infers from the
-   * live lineup so the swap lands the replacement in the right bucket.
-   */
-  const [markOutReplacement, setMarkOutReplacement] = useState<{
-    outId: string;
-    zone: "forward" | "back";
-  } | null>(null);
 
   const kickoffSkippedRef = useRef<Set<number>>(new Set());
   const [kickoffSkippedTick, setKickoffSkippedTick] = useState(0);
@@ -297,13 +294,14 @@ export function LeagueLiveGame({
   // `elapsedMs` (game ms) is netball's period clock: wall-clock time
   // since `state.quarterStartedAt`, less the real time spent paused,
   // scaled by clockMultiplier. A pause freezes it; resuming banks the
-  // stoppage (togglePeriodPause) so the clock carries on from where
-  // it stopped instead of jumping ahead by the paused time. Pause is
-  // CLIENT-ONLY: it doesn't persist across reloads yet — needs a
-  // `quarter_pause` / `quarter_resume` event pair to lock in server-
-  // side. Filed as a follow-up; the UX matches AFL for now.
+  // stoppage so the clock carries on from where it stopped instead of
+  // jumping ahead by the paused time. The pause is the period's latest
+  // clock_pause event (lib/live/clockPause), so a reload or a second
+  // phone keeps it.
   const [nowMs, setNowMs] = useState<number | null>(null);
-  const [pause, setPause] = useState<PeriodPause>(RUNNING_CLOCK);
+  const quarterStartedAtMs = state.quarterStartedAt ? Date.parse(state.quarterStartedAt) : NaN;
+  const startedAtMs = Number.isNaN(quarterStartedAtMs) ? null : quarterStartedAtMs;
+  const pause = useEventPeriodPause(thisGameEvents, state.currentQuarter, startedAtMs, clockMultiplier);
   const running = pause.pausedAtMs === null;
   useEffect(() => {
     if (!state.quarterStartedAt || state.quarterEnded || state.finalised) {
@@ -315,44 +313,61 @@ export function LeagueLiveGame({
     return () => window.clearInterval(id);
   }, [state.quarterStartedAt, state.quarterEnded, state.finalised, running]);
 
-  const elapsedMs = useMemo(() => {
-    // Until the first client tick, show the server's value so the
-    // hydrated clock matches the server render.
-    if (nowMs == null) return state.quarterElapsedMs ?? 0;
-    const startedAtMs = state.quarterStartedAt ? Date.parse(state.quarterStartedAt) : NaN;
-    return computePeriodClockMs({
-      currentQuarter: state.currentQuarter,
-      quarterEnded: state.quarterEnded,
-      finalised: state.finalised,
-      quarterStartedAtMs: Number.isNaN(startedAtMs) ? null : startedAtMs,
-      pausedAtMs: pause.pausedAtMs,
-      accumulatedPauseMs: pause.accumulatedPauseMs,
-      fallbackElapsedMs: state.quarterElapsedMs ?? 0,
-      clockMultiplier,
-      nowMs,
-    });
-  }, [
-    nowMs,
-    state.currentQuarter,
-    state.quarterEnded,
-    state.finalised,
-    state.quarterStartedAt,
-    state.quarterElapsedMs,
-    pause,
-    clockMultiplier,
-  ]);
+  const clockAt = useCallback(
+    (now: number) =>
+      computePeriodClockMs({
+        currentQuarter: state.currentQuarter,
+        quarterEnded: state.quarterEnded,
+        finalised: state.finalised,
+        quarterStartedAtMs: startedAtMs,
+        pausedAtMs: pause.pausedAtMs,
+        accumulatedPauseMs: pause.accumulatedPauseMs,
+        fallbackElapsedMs: state.quarterElapsedMs ?? 0,
+        clockMultiplier,
+        nowMs: now,
+      }),
+    [state.currentQuarter, state.quarterEnded, state.finalised, startedAtMs, state.quarterElapsedMs, pause, clockMultiplier],
+  );
+  // Until the first client tick, a running clock shows the server's
+  // value so the hydrated clock matches the server render; a paused one
+  // reads its pause, which doesn't move.
+  const elapsedMs = useMemo(
+    () => (nowMs == null && running ? state.quarterElapsedMs ?? 0 : clockAt(nowMs ?? 0)),
+    [nowMs, running, state.quarterElapsedMs, clockAt],
+  );
 
-  // Reset pause when the period flips — a fresh quarter starts
-  // running by default, with no stoppages banked.
-  useEffect(() => {
-    setPause(RUNNING_CLOCK);
-  }, [state.currentQuarter, state.quarterEnded]);
+  // AFL's live chrome: the undo strip's flash, the swap confirm and
+  // toast, and the season's lent minutes on the long-press sheet.
+  const playerById = useMemo(() => new Map(squad.map((p) => [p.id, p])), [squad]);
+  const seasonLoanMins = useMemo(() => seasonLoanMinutes(seasonEvents), [seasonEvents]);
+  const chrome = useLiveChrome({
+    teamName,
+    opponentName: game.opponent || "Opponent",
+    playersById: playerById,
+    seasonLoanMinutes: seasonLoanMins,
+    events: thisGameEvents,
+    openElapsedMs: isPeriodActive ? elapsedMs : null,
+  });
+  // The clock as the write lands: a confirmed swap is stamped when the
+  // coach taps Confirm, not when the sheet opened (AFL reads its clock
+  // at confirm too).
+  const elapsedRef = useRef(elapsedMs);
+  elapsedRef.current = elapsedMs;
+  const at = () => ({ quarter: state.currentQuarter, elapsed_ms: elapsedRef.current });
 
+  // Pause or resume: a clock_pause event, on screen at once. A fresh
+  // period has none, so it starts running.
   function toggleClock() {
     if (!state.quarterStartedAt || state.quarterEnded || state.finalised) {
       return;
     }
-    setPause((prev) => togglePeriodPause(prev, Date.now()));
+    if (hooterFiredRef.current) return;
+    const now = Date.now();
+    const input = clockPauseInput(state.currentQuarter, running, clockAt(now), now);
+    write("recordClockPause", [auth, game.id, input], liveEvents.clockPause(input));
+    // The clock reads now from the tap, not the last tick (a page opened
+    // paused has none yet).
+    setNowMs(now);
   }
   function handleClockTap() {
     if (!state.quarterStartedAt || state.quarterEnded || state.finalised) {
@@ -364,6 +379,9 @@ export function LeagueLiveGame({
   const hooterFiredRef = useRef(false);
   // Anchor for the DeviceFrame scroll-reset (see handleStartNextPeriod).
   const liveRootRef = useRef<HTMLDivElement>(null);
+  // The summary after Finish opens at the top: the final score and Copy
+  // for group chat, not the review's scroll (round 2, 24 Oct 2026).
+  useScrollToTopOnFinish(state.finalised, liveRootRef);
 
   // ── Period label resolver ─────────────────────────────────────
   const { label: periodLabel, plural: periodLabelPlural } = periodLabels(sport, ageGroup);
@@ -413,19 +431,8 @@ export function LeagueLiveGame({
     [squad, loanedSet, injuredSet],
   );
 
-  // ── The break opens on the plan (F2) ───────────────────────
-  // When the coach has planned the coming period, the break shows that
-  // plan (reconciled: a kid who can't play now is benched) and every
-  // lineup edit made there changes the PLAN, not the saved lineup; the
-  // Start tap commits it (handleStartNextPeriod). That's AFL's break:
-  // it opens on the plan and the coach edits that draft. The plan still
-  // goes on only at the coach's Start tap (threat model T-11-02-B), and
-  // it lives in the persisted store, so leaving the screen keeps it.
-  // The other way out, showing the last period's lineup and dropping
-  // the plan once the coach edits it, loses a whole plan to a one-kid
-  // tweak and shows a field that isn't the one Start puts on.
-  // Everything below reads `lineup`: the plan at such a break, the
-  // saved lineup otherwise.
+  // The pinned plan for the coming period (F2): the plan-ahead modal
+  // pins it; LeagueBreak (the shared break screen) opens on it.
   const plannedRotation = useLiveGame((s) => s.plannedRotation);
   const setPlannedRotation = useLiveGame((s) => s.setPlannedRotation);
   const pinForThisGame =
@@ -437,28 +444,18 @@ export function LeagueLiveGame({
     && state.currentQuarter >= 1
     && state.currentQuarter < ageGroup.periodCount
     && !state.finalised;
-  // The coming period's 0-based index is state.currentQuarter.
-  const breakPlan = useMemo(
-    () =>
-      isAtQbreak && state.lineup
-        ? plannedLeagueLineup({
-            pin: pinForThisGame,
-            periodIndex: state.currentQuarter,
-            lineup: state.lineup,
-            squad,
-            injured: injuredSet,
-            loaned: loanedSet,
-          })
-        : null,
-    [isAtQbreak, state.lineup, state.currentQuarter, pinForThisGame, squad, injuredSet, loanedSet],
-  );
-  const lineup = breakPlan ?? state.lineup;
+  // The break is LeagueBreak; this screen shows the lineup in play.
+  const lineup = state.lineup;
   // Named positions mid-period: the slot each kid holds (a sub takes
-  // over the replaced kid's), so a sub never re-deals the field. A
-  // break deals the next period afresh (season balance), so none then.
-  const heldSlots = useMemo(
-    () => (breakPlan ? undefined : leagueSlotsNow(thisGameEvents)),
-    [breakPlan, thisGameEvents],
+  // over the replaced kid's), so a sub never re-deals the field.
+  const heldSlots = useMemo(() => leagueSlotsNow(thisGameEvents), [thisGameEvents]);
+  // Named positions: the spot each kid on holds, as the tiles show it.
+  const liveSlots = useMemo(
+    () =>
+      lineup && leaguePlaybook?.positions?.length
+        ? assignLeaguePositions({ forwards: lineup.forwards, backs: lineup.backs }, leaguePlaybook, heldSlots)
+        : {},
+    [lineup, leaguePlaybook, heldSlots],
   );
 
   // ── Derived lineups ───────────────────────────────────────────
@@ -490,8 +487,10 @@ export function LeagueLiveGame({
       .filter((p): p is Player => Boolean(p));
   }, [lineup, squad]);
 
-  // Late-arrival candidates.
+  // Late-arrival candidates. Nobody arrives at a game that's over (AFL's
+  // LiveGame filters the same).
   const lateArrivalCandidates = useMemo<Player[]>(() => {
+    if (isFinished) return [];
     if (!lineup) return squad;
     const placed = new Set([
       ...lineup.forwards,
@@ -499,7 +498,7 @@ export function LeagueLiveGame({
       ...lineup.bench,
     ]);
     return squad.filter((p) => !placed.has(p.id));
-  }, [squad, lineup]);
+  }, [squad, lineup, isFinished]);
 
   // ── Vest assignment ──────────────────────────────────────────
   const periodForVests = state.currentQuarter || 1;
@@ -701,41 +700,6 @@ export function LeagueLiveGame({
   );
   const hasSwappableBench = swappableBench.length > 0;
 
-  // ── Break-time Manage-availability candidate lists ────────────
-  // Arrival candidates = squad members not placed anywhere in the
-  // lineup (same set the in-game LateArrivalMenu uses). Mark-out
-  // candidates = on-field players the coach can take out (excludes
-  // anyone already injured / loaned so we never double-sideline).
-  const arrivalCandidates = useMemo(
-    () =>
-      lateArrivalCandidates.map((p) => ({
-        id: p.id,
-        name: p.full_name,
-        jerseyNumber: p.jersey_number,
-      })),
-    [lateArrivalCandidates],
-  );
-  const markOutCandidates = useMemo(
-    () =>
-      fieldPlayers
-        .filter((p) => !injuredSet.has(p.id) && !loanedSet.has(p.id))
-        .map((p) => ({
-          id: p.id,
-          name: p.full_name,
-          jerseyNumber: p.jersey_number,
-        })),
-    [fieldPlayers, injuredSet, loanedSet],
-  );
-  // Replacement candidates for the mark-out flow — swappable bench
-  // sorted least-played first (same shape + sort as the injury flow).
-  const markOutReplacementCandidates = useMemo<InjuryReplacementCandidate[]>(
-    () =>
-      swappableBench
-        .map((p) => ({ player: p, totalMs: totalMsByPlayer[p.id] ?? 0 }))
-        .sort((a, b) => a.totalMs - b.totalMs),
-    [swappableBench, totalMsByPlayer],
-  );
-
   const subIsDue
     = subIntervalMs != null
     && lastSwapOrPeriodElapsed != null
@@ -755,19 +719,7 @@ export function LeagueLiveGame({
     setSubAckedAtBaseMs(null);
   }, [state.currentQuarter]);
 
-  // The sub-due banner beeps and buzzes as it appears, as AFL's does
-  // (league and union were silent; a banner is easier to miss than the
-  // modal it replaced).
-  const subDueShowing = subIsDue && subAckedAtBaseMs !== lastSwapOrPeriodElapsed;
   useSubDueAudioUnlock();
-  const subDueShowingRef = useRef(false);
-  useEffect(() => {
-    if (subDueShowing && !subDueShowingRef.current) {
-      playSubDueBeep();
-      void hapticTap("heavy");
-    }
-    subDueShowingRef.current = subDueShowing;
-  }, [subDueShowing]);
 
   // ── Next-sub suggestion ──────────────────────────────────────
   // FR / DH wearers are excluded from the off-candidate pool so the
@@ -787,7 +739,34 @@ export function LeagueLiveGame({
     () => new Map(squad.map((p) => [p.id, null])),
     [squad],
   );
-  const nextSubSuggestions = useMemo(() => {
+  // The rules a rolling sub keeps: §6 where the grade plays it, the How
+  // we play floor (Siren's 50% by default, as the break checks it), and a
+  // sub interval's gap before a swap crosses lines (UX audit, 23 Oct 2026).
+  const subLaws = useMemo<LeagueSubLaws>(
+    () => ({
+      periodCount: ageGroup.periodCount,
+      periodMs: periodSeconds * 1000,
+      // §6 always, where the grade plays it (a locked Must on How we play).
+      requiredUnbroken: unbrokenPeriodsRequired(ageGroup),
+      minGameTimePct: leaguePlaybook?.minGameTimePct ?? 50,
+      crossLineGapMs: subIntervalMs ?? undefined,
+    }),
+    [ageGroup, periodSeconds, leaguePlaybook, subIntervalMs],
+  );
+  // A short side with a kid on the bench who can play: the empty spots
+  // are the card's first suggestions, nobody off (rugby/fills; round 3
+  // edge cases, 24 Oct 2026).
+  const fillSuggestions = useMemo(() => {
+    if (state.currentQuarter < 1 || state.quarterEnded || state.finalised || !lineup) return [];
+    return rugbyFills({
+      lineup,
+      bench: swappableBench.map((p) => p.id),
+      onFieldSize: game.on_field_size,
+      forwards: rugbyForwards(ageGroup, game.on_field_size),
+      msByPlayer: totalMsByPlayer,
+    });
+  }, [state.currentQuarter, state.quarterEnded, state.finalised, lineup, swappableBench, game.on_field_size, ageGroup, totalMsByPlayer]);
+  const swapSuggestions = useMemo(() => {
     if (state.currentQuarter < 1 || state.quarterEnded || state.finalised) {
       return [];
     }
@@ -804,6 +783,7 @@ export function LeagueLiveGame({
       elapsedMs,
       chipByPlayerId,
       leaguePlaybook,
+      subLaws,
     );
   }, [
     thisGameEvents,
@@ -816,7 +796,46 @@ export function LeagueLiveGame({
     elapsedMs,
     chipByPlayerId,
     leaguePlaybook,
+    subLaws,
   ]);
+  // A kid filling an empty spot isn't also swapped on.
+  const nextSubSuggestions = useMemo(() => {
+    const filling = new Set(fillSuggestions.map((f) => f.playerId));
+    return swapSuggestions.filter((s) => !filling.has(s.on.playerId));
+  }, [swapSuggestions, fillSuggestions]);
+
+  // A sub is due only when the laws allow one: with §6 (or the floor)
+  // keeping every kid on, "Sub due — rotate a player off" told the coach
+  // to break the law, as the §6 card below said "Stay on to the hooter"
+  // (round 2, 24 Oct 2026). The laws are mustStayOn's (legalSwap.ts).
+  const swapPossible = useMemo(
+    () =>
+      isPeriodActive &&
+      !!lineup &&
+      leagueSwapPossible({
+        events: thisGameEvents,
+        period: state.currentQuarter,
+        lineup: { forwards: lineup.forwards, backs: lineup.backs, bench: swappableBench.map((p) => p.id) },
+        elapsedMs,
+        laws: subLaws,
+        playbook: leaguePlaybook,
+        keepOn: excludeOff,
+      }),
+    [isPeriodActive, lineup, thisGameEvents, state.currentQuarter, swappableBench, elapsedMs, subLaws, leaguePlaybook, excludeOff],
+  );
+
+  // The sub-due banner beeps and buzzes as it appears, as AFL's does
+  // (league and union were silent; a banner is easier to miss than the
+  // modal it replaced).
+  const subDueShowing = subIsDue && swapPossible && subAckedAtBaseMs !== lastSwapOrPeriodElapsed;
+  const subDueShowingRef = useRef(false);
+  useEffect(() => {
+    if (subDueShowing && !subDueShowingRef.current) {
+      playSubDueBeep();
+      void hapticTap("heavy");
+    }
+    subDueShowingRef.current = subDueShowing;
+  }, [subDueShowing]);
 
   // ── Plan-NEXT-period (F2 / ROTPLAN-02) ───────────────────────
   // RL has no separate break component — the q-break is an inline
@@ -849,24 +868,19 @@ export function LeagueLiveGame({
   // ── Force-vest-replacement detection ─────────────────────────
   // Triggered when an FR/DH wearer is no longer on the field.
   // Possible causes: sub off (swap), injury, loan.
+  // A wearer hurt with nobody to replace them keeps their field slot,
+  // but isn't wearing the vest on the field (round 3 edge cases, 24 Oct
+  // 2026: H2 was played with no First Receiver and no prompt).
   const missingVestWearer = useMemo<VestType | null>(() => {
     if (!vestRequired || !lineup) return null;
     if (state.currentQuarter < 1 || state.finalised) return null;
-    if (
-      ageGroup.vestRequirements?.fr
-      && activeVests.fr
-      && !onFieldSet.has(activeVests.fr)
-    ) {
-      return "fr";
-    }
-    if (
-      ageGroup.vestRequirements?.dh
-      && activeVests.dh
-      && !onFieldSet.has(activeVests.dh)
-    ) {
-      return "dh";
-    }
-    return null;
+    return missingVestOnField({
+      vests: activeVests,
+      onField: onFieldIds,
+      injured: injuredSet,
+      loaned: loanedSet,
+      required: ageGroup.vestRequirements,
+    });
   }, [
     vestRequired,
     lineup,
@@ -874,18 +888,20 @@ export function LeagueLiveGame({
     state.finalised,
     ageGroup.vestRequirements,
     activeVests,
-    onFieldSet,
+    onFieldIds,
+    injuredSet,
+    loanedSet,
   ]);
   // Auto-open the forced replacement when the wearer disappears,
   // unless the coach has already dismissed this period's prompt
   // (e.g. "Replace later" — they may want to bring the wearer
   // back themselves).
   useEffect(() => {
-    if (missingVestWearer == null) return;
+    if (missingVestWearer == null || isAtQbreak) return;
     const key = `${state.currentQuarter}-${missingVestWearer}`;
     if (dismissedForceVestRef.current.has(key)) return;
     setForceVestReplaceOpen(true);
-  }, [missingVestWearer, state.currentQuarter]);
+  }, [missingVestWearer, state.currentQuarter, isAtQbreak]);
   // Clear the "dismissed for period N" set when the period changes.
   useEffect(() => {
     dismissedForceVestRef.current = new Set();
@@ -919,20 +935,19 @@ export function LeagueLiveGame({
     setSelectedPlayerId(null);
   }
 
+  // The period's end is an optimistic write, like every other tap: the
+  // break opens at the hooter with or without signal (round 3, 24 Oct
+  // 2026: it waited on the save).
   const endQuarterAtClient = useCallback(
-    async (elapsed: number) => {
-      setPending(true);
-      const { flushed } = enqueueLiveAction("endLeagueQuarter", [
-        auth,
-        game.id,
-        state.currentQuarter,
-        elapsed,
-      ]);
-      await flushed;
-      setPending(false);
-      router.refresh();
+    (elapsed: number) => {
+      setError(null);
+      write(
+        "endLeagueQuarter",
+        [auth, game.id, state.currentQuarter, elapsed],
+        liveEvents.periodEnd({ quarter: state.currentQuarter, elapsed_ms: elapsed }),
+      );
     },
-    [auth, game.id, state.currentQuarter, router],
+    [auth, game.id, state.currentQuarter, write],
   );
 
   useEffect(() => {
@@ -947,6 +962,9 @@ export function LeagueLiveGame({
     // auto-end during a pause; the coach is making a deliberate
     // stop and will resume / end explicitly.
     if (!running) return;
+    // Not before a queued period end from before a reload is drawn: it
+    // would end the period a second time.
+    if (!queueReady) return;
     const periodMs = periodSeconds * 1000;
     if (elapsedMs >= periodMs) {
       hooterFiredRef.current = true;
@@ -960,32 +978,9 @@ export function LeagueLiveGame({
     periodSeconds,
     running,
     endQuarterAtClient,
+    queueReady,
   ]);
 
-  // Auto-open the "Tap when the siren goes" modal as soon as we
-  // land at a quarter-break, once per period transition. See the
-  // `autoOpenedForQbreakRef` declaration for the full rationale.
-  // Gated on isAtQbreak (i.e. period ended AND not the final
-  // period AND not finalised) so it never fires at game-end where
-  // the FullTimeReview owns the space.
-  useEffect(() => {
-    if (!state.quarterEnded) {
-      // Period went live again — reset the ref so the NEXT break
-      // gets its own auto-open.
-      autoOpenedForQbreakRef.current = null;
-      return;
-    }
-    if (state.finalised) return;
-    if (state.currentQuarter >= ageGroup.periodCount) return;
-    if (autoOpenedForQbreakRef.current === state.currentQuarter) return;
-    autoOpenedForQbreakRef.current = state.currentQuarter;
-    setStartPeriodConfirmOpen(true);
-  }, [
-    state.quarterEnded,
-    state.finalised,
-    state.currentQuarter,
-    ageGroup.periodCount,
-  ]);
 
   // No first-visit auto-open: the tour is offered on the pre-kickoff
   // lineup screen (LeagueWalkthroughOffer) and the "?" in LiveTopBar
@@ -1016,7 +1011,6 @@ export function LeagueLiveGame({
         kickRotations: ageGroup.kickRotations === true,
         unbrokenPeriods: ageGroup.unbrokenPeriods === true,
         trackZoneTime,
-        enforceUnbrokenPeriods,
       }),
     [
       sport,
@@ -1028,97 +1022,14 @@ export function LeagueLiveGame({
       ageGroup.kickRotations,
       ageGroup.unbrokenPeriods,
       trackZoneTime,
-      enforceUnbrokenPeriods,
     ],
   );
 
-  async function handleStartNextPeriod() {
-    setPending(true);
-    setError(null);
-    // Reset any scrolled ancestors before transitioning to the next
-    // period. The public demo at /run/{token} wraps the app in
-    // DeviceFrame, which applies `transform: translateZ(0)` for
-    // its rounded-corner clipping — that transform makes the frame
-    // a containing block for any `position: fixed` descendant. When
-    // the GM has scrolled the QB content down (e.g. to see the
-    // bench rotation suggestion) before tapping "Ready for Q{n}",
-    // the post-transition live view can render with the field
-    // below the visible scroll window inside the frame. Scrolling
-    // every ancestor to 0 first guarantees the next view lands at
-    // the top of the frame. `window.scrollTo` covers the non-
-    // framed (installed PWA) case. Mirrors AFL's fix in ff771c6.
-    if (typeof document !== "undefined") {
-      let el = liveRootRef.current?.parentElement ?? null;
-      while (el) {
-        if (el.scrollTop > 0) el.scrollTop = 0;
-        el = el.parentElement;
-      }
-    }
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "auto" });
-    }
-    const next = state.currentQuarter + 1;
-    // F2 (ROTPLAN-02 / D-13/D-14): the break showed the coach's plan for
-    // this period, with their edits (`breakPlan`: reconciled, so a kid
-    // who can't play now is never fielded). Commit exactly that, through
-    // the SAME auth/RLS-guarded `recordLeagueLineupSet` action used by
-    // every manual lineup edit, and only here, on the coach's explicit
-    // Start tap (threat model T-11-02-B). The pin is then consumed so it
-    // can't re-apply.
-    let lineupRecorded = false;
-    if (breakPlan) {
-      const { flushed: lineupFlushed } = enqueueLiveAction("recordLeagueLineupSet", [
-        auth,
-        game.id,
-        // Named positions: record each kid's slot (UX plan 5.7).
-        withLeagueSlots(breakPlan, leaguePlaybook),
-        undefined,
-      ]);
-      await lineupFlushed;
-      // This period's plan is used; later planned periods stay.
-      setPlannedRotation(consumePeriodPin(pinForThisGame, state.currentQuarter));
-      lineupRecorded = true;
-    }
-    // No plan: the previous period's lineup carries forward, with the
-    // break's swaps (saved as they were made). Reconcile here — drop any
-    // injured / loaned player off the field onto the bench so they don't
-    // start the next period still on the pitch accruing minutes (Steve
-    // 2026-06-15, AFL parity). The field may end up a player short; the
-    // coach fills it via a normal rolling sub.
-    if (!lineupRecorded && lineup) {
-      const sidelined = new Set<string>();
-      injuredSet.forEach((id) => sidelined.add(id));
-      loanedSet.forEach((id) => sidelined.add(id));
-      const reconciled = benchSidelinedInLeagueLineup(lineup, sidelined);
-      if (reconciled !== lineup) {
-        const { flushed: reconcileFlushed } = enqueueLiveAction("recordLeagueLineupSet", [
-          auth,
-          game.id,
-          // Named positions: record each kid's slot (UX plan 5.7).
-          withLeagueSlots(
-            {
-              forwards: reconciled.forwards,
-              backs: reconciled.backs,
-              bench: reconciled.bench,
-            },
-            leaguePlaybook,
-          ),
-          undefined,
-        ]);
-        await reconcileFlushed;
-      }
-    }
-    const { flushed } = enqueueLiveAction("startLeagueQuarter", [
-      auth,
-      game.id,
-      next,
-    ]);
-    await flushed;
-    setPending(false);
-    router.refresh();
-  }
-
-  async function recordTryForPlayer(playerId: string) {
+  // ── Score ───────────────────────────────────────────────────
+  // A score goes up the moment it's tapped (optimistic), and the undo
+  // strip flashes what was recorded, as AFL's does.
+  // A null scorer: "Not sure who" (the try counts without a name).
+  function recordTryForPlayer(playerId: string | null) {
     // Defensive gate — even if a stale dock / cached client action
     // fires a try while track_scoring is off (U6/U7 tag rugby),
     // short-circuit before the server write. The UI shouldn't
@@ -1130,43 +1041,38 @@ export function LeagueLiveGame({
       );
       return;
     }
-    setPending(true);
-    const { flushed } = enqueueLiveAction("recordTry", [
-      auth,
-      game.id,
-      playerId,
-      state.currentQuarter,
-      elapsedMs,
-    ]);
-    await flushed;
-    setPending(false);
+    setError(null);
+    const key = write(
+      "recordTry",
+      [auth, game.id, playerId, state.currentQuarter, elapsedRef.current],
+      liveEvents.score("try", playerId, at()),
+    );
+    void hapticTap("light");
+    chrome.scored({ side: "us", what: rugbyScoreWhat(sport, "try"), scorerId: playerId, key });
     handleClearSelection();
+    // The kicker picker follows the try (a conversion needs one first).
     if (kickingAllowed) {
       setConversionAfterTry(true);
       setConversionDialogOpen(true);
     }
-    router.refresh();
   }
 
-  async function handleRecordTryFromDock() {
+  function handleRecordTryFromDock() {
     if (!selectedPlayer) {
       setError("Tap a player first.");
       return;
     }
-    void recordTryForPlayer(selectedPlayer.id);
+    recordTryForPlayer(selectedPlayer.id);
   }
 
-  async function handleRecordOpponentTry() {
-    setPending(true);
-    const { flushed } = enqueueLiveAction("recordOpponentTry", [
-      auth,
-      game.id,
-      state.currentQuarter,
-      elapsedMs,
-    ]);
-    await flushed;
-    setPending(false);
-    router.refresh();
+  function handleRecordOpponentTry() {
+    setError(null);
+    const key = write(
+      "recordOpponentTry",
+      [auth, game.id, state.currentQuarter, elapsedRef.current],
+      liveEvents.score("opponent_try", null, at()),
+    );
+    chrome.scored({ side: "them", what: rugbyScoreWhat(sport, "opponent_try"), key });
   }
 
   function handleOpenConversionDialog() {
@@ -1175,149 +1081,131 @@ export function LeagueLiveGame({
     setConversionDialogOpen(true);
   }
 
-  async function handleRecordOpponentConversion() {
-    setPending(true);
-    const { flushed } = enqueueLiveAction("recordOpponentConversion", [
-      auth,
-      game.id,
-      state.currentQuarter,
-      elapsedMs,
-    ]);
-    await flushed;
-    setPending(false);
-    router.refresh();
+  function handleRecordOpponentConversion() {
+    setError(null);
+    const key = write(
+      "recordOpponentConversion",
+      [auth, game.id, state.currentQuarter, elapsedRef.current],
+      liveEvents.score("opponent_conversion", null, at()),
+    );
+    chrome.scored({ side: "them", what: rugbyScoreWhat(sport, "opponent_conversion"), key });
+  }
+
+  // Our kick at goal after a try, from the conversion dialog. It names
+  // the try it converts once the server has that try (a try still on its
+  // way is paired by the server); a kick the server refuses comes off
+  // the screen and the refusal shows above the field.
+  function recordConversion(kickerId: string, made: boolean, force: boolean) {
+    setError(null);
+    const tryEventId = conversionTryEventId(thisGameEvents);
+    const key = write(
+      "recordConversionAttempt",
+      [auth, game.id, kickerId, made, state.currentQuarter, elapsedRef.current, { force, tryEventId }],
+      liveEvents.conversion({ kicker_id: kickerId, made, force, try_event_id: tryEventId, ...at() }),
+    );
+    chrome.scored({ side: "us", what: rugbyScoreWhat(sport, "conversion_attempt", made), scorerId: kickerId, key });
   }
 
   // U13+ (international laws): penalty goal 2, field goal 1. Ours name
   // the kicker (from the picker or the dock); theirs record directly.
-  async function recordLeagueGoalKind(
+  function recordLeagueGoalKind(
     kind: "penalty_goal" | "field_goal" | "opponent_penalty_goal" | "opponent_field_goal",
     kickerId: string | null,
   ) {
-    setPending(true);
-    const { flushed } = enqueueLiveAction("recordLeagueGoal", [
-      auth,
-      game.id,
-      kind,
-      kickerId,
-      state.currentQuarter,
-      elapsedMs,
-    ]);
-    try {
-      await flushed;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't record that goal.");
-    } finally {
-      setPending(false);
-    }
+    setError(null);
+    const ours = !kind.startsWith("opponent_");
+    const key = write(
+      "recordLeagueGoal",
+      [auth, game.id, kind, kickerId, state.currentQuarter, elapsedRef.current],
+      liveEvents.score(kind, ours ? kickerId : null, at()),
+    );
+    chrome.scored({ side: ours ? "us" : "them", what: rugbyScoreWhat(sport, kind), scorerId: ours ? kickerId : null, key });
     handleClearSelection();
-    router.refresh();
   }
 
-  async function handleUndoScore() {
-    setPending(true);
-    const { flushed } = enqueueLiveAction("undoLeagueScore", [auth, game.id]);
-    await flushed;
-    setPending(false);
-    router.refresh();
+  // Takes back the score the strip names (this phone's last), or with
+  // none named the latest on screen — never whatever the other phone
+  // scored since (UX round 2).
+  function handleUndoScore() {
+    const tap = undoTap(thisGameEvents, RUGBY_SCORE_EVENT_TYPES, chrome.namedScoreKey);
+    // Its score was taken back on the other phone, or never saved (a tap
+    // offline that didn't get through): nothing to write, and never
+    // another score in its place.
+    if (tap.kind === "gone" || tap.kind === "missing") {
+      chrome.undone();
+      announceLiveNotice(tap.kind === "gone" ? UNDO_GONE_MESSAGE : UNDO_MISSING_MESSAGE);
+      return;
+    }
+    if (tap.kind !== "undo") return;
+    setError(null);
+    write("undoLeagueScore", [auth, game.id, tap.target], tap.optimistic);
+    chrome.undone();
   }
 
   // ── Lineup edits ──────────────────────────────────────────────
-  // At a break showing the coach's plan, an edit changes the plan (as a
-  // pin of this period, which wins over one made before kickoff) and
-  // Start commits it: see `breakPlan`. Anywhere else it's saved as it's
-  // made.
-  function stageBreakPlan(next: LeagueLineup) {
-    setPlannedRotation({
-      ...(pinForThisGame ?? {}),
-      gameId: game.id,
-      nextPeriodIndex: state.currentQuarter,
-      nextPeriodGroups: { forwards: next.forwards, backs: next.backs },
-      nextPeriodBench: next.bench,
-    });
-  }
-
-  function saveLineup(next: LeagueLineup): Promise<void> {
-    if (breakPlan) {
-      stageBreakPlan(next);
-      return Promise.resolve();
-    }
-    return enqueueLiveAction("recordLeagueLineupSet", [
-      auth,
-      game.id,
-      // Named positions: record each kid's slot (UX plan 5.7), the
-      // field keeping theirs.
-      withLeagueSlots(next, leaguePlaybook, heldSlots),
-      { quarter: state.currentQuarter, elapsed_ms: elapsedMs },
-    ]).flushed;
+  function saveLineup(next: LeagueLineup) {
+    setError(null);
+    // Named positions: record each kid's slot (UX plan 5.7), the field
+    // keeping theirs.
+    const lineup = withLeagueSlots(next, leaguePlaybook, heldSlots);
+    const when = at();
+    write("recordLeagueLineupSet", [auth, game.id, lineup, when], liveEvents.lineupSet({ lineup, ...when }));
   }
 
   // A rolling sub: `onId` takes `offId`'s spot, `offId` goes to the bench.
-  function saveSwap(offId: string, onId: string): Promise<void> {
-    if (breakPlan) {
-      stageBreakPlan(swapInLeagueLineup(breakPlan, offId, onId).lineup);
-      return Promise.resolve();
-    }
-    return enqueueLiveAction("recordLeagueSwap", [
-      auth,
-      game.id,
-      {
-        off_player_id: offId,
-        on_player_id: onId,
-        quarter: state.currentQuarter,
-        elapsed_ms: elapsedMs,
-      },
-    ]).flushed;
+  // `manual`: made by hand, off the rotation's cadence, so the sub clock
+  // doesn't restart (AFL's rule).
+  function sub(offId: string, onId: string, manual = false) {
+    setError(null);
+    const input = { off_player_id: offId, on_player_id: onId, ...(manual ? { manual } : {}), ...at() };
+    write("recordLeagueSwap", [auth, game.id, input], liveEvents.swap(input));
   }
 
-  async function applySwap(offId: string, onId: string) {
-    setPending(true);
-    await saveSwap(offId, onId);
-    setPending(false);
-    handleClearSelection();
-    router.refresh();
-  }
+  /** A line in the coach's words, as the swap confirm and the long-press sheet say it. */
+  const lineName = (zone: "forward" | "back") => (zone === "forward" ? "Forwards" : "Backs");
 
   /**
    * Apply EVERY suggested swap in the next-sub card — rotates the
-   * whole bench in one tap. Each pair is enqueued as its own
-   * `recordLeagueSwap` so the replay sees them in order, and so a
-   * mid-rotation failure doesn't cascade.
-   *
-   * The bench/field sets change as each swap lands; the suggester
-   * already paired off-targets uniquely so we can fire them in
-   * order without re-evaluating. We do NOT re-run the suggester
-   * between flushes — the snapshot the coach saw on screen is
-   * what gets executed.
+   * whole bench in one tap. Each pair is its own `recordLeagueSwap`, in
+   * order in the game lane, so the replay sees them in order. We do NOT
+   * re-run the suggester between them — the snapshot the coach saw on
+   * screen is what gets executed.
    */
-  async function handleApplyAllSubs() {
-    if (nextSubSuggestions.length === 0) return;
-    setPending(true);
-    const flushedAll: Promise<void>[] = [];
-    for (const swap of nextSubSuggestions) {
-      const { flushed } = enqueueLiveAction("recordLeagueSwap", [
-        auth,
-        game.id,
-        {
-          off_player_id: swap.off.playerId,
-          on_player_id: swap.on.playerId,
-          quarter: state.currentQuarter,
-          elapsed_ms: elapsedMs,
-        },
-      ]);
-      flushedAll.push(flushed);
-    }
-    await Promise.all(flushedAll).catch(() => {
-      // Per-op failure already rolls back via the queue's cap;
-      // we just stop waiting so the UI unfreezes.
+  /** Bench kids on into empty spots, nobody off: one lineup for them all. */
+  function fillSpots(fills: readonly RugbyFill[]) {
+    if (!lineup || fills.length === 0) return;
+    const on = new Set(fills.map((f) => f.playerId));
+    saveLineup({
+      forwards: [...lineup.forwards, ...fills.filter((f) => f.zone === "forward").map((f) => f.playerId)],
+      backs: [...lineup.backs, ...fills.filter((f) => f.zone === "back").map((f) => f.playerId)],
+      bench: lineup.bench.filter((id) => !on.has(id)),
     });
-    setPending(false);
-    handleClearSelection();
-    router.refresh();
   }
 
-  async function maybeCompleteSwap(secondId: string) {
+  function handleApplyAllSubs() {
+    const made = fillSuggestions.length + nextSubSuggestions.length;
+    if (made === 0) return;
+    // The fills first (a whole lineup), then the swaps on top of it.
+    fillSpots(fillSuggestions);
+    for (const swap of nextSubSuggestions) sub(swap.off.playerId, swap.on.playerId);
+    // The toast's Undo puts the swaps back, last first (undoSwaps); a fill
+    // has nobody to bring back, so there's no Undo once one is made.
+    const undo =
+      fillSuggestions.length === 0
+        ? undoSwaps(
+            nextSubSuggestions.map((s) => ({ off: s.off.playerId, on: s.on.playerId })),
+            (s) => sub(s.off, s.on),
+          )
+        : undefined;
+    if (made === 1 && fillSuggestions.length === 1) chrome.swapped(null, fillSuggestions[0].playerId);
+    else if (made === 1) chrome.swapped(nextSubSuggestions[0].off.playerId, nextSubSuggestions[0].on.playerId, undo);
+    else chrome.showToast(`${made} subs made`, undo);
+    handleClearSelection();
+  }
+
+  function maybeCompleteSwap(secondId: string) {
     if (!selectedPlayer || !lineup) return false;
+    const first = selectedPlayer.id;
     const onForwards = lineup.forwards;
     const onBacks = lineup.backs;
     const zoneOfId = (id: string): "forward" | "back" | null => {
@@ -1325,22 +1213,20 @@ export function LeagueLiveGame({
       if (onBacks.includes(id)) return "back";
       return null;
     };
-    const firstZone = zoneOfId(selectedPlayer.id);
+    const firstZone = zoneOfId(first);
     const secondZone = zoneOfId(secondId);
-    const firstOnField = firstZone !== null;
-    const secondOnField = secondZone !== null;
-    // Field ↔ field: positional swap. Both players stay on the
-    // field. If they're in the same zone, just exchange order in
-    // that bucket (the formation arranger reads order to assign
-    // slots). If they're in different zones, swap zones — useful
-    // when the coach wants to flip a forward and a back without
+    // Field ↔ field: positional swap, straight away (AFL's zone swap).
+    // Both players stay on the field. If they're in the same zone, just
+    // exchange order in that bucket (the formation arranger reads order
+    // to assign slots). If they're in different zones, swap zones —
+    // useful when the coach wants to flip a forward and a back without
     // benching anyone.
-    if (firstOnField && secondOnField) {
+    if (firstZone && secondZone) {
       let nextForwards = onForwards.slice();
       let nextBacks = onBacks.slice();
       if (firstZone === secondZone) {
         const arr = firstZone === "forward" ? nextForwards : nextBacks;
-        const i = arr.indexOf(selectedPlayer.id);
+        const i = arr.indexOf(first);
         const j = arr.indexOf(secondId);
         if (i >= 0 && j >= 0) {
           [arr[i], arr[j]] = [arr[j], arr[i]];
@@ -1349,53 +1235,37 @@ export function LeagueLiveGame({
         else nextBacks = arr;
       } else {
         // Cross-zone — swap their bucket membership.
-        nextForwards = nextForwards.map((id) =>
-          id === selectedPlayer.id
-            ? secondId
-            : id === secondId
-              ? selectedPlayer.id
-              : id,
-        );
-        nextBacks = nextBacks.map((id) =>
-          id === selectedPlayer.id
-            ? secondId
-            : id === secondId
-              ? selectedPlayer.id
-              : id,
-        );
+        const flip = (id: string) => (id === first ? secondId : id === secondId ? first : id);
+        nextForwards = nextForwards.map(flip);
+        nextBacks = nextBacks.map(flip);
       }
-      setPending(true);
-      await saveLineup({
-        forwards: nextForwards,
-        backs: nextBacks,
-        bench: lineup.bench,
-      });
-      setPending(false);
+      saveLineup({ forwards: nextForwards, backs: nextBacks, bench: lineup.bench });
+      chrome.showToast(`${chrome.firstName(first)} ⇄ ${chrome.firstName(secondId)} — swapped`);
       handleClearSelection();
-      router.refresh();
       return true;
     }
-    // Field ↔ bench (or bench ↔ field): standard rolling sub.
-    if (firstOnField !== secondOnField) {
-      const off = firstOnField ? selectedPlayer.id : secondId;
-      const on = firstOnField ? secondId : selectedPlayer.id;
+    // Field ↔ bench (or bench ↔ field): a rolling sub, after AFL's
+    // confirm; the toast says what changed.
+    if (Boolean(firstZone) !== Boolean(secondZone)) {
+      const off = firstZone ? first : secondId;
+      const on = firstZone ? secondId : first;
       // Never bring a hurt or lent kid on, e.g. one selected before they
       // were lent (Stagehand round 4): this tap starts a new selection.
       if (injuredSet.has(on) || loanedSet.has(on)) return false;
-      await applySwap(off, on);
+      chrome.confirmSwap({ offId: off, onId: on, spotName: lineName((firstZone ?? secondZone)!), onConfirm: () => sub(off, on, true) });
+      handleClearSelection();
       return true;
     }
     return false;
   }
 
-  async function handlePlayerTapMaybeSwap(playerId: string) {
+  function handlePlayerTapMaybeSwap(playerId: string) {
     if (
       selectedPlayer
       && lineup
       && playerId !== selectedPlayer.id
     ) {
-      const completed = await maybeCompleteSwap(playerId);
-      if (completed) return;
+      if (maybeCompleteSwap(playerId)) return;
     }
     handlePlayerTap(playerId);
   }
@@ -1405,10 +1275,10 @@ export function LeagueLiveGame({
    *
    *   1. **Bench player selected** — promote them onto the field
    *      via a fresh `lineup_set`, targeting the TAPPED slot's
-   *      zone (not the player's chip preference). A coach tapping
-   *      the empty FWD slot lands the bench player in FWD even if
-   *      they're B-chipped, because the explicit tap-target is a
-   *      stronger signal than the chip default.
+   *      zone (not the player's chip preference), after AFL's confirm.
+   *      A coach tapping the empty FWD slot lands the bench player in
+   *      FWD even if they're B-chipped, because the explicit tap-target
+   *      is a stronger signal than the chip default.
    *
    *   2. **Field player selected** — move them to the tapped
    *      zone via `league_position_change`. This is the short-
@@ -1422,13 +1292,12 @@ export function LeagueLiveGame({
    *
    * Same-zone tap when the selected field player is already in the
    * target zone is a no-op (avoids a no-effect position_change
-   * round-trip). Nothing-selected is also a no-op.
+   * round-trip). Nothing selected opens the bench picker.
    */
   // Bench → field into an empty spot: the tapped zone wins over chip
   // preference.
-  async function fillVacantSpot(playerId: string, slotZone: "forward" | "back") {
+  function fillVacantSpot(playerId: string, slotZone: "forward" | "back") {
     if (!lineup) return;
-    setPending(true);
     const nextForwards
       = slotZone === "forward"
         ? [...lineup.forwards, playerId]
@@ -1438,13 +1307,11 @@ export function LeagueLiveGame({
         ? [...lineup.backs, playerId]
         : lineup.backs;
     const nextBench = lineup.bench.filter((id) => id !== playerId);
-    await saveLineup({ forwards: nextForwards, backs: nextBacks, bench: nextBench });
-    setPending(false);
+    saveLineup({ forwards: nextForwards, backs: nextBacks, bench: nextBench });
     handleClearSelection();
-    router.refresh();
   }
 
-  async function handleVacantSpotTap(slotZone: "forward" | "back") {
+  function handleVacantSpotTap(slotZone: "forward" | "back") {
     if (!lineup) return;
     // Nobody selected: pick who comes on (the spot says "tap to bring a
     // bench player on"; it used to do nothing: Stagehand round 4).
@@ -1452,15 +1319,18 @@ export function LeagueLiveGame({
       setFillSpotZone(slotZone);
       return;
     }
-    const isBench = lineup.bench.includes(selectedPlayer.id);
+    const kid = selectedPlayer.id;
+    const isBench = lineup.bench.includes(kid);
     // A hurt or lent kid on the bench can't fill a spot.
-    if (isBench && (injuredSet.has(selectedPlayer.id) || loanedSet.has(selectedPlayer.id))) return;
+    if (isBench && (injuredSet.has(kid) || loanedSet.has(kid))) return;
     const isField
-      = lineup.forwards.includes(selectedPlayer.id)
-      || lineup.backs.includes(selectedPlayer.id);
+      = lineup.forwards.includes(kid)
+      || lineup.backs.includes(kid);
 
     if (isBench) {
-      await fillVacantSpot(selectedPlayer.id, slotZone);
+      // A bench kid into an empty spot asks first, as AFL's does.
+      chrome.confirmSwap({ offId: null, onId: kid, spotName: lineName(slotZone), onConfirm: () => fillVacantSpot(kid, slotZone) });
+      handleClearSelection();
       return;
     }
 
@@ -1469,39 +1339,28 @@ export function LeagueLiveGame({
       // in the tapped zone (e.g. coach taps an empty FWD slot
       // with a forward selected — they were going to move within
       // forwards, which isn't a thing; just clear and bail).
-      const currentZone: "forward" | "back" = lineup.forwards.includes(
-        selectedPlayer.id,
-      )
+      const currentZone: "forward" | "back" = lineup.forwards.includes(kid)
         ? "forward"
         : "back";
       if (currentZone === slotZone) {
         handleClearSelection();
         return;
       }
-      await handleMoveLeaguePosition(selectedPlayer.id, slotZone);
+      handleMoveLeaguePosition(kid, slotZone);
+      chrome.showToast(`${chrome.firstName(kid)} → ${lineName(slotZone)}`);
       handleClearSelection();
     }
   }
 
-  async function handleAddLateArrival(playerId: string) {
-    setPending(true);
+  function handleAddLateArrival(playerId: string) {
+    setError(null);
     // The shared `addLateArrival` action expects an input object,
     // not a bare player id (matches AFL's `handleLateArrival`
     // shape). Passing the bare string silently lands an event with
     // `player_id: undefined`, which is why the bench refused to
     // render the new arrival — the replay engine ignored the row.
-    const { flushed } = enqueueLiveAction("addLateArrival", [
-      auth,
-      game.id,
-      {
-        player_id: playerId,
-        quarter: Math.max(1, state.currentQuarter),
-        elapsed_ms: elapsedMs,
-      },
-    ]);
-    await flushed;
-    setPending(false);
-    router.refresh();
+    const input = { player_id: playerId, quarter: Math.max(1, state.currentQuarter), elapsed_ms: elapsedRef.current };
+    write("addLateArrival", [auth, game.id, input], liveEvents.arrived(input));
   }
 
   async function handleFinalise() {
@@ -1522,7 +1381,13 @@ export function LeagueLiveGame({
     setActionSheetPlayerId(playerId);
   }
 
-  async function handleToggleInjury(playerId: string, injured: boolean) {
+  function markInjured(playerId: string, injured: boolean) {
+    setError(null);
+    const input = { player_id: playerId, injured, ...at() };
+    write("markInjury", [auth, game.id, input], liveEvents.injury(input));
+  }
+
+  function handleToggleInjury(playerId: string, injured: boolean) {
     if (injured) setSelectedPlayerId((s) => (s === playerId ? null : s));
     // Marking a FIELD player injured: prompt for a replacement before
     // firing anything — mirrors AFL's InjuryReplacementModal flow.
@@ -1547,21 +1412,8 @@ export function LeagueLiveGame({
       }
     }
     // Direct path: recovery, bench-player injury, or no bench available.
-    setPending(true);
-    const { flushed } = enqueueLiveAction("markInjury", [
-      auth,
-      game.id,
-      {
-        player_id: playerId,
-        injured,
-        quarter: state.currentQuarter,
-        elapsed_ms: elapsedMs,
-      },
-    ]);
-    await flushed;
-    setPending(false);
+    markInjured(playerId, injured);
     setActionSheetPlayerId(null);
-    router.refresh();
   }
 
   /**
@@ -1571,195 +1423,31 @@ export function LeagueLiveGame({
    *   2. swap (off=injured, on=replacement) — replacement takes the
    *      exact same slot; injured moves to bench with INJ badge.
    */
-  async function handleInjuryReplacement(
-    injuredId: string,
-    replacementId: string,
-    zone: "forward" | "back",
-  ) {
-    void zone; // included for parity with AFL signature; RL swap infers zone from lineup
+  function handleInjuryReplacement(injuredId: string, replacementId: string) {
     setInjuryReplacementModal(null);
-    setPending(true);
-    // Enqueue injury flag then swap. FIFO queue ensures injury lands
-    // before the swap on the server, matching AFL's sequencing.
-    const { flushed: injFlushed } = enqueueLiveAction("markInjury", [
-      auth,
-      game.id,
-      {
-        player_id: injuredId,
-        injured: true,
-        quarter: state.currentQuarter,
-        elapsed_ms: elapsedMs,
-      },
-    ]);
-    const swapFlushed = saveSwap(injuredId, replacementId);
-    await Promise.all([injFlushed, swapFlushed]).catch(() => {
-      // individual failures already handled by queue retry cap
-    });
-    setPending(false);
-    router.refresh();
+    // In order, in the one game lane: the injury, then who comes on.
+    markInjured(injuredId, true);
+    sub(injuredId, replacementId);
+    chrome.swapped(injuredId, replacementId);
   }
 
   /**
    * Coach tapped "Mark injured without replacement" — just flag the
    * player as injured, leave their field slot vacant.
    */
-  async function handleInjuryMarkOnly(playerId: string) {
+  function handleInjuryMarkOnly(playerId: string) {
     setInjuryReplacementModal(null);
-    setPending(true);
-    const { flushed } = enqueueLiveAction("markInjury", [
-      auth,
-      game.id,
-      {
-        player_id: playerId,
-        injured: true,
-        quarter: state.currentQuarter,
-        elapsed_ms: elapsedMs,
-      },
-    ]);
-    await flushed;
-    setPending(false);
-    router.refresh();
+    markInjured(playerId, true);
   }
 
-  // ── Break-time Manage-availability handlers (AVAIL-02 / B2) ───
-  // ADD ARRIVED: a squad member who wasn't available pre-game turns
-  // up at the break. Reuses the canonical addLateArrival writer (same
-  // path as the in-game LateArrivalMenu) — the arrival lands on the
-  // bench and the next period's rotation works them in.
-  async function handleAddArrivedAtBreak(playerId: string) {
-    setAddArrivedPickerOpen(false);
-    setPending(true);
-    const { flushed } = enqueueLiveAction("addLateArrival", [
-      auth,
-      game.id,
-      {
-        player_id: playerId,
-        quarter: Math.max(1, state.currentQuarter + 1),
-        elapsed_ms: 0,
-      },
-    ]);
-    await flushed;
-    setPending(false);
-    router.refresh();
-  }
-
-  // MARK OUT: coach picked an on-field player who has to leave. If
-  // they're in a known zone and there's a swappable bench player,
-  // force a replacement pick (so the field doesn't go short);
-  // otherwise mark them out directly.
-  function handleMarkOutPick(playerId: string) {
-    setMarkOutPickerOpen(false);
-    const zone: "forward" | "back" | null = lineup
-      ? lineup.forwards.includes(playerId)
-        ? "forward"
-        : lineup.backs.includes(playerId)
-          ? "back"
-          : null
-      : null;
-    if (zone !== null && markOutReplacementCandidates.length > 0) {
-      setMarkOutReplacement({ outId: playerId, zone });
-      return;
-    }
-    void handleMarkOutDirect(playerId);
-  }
-
-  // Mark a player out WITHOUT a replacement (skip / no bench). Records
-  // an injury event flagged reason:"out" so display can tell an "out"
-  // from a genuine injury; leaves the field slot vacant.
-  async function handleMarkOutDirect(playerId: string) {
-    setMarkOutReplacement(null);
-    setSelectedPlayerId((s) => (s === playerId ? null : s));
-    setPending(true);
-    const { flushed } = enqueueLiveAction("markInjury", [
-      auth,
-      game.id,
-      {
-        player_id: playerId,
-        injured: true,
-        quarter: state.currentQuarter,
-        elapsed_ms: elapsedMs,
-        reason: "out",
-      },
-    ]);
-    await flushed;
-    setPending(false);
-    router.refresh();
-  }
-
-  // Mark a player out WITH a replacement. Fires markInjury(reason:"out")
-  // then recordLeagueSwap (off=out, on=replacement) so the replacement
-  // physically takes the vacated field slot — mirrors the injury
-  // replacement flow but tagged reason:"out".
-  async function handleMarkOutReplacement(
-    outId: string,
-    replacementId: string,
-    zone: "forward" | "back",
-  ) {
-    void zone; // parity with the injury signature; RL swap infers zone
-    setMarkOutReplacement(null);
-    setPending(true);
-    const { flushed: injFlushed } = enqueueLiveAction("markInjury", [
-      auth,
-      game.id,
-      {
-        player_id: outId,
-        injured: true,
-        quarter: state.currentQuarter,
-        elapsed_ms: elapsedMs,
-        reason: "out",
-      },
-    ]);
-    const swapFlushed = saveSwap(outId, replacementId);
-    await Promise.all([injFlushed, swapFlushed]).catch(() => {
-      // individual failures already handled by queue retry cap
-    });
-    setPending(false);
-    router.refresh();
-  }
-
-  // MARK INJURED at the break — plain injury flag (no forced
-  // replacement; the next-period rotation reshuffles around the
-  // sidelined player). Mirrors AFL/netball break "Mark injured" which
-  // fire markInjury directly rather than routing through the in-game
-  // replacement modal. Recorded WITHOUT reason:"out" so it reads as a
-  // genuine injury, not a take-out.
-  async function handleBreakInjured(playerId: string) {
-    setBreakInjuredPickerOpen(false);
-    setPending(true);
-    const { flushed } = enqueueLiveAction("markInjury", [
-      auth,
-      game.id,
-      {
-        player_id: playerId,
-        injured: true,
-        quarter: state.currentQuarter,
-        elapsed_ms: elapsedMs,
-      },
-    ]);
-    await flushed;
-    setPending(false);
-    router.refresh();
-  }
-
-  async function handleToggleLoan(playerId: string, loaned: boolean) {
-    // A lent kid stops being selected now, before the refresh flags them:
-    // the next tap would swap them on (Stagehand round 4).
+  function handleToggleLoan(playerId: string, loaned: boolean) {
+    // A lent kid stops being selected now: the next tap would swap them
+    // on (Stagehand round 4).
     if (loaned) setSelectedPlayerId((s) => (s === playerId ? null : s));
-    setPending(true);
-    const { flushed } = enqueueLiveAction("markLoan", [
-      auth,
-      game.id,
-      {
-        player_id: playerId,
-        loaned,
-        quarter: state.currentQuarter,
-        elapsed_ms: elapsedMs,
-      },
-    ]);
-    await flushed;
-    setPending(false);
+    setError(null);
+    const input = { player_id: playerId, loaned, ...at() };
+    write("markLoan", [auth, game.id, input], liveEvents.loan(input));
     setActionSheetPlayerId(null);
-    router.refresh();
   }
 
   function handleReplaceVestFromActionSheet() {
@@ -1770,10 +1458,8 @@ export function LeagueLiveGame({
   // Mid-game forward↔back override. Emits `league_position_change`
   // and the replayer moves the player between lineup.forwards and
   // lineup.backs without touching field membership (stints + §6
-  // compliance keep ticking). No-op when the player isn't on field
-  // — the action-sheet only surfaces the button for on-field
-  // players anyway.
-  async function handleMoveLeaguePosition(
+  // compliance keep ticking). No-op when the player isn't on field.
+  function handleMoveLeaguePosition(
     playerId: string,
     toZone: "forward" | "back",
   ) {
@@ -1782,33 +1468,10 @@ export function LeagueLiveGame({
       = lineup.forwards.includes(playerId)
       || lineup.backs.includes(playerId);
     if (!wasOnField) return;
-    if (breakPlan) {
-      // Into the plan (see stageBreakPlan); the replay's move: off their
-      // line, onto the end of the other.
-      const others = (ids: string[]) => ids.filter((id) => id !== playerId);
-      stageBreakPlan({
-        forwards: toZone === "forward" ? [...others(lineup.forwards), playerId] : others(lineup.forwards),
-        backs: toZone === "back" ? [...others(lineup.backs), playerId] : others(lineup.backs),
-        bench: lineup.bench,
-      });
-      setActionSheetPlayerId(null);
-      return;
-    }
-    setPending(true);
-    const { flushed } = enqueueLiveAction("recordLeaguePositionChange", [
-      auth,
-      game.id,
-      {
-        player_id: playerId,
-        to_zone: toZone,
-        quarter: state.currentQuarter,
-        elapsed_ms: elapsedMs,
-      },
-    ]);
-    await flushed;
-    setPending(false);
+    setError(null);
+    const input = { player_id: playerId, to_zone: toZone, ...at() };
+    write("recordLeaguePositionChange", [auth, game.id, input], liveEvents.leaguePositionChange(input));
     setActionSheetPlayerId(null);
-    router.refresh();
   }
 
   // Who is missing from the vest, and why, for the replace sheet.
@@ -1842,20 +1505,8 @@ export function LeagueLiveGame({
   }, [missingVestWearer, forceVestReplaceOpen]);
 
   // ── State views ───────────────────────────────────────────────
-  const isPeriodActive
-    = state.currentQuarter >= 1 && !state.quarterEnded && !state.finalised;
-  // isAtQbreak: with the break's plan, above.
-  const isAtFinalQ
-    = state.quarterEnded
-    && state.currentQuarter >= ageGroup.periodCount
-    && !state.finalised;
-  // Mirrors AFL's `isFinished` — covers both the post-final-period
-  // review phase (LeagueFullTimeReview is up, coach is reconciling
-  // scores) and the post-finalise phase (LeagueGameSummaryCard with
-  // "Copy for group chat"). Used to hide the field + bench layout
-  // once the game is over — the on-pitch view doesn't carry any
-  // signal once the coach is reading the share card.
-  const isFinished = state.finalised || isAtFinalQ;
+  // isPeriodActive, isAtFinalQ and isFinished: with the replay, above;
+  // isAtQbreak: with the break's plan.
   // Countdown clock — mirrors AFL + netball. The shared coach mental
   // model is "how much period is left", not "how much has elapsed".
   // Hooter fires when remainingMs hits 0 (see the periodMs check
@@ -1901,6 +1552,128 @@ export function LeagueLiveGame({
   const actionSheetLoaned
     = actionSheetPlayerId != null && loanedSet.has(actionSheetPlayerId);
 
+  // The score pickers the scorebug's chips open: in play, and in the
+  // break's score sheet.
+  const scoreOverlays = (
+    <>
+      {conversionDialogOpen && lineup && (
+        <RecordConversionDialog
+          squad={squad}
+          onFieldPlayerIds={[
+            ...lineup.forwards,
+            ...lineup.backs,
+          ]}
+          events={thisGameEvents}
+          afterTry={conversionAfterTry}
+          rotation={kickRotations}
+          onRecord={recordConversion}
+          onClose={() => setConversionDialogOpen(false)}
+        />
+      )}
+
+      {/* U13+: who kicked our penalty / field goal (scorebug +PG / +FG). */}
+      {goalPicker && (
+        <LeagueScorerPicker
+          sport={sport}
+          score={goalPicker}
+          onFieldPlayers={fieldPlayers}
+          onCancel={() => setGoalPicker(null)}
+          onPick={(pid) => {
+            const kind = goalPicker;
+            setGoalPicker(null);
+            recordLeagueGoalKind(kind, pid);
+          }}
+        />
+      )}
+
+      {/* Own-team scorer picker — invoked by scorebug +T. */}
+      {scorerPickerOpen && (
+        <LeagueScorerPicker
+          sport={sport}
+          onFieldPlayers={fieldPlayers}
+          onCancel={() => setScorerPickerOpen(false)}
+          onPick={(pid) => {
+            setScorerPickerOpen(false);
+            recordTryForPlayer(pid);
+          }}
+          onNoScorer={() => {
+            setScorerPickerOpen(false);
+            recordTryForPlayer(null);
+          }}
+        />
+      )}
+    </>
+  );
+
+  // The break: the shared break screen. Its score sheet holds the
+  // scorebug's chips (a try or goal the coach missed in play).
+  if (isAtQbreak) {
+    return (
+      <div ref={liveRootRef}>
+        {walkthroughOpen && (
+          <WalkthroughModal steps={walkthroughSteps} onClose={handleWalkthroughClose} />
+        )}
+        <LeagueBreak
+          auth={auth}
+          write={write}
+          sport={sport}
+          game={game}
+          exitHref={exitHref}
+          onHelp={handleOpenWalkthrough}
+          squad={squad}
+          ageGroup={ageGroup}
+          state={state}
+          events={thisGameEvents}
+          periodSeconds={periodSeconds}
+          injured={injuredSet}
+          loaned={loanedSet}
+          msByPlayer={totalMsByPlayer}
+          leaguePlaybook={leaguePlaybook}
+          isAdmin={isAdmin}
+          scoreEditor={
+            trackScoring ? (
+              <div className="space-y-3">
+                <p className="text-xs text-ink-dim">A score you missed counts in the {periodLabel} just played.</p>
+                <LeagueScoreBug
+                  sport={sport}
+                  teamName={teamName}
+                  opponentName={game.opponent || "Opponent"}
+                  teamScore={state.teamScore}
+                  opponentScore={state.opponentScore}
+                  periodLabel={periodLabel}
+                  periodLabelPlural={periodLabelPlural}
+                  currentPeriod={state.currentQuarter}
+                  periodCount={ageGroup.periodCount}
+                  clockReadout={clockReadout}
+                  quarterEnded={state.quarterEnded}
+                  trackScoring={trackScoring}
+                  onTeamTry={() => setScorerPickerOpen(true)}
+                  onTeamConversion={kickingAllowed ? handleOpenConversionDialog : undefined}
+                  onOpponentTry={handleRecordOpponentTry}
+                  onOpponentConversion={kickingAllowed ? handleRecordOpponentConversion : undefined}
+                  kickingAllowed={kickingAllowed}
+                  onTeamPenaltyGoal={goalsFromPlay ? () => setGoalPicker("penalty_goal") : undefined}
+                  onTeamFieldGoal={goalsFromPlay ? () => setGoalPicker("field_goal") : undefined}
+                  onOpponentPenaltyGoal={goalsFromPlay ? () => recordLeagueGoalKind("opponent_penalty_goal", null) : undefined}
+                  onOpponentFieldGoal={goalsFromPlay ? () => recordLeagueGoalKind("opponent_field_goal", null) : undefined}
+                  pending={pending}
+                  running={running}
+                />
+                {chrome.undoStrip({
+                  show: state.teamScore.points > 0 || state.opponentScore.points > 0,
+                  onUndo: handleUndoScore,
+                  disabled: pending,
+                })}
+                {scoreOverlays}
+              </div>
+            ) : undefined
+          }
+        />
+        {error && <InlineAlert kind="danger">{error}</InlineAlert>}
+      </div>
+    );
+  }
+
   return (
     // No bottom padding: LiveStickyScoreBar reserves its own height with
     // a measured in-flow spacer, and the player dock floats over the
@@ -1912,11 +1685,12 @@ export function LeagueLiveGame({
         game={game}
         isLive={state.currentQuarter > 0}
         onHelp={handleOpenWalkthrough}
-        // Sub due is a banner under the bar, not a modal, as in AFL
-        // (Steve 16 Oct 2026): the field and the score chips stay
-        // tappable.
+        // Sub due is never a modal (Steve 16 Oct 2026): the field and the
+        // score chips stay tappable. The sub card is the alert while it
+        // has pairs (SubDue.tsx); the banner speaks only for a due sub
+        // with nothing to suggest.
         banner={
-          subDueShowing ? (
+          subDueShowing && subDueBannerShows(true, isPeriodActive ? nextSubSuggestions.length + fillSuggestions.length : 0, swapPossible) ? (
             <SubDueBanner onAcknowledge={() => setSubAckedAtBaseMs(lastSwapOrPeriodElapsed)} />
           ) : null
         }
@@ -1926,6 +1700,8 @@ export function LeagueLiveGame({
       )}
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
+
+      {isPeriodActive && chrome.toast}
 
       {/* The replace sheet was closed ("Later", backdrop, Escape) while
           the vest still has no wearer on the field. Keep a way back to
@@ -1946,21 +1722,48 @@ export function LeagueLiveGame({
         </div>
       )}
 
+      {/* A front-row spot (union) held by a kid not picked for it — a
+          sub, a replacement or a late arrival put them there. The sub
+          card never does; a coach's own swap can (UX audit, 23 Oct
+          2026). */}
+      {isPeriodActive &&
+        restrictedMisfits(liveSlots, leaguePlaybook)
+          .filter((m) => !injuredSet.has(m.playerId) && !loanedSet.has(m.playerId))
+          .map((m) => (
+            <div
+              key={m.key}
+              role="status"
+              data-testid="front-row-warning"
+              className="rounded-md border border-warn/40 bg-warn-soft/60 px-3 py-2 text-xs text-warn"
+            >
+              {squad.find((p) => p.id === m.playerId)?.full_name ?? "A player"} is at {m.label} but isn&apos;t picked to
+              play there.
+            </div>
+          ))}
+
       {/* Next-sub indicator — mirrors AFL's SwapCard. Renders the
           full bench rotation (one swap per bench player) with
           "Do all N swaps" so the whole bench cycles in one tap. */}
-      {isPeriodActive && nextSubSuggestions.length > 0 && (
+      {isPeriodActive && (nextSubSuggestions.length > 0 || fillSuggestions.length > 0) && (
         <LeagueNextSubCard
           suggestions={nextSubSuggestions}
+          fills={fillSuggestions}
+          onApplyFill={(fill) => {
+            fillSpots([fill]);
+            chrome.swapped(null, fill.playerId);
+            handleClearSelection();
+          }}
           msUntilDue={msUntilDue}
           subIntervalMs={subIntervalMs}
           due={subIsDue}
-          onApplyAll={() => void handleApplyAllSubs()}
-          onApplyOne={(swap) =>
-            void applySwap(swap.off.playerId, swap.on.playerId)
-          }
+          onApplyAll={handleApplyAllSubs}
+          onApplyOne={(swap) => {
+            sub(swap.off.playerId, swap.on.playerId);
+            chrome.swapped(swap.off.playerId, swap.on.playerId);
+            handleClearSelection();
+          }}
           pending={pending}
-          playerById={new Map(squad.map((p) => [p.id, p]))}
+          playerById={playerById}
         />
       )}
 
@@ -1980,7 +1783,7 @@ export function LeagueLiveGame({
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => void handleToggleLoan(p.id, false)}
+                  onClick={() => handleToggleLoan(p.id, false)}
                   disabled={pending}
                   data-testid={`league-recall-lent-${p.id}`}
                   aria-label={`Bring ${p.full_name} back`}
@@ -2070,6 +1873,7 @@ export function LeagueLiveGame({
             loanedIds={loanedSet}
             selectedPlayerId={selectedPlayerId}
             swapOffs={swapOffs}
+            swapDue={subIsDue}
             totalSwapPairs={totalSwapPairs}
             chipModes={chipModes}
             onPlayerClick={handlePlayerTapMaybeSwap}
@@ -2103,6 +1907,18 @@ export function LeagueLiveGame({
             onPlayerLongPress={handlePlayerLongPress}
             disabled={pending}
           />
+          {/* §6: who must stay on, who must start the next period. */}
+          {isPeriodActive && (
+            <UnbrokenPeriodWarning
+              sport={sport}
+              players={[...fieldPlayers, ...benchPlayers]}
+              events={thisGameEvents}
+              ageGroup={ageGroup}
+              currentQuarter={state.currentQuarter}
+              currentElapsedMs={elapsedMs}
+              sidelined={new Set([...Array.from(injuredSet), ...Array.from(loanedSet)])}
+            />
+          )}
         </>
         );
       })()}
@@ -2179,106 +1995,6 @@ export function LeagueLiveGame({
         </p>
       )}
 
-      {isAtQbreak && (
-        <section className="rounded-xl border border-brand-500/40 bg-brand-50 p-4 shadow-card">
-          <p className="mb-3 text-sm font-medium text-ink">
-            {periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)}{" "}
-            {state.currentQuarter} done. Score:{" "}
-            <strong>{state.teamScore.points}</strong> –{" "}
-            <strong>{state.opponentScore.points}</strong>.
-          </p>
-          {/* Planned-seed banner (F2 / D-15): the coach planned this
-              upcoming period, so the field below is that plan (with any
-              edits made here), and it's what Start puts on (see
-              breakPlan / handleStartNextPeriod). */}
-          {breakPlan && (
-            <p
-              data-testid="planned-seed-banner"
-              className="mb-2 font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
-            >
-              Pre-filled from your planned {periodLabel}{" "}
-              {state.currentQuarter + 1} lineup
-            </p>
-          )}
-          <SFButton
-            onClick={() => setStartPeriodConfirmOpen(true)}
-            disabled={pending}
-            variant="accent"
-            size="lg"
-            full
-          >
-            Start {periodLabel.charAt(0).toUpperCase()}{state.currentQuarter + 1}
-          </SFButton>
-
-          {/* Manage availability (AVAIL-02 / B2) — mirrors AFL
-              QuarterBreak + netball NetballQuarterBreak:
-                • Add arrived player: a squad member who wasn't
-                  available pre-game turns up at the break. Reuses the
-                  canonical addLateArrival writer.
-                • Mark a player out: an on-field player has to leave.
-                  Forces a bench-replacement pick so the field doesn't
-                  go short; recorded with reason:"out" so display can
-                  tell an "out" from a genuine injury. */}
-          {isAdmin && (
-            <div className="mt-3 border-t border-brand-500/20 pt-3">
-              <p className="text-xs font-semibold text-ink">
-                Manage availability
-              </p>
-              <p className="mt-0.5 text-xs text-ink-mute">
-                Add a player who turned up at the break, or take one out
-                of the game (a replacement comes on so the field stays
-                full).
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setAddArrivedPickerOpen(true)}
-                  disabled={pending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60 motion-safe:active:scale-[0.97]"
-                >
-                  <span aria-hidden>+</span>
-                  Add arrived player
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMarkOutPickerOpen(true)}
-                  disabled={pending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60 motion-safe:active:scale-[0.97]"
-                >
-                  <span aria-hidden>+</span>
-                  Mark a player out
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBreakInjuredPickerOpen(true)}
-                  disabled={pending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60 motion-safe:active:scale-[0.97]"
-                >
-                  <span aria-hidden>+</span>
-                  Mark injured
-                </button>
-              </div>
-            </div>
-          )}
-        </section>
-      )}
-
-      {isAtQbreak && vestRequired && lineup && (
-        <VestAssignmentCard
-          auth={auth}
-          sport={sport}
-          gameId={game.id}
-          squad={squad}
-          onFieldPlayerIds={[
-            ...lineup.forwards,
-            ...lineup.backs,
-          ]}
-          events={thisGameEvents}
-          ageGroup={ageGroup}
-          period={periodForAssignment}
-        />
-      )}
-
       {/* Pre-finalise review — full per-period reconcile + finalise
           button. Mirrors AFL `FullTimeReview` shape: per-side score
           boxes, per-period table, finalise CTA. */}
@@ -2310,8 +2026,8 @@ export function LeagueLiveGame({
           }
           onTeamPenaltyGoal={goalsFromPlay ? () => setGoalPicker("penalty_goal") : undefined}
           onTeamFieldGoal={goalsFromPlay ? () => setGoalPicker("field_goal") : undefined}
-          onOpponentPenaltyGoal={goalsFromPlay ? () => void recordLeagueGoalKind("opponent_penalty_goal", null) : undefined}
-          onOpponentFieldGoal={goalsFromPlay ? () => void recordLeagueGoalKind("opponent_field_goal", null) : undefined}
+          onOpponentPenaltyGoal={goalsFromPlay ? () => recordLeagueGoalKind("opponent_penalty_goal", null) : undefined}
+          onOpponentFieldGoal={goalsFromPlay ? () => recordLeagueGoalKind("opponent_field_goal", null) : undefined}
           onUndo={
             state.teamScore.points > 0 || state.opponentScore.points > 0
               ? handleUndoScore
@@ -2345,11 +2061,10 @@ export function LeagueLiveGame({
         finished={state.finalised}
         auth={auth}
         gameId={game.id}
-        extra={
+        settings={
           // Game settings sheet: sub interval, players on field,
-          // unbroken-period rule. Always shown for admins — mirrors
-          // AFL which always shows LiveGameSettingsButton.
-          isAdmin ? (
+          // unbroken-period rule — the row's standard slot, as AFL's.
+          isAdmin && !isFinished ? (
             <LeagueGameSettingsButton
               auth={auth}
               gameId={game.id}
@@ -2358,9 +2073,8 @@ export function LeagueLiveGame({
               minOnFieldSize={ageGroup.minOnFieldSize}
               maxOnFieldSize={ageGroup.maxOnFieldSize}
               onFieldPlayers={fieldPlayers}
-              enforceUnbrokenPeriods={enforceUnbrokenPeriods}
               unbrokenRule={
-                (ageGroup.minUnbrokenPeriods ?? 0) > 0
+                unbrokenPeriodsRequired(ageGroup) > 0
                   ? `${ageGroup.minUnbrokenPeriods} unbroken ${ageGroup.minUnbrokenPeriods === 1 ? periodLabel : periodLabelPlural}`
                   : null
               }
@@ -2424,7 +2138,7 @@ export function LeagueLiveGame({
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => void recordLeagueGoalKind("penalty_goal", selectedPlayer.id)}
+                    onClick={() => recordLeagueGoalKind("penalty_goal", selectedPlayer.id)}
                     disabled={pending}
                     className="rounded-sm border border-brand-500 bg-surface py-2.5 font-mono text-sm font-bold uppercase tracking-micro text-brand-700 transition-colors duration-fast ease-out-quart hover:bg-brand-50 disabled:opacity-60"
                   >
@@ -2432,7 +2146,7 @@ export function LeagueLiveGame({
                   </button>
                   <button
                     type="button"
-                    onClick={() => void recordLeagueGoalKind("field_goal", selectedPlayer.id)}
+                    onClick={() => recordLeagueGoalKind("field_goal", selectedPlayer.id)}
                     disabled={pending}
                     className="rounded-sm border border-brand-500 bg-surface py-2.5 font-mono text-sm font-bold uppercase tracking-micro text-brand-700 transition-colors duration-fast ease-out-quart hover:bg-brand-50 disabled:opacity-60"
                   >
@@ -2472,54 +2186,30 @@ export function LeagueLiveGame({
               clockReadout={clockReadout}
               quarterEnded={state.quarterEnded}
               trackScoring={trackScoring}
-              onTeamTry={
-                // Allow recording during live play AND at quarter
-                // break + final-quarter review — Steve 2026-05-18:
-                // buzzer-beater tries land after the hooter, and
-                // coaches need to log them post-whistle. Also lets
-                // coaches correct a missed score at the break.
-                (isPeriodActive || isAtQbreak || isAtFinalQ)
-                  ? () => setScorerPickerOpen(true)
-                  : undefined
-              }
-              onTeamConversion={
-                (isPeriodActive || isAtQbreak || isAtFinalQ) && kickingAllowed
-                  ? handleOpenConversionDialog
-                  : undefined
-              }
-              onOpponentTry={
-                (isPeriodActive || isAtQbreak || isAtFinalQ)
-                  ? handleRecordOpponentTry
-                  : undefined
-              }
-              onOpponentConversion={
-                (isPeriodActive || isAtQbreak || isAtFinalQ) && kickingAllowed
-                  ? handleRecordOpponentConversion
-                  : undefined
-              }
+              // In play only: the break's score sheet and the full-time
+              // review fix a score missed in play (a buzzer-beater try
+              // lands there, Steve 2026-05-18), each on its own buttons.
+              onTeamTry={isPeriodActive ? () => setScorerPickerOpen(true) : undefined}
+              onTeamConversion={isPeriodActive && kickingAllowed ? handleOpenConversionDialog : undefined}
+              onOpponentTry={isPeriodActive ? handleRecordOpponentTry : undefined}
+              onOpponentConversion={isPeriodActive && kickingAllowed ? handleRecordOpponentConversion : undefined}
               kickingAllowed={kickingAllowed}
-              onTeamPenaltyGoal={(isPeriodActive || isAtQbreak || isAtFinalQ) && goalsFromPlay ? () => setGoalPicker("penalty_goal") : undefined}
-              onTeamFieldGoal={(isPeriodActive || isAtQbreak || isAtFinalQ) && goalsFromPlay ? () => setGoalPicker("field_goal") : undefined}
-              onOpponentPenaltyGoal={
-                (isPeriodActive || isAtQbreak || isAtFinalQ) && goalsFromPlay ? () => void recordLeagueGoalKind("opponent_penalty_goal", null) : undefined
-              }
-              onOpponentFieldGoal={
-                (isPeriodActive || isAtQbreak || isAtFinalQ) && goalsFromPlay ? () => void recordLeagueGoalKind("opponent_field_goal", null) : undefined
-              }
+              onTeamPenaltyGoal={isPeriodActive && goalsFromPlay ? () => setGoalPicker("penalty_goal") : undefined}
+              onTeamFieldGoal={isPeriodActive && goalsFromPlay ? () => setGoalPicker("field_goal") : undefined}
+              onOpponentPenaltyGoal={isPeriodActive && goalsFromPlay ? () => recordLeagueGoalKind("opponent_penalty_goal", null) : undefined}
+              onOpponentFieldGoal={isPeriodActive && goalsFromPlay ? () => recordLeagueGoalKind("opponent_field_goal", null) : undefined}
               pending={pending}
               running={running}
               onClockTap={isPeriodActive ? handleClockTap : undefined}
             />
           }
-          undoStrip={
-            (state.teamScore.points > 0 || state.opponentScore.points > 0)
-              && !state.finalised
-              ? (
-                // Same strip as AFL and netball (UX plan Phase 6).
-                <UndoStrip flashing={false} message="" onUndo={handleUndoScore} disabled={pending} />
-              )
-              : undefined
-          }
+          // Same strip as AFL's, flashing what was recorded; in play only
+          // (at full time the review's own Undo fixes a miscount).
+          undoStrip={chrome.undoStrip({
+            show: isPeriodActive && (state.teamScore.points > 0 || state.opponentScore.points > 0),
+            onUndo: handleUndoScore,
+            disabled: pending,
+          })}
         />
       )}
 
@@ -2640,25 +2330,9 @@ export function LeagueLiveGame({
         );
       })()}
 
-      {/* "Ready for H/Q{n}" confirmation — mirrors AFL's StartQuarterModal.
-          Opens when the coach taps the quarter-break CTA. The coach
-          confirms by tapping "Start {H|Q}{n}" when the hooter goes.
-          Cancelling returns to the break view with no server writes. */}
-      {startPeriodConfirmOpen && (
-        <StartQuarterModal
-          quarter={state.currentQuarter + 1}
-          periodLabel={periodLabel as "quarter" | "half" | "period"}
-          loading={pending}
-          onStart={() => {
-            setStartPeriodConfirmOpen(false);
-            void handleStartNextPeriod();
-          }}
-          onCancel={() => setStartPeriodConfirmOpen(false)}
-        />
-      )}
-
       {clockMenuOpen && (
         <ClockMenu
+          sport={sport}
           periodAbbr={`${periodLabel.charAt(0).toUpperCase()}${state.currentQuarter}`}
           running={running}
           onPause={toggleClock}
@@ -2671,24 +2345,20 @@ export function LeagueLiveGame({
       {endQConfirmOpen && (
         <ManualEndQuarterConfirm
           quarter={state.currentQuarter}
-          onConfirm={() => {
+          elapsedMs={Math.min(elapsedMs, periodSeconds * 1000)}
+          periodMs={periodSeconds * 1000}
+          onConfirm={(full) => {
             setEndQConfirmOpen(false);
-            // Credit the FULL half / quarter to on-field players on
-            // a manual end-early, NOT the live elapsed time. Mirrors
-            // AFL's `handleEndQuarter({ creditFullQuarter: true })`:
-            // if the coach hits "End H2" after only 5 minutes of a
-            // 10-minute half (paused clock, real game ran on, etc.)
-            // the players actually played the whole half — the
-            // event log should reflect that, not the under-counted
-            // scaled-clock reading. The auto-hooter path above
-            // already passes periodMs; the manual path used to pass
-            // `elapsedMs` (live elapsed), under-crediting time-on
-            // and breaking the F/C/B zone-time bar + unbroken-period
-            // compliance check.
-            void endQuarterAtClient(periodSeconds * 1000);
+            // The time played, or (the game played on while the app's
+            // clock sat paused) the whole half / quarter: the coach's
+            // choice, as AFL's. Crediting the whole period was the
+            // silent default, so a half ended seconds in gave every kid
+            // on the field the full half (round 3, 24 Oct 2026).
+            endQuarterAtClient(full ? periodSeconds * 1000 : Math.min(clockAt(Date.now()), periodSeconds * 1000));
           }}
           onCancel={() => setEndQConfirmOpen(false)}
-          playersLabel="on-field"
+          sport={sport}
+          clock={running ? "running" : "paused"}
           // U10–U12 plays halves; U6–U9 plays quarters. The picker's
           // age-group config carries the right label so the modal
           // reads "End H2" instead of "End Q2" at U10+.
@@ -2696,23 +2366,7 @@ export function LeagueLiveGame({
         />
       )}
 
-      {conversionDialogOpen && lineup && (
-        <RecordConversionDialog
-          auth={auth}
-          gameId={game.id}
-          squad={squad}
-          onFieldPlayerIds={[
-            ...lineup.forwards,
-            ...lineup.backs,
-          ]}
-          events={thisGameEvents}
-          quarter={state.currentQuarter}
-          elapsedMs={elapsedMs}
-          afterTry={conversionAfterTry}
-          rotation={kickRotations}
-          onClose={() => setConversionDialogOpen(false)}
-        />
-      )}
+      {scoreOverlays}
 
       {/* Force-vest-replace modal: shown when an FR/DH wearer leaves
           the field (sub, injury, loan) until the coach picks a
@@ -2725,9 +2379,8 @@ export function LeagueLiveGame({
                   Replace {missingVestWearer === "fr" ? "First Receiver" : missingVestWearer === "dh" ? "Dummy Half" : "vest"}
                 </h2>
                 <p className="text-xs text-ink-mute">
-                  {missingVestNote
-                    ? `${missingVestNote}. Pick who wears the vest now.`
-                    : "The vest wearer is no longer on the field. Pick a replacement to continue."}
+                  {missingVestNote ? `${missingVestNote}. ` : "The vest wearer is no longer on the field. "}
+                  Who takes the {missingVestWearer === "dh" ? "DH" : "FR"} vest?
                 </p>
               </div>
               <button
@@ -2743,10 +2396,9 @@ export function LeagueLiveGame({
               sport={sport}
               gameId={game.id}
               squad={squad}
-              onFieldPlayerIds={[
-                ...lineup.forwards,
-                ...lineup.backs,
-              ]}
+              // Kids on the field who can play: a hurt wearer keeps their
+              // slot but can't hand the vest to themselves.
+              onFieldPlayerIds={kickoffSquad.map((p) => p.id)}
               events={thisGameEvents}
               ageGroup={ageGroup}
               period={state.currentQuarter || 1}
@@ -2754,36 +2406,6 @@ export function LeagueLiveGame({
               onDone={() => setForceVestReplaceOpen(false)}
             />
           </Modal>
-      )}
-
-      {/* U13+: who kicked our penalty / field goal (scorebug +PG / +FG). */}
-      {goalPicker && (
-        <LeagueScorerPicker
-          sport={sport}
-          score={goalPicker}
-          onFieldPlayers={fieldPlayers}
-          pending={pending}
-          onCancel={() => setGoalPicker(null)}
-          onPick={(pid) => {
-            const kind = goalPicker;
-            setGoalPicker(null);
-            void recordLeagueGoalKind(kind, pid);
-          }}
-        />
-      )}
-
-      {/* Own-team scorer picker — invoked by scorebug +T. */}
-      {scorerPickerOpen && (
-        <LeagueScorerPicker
-          sport={sport}
-          onFieldPlayers={fieldPlayers}
-          pending={pending}
-          onCancel={() => setScorerPickerOpen(false)}
-          onPick={(pid) => {
-            setScorerPickerOpen(false);
-            void recordTryForPlayer(pid);
-          }}
-        />
       )}
 
       {/* Long-press action sheet — shared `LockModal` (same modal AFL
@@ -2797,27 +2419,23 @@ export function LeagueLiveGame({
         <LockModal
           player={actionSheetPlayer}
           currentLock={null}
-          currentZone={null}
+          // The kid's line (on the field) for the Switch hint, and their
+          // lent minutes, as AFL's sheet has.
+          currentLine={
+            actionSheetOnField && lineup
+              ? lineName(lineup.forwards.includes(actionSheetPlayer.id) ? "forward" : "back")
+              : null
+          }
           isInjured={actionSheetInjured}
           isLoaned={actionSheetLoaned}
-          seasonLoanMins={0}
-          squadLoanMins={0}
+          seasonLoanMins={chrome.loanMinutes(actionSheetPlayer.id).seasonLoanMins}
+          squadLoanMins={chrome.loanMinutes(actionSheetPlayer.id).squadLoanMins}
           insight={
             <PlayerInsightSummary input={buildInsightInput(actionSheetPlayer.id)} />
           }
           onUnlock={() => setActionSheetPlayerId(null)}
-          onToggleInjury={() =>
-            void handleToggleInjury(
-              actionSheetPlayer.id,
-              !actionSheetInjured,
-            )
-          }
-          onToggleLoan={() =>
-            void handleToggleLoan(
-              actionSheetPlayer.id,
-              !actionSheetLoaned,
-            )
-          }
+          onToggleInjury={() => handleToggleInjury(actionSheetPlayer.id, !actionSheetInjured)}
+          onToggleLoan={() => handleToggleLoan(actionSheetPlayer.id, !actionSheetLoaned)}
           onSwitch={() => {
             setActionSheetPlayerId(null);
             setSelectedPlayerId(actionSheetPlayer.id);
@@ -2847,94 +2465,13 @@ export function LeagueLiveGame({
           onPick={(pid) => {
             const zone = fillSpotZone;
             setFillSpotZone(null);
-            void fillVacantSpot(pid, zone);
+            // A deliberate pick: straight on, with AFL's toast.
+            fillVacantSpot(pid, zone);
+            chrome.swapped(null, pid);
           }}
           onCancel={() => setFillSpotZone(null)}
         />
       )}
-
-      {/* Break-time Add-arrived picker — opens from the
-          "+ Add arrived player" button on the break surface. Lists
-          squad members who weren't available pre-game (not placed in
-          the lineup). Tapping one fires addLateArrival. */}
-      {addArrivedPickerOpen && (
-        <SlotFillSheet
-          slotLabel="player"
-          titleVerb="Add arrived"
-          subtitle="Pick a squad member who's turned up at the break. They'll join the bench and the next period can work them in."
-          emptyMessage="Everyone in the squad is already in the game."
-          candidates={arrivalCandidates}
-          onPick={(pid) => void handleAddArrivedAtBreak(pid)}
-          onCancel={() => setAddArrivedPickerOpen(false)}
-        />
-      )}
-
-      {/* Break-time Mark-out picker — opens from "+ Mark a player out".
-          Lists on-field players. Picking one forces a bench-replacement
-          pick (InjuryReplacementModal) so the field doesn't go short;
-          recorded with reason:"out". */}
-      {markOutPickerOpen && (
-        <SlotFillSheet
-          slotLabel="player"
-          titleVerb="Mark out"
-          subtitle="Pick the on-field player who has to leave. A bench player comes on so the field stays full."
-          emptyMessage="No on-field players to take out."
-          candidates={markOutCandidates}
-          onPick={handleMarkOutPick}
-          onCancel={() => setMarkOutPickerOpen(false)}
-        />
-      )}
-
-      {/* Break-time Mark-injured picker — opens from "+ Mark injured".
-          Lists healthy squad players (on field or bench). Fires a plain
-          markInjury flag (no forced replacement at the break; the
-          next-period rotation reshuffles around them). */}
-      {breakInjuredPickerOpen && (
-        <SlotFillSheet
-          slotLabel="player"
-          titleVerb="Mark injured"
-          subtitle="Pick a player to mark as injured / leaving early. Tap their chip to bring them back."
-          emptyMessage="Everyone is already injured or lent."
-          candidates={squad
-            .filter((p) => !injuredSet.has(p.id) && !loanedSet.has(p.id))
-            .map((p) => ({
-              id: p.id,
-              name: p.full_name,
-              jerseyNumber: p.jersey_number,
-            }))}
-          onPick={(pid) => void handleBreakInjured(pid)}
-          onCancel={() => setBreakInjuredPickerOpen(false)}
-        />
-      )}
-
-      {/* Break-time Mark-out forced-replacement — reuses the shared
-          InjuryReplacementModal (DO NOT fork). Pick the bench player who
-          comes on; "without replacement" leaves the field short. Both
-          paths record the out player with reason:"out". */}
-      {markOutReplacement && (() => {
-        const outPlayer = squad.find(
-          (p) => p.id === markOutReplacement.outId,
-        );
-        if (!outPlayer) return null;
-        return (
-          <InjuryReplacementModal
-            injuredPlayer={outPlayer}
-            spotLabel={LEAGUE_SPOT_LABEL[markOutReplacement.zone]}
-            candidates={markOutReplacementCandidates}
-            onPickReplacement={(rid) =>
-              void handleMarkOutReplacement(
-                markOutReplacement.outId,
-                rid,
-                markOutReplacement.zone,
-              )
-            }
-            onSkipReplacement={() =>
-              void handleMarkOutDirect(markOutReplacement.outId)
-            }
-            onCancel={() => setMarkOutReplacement(null)}
-          />
-        );
-      })()}
 
       {/* Injury replacement picker — shown when a field player is marked
           injured and there are swappable bench players. Mirrors AFL's
@@ -2960,20 +2497,14 @@ export function LeagueLiveGame({
             injuredPlayer={injPlayer}
             spotLabel={LEAGUE_SPOT_LABEL[injuryReplacementModal.zone]}
             candidates={candidates}
-            onPickReplacement={(rid) =>
-              void handleInjuryReplacement(
-                injuryReplacementModal.injuredId,
-                rid,
-                injuryReplacementModal.zone,
-              )
-            }
-            onSkipReplacement={() =>
-              void handleInjuryMarkOnly(injuryReplacementModal.injuredId)
-            }
+            onPickReplacement={(rid) => handleInjuryReplacement(injuryReplacementModal.injuredId, rid)}
+            onSkipReplacement={() => handleInjuryMarkOnly(injuryReplacementModal.injuredId)}
             onCancel={() => setInjuryReplacementModal(null)}
           />
         );
       })()}
+
+      {chrome.overlays}
 
       {/* First-tap long-press discovery hint. */}
       {/* Hidden while the player dock is open so it never covers it. */}

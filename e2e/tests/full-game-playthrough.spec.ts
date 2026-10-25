@@ -240,6 +240,8 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
       { timeout: 5_000 },
     )
     .toBeGreaterThanOrEqual(1);
+  // The score review is a sheet over the break; close it to start Q2.
+  await page.getByRole("dialog", { name: "Score" }).getByRole("button", { name: "Done" }).click();
 
   // Each Q→Q+1 transition is a TWO-tap kickoff with DISTINCT labels:
   //   1. Q-break "Ready for Q{n}" — commits the lineup snapshot
@@ -252,12 +254,13 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
   // coach. The body text "Tap Start clock when the siren goes" gates the second
   // tap so we don't double-click before the modal mounts.
   async function startNextQuarter(n: number): Promise<void> {
+    // The break's Start (it carries a "N rules" pill if a rule's broken).
     await page
-      .getByRole("button", { name: new RegExp(`^start q${n}$`, "i") })
+      .getByRole("button", { name: new RegExp(`^start q${n}`, "i") })
       .click();
     await page.getByText(/tap when the siren goes/i).waitFor({ timeout: 5_000 });
     await page
-      .getByRole("button", { name: /^start [qh]\d+ now$/i })
+      .getByRole("button", { name: /^start [qh]\d+ now$|^start anyway$/i })
       .click();
   }
 
@@ -284,7 +287,7 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
     // is fully rendered" from "previous Q-break still mounted".
     await expect(
       page.getByRole("button", {
-        name: new RegExp(`^start q${next}$`, "i"),
+        name: new RegExp(`^start q${next}`, "i"),
       }),
     ).toBeVisible({ timeout: 10_000 });
     await startNextQuarter(next);
@@ -348,6 +351,23 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
     .eq("game_id", game.id)
     .eq("type", "game_finalised");
   expect(finalisedEvents?.length ?? 0).toBeGreaterThanOrEqual(1);
+
+  // The share text counts subs from the event log, as the game page does.
+  // It used the live store's tally, which also counts every break, so a
+  // game with 2 swaps went out as "5 subs" (UX audit, 23 Oct 2026).
+  const { count: swaps } = await admin
+    .from("game_events")
+    .select("id", { count: "exact", head: true })
+    .eq("game_id", game.id)
+    .eq("type", "swap");
+  const subsText = swaps ? `${swaps} sub${swaps === 1 ? "" : "s"}` : null;
+  for (const where of ["live", "game page"] as const) {
+    if (where === "game page") await page.goto(`/teams/${team.id}/games/${game.id}`);
+    const shareText = page.locator("#game-summary-text");
+    await expect(shareText).toContainText(/players?/, { timeout: 10_000 });
+    if (subsText) await expect(shareText, where).toContainText(subsText);
+    else await expect(shareText, where).not.toContainText(/\bsubs?\b/);
+  }
 
   // Finalising writes the season-time rollup (UX plan 4.5): every kid who
   // played has time in a zone.

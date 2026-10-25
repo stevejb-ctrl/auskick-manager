@@ -1,21 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { SFButton, SFIcon } from "@/components/sf";
 import { ActionSheet, type ActionSheetAction } from "@/components/ui/ActionSheet";
 import { ResetGameDialog } from "@/components/games/ResetGameButton";
 import { DeleteGameDialog } from "@/components/games/DeleteGameDialog";
 import { GameDayLinkDialog } from "@/components/games/GameDayLinkDialog";
 import { EditGameDialog } from "@/components/games/EditGameDialog";
+import { FixScoresDialog, type FixScoresProps } from "@/components/games/FixScoresDialog";
+import { restartGameHint } from "@/lib/sports/words";
 
 interface GameMoreMenuProps {
   teamId: string;
   gameId: string;
   /** games.share_token — enables "Game-day link". */
   shareToken?: string;
-  /** Opens the game screen (for a final game that's no longer the primary). */
-  liveHref?: string;
+  /**
+   * A finished game's scores, fixable here (it used to be "Open game
+   * screen: fix scores", which opened a read-only summary).
+   */
+  fixScores?: FixScoresProps;
   /** Enables "Edit details" (upcoming games). */
   edit?: {
     game: {
@@ -26,12 +30,20 @@ interface GameMoreMenuProps {
       round_number: number | null;
       notes: string | null;
     };
+    /** For the same-name opponent warning. */
+    teamName?: string;
   };
   canRestart: boolean;
+  /** Team admins: "Get a new link" in the Game-day link dialog. */
+  canReplaceLink?: boolean;
   canDelete: boolean;
+  /** The team's period word: Restart wipes "every half" in a halves game. */
+  periodLabel: "quarter" | "half" | "period";
+  /** The game is being played: Delete's confirm says so and waits for a tick. */
+  live?: boolean;
 }
 
-type Dialog = "link" | "edit" | "restart" | "delete" | null;
+type Dialog = "link" | "edit" | "fix" | "restart" | "delete" | null;
 
 /**
  * The game hub's overflow: everything that isn't the one primary action
@@ -42,22 +54,24 @@ export function GameMoreMenu({
   teamId,
   gameId,
   shareToken,
-  liveHref,
+  fixScores,
   edit,
   canRestart,
+  canReplaceLink = false,
   canDelete,
+  periodLabel,
+  live = false,
 }: GameMoreMenuProps) {
-  const router = useRouter();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
 
   const actions: ActionSheetAction[] = [];
-  if (liveHref) {
+  if (fixScores) {
     actions.push({
-      id: "open-live",
-      label: "Open game screen",
-      description: "Fix scores or review the full-time screen.",
-      onSelect: () => router.push(liveHref),
+      id: "fix-scores",
+      label: "Fix scores",
+      description: "Take a score off, change who scored, or add a missed one.",
+      onSelect: () => setDialog("fix"),
     });
   }
   if (shareToken) {
@@ -80,7 +94,7 @@ export function GameMoreMenu({
     actions.push({
       id: "restart",
       label: "Restart game",
-      description: "Wipes every quarter, swap and score.",
+      description: restartGameHint(periodLabel),
       tone: "danger",
       onSelect: () => setDialog("restart"),
     });
@@ -89,7 +103,7 @@ export function GameMoreMenu({
     actions.push({
       id: "delete",
       label: "Delete game",
-      description: "Removes the game and its availability.",
+      description: live ? "It's being played right now. Removes it for everyone." : "Removes the game and its availability.",
       tone: "danger",
       onSelect: () => setDialog("delete"),
     });
@@ -113,14 +127,21 @@ export function GameMoreMenu({
       {sheetOpen && (
         <ActionSheet title="Game actions" actions={actions} onClose={() => setSheetOpen(false)} />
       )}
-      {dialog === "link" && shareToken && <GameDayLinkDialog token={shareToken} onClose={close} />}
+      {dialog === "link" && shareToken && (
+        <GameDayLinkDialog
+          token={shareToken}
+          onClose={close}
+          replace={canReplaceLink ? { teamId, gameId } : undefined}
+        />
+      )}
+      {dialog === "fix" && fixScores && <FixScoresDialog {...fixScores} onClose={close} />}
       {dialog === "edit" && edit && (
-        <EditGameDialog teamId={teamId} game={edit.game} onClose={close} />
+        <EditGameDialog teamId={teamId} game={edit.game} teamName={edit.teamName} onClose={close} />
       )}
       {dialog === "restart" && (
         <ResetGameDialog auth={{ kind: "team", teamId }} gameId={gameId} onClose={close} />
       )}
-      {dialog === "delete" && <DeleteGameDialog teamId={teamId} gameId={gameId} onClose={close} />}
+      {dialog === "delete" && <DeleteGameDialog teamId={teamId} gameId={gameId} onClose={close} live={live} />}
     </>
   );
 }

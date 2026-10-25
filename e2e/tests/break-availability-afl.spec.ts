@@ -23,6 +23,7 @@ import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { ALL_ZONES, replayGame } from "../../src/lib/fairness";
 import type { GameEvent } from "../../src/lib/types";
+import { closeGameSettings, openGameSettings, pickBreakStrategy, startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -142,23 +143,15 @@ test("AFL: at the break a coach can add an arrived player, mark a player out (fo
     page.getByRole("button", { name: /^start q2$/i }),
   ).toBeVisible({ timeout: 15_000 });
 
-  // Open the break-surface availability controls. The new entry lives
-  // in the "Game settings" collapse (mirrors the existing Lend /
-  // Mark-injured panel rhythm).
-  const adjustments = page.getByRole("button", {
-    name: /game settings/i,
-  });
-  if ((await adjustments.getAttribute("aria-expanded")) !== "true") {
-    await adjustments.click();
-  }
-
-  // Freeze the lineup to "Keep last quarter" so the fairness suggester
-  // doesn't rotate the seeded field/bench out from under us — the
-  // mark-out flow needs `outPlayer` to still be on the field and
+  // Freeze the lineup to Repeat ("keep last quarter") so the fairness
+  // suggester doesn't rotate the seeded field/bench out from under us —
+  // the mark-out flow needs `outPlayer` to still be on the field and
   // `replacement` to still be on the bench when we pick them.
-  await page
-    .getByRole("radio", { name: /keep last quarter/i })
-    .click();
+  await pickBreakStrategy(page, "Repeat");
+
+  // The break-surface availability controls live in the Game settings
+  // sheet behind the status chip.
+  await openGameSettings(page);
 
   // ─── 1. ADD ARRIVED ────────────────────────────────────────────
   await page
@@ -258,11 +251,7 @@ test("AFL: at the break a coach can add an arrived player, mark a player out (fo
 
   // ─── 3. MARK INJURED (regression guard) ────────────────────────
   // The existing mark-injured affordance must still work at the break.
-  // The mark-out flow's router.refresh() re-collapses Game settings, so
-  // re-expand it before reaching for the Mark-injured trigger.
-  if ((await adjustments.getAttribute("aria-expanded")) !== "true") {
-    await adjustments.click();
-  }
+  await openGameSettings(page);
   const injurePlayer = backIds[0]; // a back-zone on-field player
   await page
     .getByRole("button", { name: /^mark injured$/i })
@@ -374,15 +363,10 @@ test("AFL: a lent kid and two kids marked out at the break all start Q2 off the 
   }
   await expect(page.getByRole("button", { name: /^start q2$/i })).toBeVisible({ timeout: 15_000 });
 
-  const adjustments = page.getByRole("button", { name: /game settings/i });
-  const openAdjustments = async () => {
-    if ((await adjustments.getAttribute("aria-expanded")) !== "true") {
-      await adjustments.click();
-    }
-  };
+  const openAdjustments = () => openGameSettings(page);
+  // Repeat last quarter's field, so the three kids are on it to begin with.
+  await pickBreakStrategy(page, "Repeat");
   await openAdjustments();
-  // Keep last quarter's field, so the three kids are on it to begin with.
-  await page.getByRole("radio", { name: /keep last quarter/i }).click();
 
   const eventsOf = async () => {
     const { data } = await admin
@@ -438,8 +422,7 @@ test("AFL: a lent kid and two kids marked out at the break all start Q2 off the 
   );
 
   // Start Q2.
-  await page.getByRole("button", { name: /^start q2$/i }).click();
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
+  await startFromBreak(page, /^start q2/i);
   await waitFor((evs) =>
     evs.some(
       (e) => e.type === "quarter_start" && (e.metadata as { quarter?: number }).quarter === 2,
@@ -515,14 +498,12 @@ test("AFL: a kid selected at the break and then lent doesn't swap on with the ne
     await selectTeamBtn.click({ timeout: 10_000 });
   }
   await expect(page.getByRole("button", { name: /^start q2$/i })).toBeVisible({ timeout: 15_000 });
-  const adjustments = page.getByRole("button", { name: /game settings/i });
-  if ((await adjustments.getAttribute("aria-expanded")) !== "true") await adjustments.click();
-  await page.getByRole("radio", { name: /keep last quarter/i }).click();
+  await pickBreakStrategy(page, "Repeat");
 
   const lent = bench[0];
   // Select the bench kid, then lend them from Game settings.
   await page.getByTestId(`player-tile-${lent.id}`).click();
-  if ((await adjustments.getAttribute("aria-expanded")) !== "true") await adjustments.click();
+  await openGameSettings(page);
   await page.getByRole("button", { name: /^\+?\s*lend a player$/i }).click();
   await page.getByRole("dialog", { name: /lend/i }).getByRole("button", { name: new RegExp(lent.full_name, "i") }).click();
   await expect
@@ -533,6 +514,7 @@ test("AFL: a kid selected at the break and then lent doesn't swap on with the ne
     .toBe(1);
 
   // Tap a back: no swap, the lent kid stays off the field.
+  await closeGameSettings(page);
   await page.getByTestId(`player-tile-${onField[0].id}`).click();
   for (const zone of ["Back", "Centre", "Forward"]) {
     await expect(page.getByRole("group", { name: zone }).getByTestId(`player-tile-${lent.id}`)).toHaveCount(0);

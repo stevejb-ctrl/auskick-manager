@@ -7,7 +7,9 @@ import { ZONE_SHORT } from "@/components/live/Field";
 import { type ChipKey, type ChipMode } from "@/lib/chips";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
+import { useSquadNames } from "@/components/live/SquadNames";
 import { KeepOnMarker } from "@/components/playbook/KeepOnMarker";
+import { ZONE_STRIP } from "@/components/live/zoneStrip";
 
 export type SwapRole = {
   role: "off" | "on";
@@ -47,12 +49,6 @@ interface PlayerTileProps {
    * fallback. Steve 2026-05-20.
    */
   chipModes?: Partial<Record<ChipKey, ChipMode>>;
-  /**
-   * Header caption for planning screens — the quarter break says where
-   * each player is heading ("STAYS", "BENCH → FWD"). Shown when there's
-   * no swap header.
-   */
-  caption?: TileCaption | null;
   /** Set positions: the named position shown instead of the zone ("CHB"). */
   positionLabel?: string | null;
   /** Season role "Plays every minute" (lineup screens). */
@@ -65,11 +61,6 @@ interface PlayerTileProps {
   swapDue?: boolean;
 }
 
-export interface TileCaption {
-  text: string;
-  /** "move" = changing position this break; "stay" = same spot. */
-  tone: "move" | "stay";
-}
 
 function formatMinSec(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -101,7 +92,6 @@ function PlayerTileImpl({
   loaned,
   lockMode,
   score,
-  caption,
   positionLabel,
   keepOn,
   swapDue = false,
@@ -140,10 +130,10 @@ function PlayerTileImpl({
   // Accent class for the bench "→ ZONE" strip, derived from target zone.
   const swapZoneAccent =
     swap?.zone === "fwd" || swap?.zone === "hfwd"
-      ? "border-zone-f/40 bg-zone-f/15 text-zone-f"
+      ? ZONE_STRIP.f
       : swap?.zone === "mid"
-        ? "border-zone-c/40 bg-zone-c/15 text-zone-c"
-        : "border-zone-b/40 bg-zone-b/15 text-zone-b";
+        ? ZONE_STRIP.c
+        : ZONE_STRIP.b;
 
   // Surface + edge per state. Edges are inset rings (not borders) so
   // every state keeps the same 68px box and the lift shadow.
@@ -165,10 +155,8 @@ function PlayerTileImpl({
                 ? "bg-surface shadow-lift-field ring-1 ring-inset ring-warn/50"
                 : "bg-surface shadow-lift-field";
 
-  const parts = player.full_name.trim().split(/\s+/);
-  const firstName = parts[0] ?? "";
-  const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  const displayName = lastInitial ? `${firstName} ${lastInitial}` : firstName;
+  // "First L", told apart from a squad-mate with the same (SquadNames).
+  const displayName = useSquadNames().tile(player);
 
   const zoneLabel = positionLabel ?? (currentZone ? ZONE_SHORT[currentZone] : null);
 
@@ -263,17 +251,6 @@ function PlayerTileImpl({
         </div>
       )}
 
-      {caption && !isOff && !isOn && (
-        <div
-          className={`flex items-center justify-center rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[10px] font-bold uppercase leading-none tracking-micro ${
-            caption.tone === "move"
-              ? "border-brand-700 bg-brand-600 text-white"
-              : "border-hairline bg-surface-alt text-ink-dim"
-          }`}
-        >
-          {caption.text}
-        </div>
-      )}
 
       {keepOn && !injured && !loaned && !hasScore && <KeepOnMarker />}
 
@@ -451,7 +428,6 @@ function areEqual(a: PlayerTileProps, b: PlayerTileProps): boolean {
   if (a.lockMode !== b.lockMode) return false;
   if (a.compact !== b.compact) return false;
   if (a.chipModes !== b.chipModes) return false;
-  if (a.caption?.text !== b.caption?.text || a.caption?.tone !== b.caption?.tone) return false;
   if (a.positionLabel !== b.positionLabel) return false;
   if (a.keepOn !== b.keepOn) return false;
   if (a.swapDue !== b.swapDue) return false;

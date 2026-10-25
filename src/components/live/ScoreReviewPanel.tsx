@@ -2,10 +2,11 @@
 
 // ─── Score Review Panel ──────────────────────────────────────
 // Sport-agnostic per-quarter score summary + Fix-scores editor.
-// Used at AFL QuarterBreak / FullTimeReview and netball
-// QuarterBreak / FullTimeReview. Behaves identically for both
-// sports — the only difference is whether "behind" rows / inputs
-// render (AFL: yes, netball: no). Quarters are 1-indexed.
+// Used at AFL QuarterBreak / FullTimeReview, netball QuarterBreak /
+// FullTimeReview and the soccer family's half-time. Behaves the same
+// in each — the differences are whether "behind" rows / inputs render
+// (AFL: yes, netball and soccer: no) and the game's own periods (two
+// halves read H1, H2). Periods are 1-indexed.
 
 import { startTransition, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -19,6 +20,7 @@ import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { Button } from "@/components/ui/Button";
 import type { LiveAuth, Player } from "@/lib/types";
 import { Modal } from "@/components/ui/Modal";
+import { groupScoreLog, scoreEntryWho } from "@/lib/live/scoreLog";
 
 interface ScoreReviewPanelProps {
   auth: LiveAuth;
@@ -29,6 +31,12 @@ interface ScoreReviewPanelProps {
   includeBehinds: boolean;
   /** Default quarter for the add-score form — usually `currentQuarter`. */
   defaultQuarter: number;
+  /** The game's periods (default 4 quarters). */
+  periodCount?: number;
+  /** A period's letter: "Q", or "H" for halves. */
+  periodLetter?: string;
+  /** The add form's period label: "Quarter", or "Half". */
+  periodWord?: string;
   /** Pre-fetched events to avoid an extra round-trip. When omitted the
    *  panel fetches its own log on mount. */
   initialLog?: ScoreLogEntry[] | null;
@@ -40,6 +48,9 @@ export function ScoreReviewPanel({
   players,
   includeBehinds,
   defaultQuarter,
+  periodCount = 4,
+  periodLetter = "Q",
+  periodWord = "Quarter",
   initialLog = null,
 }: ScoreReviewPanelProps) {
   const router = useRouter();
@@ -157,30 +168,11 @@ export function ScoreReviewPanel({
     });
   }
 
-  const undoneEventIds = useMemo(() => {
-    if (!scoreLog) return new Set<string>();
-    const out = new Set<string>();
-    for (const e of scoreLog) {
-      if (e.type === "score_undo" && e.target_event_id) out.add(e.target_event_id);
-    }
-    return out;
-  }, [scoreLog]);
-
-  const scoreLogByQuarter = useMemo(() => {
-    if (!scoreLog) return null;
-    const groups: Record<number, ScoreLogEntry[]> = { 1: [], 2: [], 3: [], 4: [] };
-    for (const e of scoreLog) {
-      if (e.type === "score_undo") continue;
-      if (undoneEventIds.has(e.id)) continue;
-      const q = e.quarter ?? 1;
-      if (!groups[q]) groups[q] = [];
-      groups[q].push(e);
-    }
-    for (const q of Object.keys(groups)) {
-      groups[+q].sort((a, b) => b.created_at.localeCompare(a.created_at));
-    }
-    return groups;
-  }, [scoreLog, undoneEventIds]);
+  const scoreLogByPeriod = useMemo(
+    () => (scoreLog ? groupScoreLog(scoreLog, periodCount) : null),
+    [scoreLog, periodCount],
+  );
+  const who = (e: ScoreLogEntry) => scoreEntryWho(e, (id) => playersById.get(id)?.full_name);
 
   return (
     <div>
@@ -198,24 +190,20 @@ export function ScoreReviewPanel({
         </p>
       )}
 
-      {scoreLogByQuarter && (
+      {scoreLogByPeriod && (
         <div className="mt-3 space-y-3">
-          {[1, 2, 3, 4].map((q) => {
-            const entries = scoreLogByQuarter[q] ?? [];
+          {scoreLogByPeriod.map(({ period: q, entries }) => {
             if (entries.length === 0) return null;
             return (
               <div key={q}>
                 <p className="text-[10px] font-bold uppercase tracking-micro text-ink-mute">
-                  Q{q}
+                  {`${periodLetter}${q}`}
                 </p>
                 <ul className="mt-1 divide-y divide-hairline rounded-md border border-hairline bg-surface-alt">
                   {entries.map((e) => {
                     const isOurs = e.type === "goal" || e.type === "behind";
                     const isGoal =
                       e.type === "goal" || e.type === "opponent_goal";
-                    const playerName = e.player_id
-                      ? playersById.get(e.player_id)?.full_name ?? "—"
-                      : null;
                     return (
                       <li
                         key={e.id}
@@ -231,22 +219,25 @@ export function ScoreReviewPanel({
                           >
                             {includeBehinds ? (isGoal ? "G" : "B") : "G"}
                           </span>
-                          <span className="font-medium text-ink">
-                            {isOurs ? playerName ?? "Player" : "Opposition"}
-                          </span>
+                          <span className="font-medium text-ink">{who(e)}</span>
                           {e.retro && (
                             <span className="rounded-full bg-ink-mute/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-micro text-ink-mute">
                               Added
                             </span>
                           )}
                         </span>
+                        {/* A 44 px target round the small ×, named for
+                            the score it deletes (it was 25×22 and "Delete
+                            this score" on every row; UX round 3, e4). */}
                         <button
                           type="button"
                           onClick={() => setPendingDelete(e)}
-                          className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-ink-mute transition-colors hover:border-danger/30 hover:bg-danger/10 hover:text-danger motion-safe:active:scale-[0.97]"
-                          aria-label="Delete this score"
+                          className="group -my-2 -mr-2 inline-flex h-11 w-11 shrink-0 items-center justify-center motion-safe:active:scale-[0.97]"
+                          aria-label={`Delete ${includeBehinds && !isGoal ? "behind" : "goal"}${isOurs ? ` by ${who(e)}` : `, ${who(e)}`}`}
                         >
-                          ×
+                          <span className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-ink-mute transition-colors group-hover:border-danger/30 group-hover:bg-danger/10 group-hover:text-danger">
+                            ×
+                          </span>
                         </button>
                       </li>
                     );
@@ -255,9 +246,9 @@ export function ScoreReviewPanel({
               </div>
             );
           })}
-          {[1, 2, 3, 4].every(
-            (q) => (scoreLogByQuarter[q] ?? []).length === 0,
-          ) && <p className="text-xs text-ink-mute">No scores yet.</p>}
+          {scoreLogByPeriod.every((g) => g.entries.length === 0) && (
+            <p className="text-xs text-ink-mute">No scores yet.</p>
+          )}
         </div>
       )}
 
@@ -295,15 +286,15 @@ export function ScoreReviewPanel({
                 </select>
               </label>
               <label className="text-[11px] text-ink-mute">
-                Quarter
+                {periodWord}
                 <select
                   value={addQuarter}
                   onChange={(e) => setAddQuarter(parseInt(e.target.value, 10))}
                   className="mt-0.5 block w-full rounded-md border border-hairline bg-surface px-2 py-1 text-xs text-ink"
                 >
-                  {[1, 2, 3, 4].map((q) => (
+                  {Array.from({ length: periodCount }, (_, i) => i + 1).map((q) => (
                     <option key={q} value={q}>
-                      Q{q}
+                      {`${periodLetter}${q}`}
                     </option>
                   ))}
                 </select>
@@ -360,10 +351,13 @@ export function ScoreReviewPanel({
               ? "goal"
               : "behind"
             : "goal";
-          const playerName = e.player_id
-            ? playersById.get(e.player_id)?.full_name ?? "Player"
-            : null;
-          const subject = isOurs ? playerName ?? "Player" : "Opposition";
+          // "Mia's goal", "The rushed behind", "The goal" (no scorer).
+          const subject =
+            isOurs && !e.player_id
+              ? e.rushed
+                ? "The rushed behind"
+                : `The ${kindLabel}`
+              : `${who(e)}’s ${kindLabel}`;
           const q = e.quarter ?? defaultQuarter;
           return (
             <Modal label="Delete this score?" onClose={() => setPendingDelete(null)}>
@@ -371,8 +365,8 @@ export function ScoreReviewPanel({
                   Delete this score?
                 </p>
                 <p className="mt-2 text-center text-xs text-ink-mute">
-                  {subject}&rsquo;s {kindLabel} in Q{q} will be removed from
-                  the scoreline.
+                  {subject} in {`${periodLetter}${q}`} will be removed from the
+                  scoreline.
                 </p>
                 <div className="mt-4 flex gap-2">
                   <Button

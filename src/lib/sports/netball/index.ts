@@ -20,6 +20,8 @@ import type {
   AgeGroupConfig,
   ValidationResult,
   ValidationIssue,
+  BreakZoneColor,
+  SportBreakSpec,
 } from "@/lib/sports/types";
 import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
 
@@ -444,6 +446,33 @@ export function primaryThirdFor(positionId: string): string | null {
   }
 }
 
+// Break screen: the court's thirds, each slot a bib. A swap moves the
+// kids and the bib stays with the slot. A short-squad age group (Set:
+// GS, GA, C, GD, GK) shows only the bibs it plays.
+const NETBALL_BREAK_THIRDS: { key: string; label: string; short: string; color: BreakZoneColor; positions: string[] }[] = [
+  { key: "attack", label: "ATTACK", short: "Attack", color: "zone1", positions: ["gs", "ga"] },
+  { key: "centre", label: "CENTRE", short: "Centre", color: "zone2", positions: ["wa", "c", "wd"] },
+  { key: "defence", label: "DEFENCE", short: "Defence", color: "zone3", positions: ["gd", "gk"] },
+];
+
+const netballPeriodBreak: SportBreakSpec = {
+  zones: ({ ageGroup }) =>
+    NETBALL_BREAK_THIRDS.map((third) => {
+      const slotIds = third.positions.filter((p) => ageGroup.positions.includes(p));
+      return {
+        key: third.key,
+        label: third.label,
+        short: third.short,
+        color: third.color,
+        slots: slotIds.length,
+        slotIds,
+        slotLabels: slotIds.map((p) => NETBALL_POSITIONS.find((d) => d.id === p)?.shortLabel ?? p.toUpperCase()),
+      };
+    }).filter((z) => z.slots > 0),
+  scoreDetail: "goals",
+  lowTimeMs: 4 * 60_000,
+};
+
 export const netballSport: SportConfig = {
   id: "netball",
   family: "netball",
@@ -456,6 +485,7 @@ export const netballSport: SportConfig = {
     tagline: "Junior netball coaching — fair rotations across GS through GK, quarter-break subs, live score in your pocket.",
     defaultSport: "netball",
     palette: "netball",
+    audience: "Junior netball",
   },
   zones: NETBALL_ZONES,
   allPositions: NETBALL_POSITIONS,
@@ -467,5 +497,9 @@ export const netballSport: SportConfig = {
   fairnessModel: "position-count-per-game",
   jerseyNumbers: false,
   teamSong: true,
+  periodBreak: netballPeriodBreak,
+  // The umpire's call starts each quarter; a whistle ends it.
+  words: { sportName: "netball", surface: "court", startCue: "umpire calls play", endCue: "whistle" },
+  surfaceArt: "netball-court",
   validateLineup: validateNetballLineup,
 };

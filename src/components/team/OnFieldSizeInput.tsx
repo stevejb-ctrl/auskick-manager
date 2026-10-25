@@ -3,9 +3,11 @@
 // ─── Players on the field ────────────────────────────────────
 // Team › Season: the team's competition's on-field size. Competitions
 // differ by state (junior union plays 10, 12 or 15 a side at U10), so
-// a coach sets theirs once and every new game starts from it. The
-// choices are the age group's range; the age group's own size means
-// "use the default". A game can still change it on the day.
+// a coach sets theirs once and every new game starts from it, and so do
+// the games already scheduled that were on the old size (the card says
+// so before and after saving: UX round 2, 24 Oct 2026). The choices are
+// the age group's range; the age group's own size means "use the
+// default". A game can still change it on the day.
 //
 // Sits beside QuarterLengthInput and shares its card shape.
 
@@ -14,23 +16,31 @@ import { setTeamOnFieldSize } from "@/app/(app)/teams/[teamId]/settings/actions"
 import { SFButton } from "@/components/sf";
 import { Label } from "@/components/ui/Label";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { playersOnSurfaceLabel } from "@/lib/sports/words";
+import type { SportId } from "@/lib/sports/types";
 
 interface Props {
   teamId: string;
+  /** The team's sport: "Players on the court" for netball, futsal and basketball. */
+  sport: SportId;
   /** The age group's default, fewest and most players on the field. */
   ageGroupDefault: number;
   min: number;
   max: number;
   /** The team's own size, or null to use the age group's. */
   initialSize: number | null;
+  /** Games already scheduled on the team's current size: a save moves them too. */
+  scheduledGames?: number;
   isAdmin?: boolean;
 }
 
-export function OnFieldSizeInput({ teamId, ageGroupDefault, min, max, initialSize, isAdmin = true }: Props) {
+export function OnFieldSizeInput({ teamId, sport, ageGroupDefault, min, max, initialSize, scheduledGames = 0, isAdmin = true }: Props) {
   const [size, setSize] = useState<number>(initialSize ?? ageGroupDefault);
   const [usingOverride, setUsingOverride] = useState<boolean>(initialSize !== null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  // Scheduled games the last save moved to the new size.
+  const [moved, setMoved] = useState(0);
   const [isPending, startTransition] = useTransition();
 
   const options: number[] = [];
@@ -47,6 +57,7 @@ export function OnFieldSizeInput({ teamId, ageGroupDefault, min, max, initialSiz
         return;
       }
       setUsingOverride(next !== null && next !== ageGroupDefault);
+      setMoved(r.data?.scheduled ?? 0);
       setSaved(true);
     });
   }
@@ -55,7 +66,7 @@ export function OnFieldSizeInput({ teamId, ageGroupDefault, min, max, initialSiz
     <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-[10rem] flex-1">
-          <Label htmlFor={`on-field-size-${teamId}`}>Players on the field</Label>
+          <Label htmlFor={`on-field-size-${teamId}`}>{playersOnSurfaceLabel(sport)}</Label>
           <select
             id={`on-field-size-${teamId}`}
             value={size}
@@ -78,6 +89,8 @@ export function OnFieldSizeInput({ teamId, ageGroupDefault, min, max, initialSiz
               ? `Your competition's size (age-group default is ${ageGroupDefault}). `
               : `Using the age-group default (${ageGroupDefault}). `}
             Competitions differ by state: set what yours plays. A game can still change it on the day.
+            {scheduledGames > 0 &&
+              ` Saving also changes the ${scheduledGames === 1 ? "game" : `${scheduledGames} games`} already scheduled.`}
           </p>
         </div>
         {isAdmin && (
@@ -104,7 +117,9 @@ export function OnFieldSizeInput({ teamId, ageGroupDefault, min, max, initialSiz
       </div>
       {saved && !error && (
         <p role="status" className="mt-2 text-xs text-ok">
-          Saved. New games start with {size} on the field.
+          {moved > 0
+            ? `Saved. New games start with ${size} on the field, and so ${moved === 1 ? "does the game" : `do the ${moved} games`} already scheduled.`
+            : `Saved. New games start with ${size} on the field.`}
         </p>
       )}
       {error && <InlineAlert className="mt-2">{error}</InlineAlert>}

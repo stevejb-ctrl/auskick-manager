@@ -4,10 +4,13 @@
 // then each kid's game time (with the lanes they played under the
 // position strategies), and the kids who were here but didn't get on.
 // Nothing here says who counts as a girl or a boy: a girl's try is
-// counted in the score, not named.
+// counted in the score, not named. Tries nobody was named for close the
+// list ("+1 try (no scorer)"), so it adds up to the score.
 
 import type { Player } from "@/lib/types";
+import { shortName, shortNames } from "@/lib/names";
 import { DIDNT_GET_ON, didntGetOn } from "@/lib/live/presentPlayers";
+import { byJerseyThenName } from "@/lib/share/neutralOrder";
 import { touchGameMs, type TouchGameState } from "@/lib/sports/touch/replay";
 import { TOUCH_LANES } from "@/lib/sports/touch/types";
 
@@ -33,7 +36,9 @@ export interface TouchSummaryInput {
 export function buildTouchSummary(input: TouchSummaryInput): string {
   const { teamName, opponentName, trackScoring, state, squad, presentIds } = input;
   const byId = new Map(squad.map((p) => [p.id, p]));
-  const first = (p: Player | undefined) => (p ? p.full_name.trim().split(/\s+/)[0] : "Unknown");
+  // Two Mias read "Mia C" and "Mia T" (the number is printed beside them).
+  const short = shortNames(squad, "first", { numberShown: true });
+  const first = (p: Player | undefined) => (p ? short.get(p.id) ?? shortName(p.full_name) : "Unknown");
   const jersey = (p: Player | undefined) => (p?.jersey_number != null ? `#${p.jersey_number} ` : "");
   const lines: string[] = [`🏉 Full time — ${teamName} v ${opponentName}`];
 
@@ -51,26 +56,28 @@ export function buildTouchSummary(input: TouchSummaryInput): string {
         const p = byId.get(id);
         return `${first(p)}${p?.jersey_number != null ? ` (#${p.jersey_number})` : ""}${n > 1 ? ` ${n}` : ""}`;
       });
+    const unnamed = state.teamScore.tries - Object.values(state.playerTries).reduce((s, n) => s + n, 0);
+    if (unnamed > 0) scorers.push(`+${unnamed} ${unnamed === 1 ? "try" : "tries"} (no scorer)`);
     if (scorers.length > 0) lines.push(`\n🏉 Tries: ${scorers.join(", ")}`);
   }
 
   const played = Object.keys(state.ms)
     .map((id) => ({ id, ms: touchGameMs(state, id) }))
-    .filter((r) => r.ms >= 1000)
-    .sort((a, b) => b.ms - a.ms);
+    .filter((r) => r.ms >= 1000);
   const rows = played.map(({ id, ms }) => {
     const p = byId.get(id);
     const lanes = TOUCH_LANES.filter((l) => (state.ms[id]?.[l] ?? 0) >= 1000);
     const split = lanes.length > 1 ? ` (${lanes.map((l) => `${LANE_LETTER[l as keyof typeof LANE_LETTER]} ${fmtMs(state.ms[id]![l]!)}`).join(", ")})` : "";
-    return `${jersey(p)}${first(p)} — ${fmtMs(ms)}${split}`;
+    return { id, text: `${jersey(p)}${first(p)} — ${fmtMs(ms)}${split}` };
   });
   for (const id of didntGetOn(presentIds, played.map((r) => r.id))) {
     const p = byId.get(id);
-    if (p) rows.push(`${jersey(p)}${first(p)} — ${DIDNT_GET_ON}`);
+    if (p) rows.push({ id, text: `${jersey(p)}${first(p)} — ${DIDNT_GET_ON}` });
   }
   if (rows.length > 0) {
     lines.push(`\n⏱ Game time`);
-    lines.push(...rows);
+    // By number, never by minutes: this goes to every parent.
+    lines.push(...rows.sort(byJerseyThenName((r) => byId.get(r.id))).map((r) => r.text));
   }
   return lines.join("\n");
 }

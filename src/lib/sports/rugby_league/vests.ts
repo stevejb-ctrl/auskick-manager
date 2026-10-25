@@ -177,3 +177,44 @@ export function vestHistoryByPlayer(
   }
   return result;
 }
+
+/**
+ * Which vest has no wearer on the field now: the wearer has left it
+ * (subbed, lent), or is hurt while still drawn in a field slot (league
+ * keeps an injured kid's slot until someone replaces them). Round 3 edge
+ * cases, 24 Oct 2026: the FR wearer was hurt with nobody on the bench,
+ * stayed drawn in the vest, and "Who takes the FR vest?" never came up.
+ * FR first; null when every required vest is worn.
+ */
+export function missingVestOnField(input: {
+  vests: CurrentVests;
+  onField: readonly string[];
+  injured: ReadonlySet<string>;
+  loaned: ReadonlySet<string>;
+  required: { fr?: boolean; dh?: boolean } | undefined;
+}): VestType | null {
+  const on = new Set(input.onField);
+  const missing = (id: string | undefined) => !!id && (!on.has(id) || input.injured.has(id) || input.loaned.has(id));
+  if (input.required?.fr && missing(input.vests.fr)) return "fr";
+  if (input.required?.dh && missing(input.vests.dh)) return "dh";
+  return null;
+}
+
+/**
+ * Why Start can't go yet for the vests, in the coach's words, or null.
+ * Round 3 edge cases, 24 Oct 2026: with one kid in, Start H1 was greyed
+ * out and nothing said why (the FR and DH vests need two).
+ */
+export function vestStartBlocker(input: {
+  onField: number;
+  required: { fr?: boolean; dh?: boolean } | undefined;
+  fr: string | null;
+  dh: string | null;
+}): string | null {
+  const needFr = !!input.required?.fr && !input.fr;
+  const needDh = !!input.required?.dh && !input.dh;
+  if (!needFr && !needDh) return null;
+  const vests = (input.required?.fr ? 1 : 0) + (input.required?.dh ? 1 : 0);
+  if (vests === 2 && input.onField < 2) return "Need 2 on the field for the FR and DH vests";
+  return `Pick who wears the ${needFr ? "FR" : "DH"} vest`;
+}

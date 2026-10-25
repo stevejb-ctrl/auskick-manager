@@ -9,6 +9,8 @@ import { aflBranch, aflPositionModel, getAgeGroupConfig, teamSport } from "@/lib
 import type { Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { BackLink } from "@/components/ui/BackLink";
+import { LiveSync } from "@/components/live/LiveSync";
+import { readLiveSyncStamp } from "@/lib/live/liveSyncStamp";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +18,22 @@ interface LineupPageProps {
   params: { token: string };
 }
 
-export default async function LineupPage({ params }: LineupPageProps) {
+// In step with the coach's phone (LiveSync): once the game is under way
+// (the other phone kicked off), this picker gives way to the live game.
+export default async function LineupPage(props: LineupPageProps) {
+  const admin = createAdminClient();
+  const { data: row } = await admin.from("games").select("id").eq("share_token", props.params.token).maybeSingle();
+  const stamp = row ? await readLiveSyncStamp(admin, (row as { id: string }).id) : null;
+  const body = await LineupPageBody(props);
+  return (
+    <>
+      <LiveSync stamp={stamp} syncUrl={`/run/${props.params.token}/sync`} />
+      {body}
+    </>
+  );
+}
+
+async function LineupPageBody({ params }: LineupPageProps) {
   const admin = createAdminClient();
 
   const { data: game } = await admin
@@ -26,6 +43,12 @@ export default async function LineupPage({ params }: LineupPageProps) {
     .maybeSingle();
   if (!game) notFound();
   const g = game as Game;
+  const { count: lineupsSet } = await admin
+    .from("game_events")
+    .select("id", { count: "exact", head: true })
+    .eq("game_id", g.id)
+    .eq("type", "lineup_set");
+  if ((lineupsSet ?? 0) > 0) redirect(`/run/${params.token}`);
 
   const { data: teamRow } = await admin
     .from("teams")
@@ -56,13 +79,14 @@ export default async function LineupPage({ params }: LineupPageProps) {
         .from("game_availability")
         .select("player_id, status")
         .eq("game_id", g.id)
-        .eq("status", "available"),
+        .eq("status", "available")
+        .order("player_id"),
       admin
         .from("players")
         .select("*")
         .eq("team_id", g.team_id)
         .eq("is_active", true)
-        .order("jersey_number"),
+        .order("jersey_number").order("full_name").order("id"),
       admin.from("games").select("id").eq("team_id", g.team_id),
     ]);
 

@@ -122,8 +122,12 @@ test("AFL: a player lent before kickoff can be recalled at the quarter break", a
     page.getByRole("button", { name: /^start q2$/i }),
   ).toBeVisible({ timeout: 15_000 });
 
-  // The lent player is visible in the always-on recall strip (pre-fix: absent).
-  const recall = page.getByTestId(`qb-recall-lent-${lent.id}`);
+  // The status chip says who's out; its sheet lists the lent player
+  // (pre-fix: absent, they were never in the lineup).
+  const status = page.getByRole("button", { name: /^game settings:/i });
+  await expect(status).toHaveAccessibleName(/1 lent/);
+  await status.click();
+  const recall = page.getByTestId(`break-recall-lent-${lent.id}`);
   await expect(recall).toBeVisible({ timeout: 10_000 });
 
   // Bring them back.
@@ -147,6 +151,12 @@ test("AFL: a player lent before kickoff can be recalled at the quarter break", a
     )
     .toBe(true);
 
-  // ...and the recall chip disappears (they're no longer lent).
+  // ...the recall chip disappears (they're no longer lent), and they're
+  // on the bench, ready to swap on.
   await expect(recall).toBeHidden({ timeout: 10_000 });
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect(status).toHaveAccessibleName(/all available/i);
+  await expect(
+    page.getByRole("group", { name: "Bench", exact: true }).getByTestId(`player-tile-${lent.id}`),
+  ).toBeEnabled();
 });

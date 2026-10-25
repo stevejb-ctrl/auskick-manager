@@ -330,7 +330,8 @@ test("rugby league: long-press a player shows in-game, per-period and season ins
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   // Confirm the live shell mounted in H2 before driving the long-press.
-  await expect(page.getByText(/half\s*2/i).first()).toBeVisible({
+  // (The clock pill names the period, H2, as every sport's.)
+  await expect(page.getByRole("button", { name: /^clock — h2, /i })).toBeVisible({
     timeout: 15_000,
   });
 

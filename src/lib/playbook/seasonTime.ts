@@ -17,7 +17,7 @@ import type { BalanceUnit } from "./types";
 import { ALL_ZONES, gameZoneMinutes } from "@/lib/fairness";
 import { playedZoneMsByPeriod, type ThirdLookup } from "@/lib/sports/netball/fairness";
 import { primaryThirdFor } from "@/lib/sports/netball";
-import { playerSlotMsOnField, playerZoneMsOnField } from "@/lib/sports/rugby_league/fairness";
+import { playerLineMsOnField, playerSlotMsOnField } from "@/lib/sports/rugby_league/fairness";
 import { replaySoccerGame } from "@/lib/sports/soccer/replay";
 import { replayBasketballGame } from "@/lib/sports/basketball/replay";
 import { replayTouchGame } from "@/lib/sports/touch/replay";
@@ -146,9 +146,12 @@ export function gameTimeByUnit(
     return out;
   }
   if (!isRugby(sport)) return noSportBranch(sport, "gameTimeByUnit");
-  // Rugby: forwards / backs, with vest wearers' periods in
-  // "centre" (the duty, not a line). Named positions come from the
-  // slots recorded on each lineup (chunk 5.7).
+  // Rugby: forwards / backs, a vest's time in the line the kid stood in,
+  // as the field draws them (audit, 23 Oct 2026: it went to a "centre"
+  // no line reads, so a kid in a vest all game had no season time; round
+  // 2, 24 Oct: then to the vest's nominal line, which the field
+  // contradicted). Named positions come from the slots recorded on each
+  // lineup (chunk 5.7).
   if (unit === "position") {
     for (const [pid, byKey] of Object.entries(playerSlotMsOnField(events))) {
       for (const [key, ms] of Object.entries(byKey)) add(out, pid, key, ms);
@@ -156,13 +159,10 @@ export function gameTimeByUnit(
     return out;
   }
   if (unit !== "line") return out;
-  // A quarter number past the last period closes every stint at its
-  // quarter_end; nothing is extended to "now".
-  const zones = playerZoneMsOnField(events, Number.MAX_SAFE_INTEGER, 0);
-  for (const [pid, z] of Object.entries(zones)) {
-    add(out, pid, "forwards", z.forwards);
-    add(out, pid, "backs", z.backs);
-    add(out, pid, "centre", z.centre);
+  // Completed periods only; nothing is extended to "now".
+  for (const [pid, l] of Object.entries(playerLineMsOnField(events))) {
+    add(out, pid, "forwards", l.forwards);
+    add(out, pid, "backs", l.backs);
   }
   return out;
 }

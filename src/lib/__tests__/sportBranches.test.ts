@@ -77,7 +77,7 @@ describe("Football (soccer)'s unbuilt surfaces", () => {
     const policy = effectivePolicy("soccer", "U9", {});
     expect(playbook.strategies(policy).map((s) => s.id)).toEqual(["turns", "keepers"]);
     expect(playbook.recommendedStrategy(policy)).toBe("turns");
-    expect(playbook.positionModel(policy, 7).lines.map((l) => l.id)).toEqual(["gk"]);
+    expect(playbook.positionModel(policy, 7).lines.map((l) => l.id)).toEqual(["gk", "def", "mid", "att"]);
     expect(playbook.lawRules(policy, playbook.agePolicy("U9")).map((r) => r.id)).toContain("miniroos-scores");
     const u6 = effectivePolicy("soccer", "U6", {});
     expect(playbook.strategies(u6).map((s) => s.id)).toEqual(["minutes"]);

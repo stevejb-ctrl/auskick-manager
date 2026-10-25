@@ -27,20 +27,24 @@ import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isTouch, teamSport, type TouchSport } from "@/lib/sports/registry";
+import { getSportConfig, isTouch, teamSport, type TouchSport } from "@/lib/sports/registry";
 import { touchAgeGroupForTeam } from "@/lib/sports/touch/family";
 import { countMixedGroups, girlsTryCountsDouble, mixedFieldPlan, teamMixedRule } from "@/lib/sports/touch/mixed";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
 import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvailability";
-import { takeUndoTarget } from "@/lib/live/scoreUndo";
+import { checkPeriodWrite, periodWordOf, revalidateLivePage, scoreRowsOf, staleRefusal } from "@/lib/live/liveWriteGuard";
+import { lineupWrite, type PeriodWrite } from "@/lib/live/periodGuard";
+import { resolveUndoTarget, undoArgs, type UndoTargetRef } from "@/lib/live/undoTarget";
 import type { ActionResult, LiveAuth, MixedGroup } from "@/lib/types";
 import { normalizeTouchLineup, touchOnField, validateTouchLineup, type TouchLineup } from "@/lib/sports/touch/lineup";
 import { TOUCH_LINES, type MixedRule, type TouchAgeGroupConfig, type TouchLine } from "@/lib/sports/touch/types";
 import { TOUCH_SCORE_EVENTS } from "@/lib/sports/touch/replay";
+import { isGirlsTry, touchTryEventType } from "@/lib/sports/touch/scoreEvents";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
 import type { PlaybookSnapshot } from "@/lib/playbook/types";
+import { gameWriteError } from "@/lib/games/gameWriteError";
 
 interface Writer {
   supabase: SupabaseClient;
@@ -124,15 +128,28 @@ async function gameMixedGroups(supabase: SupabaseClient, teamId: string, gameId:
   return out;
 }
 
+// The team's period word ("quarter", "half"), for a refusal's wording.
+async function periodWordFor(teamId: string) {
+  const { sport, ageCfg } = await touchTeam(teamId);
+  return periodWordOf(ageCfg.periodLabel ?? getSportConfig(sport).periodLabel);
+}
+
 async function insertEvent(
   auth: LiveAuth,
   gameId: string,
   type: string,
   payload: { player_id?: string | null; metadata?: Record<string, unknown> },
   idempotencyKey?: string,
+  /** A period write: refused when another phone has moved the game on. */
+  guard?: PeriodWrite,
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
+  if (guard) {
+    const verdict = await checkPeriodWrite(w.supabase, gameId, guard, await periodWordFor(w.teamId), idempotencyKey);
+    if (verdict.kind === "stale") return staleRefusal(auth, w.teamId, gameId, verdict.message);
+    if (verdict.kind === "duplicate") return { success: true };
+  }
   const { sport } = await touchTeam(w.teamId);
 
   const { error } = await w.supabase.from("game_events").insert({
@@ -181,6 +198,9 @@ export async function startTouchGame(
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
+  // A second phone's picker, still open after the first kicked off.
+  const kickoff = await checkPeriodWrite(w.supabase, gameId, { kind: "kickoff" }, await periodWordFor(w.teamId));
+  if (kickoff.kind !== "ok") return staleRefusal(auth, w.teamId, gameId, kickoff.kind === "stale" ? kickoff.message : "This game has already started.");
   const { sport, ageCfg, mixed } = await touchTeam(w.teamId);
 
   const size = Math.max(ageCfg.minOnFieldSize, Math.min(ageCfg.maxOnFieldSize, Math.floor(onFieldSize)));
@@ -237,7 +257,10 @@ export async function startTouchGame(
   if (subIntervalSeconds != null) {
     gameUpdate.sub_interval_seconds = Math.round(Math.min(10 * 60, Math.max(60, subIntervalSeconds)));
   }
-  await w.supabase.from("games").update(gameUpdate).eq("id", gameId);
+  const { error: gameError } = await w.supabase.from("games").update(gameUpdate).eq("id", gameId);
+  // A refused write says so (UX round 3: soccer's kick-off went on with
+  // the game still "Upcoming").
+  if (gameError) return { success: false, error: gameWriteError(gameError) };
 
   // The start retires the pre-game draft, as for every sport.
   await w.supabase.from("game_lineup_drafts").delete().eq("game_id", gameId);
@@ -294,7 +317,10 @@ export async function startTouchPeriod(
   quarter: number,
   idempotencyKey?: string,
 ): Promise<ActionResult> {
-  const result = await insertEvent(auth, gameId, "quarter_start", { metadata: { quarter } }, idempotencyKey);
+  const result = await insertEvent(auth, gameId, "quarter_start", { metadata: { quarter } }, idempotencyKey, {
+    kind: "period_start",
+    period: quarter,
+  });
   if (!result.success) return result;
   return revalidateAfterMutation(auth, gameId);
 }
@@ -312,6 +338,7 @@ export async function endTouchPeriod(
     "quarter_end",
     { metadata: { quarter, elapsed_ms: elapsedMs } },
     idempotencyKey,
+    { kind: "period_end", period: quarter },
   );
   if (!result.success) return result;
   return revalidateAfterMutation(auth, gameId);
@@ -320,14 +347,26 @@ export async function endTouchPeriod(
 // ─── finaliseTouchGame ───────────────────────────────────────
 // game_finalised, then the game is completed and its season time rolled
 // up (stats and season balance).
-export async function finaliseTouchGame(auth: LiveAuth, gameId: string, elapsedMs: number): Promise<ActionResult> {
+export async function finaliseTouchGame(
+  auth: LiveAuth,
+  gameId: string,
+  elapsedMs: number,
+  /** The same for every retry of one Finish, so a retry can't finalise twice. */
+  idempotencyKey?: string,
+): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
   const { ageCfg } = await touchTeam(w.teamId);
 
+  // Both phones tapping Finish: the second finds it done.
+  if ((await checkPeriodWrite(w.supabase, gameId, { kind: "finalise" }, "quarter")).kind === "duplicate") {
+    revalidateLivePage(auth, w.teamId, gameId);
+    return { success: true };
+  }
+
   const finalise = await insertEvent(auth, gameId, "game_finalised", {
     metadata: { quarter: ageCfg.periodCount, elapsed_ms: elapsedMs },
-  });
+  }, idempotencyKey);
   if (!finalise.success) return finalise;
 
   const { error: updateError } = await w.supabase.from("games").update({ status: "completed" }).eq("id", gameId);
@@ -362,6 +401,7 @@ export async function recordTouchLineupSet(
     "lineup_set",
     { metadata: { lineup: normalizeTouchLineup(lineup), ...(at ?? {}) } },
     idempotencyKey,
+    lineupWrite(at),
   );
 }
 
@@ -381,6 +421,8 @@ export async function recordTouchSwap(
     line?: TouchLine;
     quarter: number;
     elapsed_ms: number;
+    /** By hand, off the rotation's cadence: the sub clock doesn't restart (lib/live/subAnchor). */
+    manual?: boolean;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {
@@ -397,6 +439,7 @@ export async function recordTouchSwap(
         ...(line ? { line } : {}),
         quarter: input.quarter,
         elapsed_ms: input.elapsed_ms,
+        ...(input.manual === true ? { manual: true } : {}),
       },
     },
     idempotencyKey,
@@ -456,12 +499,17 @@ export async function recordTouchScore(
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
   const { girlsTryDouble } = await touchTeam(w.teamId);
-  let girl = false;
-  if (girlsTryDouble) {
-    if (input.side === "theirs" || !input.player_id) girl = input.girl === true;
-    else girl = (await gameMixedGroups(w.supabase, w.teamId, gameId)).get(input.player_id) === "girl";
-  }
-  const type = input.side === "ours" ? (girl ? "girls_try" : "try") : girl ? "opponent_girls_try" : "opponent_try";
+  // The live screen decides the same way for its optimistic try (scoreEvents.ts).
+  const groups =
+    girlsTryDouble && input.side === "ours" && input.player_id ? await gameMixedGroups(w.supabase, w.teamId, gameId) : null;
+  const girl = isGirlsTry({
+    girlsTryDouble,
+    side: input.side,
+    playerId: input.player_id,
+    girl: input.girl,
+    groupOf: (id) => groups?.get(id),
+  });
+  const type = touchTryEventType(input.side, girl);
   const result = await insertEvent(
     auth,
     gameId,
@@ -476,42 +524,44 @@ export async function recordTouchScore(
   return revalidateAfterMutation(auth, gameId);
 }
 
-// ─── undoTouchScore ──────────────────────────────────────────
-// Takes back the latest try still standing (either side), naming it so a
-// replay takes back exactly that one.
-export async function undoTouchScore(auth: LiveAuth, gameId: string, idempotencyKey?: string): Promise<ActionResult> {
+const TOUCH_UNDO_TYPES: ReadonlySet<string> = new Set(TOUCH_SCORE_EVENTS);
+
+// Takes back the score this phone's undo strip named (`target`: its
+// event id, or its write's key while it's still on the way), and only
+// that one: with two phones scoring, "the latest" may be the other
+// phone's (UX round 2). Already taken back on the other phone: say so,
+// write nothing. An undo with no target (queued by an older client)
+// takes back the latest still standing, as before.
+export async function undoTouchScore(
+  auth: LiveAuth,
+  gameId: string,
+  target: UndoTargetRef | null,
+  idempotencyKey?: string,
+): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
 
-  const { data: rows } = await w.supabase
-    .from("game_events")
-    .select("id, type, metadata, player_id")
-    .eq("game_id", gameId)
-    .in("type", [...TOUCH_SCORE_EVENTS, "score_undo"])
-    .order("created_at", { ascending: true });
-  type ScoreRow = { id: string; type: string; metadata: unknown; player_id: string | null };
-  const standing: ScoreRow[] = [];
-  for (const row of (rows ?? []) as ScoreRow[]) {
-    if (row.type === "score_undo") takeUndoTarget(standing, row.metadata);
-    else standing.push(row);
-  }
-  const latest = standing[standing.length - 1];
+  const { ref, key } = undoArgs(target, idempotencyKey);
+  const rows = await scoreRowsOf(w.supabase, gameId, TOUCH_UNDO_TYPES);
+  const found = resolveUndoTarget(rows, TOUCH_UNDO_TYPES, ref, { ownKey: key });
+  if (found.kind === "gone") return staleRefusal(auth, w.teamId, gameId, found.message);
   // Nothing standing: nothing to take back (and a retry won't change that).
-  if (!latest) return { success: true };
+  if (found.kind !== "target") return { success: true };
+  const t = found.target;
 
   const result = await insertEvent(
     auth,
     gameId,
     "score_undo",
     {
-      player_id: latest.player_id ?? null,
+      player_id: t.player_id ?? null,
       metadata: {
-        target_event_id: latest.id,
-        original_type: latest.type,
-        quarter: (latest.metadata as { quarter?: number } | null)?.quarter,
+        target_event_id: t.id,
+        original_type: t.type,
+        quarter: (t.metadata as { quarter?: number } | null)?.quarter,
       },
     },
-    idempotencyKey,
+    key,
   );
   if (!result.success) return result;
   return revalidateAfterMutation(auth, gameId);

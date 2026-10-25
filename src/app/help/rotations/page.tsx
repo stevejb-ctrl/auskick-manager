@@ -205,9 +205,9 @@ export default function RotationsPage() {
           </li>
         </ul>
         <p className="mt-2 text-sm text-ink-dim">
-          On the Squad tab, set a kid&apos;s home to Keeper to mark a keen
-          keeper (or one of your named keepers), or mark Keeper as somewhere
-          they&apos;d rather not play.
+          On the Squad tab, tap a kid&apos;s Role and turn on Keen keeper to
+          mark a keen keeper (or one of your named keepers), or turn off
+          Takes a turn in goal for a kid who&apos;d rather not.
         </p>
       </section>
 
@@ -410,7 +410,7 @@ export default function RotationsPage() {
         <p className="mt-2 text-sm text-ink-dim">
           In a mixed Oztag game a girl&apos;s try counts 2 (ITF rule 4.3). Credit
           the try to the scorer and Siren counts it; the opponent&apos;s buttons
-          are <strong className="text-ink">+1</strong> and{" "}
+          are <strong className="text-ink">+T</strong> and{" "}
           <strong className="text-ink">+2 (girl)</strong>. If your competition
           doesn&apos;t play it, turn off{" "}
           <strong className="text-ink">A girl&apos;s try counts 2</strong> on the
@@ -491,11 +491,11 @@ export default function RotationsPage() {
           <strong className="text-ink">two unbroken quarters</strong>{" "}
           (U6–U9) or <strong className="text-ink">one unbroken half</strong>{" "}
           (U10–U12). &quot;Unbroken&quot; means on the field continuously
-          from period kickoff to hooter — no swaps off. It&apos;s off by
-          default: turn on <strong className="text-ink">Enforce unbroken
-          periods</strong> under Team › How we play, or for one game in Game
-          settings. When it&apos;s on, the suggested starting lineup puts
-          first any player who missed out in earlier games. The Stats tab
+          from period kickoff to hooter — no swaps off. Siren always keeps
+          it: the sub card never takes off a player who needs this period
+          for it, the live screen names who must stay on or start the next
+          period, and the suggested starting lineup puts first any player
+          who missed out in earlier games. The Stats tab
           shows how many games each player met the rule and lists any
           shortfalls, so you can plan next week&apos;s rotations accordingly.
         </p>

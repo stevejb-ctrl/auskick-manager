@@ -5,7 +5,8 @@
 // scroll any further, so it couldn't be tapped. The bar is shared by all
 // three sports, and so was the problem: nothing in the page left room
 // for it. Checked with the last thing on the page, the admin row's
-// Restart game (runner links get it mid-game).
+// Restart game, on the coach's page (a game-day link no longer offers
+// Restart: UX round 2, 24 Oct 2026).
 
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
@@ -39,14 +40,15 @@ for (const sport of ["afl", "netball", "rugby_league"] as const) {
       ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
     );
 
-    const context = await browser.newContext({ storageState: undefined, viewport: { width: 412, height: 839 } });
+    // The coach (the signed-in super-admin owns the team).
+    const context = await browser.newContext({ storageState: "playwright/.auth/super-admin.json", viewport: { width: 412, height: 839 } });
     const page = await context.newPage();
     await page.addInitScript(() => {
       try {
         for (const k of ["gm-walkthrough-seen", "nb-walkthrough-seen", "rl-walkthrough-seen"]) localStorage.setItem(k, "1");
       } catch {}
     });
-    await page.goto(`/run/${game.share_token}`);
+    await page.goto(`/teams/${team.id}/games/${game.id}/live`);
     const last = page.getByRole("button", { name: /^restart game$/i });
     await expect(last).toBeAttached({ timeout: 15_000 });
     await page.waitForLoadState("networkidle");

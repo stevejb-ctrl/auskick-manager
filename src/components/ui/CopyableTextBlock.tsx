@@ -44,12 +44,15 @@ export function CopyableTextBlock({
 
   return (
     <>
-      <div className="mb-3 flex items-center justify-between gap-2">
+      {/* The button drops under the title when both don't fit, and is a
+          44 px target (UX round 3, e4: at 200% text it ran off the screen,
+          and it was 28 px tall). */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-ink">{title}</h3>
         <button
           type="button"
           onClick={() => copy(text, preRef.current)}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-xs font-semibold text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700 active:bg-brand-800"
+          className="inline-flex min-h-[44px] max-w-full items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-left text-xs font-semibold text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700 active:bg-brand-800"
         >
           {copied ? copiedLabel : copyLabel}
         </button>
@@ -57,7 +60,7 @@ export function CopyableTextBlock({
       <pre
         id={textId}
         ref={preRef}
-        className="select-all whitespace-pre-wrap rounded-md bg-surface-alt px-3 py-2.5 font-sans text-sm leading-relaxed text-ink-dim"
+        className="select-all whitespace-pre-wrap break-words rounded-md bg-surface-alt [overflow-wrap:anywhere] px-3 py-2.5 font-sans text-sm leading-relaxed text-ink-dim"
       >
         {text}
       </pre>

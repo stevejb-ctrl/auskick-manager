@@ -29,6 +29,12 @@ export interface FormatGamePlanOptions {
    * index), shown as "Ava (FF)". Omit when positions aren't in force.
    */
   positionLabel?: (periodIndex: number, playerId: string) => string | undefined;
+  /**
+   * When and where, and who's out (first names), for the night-before
+   * text: parents had to ask (UX round 2, 24 Oct 2026). The time is
+   * written in the reader's own time zone, as the game page shows it.
+   */
+  details?: { scheduledAt?: string | null; venue?: string | null; out?: string[] };
 }
 
 /** "1 quarter" / "3 quarters" using the plan's resolved period noun. */
@@ -44,7 +50,9 @@ function periodCountPhrase(plan: GamePlan, n: number): string {
  * Layout:
  *
  *   🗓 Game plan — Hawks v Eagles
+ *   Sat 25 Oct · 9:00 am · Ross Reserve       (when the caller knows)
  *   4 quarters · ~12 min each · subs ~every 3 min
+ *   Out: Noah, Sienna                         (when anyone is)
  *
  *   Q1
  *     Back: Jack, Tom, Will
@@ -62,7 +70,7 @@ export function formatGamePlan(
   plan: GamePlan,
   opts: FormatGamePlanOptions,
 ): string {
-  const { teamName, opponentName, playerName, positionLabel } = opts;
+  const { teamName, opponentName, playerName, positionLabel, details } = opts;
   const names = (ids: string[], periodIndex?: number) =>
     ids.length > 0
       ? ids
@@ -79,6 +87,15 @@ export function formatGamePlan(
   const opp = opponentName?.trim();
   lines.push(`🗓 Game plan — ${teamName}${opp ? ` v ${opp}` : ""}`);
 
+  // When and where, as the game page's FormattedDateTime says it.
+  const at = details?.scheduledAt ? new Date(details.scheduledAt) : null;
+  const when =
+    at && !Number.isNaN(at.getTime())
+      ? `${at.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })} · ${at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`
+      : null;
+  const where = [when, details?.venue?.trim()].filter(Boolean).join(" · ");
+  if (where) lines.push(where);
+
   // Subhead — period count + minutes-per-period (matches the modal
   // subhead and gives the chat reader the cadence at a glance). For a
   // rolling-sub plan, append the interchange cadence so parents know the
@@ -91,6 +108,7 @@ export function formatGamePlan(
   lines.push(
     `${periodCountPhrase(plan, plan.periods.length)} · ~${mins} min each${cadence}`,
   );
+  if (details?.out && details.out.length > 0) lines.push(`Out: ${details.out.join(", ")}`);
 
   // One block per period: each on-field group on its own indented line,
   // then the bench / interchange queue. When the plan rotates, the queue

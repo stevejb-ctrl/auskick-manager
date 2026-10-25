@@ -80,6 +80,18 @@
   --siren-mark: #D9442D;
   --siren-pulse-from: rgba(217, 68, 45, 0.55);
   --siren-pulse-to:   rgba(217, 68, 45, 0);
+
+  /* The keyboard focus ring: a brand shade at least 3:1 against both
+     white and the near-black ink (the clock pill, the sub card), so
+     one ring reads on either. AFL's 600 is 2.8:1 on ink; its 500 is
+     3.2:1 on ink and 5.4:1 on white. */
+  --focus-ring: var(--brand-500);
+
+  /* Light only: Chrome's auto-dark and Samsung Internet's dark mode
+     leave the page alone (UX round 3, e4: they inverted it and the
+     dark sub card and clock pill sank into the darkened page). The
+     root layout's color-scheme meta says the same. */
+  color-scheme: only light;
 }
 
 /* Netball brand override — only the brand ladder + Siren-mark
@@ -103,6 +115,10 @@
   --siren-mark: #4A9FD1;
   --siren-pulse-from: rgba(74, 159, 209, 0.55);
   --siren-pulse-to:   rgba(74, 159, 209, 0);
+
+  /* Court blue's 600 is 4.3:1 on white and 3.9:1 on ink (its 500 is
+     under 3:1 on white). */
+  --focus-ring: var(--brand-600);
 }
 
 @layer base {
@@ -161,6 +177,23 @@
 
   html {
     overscroll-behavior-y: contain;
+    /* A control that takes keyboard focus scrolls clear of the sticky
+       bars, whose heights the bars set (useStickyInset). WCAG 2.4.11;
+       UX round 3, e4: Tab put union's back line under the score bar. */
+    scroll-padding-top: calc(var(--sticky-top-h, 0px) + 8px);
+    scroll-padding-bottom: calc(var(--sticky-bottom-h, 0px) + 8px);
+  }
+
+  /* ─── The keyboard focus ring ───────────────────────────────
+     Every control that doesn't style its own focus gets a solid 3 px
+     ring, 2 px out (UX round 3, e4: the browser's 1 px auto ring
+     vanished on the near-black clock pill and the dark sub card).
+     Zero specificity (:where), so a control's own focus-visible ring
+     or outline-none still wins. A script-focused heading or dialog
+     (tabindex -1) isn't a control and gets none. */
+  :where(:focus-visible:not([tabindex="-1"])) {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
   }
 
   /* ─── Non-selectable game chrome ────────────────────────────

@@ -31,6 +31,7 @@ import {
   type SoccerKeeperStrategy,
   type SoccerLine,
   type SoccerSubMode,
+  type SoccerUnit,
 } from "@/lib/sports/soccer/types";
 
 /** Season balance, as How we play sets it. */
@@ -45,18 +46,36 @@ export interface SoccerSeasonBalance {
 
 /** A suggested sub: the shape of the `swap` event it becomes. */
 export interface SoccerSub {
-  off_player_id: string;
+  /** Null: into an empty spot (the goal, or one on the field), nobody off. */
+  off_player_id: string | null;
   on_player_id: string;
-  line: SoccerLine;
+  /** The line the kid comes on in; "gk" only to fill an empty goal. */
+  line: SoccerUnit;
 }
 
 const seasonTotal = (season: SoccerSeasonBalance | undefined, pid: string) =>
   Object.values(season?.time[pid] ?? {}).reduce((s, ms) => s + ms, 0);
 
-/** The age group's shape at a size: the team's pick, else the default. */
-function shapeFor(ag: SoccerAgeGroupConfig, size: number, formationId: string | null | undefined): SoccerFormation {
+/**
+ * The age group's shape at a size: the team's pick, else the first (the
+ * default first) with a line every kid here plays. Futsal's 2-2 has no
+ * wings, so a "Plays as: Wings" kid was put up front (audit, 23 Oct
+ * 2026); the diamond has wings. Every kid, not just the starters: rolling
+ * subs bring a kid on only for a line they play. Nothing fits: the default.
+ */
+function shapeFor(
+  ag: SoccerAgeGroupConfig,
+  size: number,
+  formationId: string | null | undefined,
+  fit?: { players: readonly string[]; prefs?: SoccerKeeperPrefs },
+): SoccerFormation {
   const shapes = soccerFormations(ag, size);
-  return shapes.find((f) => f.id === formationId) ?? shapes[0];
+  const picked = shapes.find((f) => f.id === formationId);
+  if (picked) return picked;
+  const fits = (f: SoccerFormation) =>
+    !f.keeper ||
+    (fit?.players ?? []).every((pid) => SOCCER_OUTFIELD_LINES.some((l) => f.lines[l] > 0 && playsLine(fit?.prefs, pid, l)));
+  return shapes.find(fits) ?? shapes[0];
 }
 
 /** Keeper strategy in force: none at 4 a side, else the team's or the age group's. */
@@ -117,6 +136,13 @@ function seatLines(
   return out;
 }
 
+/** A line a kid's "Plays as" leaves out: outweighs every other term, used only when nobody else can fill it. */
+const NOT_PLAYED = -1000;
+const playsLine = (prefs: SoccerKeeperPrefs | undefined, pid: string, line: SoccerLine) =>
+  !(prefs?.notInLine?.[pid]?.includes(line));
+const withPlays = (prefs: SoccerKeeperPrefs | undefined, score: (pid: string, line: SoccerLine) => number) =>
+  (pid: string, line: SoccerLine) => score(pid, line) + (playsLine(prefs, pid, line) ? 0 : NOT_PLAYED);
+
 /** Season debt per line for a kid, weighted (0 when balance is off). */
 function seasonTerm(season: SoccerSeasonBalance | undefined) {
   const cache = new Map<string, Record<string, number>>();
@@ -153,15 +179,17 @@ export interface SoccerLineupSuggestion {
 }
 
 /**
- * The kick-off lineup. The keeper by the team's strategy (season keeper
- * minutes); the kids with the most season minutes start on the bench
- * (everyone gets the same this game either way); lines by season debt.
+ * The kick-off lineup, in the team's shape or, with none picked, the
+ * first that fits every kid's "Plays as". The keeper by the team's
+ * strategy (season keeper minutes); the kids with the most season
+ * minutes start on the bench (everyone gets the same this game either
+ * way); lines by season debt.
  * Fewer kids than the size: everyone plays, in the shape for that many.
  */
 export function suggestSoccerLineup(input: SuggestSoccerLineupInput): SoccerLineupSuggestion {
   const { ageGroup: ag, players, prefs, season } = input;
   const onCount = Math.min(input.onFieldSize, players.length);
-  const formation = shapeFor(ag, onCount, input.formationId);
+  const formation = shapeFor(ag, onCount, input.formationId, { players, prefs });
   const keeper = formation.keeper
     ? pickSoccerKeeper({
         strategy: keeperStrategyFor(ag, input.keeperStrategy),
@@ -178,7 +206,7 @@ export function suggestSoccerLineup(input: SuggestSoccerLineupInput): SoccerLine
     formation,
     lineup: {
       keeper,
-      lines: seatLines(order(starters), formation, seasonTerm(season)),
+      lines: seatLines(order(starters), formation, withPlays(prefs, seasonTerm(season))),
       bench: rest.filter((p) => !playing.has(p)),
     },
   };
@@ -196,10 +224,23 @@ export interface SuggestSoccerSubInput {
    * before a rolling sub moves them again. 0 or omitted = no guard.
    */
   minStintMs?: number;
+  /**
+   * The cool-down after going off: a kid who went off less than this long
+   * ago isn't brought back on (round 2 usability, 24 Oct 2026: after
+   * Mateo → Ollie the card at once had Mateo back on). 0 or omitted = none.
+   */
+  restMs?: number;
+  /** The kids' roles: a kid comes on only for a line they play. */
+  prefs?: SoccerKeeperPrefs;
+  /**
+   * The shape on the field now (the live screen's): whether it plays a
+   * keeper, and the places in each line. Any left empty are filled first.
+   */
+  spots?: { keeper: boolean; lines: Partial<Record<SoccerLine, number>> };
 }
 
 /** Who may come on, who may go off, and how long each has played. */
-function subPools(state: SoccerGameState, nowMs: number, minStintMs: number) {
+function subPools(state: SoccerGameState, nowMs: number, minStintMs: number, restMs = 0) {
   const lu = state.lineup;
   if (!lu) return null;
   const away = new Set([...state.injuredIds, ...state.loanedIds]);
@@ -217,7 +258,9 @@ function subPools(state: SoccerGameState, nowMs: number, minStintMs: number) {
   const justOff = (pid: string) => guard && state.lastSubbedOffMs[pid] !== undefined && nowMs - state.lastSubbedOffMs[pid] < minStintMs;
   const justOn = (pid: string) => guard && nowMs - (state.lastSubbedOnMs[pid] ?? 0) < minStintMs;
 
-  const fit = lu.bench.filter((p) => !away.has(p));
+  const resting = (pid: string) =>
+    restMs > 0 && state.lastSubbedOffMs[pid] !== undefined && nowMs - state.lastSubbedOffMs[pid] < restMs;
+  const fit = lu.bench.filter((p) => !away.has(p) && !resting(p));
   const rested = fit.filter((p) => !justOff(p));
   // Bench kids who haven't rested wait while anyone else has.
   const bench = sortBy(rested.length > 0 ? rested : fit, game);
@@ -230,18 +273,24 @@ function subPools(state: SoccerGameState, nowMs: number, minStintMs: number) {
   return { lu, bench, field, game, zoneHold };
 }
 
+/** Whether `on` may take `off`'s place: a line they play (a field kid at 4 a side always). */
+const takesPlace = (lu: SoccerLineup, prefs: SoccerKeeperPrefs | undefined, on: string, off: string) => {
+  const line = soccerUnitOf(lu, off) as SoccerLine;
+  return line === "field" || playsLine(prefs, on, line);
+};
+
 /**
  * The next rolling sub: the bench kid with the least time this game on
  * for the outfield kid with the most, into the same line, or null when
  * no sub evens their time. A kid held in a line comes on only there.
  */
 export function suggestSoccerRollingSub(input: SuggestSoccerSubInput): SoccerSub | null {
-  const pools = subPools(input.state, input.nowMs, input.minStintMs ?? 0);
+  const pools = subPools(input.state, input.nowMs, input.minStintMs ?? 0, input.restMs ?? 0);
   if (!pools) return null;
   const { lu, bench, field, game, zoneHold } = pools;
   for (const on of bench) {
     const only = zoneHold(on);
-    const off = field.find((p) => !only || soccerUnitOf(lu, p) === only);
+    const off = field.find((p) => (!only || soccerUnitOf(lu, p) === only) && takesPlace(lu, input.prefs, on, p));
     if (off && game(on) < game(off)) {
       return { off_player_id: off, on_player_id: on, line: soccerUnitOf(lu, off) as SoccerLine };
     }
@@ -266,19 +315,44 @@ export function soccerSubWindowsMs(mode: SoccerSubMode, periodMs: number, clockM
 }
 
 /**
- * A sub window's batch: the bench, least time first, on for the outfield
+ * A sub window's batch: empty spots first, nobody off (round 3 edge
+ * cases, 24 Oct 2026: hockey's keeper was hurt with nobody to replace
+ * them, and the card offered only outfield swaps with the goal empty) —
+ * the goal before the field, a keen keeper first, never a kid marked
+ * "not in goal". Then the bench, least time first, on for the outfield
  * kids with the most, while each sub evens their time. Windows are the
  * only time to sub, so no stint guard.
  */
 export function suggestSoccerWindowBatch(input: Omit<SuggestSoccerSubInput, "minStintMs">): SoccerSub[] {
-  const pools = subPools(input.state, input.nowMs, 0);
+  const pools = subPools(input.state, input.nowMs, 0, input.restMs ?? 0);
   if (!pools) return [];
   const { lu, bench, field, game, zoneHold } = pools;
   const used = new Set<string>();
   const subs: SoccerSub[] = [];
+  const filled = new Set<string>();
+  if (input.spots?.keeper && !lu.keeper) {
+    const keen = (p: string) => (input.prefs?.keenKeepers?.includes(p) || input.prefs?.namedKeepers?.includes(p) ? 0 : 1);
+    const keeper = sortBy(
+      bench.filter((p) => !zoneHold(p) && !input.prefs?.notInGoal?.includes(p)),
+      (p) => [keen(p), game(p)],
+    )[0];
+    if (keeper) {
+      filled.add(keeper);
+      subs.push({ off_player_id: null, on_player_id: keeper, line: "gk" });
+    }
+  }
+  for (const line of SOCCER_LINES) {
+    for (let open = (input.spots?.lines[line] ?? 0) - lu.lines[line].length; open > 0; open--) {
+      const on = bench.find((p) => !filled.has(p) && (!zoneHold(p) || zoneHold(p) === line) && (line === "field" || playsLine(input.prefs, p, line)));
+      if (!on) break;
+      filled.add(on);
+      subs.push({ off_player_id: null, on_player_id: on, line });
+    }
+  }
   for (const on of bench) {
+    if (filled.has(on)) continue;
     const only = zoneHold(on);
-    const off = field.find((p) => !used.has(p) && (!only || soccerUnitOf(lu, p) === only));
+    const off = field.find((p) => !used.has(p) && (!only || soccerUnitOf(lu, p) === only) && takesPlace(lu, input.prefs, on, p));
     if (!off || !(game(on) < game(off))) continue;
     used.add(off);
     subs.push({ off_player_id: off, on_player_id: on, line: soccerUnitOf(lu, off) as SoccerLine });
@@ -351,7 +425,7 @@ export function suggestSoccerHalfTime(input: SuggestSoccerHalfTimeInput): Soccer
   const lines = seatLines(
     here.filter((p) => playing.has(p)),
     formation,
-    (pid, line) => -(state.ms[pid]?.[line] ?? 0) / periodMs + owed(pid, line),
+    withPlays(prefs, (pid, line) => -(state.ms[pid]?.[line] ?? 0) / periodMs + owed(pid, line)),
   );
   // The injured and lent stay on the bench, after everyone who can play.
   const bench = [...here.filter((p) => p !== keeper && !playing.has(p)), ...squad.filter((p) => away.has(p))];

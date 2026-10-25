@@ -14,6 +14,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
+import { pickBreakStrategy, startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "serial" });
 
@@ -105,7 +106,7 @@ test("a conversion needs a try to convert, and Undo takes back the latest score"
   const kicker = players[1];
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.getByText(/half\s*1/i).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^clock — h1, /i })).toBeVisible({ timeout: 15_000 });
   // That text is server-rendered; a tap before hydration does nothing (WebKit).
   await waitForHydration(page);
 
@@ -119,10 +120,10 @@ test("a conversion needs a try to convert, and Undo takes back the latest score"
   const dialog = page.getByRole("dialog", { name: /record conversion/i });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText(/no try to convert/i)).toBeVisible();
-  await expect(kickerRow(page, kicker.full_name).getByRole("button", { name: /^made$/i })).toBeDisabled();
+  await expect(kickerRow(page, kicker.full_name).getByRole("button", { name: /^made\b/i })).toBeDisabled();
   // Force is the fouled-try-scorer carve-out: it opens the rows up.
   await dialog.getByRole("checkbox").check();
-  await expect(kickerRow(page, kicker.full_name).getByRole("button", { name: /^made$/i })).toBeEnabled();
+  await expect(kickerRow(page, kicker.full_name).getByRole("button", { name: /^made\b/i })).toBeEnabled();
   await dialog.getByRole("button", { name: /^cancel$/i }).click();
   await expect(dialog).toBeHidden();
 
@@ -133,7 +134,7 @@ test("a conversion needs a try to convert, and Undo takes back the latest score"
   const [tryEvent] = await eventsOfType(admin, game.id, "try");
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText(/no try to convert/i)).toBeHidden();
-  await kickerRow(page, kicker.full_name).getByRole("button", { name: /^made$/i }).click();
+  await kickerRow(page, kicker.full_name).getByRole("button", { name: /^made\b/i }).click();
   await expectWrite.poll(async () => (await eventsOfType(admin, game.id, "conversion_attempt")).length).toBe(1);
   const [conversion] = await eventsOfType(admin, game.id, "conversion_attempt");
   expect((conversion.metadata as { try_event_id?: string }).try_event_id).toBe(tryEvent.id);
@@ -155,7 +156,7 @@ test("a conversion needs a try to convert, and Undo takes back the latest score"
   await page.getByRole("button", { name: "Record a conversion for our team" }).click();
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText(/no try to convert/i)).toBeHidden();
-  await expect(kickerRow(page, kicker.full_name).getByRole("button", { name: /^made$/i })).toBeEnabled();
+  await expect(kickerRow(page, kicker.full_name).getByRole("button", { name: /^made\b/i })).toBeEnabled();
 });
 
 test("U13 plays international laws: anyone may kick, and there's no kickoff rotation", async ({ page }) => {
@@ -170,7 +171,7 @@ test("U13 plays international laws: anyone may kick, and there's no kickoff rota
     } catch {}
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.getByText(/half\s*1/i).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^clock — h1, /i })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("heading", { name: /^kickoff$/i })).toHaveCount(0);
 
   const dialog = page.getByRole("dialog", { name: /record conversion/i });
@@ -182,7 +183,7 @@ test("U13 plays international laws: anyone may kick, and there's no kickoff rota
     await expect(dialog.getByText("Pick the kicker.")).toBeVisible();
     // No rotation, so no Force carve-out either.
     await expect(dialog.getByRole("checkbox")).toHaveCount(0);
-    await kickerRow(page, kicker.full_name).getByRole("button", { name: /^made$/i }).click();
+    await kickerRow(page, kicker.full_name).getByRole("button", { name: /^made\b/i }).click();
     await expectWrite.poll(async () => (await eventsOfType(admin, game.id, "conversion_attempt")).length).toBe(n);
     await expect(dialog).toBeHidden();
   }
@@ -200,12 +201,13 @@ test("U13 records penalty and field goals for both sides, and Undo takes one bac
     } catch {}
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.getByText(/half\s*1/i).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^clock — h1, /i })).toBeVisible({ timeout: 15_000 });
 
-  // Ours from the scorebug: +PG asks who kicked it.
+  // Ours from the scorebug: +PG asks who scored it (the shared sheet).
   await page.getByRole("button", { name: "Record a penalty goal for our team" }).click();
-  const picker = page.getByRole("dialog", { name: /who kicked the penalty goal/i });
+  const picker = page.getByRole("dialog", { name: "Who scored?" });
   await expect(picker).toBeVisible();
+  await expect(picker).toContainText(/penalty goal/i);
   await picker.getByRole("button", { name: new RegExp(players[1].full_name) }).click();
   await expectWrite.poll(async () => (await eventsOfType(admin, game.id, "penalty_goal")).length).toBe(1);
   expect((await eventsOfType(admin, game.id, "penalty_goal"))[0].player_id).toBe(players[1].id);
@@ -242,12 +244,18 @@ test("U13 records penalty and field goals for both sides, and Undo takes one bac
     await page.getByRole("button", { name: new RegExp(`^clock — h${half}, running$`, "i") }).click();
     await page.getByRole("button", { name: new RegExp(`^end h${half} now$`, "i") }).click();
     await page.getByRole("button", { name: new RegExp(`^end\\s*[qh]\\s*${half}$`, "i") }).click();
-    if (half === 1) await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click({ timeout: 10_000 });
+    // Half-time is the shared break screen: Repeat keeps H1's lineup (so
+    // the two bench kids still never get on), then Start the 2nd half.
+    if (half === 1) {
+      await pickBreakStrategy(page, "Repeat");
+      await startFromBreak(page, /^start 2nd half/i);
+    }
   }
   await expect(page.getByRole("button", { name: /finish game/i })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText("0T · 0C · 1PG · 1FG").first()).toBeVisible();
-  await expect(page.getByRole("button", { name: /^\+ PG$/ })).toHaveCount(2);
-  await expect(page.getByRole("button", { name: /^\+ FG$/ })).toHaveCount(2);
+  // One of each a side, naming its team (the shared score editor).
+  await expect(page.getByRole("button", { name: /^Add a penalty goal, / })).toHaveCount(2);
+  await expect(page.getByRole("button", { name: /^Add a field goal, / })).toHaveCount(2);
 
   // The share text carries the goals and who kicked them. It appears once
   // Finish game has saved (the review's table shows the same score line,

@@ -111,3 +111,19 @@ export function seasonFromRollup(
   }
   return out;
 }
+
+/**
+ * Games whose stored rollup predates a change in how it's counted, to
+ * rebuild from their events. Rugby: rows written before vest time
+ * counted in its line (23 Oct 2026) hold it under "centre", which no
+ * line reads.
+ */
+export function staleRollupGameIds(
+  sport: Sport,
+  rows: Pick<PlayerGameTimeRow, "game_id" | "unit_kind" | "unit_key">[],
+): string[] {
+  if (sport !== "rugby_league" && sport !== "rugby_union") return [];
+  const stale = new Set<string>();
+  for (const r of rows) if (r.unit_kind === "line" && r.unit_key === "centre") stale.add(r.game_id);
+  return Array.from(stale);
+}

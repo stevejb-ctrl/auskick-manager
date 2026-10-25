@@ -13,6 +13,7 @@ import {
 import { sendPushNotification } from "@/lib/notifications/sendPushNotification";
 import { publicOrigin } from "@/lib/platform";
 import { ROLE_LABEL, ROLE_SUMMARY } from "@/lib/roles";
+import { memberDisplayName } from "@/lib/members/displayName";
 import type { ActionResult, TeamRole } from "@/lib/types";
 
 /**
@@ -341,6 +342,13 @@ export async function removeMember(
     }
   }
 
+  // Their email, while they're still a team-mate the coach can read.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("email")
+    .eq("id", userId)
+    .maybeSingle();
+
   const { error: deleteError } = await supabase
     .from("team_memberships")
     .delete()
@@ -348,6 +356,26 @@ export async function removeMember(
     .eq("user_id", userId);
 
   if (deleteError) return { success: false, error: deleteError.message };
+
+  // Remove means gone: the invite they joined with says it was
+  // cancelled, and one still waiting for them by email stops working
+  // (an accepted invite is spent anyway; lib/invites/inviteState).
+  const revokedAt = new Date().toISOString();
+  await supabase
+    .from("team_invites")
+    .update({ revoked_at: revokedAt })
+    .eq("team_id", teamId)
+    .eq("accepted_by", userId)
+    .is("revoked_at", null);
+  if (profile?.email) {
+    await supabase
+      .from("team_invites")
+      .update({ revoked_at: revokedAt })
+      .eq("team_id", teamId)
+      .eq("invited_email", profile.email)
+      .is("accepted_at", null)
+      .is("revoked_at", null);
+  }
 
   revalidatePath(`/teams/${teamId}/settings`);
   return { success: true };
@@ -414,7 +442,7 @@ export async function lookupInviteRecipient(
     result: {
       kind: "existing",
       userId: profile.id,
-      fullName: profile.full_name?.trim() || trimmed,
+      fullName: memberDisplayName({ full_name: profile.full_name, email: trimmed }),
     },
   };
 }

@@ -8,6 +8,7 @@ import {
   describeRole,
   normaliseRole,
   prefsFromRole,
+  outfieldModel,
   roleFromView,
   roleModelFor,
   rolesFromPrefs,
@@ -499,12 +500,19 @@ describe("plays as", () => {
     expect(roleModelFor(resolve("basketball", "U10", null))).toMatchObject({ home: true, playsAs: false });
   });
 
-  it("asks soccer only whether a kid takes a turn in goal", () => {
+  it("asks soccer about goal, and the lines a kid plays", () => {
     const model = roleModelFor(resolve("soccer", "U9", null))!;
     expect(model).toMatchObject({ keeper: true });
-    expect(model.options.map((o) => o.key)).toEqual(["gk"]);
+    expect(model.options.map((o) => o.key)).toEqual(["gk", "def", "mid", "att"]);
     expect(describeRole({ home: null, also: [], never: ["gk"], keepOn: false }, model)).toBe("No turns in goal");
     expect(describeRole({ home: "gk", also: [], never: [], keepOn: false }, model)).toBe("Keen keeper");
+    // Steve 2026-10-22: "you can go forward and backs".
+    expect(describeRole({ home: null, also: [], never: ["gk", "def", "mid"], keepOn: false }, model)).toMatch(
+      /^No turns in goal · plays /,
+    );
+    const lines = outfieldModel(model);
+    expect(lines).toMatchObject({ keeper: false, home: false });
+    expect(viewFromRole({ home: null, also: [], never: ["def", "mid"], keepOn: false }, lines).plays).toEqual(["att"]);
   });
 
   // Steve, 21 Oct 2026: "Selecting a player as both a guard and a forward

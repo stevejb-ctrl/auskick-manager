@@ -4,12 +4,15 @@ import { createClient, getUser } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import { Eyebrow, SFCard, SFIcon } from "@/components/sf";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
+import { isNotPlayed } from "@/lib/games/notPlayed";
 import { ROLE_LABEL } from "@/lib/roles";
 import { getAgeGroupConfig, getSportConfig, teamSport } from "@/lib/sports";
 import type { Sport, Team, TeamRole } from "@/lib/types";
+import { StatusNotice } from "@/components/team/StatusNotice";
 
 interface DashboardPageProps {
-  searchParams: { welcome?: string; list?: string };
+  /** left: the team just left (LeaveTeamButton), for "You left …". */
+  searchParams: { welcome?: string; list?: string; left?: string };
 }
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
@@ -40,7 +43,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   // the warmer /welcome screen.  Skipping sets the query param so the
   // empty-state dashboard still works as an escape hatch.
   if (teams.length === 0 && searchParams.welcome !== "skipped") {
-    redirect("/welcome");
+    redirect(searchParams.left ? `/welcome?left=${encodeURIComponent(searchParams.left)}` : "/welcome");
   }
 
   // Single-team auto-redirect (Steve 2026-05-13). Most coaches only
@@ -80,12 +83,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   );
   for (const { data: upcoming } of results) {
     for (const g of upcoming ?? []) {
+      // A past game never run isn't "Next" (lib/games/notPlayed).
+      if (isNotPlayed(g)) continue;
       if (!nextByTeam.has(g.team_id)) nextByTeam.set(g.team_id, g);
     }
   }
 
   return (
     <div className="space-y-6">
+      {searchParams.left && <StatusNotice>{`You left ${searchParams.left}.`}</StatusNotice>}
       <header>
         <Eyebrow>Coach dashboard</Eyebrow>
         <h1 className="mt-1.5 text-3xl font-bold tracking-tightest text-ink">

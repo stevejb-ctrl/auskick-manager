@@ -48,7 +48,7 @@ export function WinningCombinations({
             <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-micro text-ink-mute">
               {ZONE_LABEL[zone]}
             </h4>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {combos.map((c, i) => {
                 const names = c.playerIds
                   .map((id) => playerNames[id] ?? id)

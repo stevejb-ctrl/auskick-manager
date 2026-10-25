@@ -102,6 +102,8 @@ export interface SoccerLaw {
   source: string;
   /** The age ids it covers; every age when omitted. */
   ages?: readonly string[];
+  /** A law about keeping no score: not shown for a team that keeps one. */
+  noScoreboard?: boolean;
 }
 
 /** How we play's three keeper strategies, in a sport's own words. */
@@ -129,6 +131,11 @@ export interface SoccerFamilyRules {
   keeperGear: string;
   /** The team may play halves or quarters (teams.period_count). */
   halvesOrQuarters: boolean;
+  /**
+   * What the sport calls subs on the run ("Rolling subs"; futsal's
+   * "Flying subs") and how they work, for the lineup's sub settings.
+   */
+  rollingSubs: { label: string; note: string };
   /**
    * A lines warning: at these ages, with at least `count` outfield kids,
    * kids should play in at least `count` lines.

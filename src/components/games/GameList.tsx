@@ -2,11 +2,15 @@ import { createClient } from "@/lib/supabase/server";
 import type { Game, GameAvailability } from "@/lib/types";
 import { GameRow } from "@/components/games/GameRow";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { NotPlayedGames } from "@/components/games/NotPlayedGames";
+import { splitByNotPlayed } from "@/lib/games/notPlayed";
 
 interface GameListProps {
   teamId: string;
   /** Filter from URL (`?filter=upcoming|final|all`). Defaults to all. */
   filter?: "all" | "upcoming" | "final";
+  /** Coaches can delete or mark played a game that wasn't run. */
+  canEdit?: boolean;
 }
 
 /**
@@ -18,7 +22,7 @@ interface GameListProps {
  * The filter prop is passed in from the page server-component, sourced
  * from URL search params — keeps the list bookmarkable.
  */
-export async function GameList({ teamId, filter = "all" }: GameListProps) {
+export async function GameList({ teamId, filter = "all", canEdit = false }: GameListProps) {
   const supabase = createClient();
 
   const [{ data: games }, { count: activeCount }, { data: availability }] =
@@ -46,12 +50,11 @@ export async function GameList({ teamId, filter = "all" }: GameListProps) {
     availMap.set(row.game_id, (availMap.get(row.game_id) ?? 0) + 1);
   }
 
-  const active = all
-    .filter((g) => g.status !== "completed")
-    .sort(
-      (a, b) =>
-        new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime(),
-    );
+  // A game well past its start that was never run moves out of Upcoming
+  // to Not played, with the past (lib/games/notPlayed).
+  const { next: active, notPlayed } = splitByNotPlayed(
+    all.sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()),
+  );
 
   const completed = all
     .filter((g) => g.status === "completed")
@@ -88,6 +91,10 @@ export async function GameList({ teamId, filter = "all" }: GameListProps) {
             ))}
           </div>
         </section>
+      )}
+
+      {showCompleted && (
+        <NotPlayedGames teamId={teamId} games={[...notPlayed].reverse()} canEdit={canEdit} />
       )}
 
       {showCompleted && completed.length > 0 && (

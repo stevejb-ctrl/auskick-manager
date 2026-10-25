@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { SUB_DUE_RING, SUB_IDLE_SHADOW, SubDueHeading, SubDueRoot } from "@/components/live/SubDue";
 import type { Lineup, Player, Zone } from "@/lib/types";
 import type { SwapSuggestion } from "@/lib/fairness";
+import { firstName, shortName } from "@/lib/names";
+import { useSquadNames } from "@/components/live/SquadNames";
 import {
   applyInlineSwapOverride,
   eligibleOffReplacements,
@@ -12,6 +15,7 @@ import {
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { PulseDot } from "@/components/ui/PulseDot";
 import { hapticSuccess } from "@/lib/haptics";
+import { swapPairLabel } from "@/lib/live/liveChrome";
 
 interface SwapCardProps {
   suggestions: SwapSuggestion[];
@@ -127,15 +131,11 @@ const ZONE_COLOR: Record<Zone, string> = {
   fwd: "text-zone-f-dark",
 };
 
-function first(name: string): string {
-  return name.split(" ")[0];
-}
-
+// The avatar's letters, from the words with letters ("😀 Emoji Kid" is EK).
 function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  const a = parts[0]?.[0] ?? "";
-  const b = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  return (a + b).toUpperCase();
+  const first = firstName(name);
+  const rest = shortName(name, "initial").slice(first.length).trim();
+  return (Array.from(first)[0] ?? "") + (rest ? Array.from(rest)[0] : "");
 }
 
 // The numbered chip that ties a card row to its tile's "OFF n" chip.
@@ -167,6 +167,7 @@ export function SwapCard({
   subIntervalMs,
   pastHooterCarry,
 }: SwapCardProps) {
+  const names = useSquadNames();
   const [open, setOpen] = useState(forceOpen ?? false);
   // Which chip's inline override picker is open. null = none.
   const [editing, setEditing] = useState<{ index: number; side: "on" | "off" } | null>(
@@ -280,37 +281,16 @@ export function SwapCard({
           </svg>
         </span>
       )}
-      <span className="min-w-0 flex-1">
-        {isDue ? (
-          <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase leading-4 tracking-micro text-due-dark">
-            <span
-              aria-hidden
-              className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-due-dark shadow-[0_0_0_3px_rgba(242,166,90,0.25)]"
-            />
-            Sub due — {countLabel}
+      <SubDueHeading
+        due={isDue}
+        count={valid.length}
+        summary={valid.map(({ off, on, index }, i) => (
+          <span key={index} className={`flex min-w-0 items-center gap-1.5 ${i > 0 ? "ml-1.5" : ""}`}>
+            <span className={`${PAIR_CHIP} h-4 w-4 text-[10px] leading-4`}>{index + 1}</span>
+            <span className="truncate">{names.first(off)} → {names.first(on)}</span>
           </span>
-        ) : (
-          <span className="block font-mono text-[10px] font-bold uppercase leading-4 tracking-micro text-warm/[0.64]">
-            Suggested — {countLabel}
-          </span>
-        )}
-        {isDue ? (
-          // The banner's copy moved into the card; the list below already
-          // names who, so the summary line doesn't repeat it.
-          <span className="block text-sm font-medium leading-5 text-warm/[0.92]">
-            Rotate a player off
-          </span>
-        ) : (
-          <span className="flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-sm font-medium leading-5 text-warm/[0.92]">
-            {valid.map(({ off, on, index }, i) => (
-              <span key={index} className={`flex items-center gap-1.5 ${i > 0 ? "ml-1.5" : ""}`}>
-                <span className={`${PAIR_CHIP} h-4 w-4 text-[10px] leading-4`}>{index + 1}</span>
-                {first(off.full_name)} → {first(on.full_name)}
-              </span>
-            ))}
-          </span>
-        )}
-      </span>
+        ))}
+      />
     </>
   );
 
@@ -330,9 +310,7 @@ export function SwapCard({
   );
 
   const rootClass = `overflow-hidden rounded-md bg-ink text-warm transition-shadow duration-fast ease-out-quart ${
-    isDue
-      ? "shadow-[0_0_0_2px_#A8590F,0_8px_24px_rgba(26,30,26,0.18)]"
-      : "shadow-[0_4px_12px_rgba(26,30,26,0.12)]"
+    isDue ? SUB_DUE_RING : SUB_IDLE_SHADOW
   }`;
 
   const body = (
@@ -444,7 +422,7 @@ export function SwapCard({
                         canOverride ? "underline decoration-warm/40 decoration-dashed underline-offset-[5px]" : ""
                       } ${editingThis("off") ? "bg-white/15" : canOverride ? "hover:bg-white/10" : ""}`}
                     >
-                      {first(off.full_name)}
+                      <span className="inline-block max-w-[9rem] truncate align-bottom">{names.first(off)}</span>
                       {canOverride && " ⌄"}
                     </button>
                     <span aria-hidden className="text-warm/50">→</span>
@@ -466,7 +444,7 @@ export function SwapCard({
                         canOverride ? "underline decoration-mint/50 decoration-dashed underline-offset-[5px]" : ""
                       } ${editingThis("on") ? "bg-white/15" : canOverride ? "hover:bg-white/10" : ""}`}
                     >
-                      {first(on.full_name)}
+                      <span className="inline-block max-w-[9rem] truncate align-bottom">{names.first(on)}</span>
                       {canOverride && " ⌄"}
                     </button>
                     {edited && (
@@ -502,6 +480,7 @@ export function SwapCard({
                           void hapticSuccess();
                           onApplyOne(s);
                         }}
+                        aria-label={swapPairLabel(off.full_name, on.full_name)}
                         className="min-h-11 flex-shrink-0 whitespace-nowrap rounded-sm bg-white/10 px-3 font-mono text-[11px] font-bold text-warm transition-colors duration-fast ease-out-quart hover:bg-white/15 disabled:opacity-60"
                       >
                         {pending ? "…" : "Make swap"}
@@ -545,7 +524,7 @@ export function SwapCard({
                                 <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black/20 font-mono text-[8px] font-bold">
                                   {p ? initials(p.full_name) : "?"}
                                 </span>
-                                {p ? first(p.full_name) : pid}
+                                {p ? names.first(p) : pid}
                               </button>
                             );
                           })}
@@ -590,13 +569,9 @@ export function SwapCard({
     </>
   );
 
-  // Due: the card IS the alert (the banner it replaces carried
-  // role="alert"), so there's exactly one on screen.
-  return isDue ? (
-    <section role="alert" aria-label="Sub due" className={rootClass}>
+  return (
+    <SubDueRoot due={isDue} className={rootClass}>
       {body}
-    </section>
-  ) : (
-    <div className={rootClass}>{body}</div>
+    </SubDueRoot>
   );
 }

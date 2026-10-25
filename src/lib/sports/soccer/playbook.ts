@@ -10,24 +10,26 @@
 //     coach names them). Ages with no keeper and no lines play "Equal
 //     minutes". Either way every kid rotates through the lines, evened
 //     out over the season (season balance).
-//   - A kid's role is about goal: home "Keeper" marks a keen keeper
-//     (or, under "Keepers", one of the named keepers, in rank order);
-//     "Takes a turn in goal" switched off (stored as a never row on
-//     Keeper) marks a kid who'd rather not go in goal.
-//     The lines offer no home: the engine rotates every kid through
-//     them, so a home line would do nothing.
+//   - A kid's role: goal, and the lines they play. Home "Keeper" marks
+//     a keen keeper (or, under "Keepers", one of the named keepers, in
+//     rank order); "Takes a turn in goal" switched off (a never row on
+//     Keeper) marks a kid who'd rather not go in goal. "Plays as" the
+//     lines (Steve 2026-10-22: "you can go forward and backs") keeps a
+//     kid to those lines (never rows for the rest). The lines offer no
+//     main: a home row is a keen keeper.
 //   - The laws shown are the sport's own (rules.ruleSource), at the
 //     ages they cover: soccer's MiniRoos (no scores or ladders, rolling
 //     subs, no offside), futsal's FIFA laws, hockey's FIH.
 
 import type { SoccerSport } from "@/lib/sports/registry";
-import { SOCCER_RULES } from "@/lib/sports/soccer";
+import { SOCCER_RULES, soccerFormations } from "@/lib/sports/soccer";
 import { soccerFamilyAgeGroup } from "@/lib/sports/soccer/family";
 import type { SoccerKeeperPrefs } from "@/lib/sports/soccer/keeper";
-import type { SoccerFamilyRules, SoccerKeeperStrategy } from "@/lib/sports/soccer/types";
+import { SOCCER_OUTFIELD_LINES, type SoccerFamilyRules, type SoccerKeeperStrategy, type SoccerLine } from "@/lib/sports/soccer/types";
 import type {
   AgePolicy,
   EffectivePolicy,
+  LawRulesTeam,
   LineDef,
   LockedRule,
   PlaybookSnapshot,
@@ -43,6 +45,18 @@ import type { ResolvedPlaybook } from "@/lib/playbook/team";
 /** The role sheet's one line: goal (keen keeper / named keeper / not in goal). */
 function keeperLine(rules: SoccerFamilyRules): LineDef {
   return { id: "gk", label: rules.lineLabels.gk.label, colorToken: "zone-c" };
+}
+
+const LINE_TOKEN: Record<SoccerLine, LineDef["colorToken"]> = { def: "zone-b", mid: "zone-c", att: "zone-f", field: "zone-c" };
+
+/** The outfield lines an age plays in any of its shapes (none at 4 a side). */
+function outfieldLines(rules: SoccerFamilyRules, ag: ReturnType<typeof soccerFamilyAgeGroup>): LineDef[] {
+  const shapes = soccerFormations(ag, ag.defaultOnFieldSize);
+  return SOCCER_OUTFIELD_LINES.filter((l) => shapes.some((f) => f.lines[l] > 0)).map((l) => ({
+    id: l,
+    label: rules.lineLabels[l].label,
+    colorToken: LINE_TOKEN[l],
+  }));
 }
 
 /** The three keeper strategies, in the sport's own words. */
@@ -104,10 +118,17 @@ export function soccerKeeperPrefs(prefs: readonly PrefLike[]): SoccerKeeperPrefs
     .filter((p) => p.line === "gk" && !p.position_key)
     .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
   const home = goal.filter((p) => p.kind === "home").map((p) => p.player_id);
+  const notInLine: Record<string, SoccerLine[]> = {};
+  for (const p of prefs) {
+    if (p.kind !== "never" || p.position_key || !p.line) continue;
+    if (!(SOCCER_OUTFIELD_LINES as readonly string[]).includes(p.line)) continue;
+    (notInLine[p.player_id] ??= []).push(p.line as SoccerLine);
+  }
   return {
     keenKeepers: home,
     namedKeepers: home,
     notInGoal: goal.filter((p) => p.kind === "never").map((p) => p.player_id),
+    notInLine,
   };
 }
 
@@ -162,9 +183,11 @@ export function soccerFamilyPlaybook(sport: SoccerSport, rules: SoccerFamilyRule
       return [];
     },
 
-    lawRules(policy: EffectivePolicy): LockedRule[] {
+    lawRules(policy: EffectivePolicy, _agePolicy: AgePolicy, team?: LawRulesTeam): LockedRule[] {
       return rules.ruleSource.laws
         .filter((law) => !law.ages || law.ages.includes(policy.ageGroup))
+        // "No scores are kept" isn't this team's rule once it keeps score.
+        .filter((law) => !(law.noScoreboard && team?.trackScoring))
         .map(({ id, text, source }) => ({ id, text, source }));
     },
 
@@ -185,10 +208,11 @@ export function soccerFamilyPlaybook(sport: SoccerSport, rules: SoccerFamilyRule
     },
 
     positionModel(policy: EffectivePolicy): PositionModel {
-      const withKeeper = age(policy.ageGroup).keeper !== "none";
+      const ag = age(policy.ageGroup);
+      const withKeeper = ag.keeper !== "none";
       return {
         kind: "none",
-        lines: withKeeper ? [keeperLine(rules)] : [],
+        lines: [...(withKeeper ? [keeperLine(rules)] : []), ...outfieldLines(rules, ag)],
         defaults: [],
         canRename: false,
         canAddRemove: false,

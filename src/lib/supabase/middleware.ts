@@ -131,6 +131,9 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/run/") ||
     pathname.startsWith("/join/") ||
+    // A game's parent availability link (migration 0072): a parent
+    // opens it from the group chat with no account. Not /teams/…/availability.
+    pathname.startsWith("/availability/") ||
     pathname.startsWith("/help") ||
     pathname.startsWith("/demo") ||
     pathname.startsWith("/contact") ||

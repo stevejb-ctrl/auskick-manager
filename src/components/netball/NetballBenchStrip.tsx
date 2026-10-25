@@ -1,32 +1,24 @@
 "use client";
 
-// ─── Netball Bench Strip ─────────────────────────────────────
-// Horizontal strip rendered below the live court showing every
-// available player who isn't currently in a position — bench, injured,
-// or lent to opposition. Lets the coach see at a glance who's off, who
-// might come on, and who's been ruled out.
+// ─── Netball Bench ───────────────────────────────────────────
+// The bench under the live court: every available kid who isn't in a
+// bib — on the bench, injured, or lent to the opposition. AFL's Bench
+// (the reference), as touch's and soccer's are: a "Bench (n)" card of
+// tiles in a four-column grid, each the shared LinePlayerTile with the
+// kid's thirds as its time bar and everyone's time, 0:00 included.
 //
-// Visual language tracks the AFL Bench component (small tiles with
-// name + time bar + badges) but trimmed: netball doesn't have jersey
-// numbers, and there's no swap-tap interaction during live play, so
-// tiles are tap-to-no-op + long-press for the actions menu (so you
-// can mark a sidelined player recovered, or pre-place them via
-// lock-for-next-break flow if they had a position context).
+// UX audit 23 Oct 2026: this used to be a sideways-scrolling strip of
+// its own tiles with a "BENCH" eyebrow on each, an INJ chip drawn over
+// the "INJURED" label ("INJ NJURED"), and no time on a healthy kid.
+//
+// Netball has no swaps during play (subs are at the breaks), so a tap
+// or a long-press opens the kid's actions: mark recovered, bring back,
+// injure, lend.
 
-import { useRef } from "react";
-import {
-  formatMinSec,
-  type PlayerThirdMs,
-} from "@/lib/sports/netball/fairness";
+import type { PlayerThirdMs } from "@/lib/sports/netball/fairness";
 import type { Player } from "@/lib/types";
-import { hapticTap } from "@/lib/haptics";
-import { dispatchLongPressEvent } from "@/components/live/LongPressHint";
-
-const THIRD_BAR_COLOR = {
-  attack: "bg-zone-f",
-  centre: "bg-zone-c",
-  defence: "bg-zone-b",
-} as const;
+import { LinePlayerTile, type TileLineStyle } from "@/components/live/LinePlayerTile";
+import { ZONE_STRIP } from "@/components/live/zoneStrip";
 
 export type OffCourtStatus = "bench" | "injured" | "loaned";
 
@@ -35,198 +27,59 @@ export interface OffCourtEntry {
   status: OffCourtStatus;
 }
 
+// The court's thirds in the court's colours (attack orange, centre
+// green, defence blue). Bench tiles have no line, so only the bar uses
+// them.
+const NETBALL_THIRD_STYLES: Record<keyof PlayerThirdMs, TileLineStyle> = {
+  attack: { short: "", label: "Attack", textClass: "text-zone-f", fillClass: "bg-zone-f-fill", stripClass: ZONE_STRIP.f },
+  centre: { short: "", label: "Centre", textClass: "text-zone-c", fillClass: "bg-zone-c-fill", stripClass: ZONE_STRIP.c },
+  defence: { short: "", label: "Defence", textClass: "text-zone-b", fillClass: "bg-zone-b-fill", stripClass: ZONE_STRIP.b },
+};
+const NETBALL_BAR_ORDER = ["attack", "centre", "defence"] as const;
+
 interface Props {
   entries: OffCourtEntry[];
-  /** Per-player time accumulated this game; drives the bar + total under each tile. */
+  /** Per-player time this game by third: the bar and the time. */
   playerStats?: Map<string, PlayerThirdMs>;
-  /** Per-player goals scored; drives the dark chip in each tile's top-right corner. */
+  /** Per-player goals: the dark chip on a scorer's tile. */
   playerGoals?: Record<string, number>;
-  /**
-   * Opens the actions modal for that player (positionId stays null for
-   * bench targets). Fired by a tap or a long-press — the tile has no
-   * other tap job, so a tap shouldn't be a dead end (UX plan H5).
-   */
+  /** Opens the kid's actions (a tap or a long-press). */
   onTileLongPress?: (playerId: string) => void;
 }
 
-export function NetballBenchStrip({
-  entries,
-  playerStats,
-  playerGoals,
-  onTileLongPress,
-}: Props) {
+export function NetballBenchStrip({ entries, playerStats, playerGoals, onTileLongPress }: Props) {
   if (entries.length === 0) return null;
   return (
-    <section className="rounded-md border border-hairline bg-surface p-3 shadow-card">
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
-          Bench
-        </h3>
-        <span className="text-[10px] tabular-nums text-ink-dim">
-          {entries.length}
-        </span>
+    <div role="group" aria-label="Bench" className="rounded-md border border-hairline bg-surface p-2 shadow-card">
+      <p className="mb-1.5 px-1 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
+        Bench ({entries.length})
+      </p>
+      <div className="grid grid-cols-4 gap-1.5">
+        {entries.map(({ player, status }) => {
+          const stats = playerStats?.get(player.id);
+          const goals = playerGoals?.[player.id] ?? 0;
+          const open = onTileLongPress ? () => onTileLongPress(player.id) : undefined;
+          return (
+            <LinePlayerTile
+              key={player.id}
+              // Netball has no jersey numbers on tiles (the bib is the
+              // position); a squad carried over from another sport may
+              // still have them.
+              player={player.jersey_number == null ? player : { ...player, jersey_number: null }}
+              line={null}
+              styles={NETBALL_THIRD_STYLES}
+              barOrder={NETBALL_BAR_ORDER}
+              onClick={open}
+              onLongPress={open}
+              totalMs={stats ? stats.attack + stats.centre + stats.defence : 0}
+              lineMs={stats ? { ...stats } : undefined}
+              injured={status === "injured"}
+              loaned={status === "loaned"}
+              score={goals > 0 ? { text: String(goals), label: `${goals} goal${goals === 1 ? "" : "s"}` } : null}
+            />
+          );
+        })}
       </div>
-      {/* pt-2 reserves vertical space for each tile's goal-chip
-          which is positioned `-top-1.5` (outside the tile box) — per
-          CSS spec, `overflow-x: auto` implicitly clips overflow-y too,
-          so without the top padding the chip gets cut off by the
-          scroll container. */}
-      <div className="flex gap-2 overflow-x-auto pt-2 pb-0.5">
-        {entries.map((e) => (
-          <BenchTile
-            key={e.player.id}
-            entry={e}
-            stats={playerStats?.get(e.player.id)}
-            goalCount={playerGoals?.[e.player.id]}
-            onLongPress={
-              onTileLongPress ? () => onTileLongPress(e.player.id) : undefined
-            }
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-// ─── Tile ────────────────────────────────────────────────────
-function BenchTile({
-  entry,
-  stats,
-  goalCount,
-  onLongPress,
-}: {
-  entry: OffCourtEntry;
-  stats?: PlayerThirdMs;
-  goalCount?: number;
-  onLongPress?: () => void;
-}) {
-  const { player, status } = entry;
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const didLongPressRef = useRef(false);
-
-  function handlePointerDown(e: React.PointerEvent<HTMLButtonElement>) {
-    if (!onLongPress) return;
-    didLongPressRef.current = false;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    longPressTimerRef.current = setTimeout(() => {
-      didLongPressRef.current = true;
-      longPressTimerRef.current = null;
-      // P1-10 + P1.5-3 (netball mirrors of AFL `15b0a7c` / `2ca8e90`):
-      // a light tap haptic on long-press completion, then a window
-      // event so LongPressHint self-dismisses once the gesture has
-      // been discovered. Fire-and-forget.
-      void hapticTap("light");
-      dispatchLongPressEvent();
-      onLongPress();
-    }, 500);
-  }
-
-  function cancelLongPress() {
-    if (longPressTimerRef.current !== null) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-  }
-
-  // Tile bg + border vary by status. Sidelined entries get a muted
-  // surface-alt + grayscale to read as "not in the rotation".
-  const baseBg =
-    status === "injured"
-      ? "border-danger/40 bg-surface"
-      : status === "loaned"
-      ? "border-warn/40 bg-surface"
-      : "border-hairline bg-surface";
-
-  const total = stats ? stats.attack + stats.centre + stats.defence : 0;
-  const pct = (v: number) => `${(v / (total || 1)) * 100}%`;
-
-  // Pull "First L" display name like the on-court token.
-  const parts = player.full_name.trim().split(/\s+/).filter(Boolean);
-  const firstName = parts[0] ?? player.full_name;
-  const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  const display = lastInitial ? `${firstName} ${lastInitial}` : firstName;
-
-  return (
-    <button
-      type="button"
-      onPointerDown={onLongPress ? handlePointerDown : undefined}
-      onPointerUp={onLongPress ? cancelLongPress : undefined}
-      onPointerCancel={onLongPress ? cancelLongPress : undefined}
-      onClick={
-        onLongPress
-          ? () => {
-              cancelLongPress();
-              // The long-press already opened the sheet — swallow its
-              // trailing click.
-              if (didLongPressRef.current) {
-                didLongPressRef.current = false;
-                return;
-              }
-              onLongPress();
-            }
-          : undefined
-      }
-      className={[
-        "relative flex w-24 flex-shrink-0 flex-col items-stretch rounded-md border px-2 py-1.5 text-center shadow-card transition-all duration-fast ease-out-quart",
-        baseBg,
-        status !== "bench" ? "grayscale" : "",
-      ].join(" ")}
-      aria-label={`${player.full_name} (${status})`}
-    >
-      {/* Goal-count chip — top-right, mirrors the court token. */}
-      {goalCount !== undefined && goalCount > 0 && (
-        <span
-          className="nums absolute -right-1 -top-1.5 z-10 inline-flex items-center gap-0.5 rounded-xs bg-ink px-1 py-0.5 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-warm shadow-card"
-          aria-label={`${goalCount} goal${goalCount === 1 ? "" : "s"}`}
-        >
-          {goalCount}
-        </span>
-      )}
-
-      {/* Status chip — top-left, mirrors the court token's INJ / LENT badges. */}
-      {status === "injured" && (
-        <span
-          className="absolute left-1 top-1 rounded-xs bg-danger px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white"
-          aria-label="Injured"
-        >
-          INJ
-        </span>
-      )}
-      {status === "loaned" && (
-        <span
-          className="absolute left-1 top-1 rounded-xs bg-warn px-1 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white"
-          aria-label="Lent to opposition"
-        >
-          LENT
-        </span>
-      )}
-
-      {/* Status label (small) above the name — "BENCH", "INJURED", "LENT". */}
-      <span className="font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-ink-dim">
-        {status === "bench" ? "Bench" : status === "injured" ? "Injured" : "On loan"}
-      </span>
-      <span className="mt-0.5 truncate text-sm font-bold leading-tight text-ink">
-        {display}
-      </span>
-
-      {/* Total minutes — small monospace under the name. */}
-      {total > 0 && (
-        <span className="nums mt-0.5 font-mono text-[10px] font-semibold leading-none text-ink-dim">
-          {formatMinSec(total)}
-        </span>
-      )}
-
-      {/* Stacked time bar — same palette as the court token bars. */}
-      {stats && total > 0 && (
-        <span
-          className="mt-0.5 flex h-1.5 w-full overflow-hidden rounded-full bg-surface-alt"
-          aria-label={`Attack ${formatMinSec(stats.attack)}, Centre ${formatMinSec(stats.centre)}, Defence ${formatMinSec(stats.defence)}`}
-        >
-          <span style={{ width: pct(stats.attack) }} className={THIRD_BAR_COLOR.attack} />
-          <span style={{ width: pct(stats.centre) }} className={THIRD_BAR_COLOR.centre} />
-          <span style={{ width: pct(stats.defence) }} className={THIRD_BAR_COLOR.defence} />
-        </span>
-      )}
-    </button>
+    </div>
   );
 }

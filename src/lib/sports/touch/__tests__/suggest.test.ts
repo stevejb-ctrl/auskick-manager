@@ -9,6 +9,7 @@ import {
   suggestTouchBreakPlan,
   suggestTouchLineup,
   suggestTouchSubs,
+  touchMixFix,
   touchShapeFor,
   type TouchMixed,
   type TouchSeasonBalance,
@@ -114,8 +115,45 @@ describe("suggestTouchSubs", () => {
     g.start(1);
     const state = replayTouchGame(g.events, { nowMs: 5 * MIN });
     const subs = suggestTouchSubs({ state, nowMs: 5 * MIN, strategy: "minutes", mixed });
-    for (const s of subs) expect(groupOf(s.on_player_id)).toBe(groupOf(s.off_player_id));
+    for (const s of subs) expect(groupOf(s.on_player_id)).toBe(groupOf(s.off_player_id!));
     expect(subs.map((s) => s.on_player_id)).toEqual(["g", "h", "i", "j"]);
+  });
+
+  it("fixes the mix first after a hand sub breaks the cap: a girl on for a boy, then the side stays legal", () => {
+    // Audit 23 Oct (touch P1): Mia off for Jack put 4 boys on, and the
+    // next suggestion (girl for girl) kept 4 boys on.
+    const g = game();
+    // a b c girls on, d e f boys on; bench g (girl), h i j k l (boys).
+    g.lineup(FIELD);
+    g.start(1);
+    g.swap("a", "h", 2); // a girl off for a boy: d e f h = 4 boys
+    const state = replayTouchGame(g.events, { nowMs: 3 * MIN });
+    expect(countMixedGroups(touchOnField(state.lineup!), groupOf).boys).toBe(4);
+    const subs = suggestTouchSubs({ state, nowMs: 3 * MIN, strategy: "minutes", mixed });
+    // The girl with least time (g) on for the boy on longest (d).
+    expect(subs[0]).toEqual({ off_player_id: "d", on_player_id: "g", line: "field" });
+    for (const s of subs) g.swap(s.off_player_id, s.on_player_id, 3);
+    const after = countMixedGroups(touchOnField(replayTouchGame(g.events).lineup!), groupOf);
+    expect(after.boys).toBeLessThanOrEqual(3);
+    expect(after.girls).toBeGreaterThanOrEqual(1);
+  });
+
+  it("touchMixFix: just the fix, and nothing once the side keeps the rule", () => {
+    const g = game();
+    g.lineup(FIELD);
+    g.start(1);
+    g.swap("a", "h", 2);
+    const over = replayTouchGame(g.events, { nowMs: 3 * MIN });
+    expect(touchMixFix({ state: over, nowMs: 3 * MIN, strategy: "minutes", mixed }).subs).toEqual([
+      { off_player_id: "d", on_player_id: "g", line: "field" },
+    ]);
+    const g2 = game();
+    g2.lineup(FIELD);
+    g2.start(1);
+    const fine = replayTouchGame(g2.events, { nowMs: 3 * MIN });
+    expect(touchMixFix({ state: fine, nowMs: 3 * MIN, strategy: "minutes", mixed }).subs).toEqual([]);
+    // A team that isn't mixed has no rule to fix.
+    expect(touchMixFix({ state: over, nowMs: 3 * MIN, strategy: "minutes" }).subs).toEqual([]);
   });
 
   it("keeps a held kid on, and a lane hold in its lane", () => {

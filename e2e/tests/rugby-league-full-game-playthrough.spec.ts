@@ -20,10 +20,17 @@
 //   5. Start H2 ("Ready for half 2"), end it from the clock menu.
 //   6. Tap "Finalise game" → game_finalised lands + status=completed.
 //   7. Server-side assertions confirm the event log matches.
+//
+// And the live chrome AFL's screen has (UX audit 23 Oct 2026, "Drift
+// from AFL"): the undo strip says what each score was, a tap-tap sub
+// asks first and toasts, full time drops the scorebug's chips and the
+// undo strip for the review's labelled 44 pt buttons, and nobody can
+// arrive late once the last half is over.
 
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "serial" });
 
@@ -80,17 +87,22 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   });
   await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
 
-  // 13 players: 11 on field + 2 on bench (U10 RL defaultOnFieldSize=11).
-  const players = await makePlayers(admin, {
+  // 13 players here: 11 on field + 2 on bench (U10 RL
+  // defaultOnFieldSize=11). A 14th in the squad could turn up late.
+  const squad = await makePlayers(admin, {
     teamId: team.id,
     ownerId,
-    count: 13,
+    count: 14,
     ageGroup: "U10",
   });
+  const players = squad.slice(0, 13);
+  const { data: teamRow } = await admin.from("teams").select("name").eq("id", team.id).single();
+  const teamName = teamRow!.name as string;
 
   const game = await makeGame(admin, {
     teamId: team.id,
     ownerId,
+    opponent: "Souths Juniors",
   });
   // makeGame uses AFL's AGE_GROUPS (defaultOnFieldSize=12 for U10).
   // Override to RL's 11 so the lineup we seed matches the legal
@@ -154,7 +166,8 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   // "HALF 1", the field renders 11 on-field tiles, and the
   // "+ Try (us)" button is enabled once a player is selected.
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.getByText(/half\s*1/i).first()).toBeVisible({
+  // The clock pill names the period (H1), as every sport's.
+  await expect(page.getByRole("button", { name: /^clock — h1, /i })).toBeVisible({
     timeout: 15_000,
   });
 
@@ -194,6 +207,9 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
       { timeout: 5_000 },
     )
     .toBeGreaterThanOrEqual(1);
+  // The undo strip says what was recorded, as AFL's does.
+  const strip = page.getByTestId("undo-strip");
+  await expect(strip).toContainText(`${teamName} try — ${tryScorer.full_name}`);
 
   // ─── Phase 3: Conversion (via dialog, auto-opened) ───────
   // At U8+, recording a try automatically opens
@@ -215,7 +231,7 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
     .getByRole("dialog", { name: /record conversion/i })
     .locator("div.rounded-lg")
     .filter({ hasText: kicker.full_name });
-  await kickerRow.getByRole("button", { name: /^made$/i }).click();
+  await kickerRow.getByRole("button", { name: /^made\b/i }).click();
 
   await expect
     .poll(
@@ -230,6 +246,28 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
       { timeout: 5_000 },
     )
     .toBeGreaterThanOrEqual(1);
+  await expect(strip).toContainText(`${teamName} conversion — ${kicker.full_name}`);
+  // The kid who isn't here yet can be added late.
+  await expect(page.getByRole("button", { name: "+ Add late arrival" })).toBeVisible();
+
+  // ─── Phase 3b: A tap-tap sub asks first, then toasts ─────
+  // Bench kid, then a back: AFL's confirm, in league's words.
+  const [benchKid, offKid] = [players[11], players[5]];
+  await page.getByTestId(`league-player-tile-${benchKid.id}`).click({ timeout: 10_000 });
+  await page.getByTestId(`league-player-tile-${offKid.id}`).click({ timeout: 10_000 });
+  const confirm = page.getByRole("dialog", { name: /manually sub/i });
+  await expect(confirm).toContainText(`${benchKid.full_name} (Bench) for ${offKid.full_name} (Backs)`);
+  await confirm.getByRole("button", { name: "Confirm" }).click();
+  await expect(page.getByTestId("swap-toast")).toContainText(`${offKid.full_name} → ${benchKid.full_name}`);
+  await expect(
+    page.getByRole("group", { name: "Backs" }).getByTestId(`league-player-tile-${benchKid.id}`),
+  ).toBeVisible({ timeout: 1_500 });
+  await expect
+    .poll(async () => {
+      const { data } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "swap");
+      return (data ?? []).map((e) => e.metadata as { off_player_id: string; on_player_id: string });
+    })
+    .toEqual([expect.objectContaining({ off_player_id: offKid.id, on_player_id: benchKid.id })]);
 
   // ─── Phase 4: End H1 via manual hooter ────────────────────
   // The half runs at real speed, so we end the period
@@ -245,14 +283,10 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   await page
     .getByRole("button", { name: /^end\s*[qh]\s*1$/i })
     .click();
-  // Ending H1 fires LeagueLiveGame's qbreak auto-open effect, which
-  // pops StartQuarterModal ("Start H2" → confirm with "Start clock")
-  // on top of the inline "Start H2" break card. That modal
-  // (z-50) covers the inline button, so we drive H2 straight from the
-  // modal's "Start clock" CTA. Wait for it so Phase 5 doesn't race the
-  // auto-open.
+  // Ending H1 lands on the shared period break screen ("2nd half
+  // lineup"); no start modal pops up on its own any more.
   await expect(
-    page.getByRole("button", { name: /^start [qh]\d+ now$/i }),
+    page.getByRole("heading", { name: /^2nd half lineup$/i }),
   ).toBeVisible({ timeout: 10_000 });
 
   // ─── H1 BOUNDARY assertion (D-10): periodCount=2, currentQuarter=1 ──
@@ -268,9 +302,7 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   ).toBeHidden();
 
   // ─── Phase 5: Start H2, end via manual hooter ─────────────
-  await page
-    .getByRole("button", { name: /^start [qh]\d+ now$/i })
-    .click();
+  await startFromBreak(page, /^start 2nd half/i);
   // H2 now active. Same clock-menu flow as Phase 4. An inline
   // KickoffPicker may render for H2, but it's a non-blocking
   // <section> (not an overlay), so it never covers the clock pill.
@@ -285,6 +317,19 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   await expect(
     page.getByRole("button", { name: /finish game/i }),
   ).toBeVisible({ timeout: 10_000 });
+  // Full time: the review fixes a miscount. The scorebug's chips and the
+  // undo strip are gone, each side's buttons name their team (44 pt),
+  // and nobody arrives late at a game that's over.
+  await expect(page.getByTestId("undo-strip")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Record a try for our team" })).toHaveCount(0);
+  for (const side of [teamName, "Souths Juniors"]) {
+    for (const what of ["a try", "a conversion"]) {
+      const add = page.getByRole("button", { name: `Add ${what}, ${side}` });
+      await expect(add).toHaveCount(1);
+      expect((await add.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    }
+  }
+  await expect(page.getByRole("button", { name: "+ Add late arrival" })).toHaveCount(0);
 
   // Pre-finalise the game must still be in_progress — coach hasn't
   // tapped Finalise yet.

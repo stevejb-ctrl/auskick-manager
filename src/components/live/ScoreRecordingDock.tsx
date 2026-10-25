@@ -48,7 +48,7 @@ interface ScoreRecordingDockProps {
   /** Optional Cancel label override (default "Cancel"). */
   cancelLabel?: string;
   /**
-   * Opens the full player action sheet (keep on, injured, lend…) — the
+   * Opens the full player action sheet (switch, injured, lend…) — the
    * same sheet long-press opens, so every action is reachable with a
    * plain tap (UX plan H5). Rendered as the dock's last row.
    */
@@ -75,7 +75,9 @@ export function ScoreRecordingDock({
           <button
             type="button"
             onClick={onCancel}
-            className="flex-shrink-0 font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim hover:text-ink-dim"
+            // A 44 px target round the small word, without growing the
+            // row (it was 50×17; UX round 3, e4).
+            className="-my-3 -mr-2 inline-flex min-h-[44px] min-w-[44px] flex-shrink-0 items-center justify-center px-2 font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim hover:text-ink"
           >
             {cancelLabel}
           </button>
@@ -84,7 +86,9 @@ export function ScoreRecordingDock({
         {/* The label keeps the system's name ("Player actions" is
             also the sheet's title and what the help pages teach)
             but now carries a scent of what's inside — it was the
-            only vague wording on the dock (UI polish audit §5). */}
+            only vague wording on the dock (UI polish audit §5). Every
+            sport's dock shows it, so it names only actions every sport's
+            sheet has (rugby has no lock; ten-sport UX audit). */}
         {onPlayerActions && (
           <button
             type="button"
@@ -92,7 +96,7 @@ export function ScoreRecordingDock({
             className="mt-2 flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-sm border border-hairline bg-surface-alt text-sm font-semibold text-ink transition-colors duration-fast ease-out-quart hover:bg-hairline"
           >
             Player actions
-            <span className="font-normal text-ink-dim">· injury, lend, lock</span>
+            <span className="font-normal text-ink-dim">· switch, injury, lend</span>
           </button>
         )}
       </div>

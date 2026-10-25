@@ -93,7 +93,7 @@ export function DashboardShell({
         </Suspense>
       </div>
 
-      <div className="grid gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6">
         {/* 1. Per-player stats */}
         <Section title="Player statistics">
           <PlayerStatsTable stats={playerStats} hasData={hasZoneData} />

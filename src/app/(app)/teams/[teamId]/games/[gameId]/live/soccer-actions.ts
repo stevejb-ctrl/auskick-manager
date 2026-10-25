@@ -30,7 +30,7 @@ import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isSoccer, teamSport, type SoccerSport } from "@/lib/sports/registry";
+import { getSportConfig, isSoccer, teamSport, type SoccerSport } from "@/lib/sports/registry";
 import { soccerFamilyAgeGroupForTeam, soccerFamilyRules } from "@/lib/sports/soccer/family";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
@@ -38,7 +38,9 @@ import {
   buildAvailableIds,
   reconcileLineupToAvailability,
 } from "@/lib/live/reconcileLineupToAvailability";
-import { takeUndoTarget } from "@/lib/live/scoreUndo";
+import { checkPeriodWrite, periodWordOf, revalidateLivePage, scoreRowsOf, staleRefusal } from "@/lib/live/liveWriteGuard";
+import { lineupWrite, type PeriodWrite } from "@/lib/live/periodGuard";
+import { resolveUndoTarget, undoArgs, type UndoTargetRef } from "@/lib/live/undoTarget";
 import type { ActionResult, LiveAuth } from "@/lib/types";
 import {
   normalizeSoccerLineup,
@@ -50,6 +52,8 @@ import { SOCCER_UNITS } from "@/lib/sports/soccer/types";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
 import type { PlaybookSnapshot } from "@/lib/playbook/types";
+import { gameWriteError } from "@/lib/games/gameWriteError";
+import { onSurfaceLabel } from "@/lib/sports/words";
 
 interface Writer {
   supabase: SupabaseClient;
@@ -103,15 +107,28 @@ const soccerTeam = cache(async (teamId: string): Promise<{ sport: SoccerSport; a
   return { sport, ageCfg: soccerFamilyAgeGroupForTeam(sport, row?.age_group ?? null, row?.period_count ?? null) };
 });
 
+// The team's period word ("quarter", "half"), for a refusal's wording.
+async function periodWordFor(teamId: string) {
+  const { sport, ageCfg } = await soccerTeam(teamId);
+  return periodWordOf(ageCfg.periodLabel ?? getSportConfig(sport).periodLabel);
+}
+
 async function insertEvent(
   auth: LiveAuth,
   gameId: string,
   type: string,
   payload: { player_id?: string | null; metadata?: Record<string, unknown> },
   idempotencyKey?: string,
+  /** A period write: refused when another phone has moved the game on. */
+  guard?: PeriodWrite,
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
+  if (guard) {
+    const verdict = await checkPeriodWrite(w.supabase, gameId, guard, await periodWordFor(w.teamId), idempotencyKey);
+    if (verdict.kind === "stale") return staleRefusal(auth, w.teamId, gameId, verdict.message);
+    if (verdict.kind === "duplicate") return { success: true };
+  }
   const { sport } = await soccerTeam(w.teamId);
 
   const { error } = await w.supabase.from("game_events").insert({
@@ -174,6 +191,9 @@ export async function startSoccerGame(
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
+  // A second phone's picker, still open after the first kicked off.
+  const kickoff = await checkPeriodWrite(w.supabase, gameId, { kind: "kickoff" }, await periodWordFor(w.teamId));
+  if (kickoff.kind !== "ok") return staleRefusal(auth, w.teamId, gameId, kickoff.kind === "stale" ? kickoff.message : "This game has already started.");
   const { sport, ageCfg } = await soccerTeam(w.teamId);
 
   const size = Math.max(ageCfg.minOnFieldSize, Math.min(ageCfg.maxOnFieldSize, Math.floor(onFieldSize)));
@@ -181,24 +201,6 @@ export async function startSoccerGame(
   const check = validateSoccerLineup(lineup, ageCfg, size, soccerFamilyRules(sport));
   const firstError = check.issues.find((i) => i.kind === "error");
   if (firstError) return { success: false, error: firstError.message };
-
-  const { error: insertError } = await w.supabase.from("game_events").insert({
-    game_id: gameId,
-    type: "lineup_set",
-    metadata: { lineup, sport },
-    created_by: w.userId,
-  });
-  if (insertError) return { success: false, error: insertError.message };
-
-  if (startHalfToo) {
-    const { error: startError } = await w.supabase.from("game_events").insert({
-      game_id: gameId,
-      type: "quarter_start",
-      metadata: { quarter: 1, sport },
-      created_by: w.userId,
-    });
-    if (startError) return { success: false, error: startError.message };
-  }
 
   const gameUpdate: {
     status: "in_progress";
@@ -214,7 +216,37 @@ export async function startSoccerGame(
   if (subIntervalSeconds != null) {
     gameUpdate.sub_interval_seconds = Math.round(Math.min(10 * 60, Math.max(60, subIntervalSeconds)));
   }
-  await w.supabase.from("games").update(gameUpdate).eq("id", gameId);
+  // The game goes in progress before anything is written, so a refused
+  // write stops kick-off: at 3 a side the lineup and the first half were
+  // written, the clock ran, and the game stayed "Upcoming" everywhere
+  // else (UX round 3, 24 Oct 2026).
+  const { error: gameError } = await w.supabase.from("games").update(gameUpdate).eq("id", gameId);
+  if (gameError) {
+    return { success: false, error: gameWriteError(gameError, { size, onSurface: onSurfaceLabel(sport) }) };
+  }
+  // Back to upcoming if the kick-off events don't land.
+  const undoStart = async (message: string): Promise<ActionResult> => {
+    await w.supabase.from("games").update({ status: "upcoming" }).eq("id", gameId);
+    return { success: false, error: message };
+  };
+
+  const { error: insertError } = await w.supabase.from("game_events").insert({
+    game_id: gameId,
+    type: "lineup_set",
+    metadata: { lineup, sport },
+    created_by: w.userId,
+  });
+  if (insertError) return undoStart(insertError.message);
+
+  if (startHalfToo) {
+    const { error: startError } = await w.supabase.from("game_events").insert({
+      game_id: gameId,
+      type: "quarter_start",
+      metadata: { quarter: 1, sport },
+      created_by: w.userId,
+    });
+    if (startError) return undoStart(startError.message);
+  }
 
   // Kick-off retires the pre-game draft, as for every sport.
   await w.supabase.from("game_lineup_drafts").delete().eq("game_id", gameId);
@@ -276,7 +308,10 @@ export async function startSoccerHalf(
   quarter: number,
   idempotencyKey?: string,
 ): Promise<ActionResult> {
-  const result = await insertEvent(auth, gameId, "quarter_start", { metadata: { quarter } }, idempotencyKey);
+  const result = await insertEvent(auth, gameId, "quarter_start", { metadata: { quarter } }, idempotencyKey, {
+    kind: "period_start",
+    period: quarter,
+  });
   if (!result.success) return result;
   return revalidateAfterMutation(auth, gameId);
 }
@@ -294,6 +329,7 @@ export async function endSoccerHalf(
     "quarter_end",
     { metadata: { quarter, elapsed_ms: elapsedMs } },
     idempotencyKey,
+    { kind: "period_end", period: quarter },
   );
   if (!result.success) return result;
   return revalidateAfterMutation(auth, gameId);
@@ -307,14 +343,22 @@ export async function finaliseSoccerGame(
   auth: LiveAuth,
   gameId: string,
   elapsedMs: number,
+  /** The same for every retry of one Finish, so a retry can't finalise twice. */
+  idempotencyKey?: string,
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
   const { ageCfg } = await soccerTeam(w.teamId);
 
+  // Both phones tapping Finish: the second finds it done.
+  if ((await checkPeriodWrite(w.supabase, gameId, { kind: "finalise" }, "quarter")).kind === "duplicate") {
+    revalidateLivePage(auth, w.teamId, gameId);
+    return { success: true };
+  }
+
   const finalise = await insertEvent(auth, gameId, "game_finalised", {
     metadata: { quarter: ageCfg.periodCount, elapsed_ms: elapsedMs },
-  });
+  }, idempotencyKey);
   if (!finalise.success) return finalise;
 
   const { error: updateError } = await w.supabase.from("games").update({ status: "completed" }).eq("id", gameId);
@@ -350,6 +394,7 @@ export async function recordSoccerLineupSet(
     "lineup_set",
     { metadata: { lineup: normalizeSoccerLineup(lineup), ...(at ?? {}) } },
     idempotencyKey,
+    lineupWrite(at),
   );
 }
 
@@ -360,6 +405,8 @@ const unitOrUndefined = (v: unknown): SoccerUnit | undefined =>
 // A sub: the kid coming on takes the place of the kid going off, in goal
 // or in their line. `line` names the spot when the kid going off has
 // already left (an injury or a loan landed first) or the spot is empty.
+// `batch_left`: made from a due batch one swap at a time, how many of the
+// batch are still to make (lib/live/subAnchor holds the sub clock till 0).
 export async function recordSoccerSwap(
   auth: LiveAuth,
   gameId: string,
@@ -369,10 +416,17 @@ export async function recordSoccerSwap(
     line?: SoccerUnit;
     quarter: number;
     elapsed_ms: number;
+    batch_left?: number;
+    /** By hand, off the rotation's cadence: the sub clock doesn't restart (lib/live/subAnchor). */
+    manual?: boolean;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {
   const line = unitOrUndefined(input.line);
+  const batchLeft =
+    typeof input.batch_left === "number" && Number.isInteger(input.batch_left) && input.batch_left > 0
+      ? input.batch_left
+      : undefined;
   return insertEvent(
     auth,
     gameId,
@@ -385,6 +439,8 @@ export async function recordSoccerSwap(
         ...(line ? { line } : {}),
         quarter: input.quarter,
         elapsed_ms: input.elapsed_ms,
+        ...(batchLeft ? { batch_left: batchLeft } : {}),
+        ...(input.manual === true ? { manual: true } : {}),
       },
     },
     idempotencyKey,
@@ -469,46 +525,44 @@ export async function recordSoccerOpponentGoal(
   return revalidateAfterMutation(auth, gameId);
 }
 
-// ─── undoSoccerScore ─────────────────────────────────────────
-// Takes back the latest goal still standing (either side), naming it so
-// a replay takes back exactly that one.
+const SOCCER_UNDO_TYPES: ReadonlySet<string> = new Set(["goal", "opponent_goal"]);
+
+// Takes back the score this phone's undo strip named (`target`: its
+// event id, or its write's key while it's still on the way), and only
+// that one: with two phones scoring, "the latest" may be the other
+// phone's (UX round 2). Already taken back on the other phone: say so,
+// write nothing. An undo with no target (queued by an older client)
+// takes back the latest still standing, as before.
 export async function undoSoccerScore(
   auth: LiveAuth,
   gameId: string,
+  target: UndoTargetRef | null,
   idempotencyKey?: string,
 ): Promise<ActionResult> {
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
 
-  const { data: rows } = await w.supabase
-    .from("game_events")
-    .select("id, type, metadata, player_id")
-    .eq("game_id", gameId)
-    .in("type", ["goal", "opponent_goal", "score_undo"])
-    .order("created_at", { ascending: true });
-  type ScoreRow = { id: string; type: string; metadata: unknown; player_id: string | null };
-  const standing: ScoreRow[] = [];
-  for (const row of (rows ?? []) as ScoreRow[]) {
-    if (row.type === "score_undo") takeUndoTarget(standing, row.metadata);
-    else standing.push(row);
-  }
-  const latest = standing[standing.length - 1];
+  const { ref, key } = undoArgs(target, idempotencyKey);
+  const rows = await scoreRowsOf(w.supabase, gameId, SOCCER_UNDO_TYPES);
+  const found = resolveUndoTarget(rows, SOCCER_UNDO_TYPES, ref, { ownKey: key });
+  if (found.kind === "gone") return staleRefusal(auth, w.teamId, gameId, found.message);
   // Nothing standing: nothing to take back (and a retry won't change that).
-  if (!latest) return { success: true };
+  if (found.kind !== "target") return { success: true };
+  const t = found.target;
 
   const result = await insertEvent(
     auth,
     gameId,
     "score_undo",
     {
-      player_id: latest.player_id ?? null,
+      player_id: t.player_id ?? null,
       metadata: {
-        target_event_id: latest.id,
-        original_type: latest.type,
-        quarter: (latest.metadata as { quarter?: number } | null)?.quarter,
+        target_event_id: t.id,
+        original_type: t.type,
+        quarter: (t.metadata as { quarter?: number } | null)?.quarter,
       },
     },
-    idempotencyKey,
+    key,
   );
   if (!result.success) return result;
   return revalidateAfterMutation(auth, gameId);

@@ -4,8 +4,9 @@
 // had been paused. The hooter, the sub timer and every saved
 // elapsed_ms then credited on-field kids with the stoppage.
 //
-// The pause still lives only in the page (no quarter_pause event),
-// so it doesn't survive a reload. Neither does AFL's or netball's.
+// A pause and a resume are clock_pause events now (round 2, 24 Oct
+// 2026), so a pause survives a reload in every sport:
+// clock-pause-survives-reload.spec.ts.
 
 import { test, expect, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
@@ -14,10 +15,11 @@ import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 /** The league scorebug's countdown (m:ss left in the half), in seconds. */
 async function secondsLeft(page: Page): Promise<number> {
   const text = await page
-    .locator('button[aria-label^="Clock"] [aria-live="polite"]')
+    .locator('button[aria-label^="Clock"]')
     .first()
     .textContent();
-  const m = (text ?? "").match(/(\d+):(\d{2})/);
+  // The button reads the period tag, then the m:ss ("H119:53"): the trailing m:ss.
+  const m = (text ?? "").match(/(\d{1,2}):(\d{2})\s*$/);
   return m ? Number(m[1]) * 60 + Number(m[2]) : NaN;
 }
 

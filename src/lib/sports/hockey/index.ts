@@ -32,6 +32,7 @@ import type { PositionDef, ScoreTypeDef, SportConfig, ZoneDef } from "@/lib/spor
 import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
 import { aflSport } from "@/lib/sports/afl";
 import { validateSoccerLineup } from "@/lib/sports/soccer/lineup";
+import { soccerFamilyPeriodBreak } from "@/lib/sports/soccer";
 import type {
   SoccerAgeGroupConfig,
   SoccerFamilyRules,
@@ -165,6 +166,7 @@ export const HOCKEY_RULES: SoccerFamilyRules = {
   keeperKitUpSeconds: 120,
   keeperGear: "Keeper kit",
   halvesOrQuarters: true,
+  rollingSubs: { label: "Rolling subs", note: "any time, as often as you like, except during a penalty corner" },
   minLines: null,
   ruleSource: {
     laws: [
@@ -195,7 +197,7 @@ export const HOCKEY_RULES: SoccerFamilyRules = {
       fit: "Under 9 to Under 12",
     },
     keepers: {
-      blurb: "You name your keepers (home: Keeper) and they share goal, changing at the breaks. Everyone else rotates through the lines.",
+      blurb: "You mark your keepers (Keen keeper, under Role) and they share goal, changing at the breaks. Everyone else rotates through the lines.",
       fit: "Under 13 and up",
     },
     minutes: {
@@ -232,5 +234,8 @@ export const hockeySport: SportConfig = {
   fairnessModel: "zone-minutes",
   jerseyNumbers: true,
   teamSong: false,
+  periodBreak: soccerFamilyPeriodBreak(HOCKEY_RULES),
+  words: { sportName: "hockey", surface: "field", startCue: "whistle goes", endCue: "whistle" },
+  surfaceArt: "hockey-pitch",
   validateLineup: (lineup, ageGroup, onFieldSize) => validateSoccerLineup(lineup, ageGroup, onFieldSize, HOCKEY_RULES),
 };

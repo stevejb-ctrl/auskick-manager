@@ -304,11 +304,12 @@ test("game detail shows rugby league's on-field size, not AFL's", async ({ page 
   await expect(page.getByText("Under 10 · 11 on field")).toBeVisible({ timeout: 10_000 });
 });
 
-// Regression (UX plan H7 / 0.9): enforce_unbroken_periods was stored
-// (team + game) but the lineup picker always applied the age group's
-// §6 minimum, so turning the rule off changed nothing. The picker must
-// honour the setting.
-test("the unbroken-periods setting drives the league lineup picker", async ({ page }) => {
+// §6 is the laws (UX audit, 23 Oct 2026): How we play shows it as a
+// locked Must, but it sat behind "Enforce unbroken periods", off by
+// default (UX plan H7 had made the picker honour that switch). The rule
+// now follows the age group with no switch: the picker keeps it and the
+// team settings offer no toggle.
+test("§6 always applies: the league lineup picker keeps it with no setting", async ({ page }) => {
   const admin = createAdminClient();
   const { data: superAdmin } = await admin.auth.admin.listUsers();
   const ownerId = superAdmin.users.find(
@@ -334,17 +335,15 @@ test("the unbroken-periods setting drives the league lineup picker", async ({ pa
     try { localStorage.setItem("league-walkthrough-seen", "1"); } catch {}
   });
 
-  // Rule off (the default): no unbroken-period requirement.
+  // No setting touched: the picker keeps U9's §6 minimum.
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await page.getByRole("button", { name: /game settings/i }).click();
-  await expect(page.getByText(/^Suggested: .* min/)).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(/unbroken quarters per player/i)).toHaveCount(0);
-
-  // Rule on at team level: the picker keeps the §6 minimum.
-  await admin.from("teams").update({ enforce_unbroken_periods: true }).eq("id", team.id);
-  await page.reload();
   await page.getByRole("button", { name: /game settings/i }).click();
   await expect(page.getByText(/2 unbroken quarters per player/i)).toBeVisible({
     timeout: 10_000,
   });
+
+  // Team settings: the rule is How we play's locked Must, with no switch.
+  await page.goto(`/teams/${team.id}/settings`);
+  await expect(page.getByText(/at least 2 unbroken quarters each/i)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/enforce unbroken periods/i)).toHaveCount(0);
 });

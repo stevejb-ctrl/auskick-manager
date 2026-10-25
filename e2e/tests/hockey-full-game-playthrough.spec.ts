@@ -16,6 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
+import { pickBreakStrategy, startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "serial" });
 
@@ -54,10 +55,11 @@ async function endPeriod(page: Page, tag: string) {
   await page.getByRole("button", { name: new RegExp(`^end\\s*${tag[0]}\\s*${tag.slice(1)}$`, "i") }).click();
 }
 
-/** Start the next period from the break ("Start Q2", then the whistle modal). */
+/** Start the next period from the shared break screen ("Start 2nd half" or "Start Q2", then its sheet). */
 async function startPeriod(page: Page, tag: string) {
-  await page.getByRole("button", { name: new RegExp(`^start ${tag}$`, "i") }).click({ timeout: 15_000 });
-  await page.getByRole("button", { name: new RegExp(`^start ${tag} now$`, "i") }).click({ timeout: 10_000 });
+  const name = tag === "H2" ? "2nd half" : tag;
+  await expect(page.getByRole("heading", { name: new RegExp(`^${name} lineup$`, "i") })).toBeVisible({ timeout: 15_000 });
+  await startFromBreak(page, new RegExp(`^start ${name}`, "i"));
   await expect(page.getByRole("button", { name: new RegExp(`^clock — ${tag}, running$`, "i") })).toBeVisible({
     timeout: 15_000,
   });
@@ -124,6 +126,17 @@ test("hockey U9: 7 a side in halves, keepers change only at the break, with a ki
   expect(await count("swap")).toBe(0);
   expect((await lineup()).keeper).toBe(h1Keeper);
 
+  // ─── The live chrome, as AFL's ─────────────────────────────────
+  // An outfielder's actions know they're on the field (not "bring them on")…
+  const outfielder = [...h1.lines.def, ...h1.lines.mid, ...h1.lines.att][0];
+  await page.getByTestId(`player-tile-${outfielder}`).click({ timeout: 10_000 });
+  await page.getByRole("button", { name: /^player actions/i }).click({ timeout: 5_000 });
+  await expect(actions.getByRole("button", { name: /switch player/i })).toContainText(/bench player to sub off/i);
+  await actions.getByRole("button", { name: /^(close|cancel)$/i }).first().click();
+  await expect(actions).toHaveCount(0);
+  // …and Game settings (the sub interval) sits in the row.
+  await expect(page.getByRole("button", { name: "Game settings", exact: true })).toBeVisible();
+
   // ─── Two minutes before half-time: the next keeper kits up ────
   // Wind the half on to 18:30 of 20:00 (every event so far moves back).
   const { data: sofar } = await admin.from("game_events").select("id, created_at").eq("game_id", game.id);
@@ -141,14 +154,20 @@ test("hockey U9: 7 a side in halves, keepers change only at the break, with a ki
   const announced = (await kitUp.textContent())!.split("'s in goal")[0].trim();
   expect(announced).not.toBe(firstName(h1Keeper));
 
-  // ─── Half-time: the announced kid is named first, and goes in ─
+  // ─── Half-time: the announced kid goes in goal ────────────────
+  // The shared break screen's Keeper zone holds them (they've been
+  // kitting up); last half's keeper's tile reads where they came from.
   await endPeriod(page, "H1");
-  const keeperCard = page.getByRole("region", { name: "Keeper" });
-  await expect(keeperCard).toContainText(`Keeper kit: ${firstName(h1Keeper)} → ${announced}`, { timeout: 15_000 });
-  // The keeper card comes before the break's plan and its Start.
-  const cardTop = (await keeperCard.boundingBox())!.y;
-  const doneTop = (await page.getByText(/^half 1 done\./i).boundingBox())!.y;
-  expect(cardTop).toBeLessThan(doneTop);
+  await expect(page.getByRole("heading", { name: /^2nd half lineup$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("group", { name: "Keeper" })).toContainText(announced, { timeout: 15_000 });
+  await expect(page.getByTestId(`player-tile-${h1Keeper}`)).toContainText(/from keeper/i);
+  // Every plan keeps them there (audit, 23 Oct 2026: Repeat put last
+  // half's keeper back in goal). Manual starts empty.
+  for (const plan of ["Repeat", "Rotate", "Suggested"] as const) {
+    await pickBreakStrategy(page, plan);
+    await expect(page.getByRole("group", { name: "Keeper" })).toContainText(announced);
+    await expect(page.getByRole("group", { name: "Keeper" }).getByTestId(`player-tile-${h1Keeper}`)).toHaveCount(0);
+  }
 
   await startPeriod(page, "H2");
   const h2 = await lineup();
@@ -181,11 +200,12 @@ test("hockey U13: 4 × 15 quarters, named keepers rotate at the breaks, an injur
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
 
+  const teamName = `HOC-U13-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const team = await makeTeam(admin, {
     ownerId,
     sport: "hockey",
     ageGroup: "U13",
-    name: `HOC-U13-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    name: teamName,
   });
   await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
   const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
@@ -218,10 +238,8 @@ test("hockey U13: 4 × 15 quarters, named keepers rotate at the breaks, an injur
 
   // ─── Quarter time: the keeper kit goes to the other named keeper ─
   await endPeriod(page, "Q1");
-  await expect(page.getByText(/^quarter 1 done\./i)).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole("region", { name: "Keeper" })).toContainText(
-    `Keeper kit: ${firstName(keeperA.id)} → ${firstName(keeperB.id)}`,
-  );
+  await expect(page.getByRole("heading", { name: /^q2 lineup$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("group", { name: "Keeper" })).toContainText(firstName(keeperB.id));
   await startPeriod(page, "Q2");
   expect((await lineup()).keeper).toBe(keeperB.id);
 
@@ -238,19 +256,36 @@ test("hockey U13: 4 × 15 quarters, named keepers rotate at the breaks, an injur
     page.getByRole("region", { name: "On field" }).getByRole("group", { name: "Keeper" }).getByTestId(`player-tile-${benchKid}`),
   ).toBeVisible({ timeout: 15_000 });
 
+  // ─── A goal: the scorer sheet survives a stray tap (UX audit P1) ─
+  await page.getByRole("button", { name: `Add goal, ${teamName}` }).click({ timeout: 5_000 });
+  const scorerSheet = page.getByRole("dialog", { name: "Who scored?" });
+  await expect(scorerSheet).toBeVisible();
+  await page.mouse.click(8, 8);
+  await expect(scorerSheet).toBeVisible();
+  await scorerSheet.getByRole("button", { name: /not sure who/i }).click();
+  await expect(page.getByTestId("undo-strip")).toContainText(`${teamName} goal`);
+  await expect.poll(() => count("goal")).toBe(1);
+
   // ─── Half time (after Q2), then three-quarter time ────────────
   await endPeriod(page, "Q2");
-  await expect(page.getByText(/^quarter 2 done\./i)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("heading", { name: /^q3 lineup$/i })).toBeVisible({ timeout: 15_000 });
   // The hurt keeper is out: the other named keeper goes back in.
-  await expect(page.getByRole("region", { name: "Keeper" })).toContainText(`→ ${firstName(keeperA.id)}`);
+  await expect(page.getByRole("group", { name: "Keeper" })).toContainText(firstName(keeperA.id));
   await startPeriod(page, "Q3");
   expect((await lineup()).keeper).toBe(keeperA.id);
   await endPeriod(page, "Q3");
   await startPeriod(page, "Q4");
   await endPeriod(page, "Q4");
 
-  // Full time: the score by quarter, then finish.
+  // Full time: the score by quarter, then finish. No live chips or undo
+  // strip; the review's buttons name their team and are thumb-sized.
   await expect(page.getByRole("columnheader", { name: "Quarter" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("undo-strip")).toHaveCount(0);
+  for (const side of [teamName, "Kingston Kites"]) {
+    const add = page.getByRole("button", { name: `Add goal, ${side}` });
+    await expect(add).toHaveCount(1);
+    expect((await add.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  }
   await page.getByRole("button", { name: /finish game/i }).click({ timeout: 10_000 });
   await expect.poll(() => count("game_finalised")).toBe(1);
   await expect(page.locator("#soccer-game-summary-text")).toContainText("🏑 Full time", { timeout: 15_000 });

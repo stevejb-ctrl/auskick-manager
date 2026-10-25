@@ -61,6 +61,7 @@ export function replayGame(
   const playerLoanMs: Record<string, number> = {};
   const teamScoreByQtr: Record<number, { goals: number; behinds: number }> = {};
   const oppScoreByQtr: Record<number, { goals: number; behinds: number }> = {};
+  const quartersPlayed = new Set<number>();
   const lineupPeriods: LineupPeriod[] = [];
   const playerIds: string[] = [];
 
@@ -187,23 +188,33 @@ export function replayGame(
         const zone = meta.zone as Zone | undefined;
         if (!on || !zone) break;
 
+        if (zoneOf(lineup, on)) break; // already on: a replayed duplicate
+
         // Close the period BEFORE mutating lineup so the period records who was on.
         closePeriod(elapsed);
         periodStartMs = elapsed;
 
-        if (off) {
+        // The zone the off player is actually in (a zone swap may have
+        // moved them since the event's zone was read).
+        const offZone = off ? zoneOf(lineup, off) : null;
+        const z = offZone ?? zone;
+        if (off && offZone) {
           const stint = stints[off];
-          const sz = stint?.zone ?? zone;
-          addZoneMs(off, sz, elapsed - (stint?.startMs ?? 0));
+          addZoneMs(off, stint?.zone ?? offZone, elapsed - (stint?.startMs ?? 0));
           delete stints[off];
-          lineup[zone] = lineup[zone].map((p) => (p === off ? on : p));
-          lineup.bench = [...lineup.bench.filter((p) => p !== on), off];
+          lineup[offZone] = lineup[offZone].map((p) => (p === off ? on : p));
+          lineup.bench = [...lineup.bench.filter((p) => p !== on && p !== off), off];
           subsOut[off] = (subsOut[off] ?? 0) + 1;
         } else {
-          lineup[zone] = [...lineup[zone], on];
+          // Fill: an empty spot, or the off player already left the field
+          // (their injury or loan landed first and closed their stint).
+          // Closing it again from 0 doubled an injured kid's minutes, and
+          // the replacement never reached the field (UX round 2, 24 Oct
+          // 2026). Mirrors fairness.replayGame.
+          lineup[z] = [...lineup[z], on];
           lineup.bench = lineup.bench.filter((p) => p !== on);
         }
-        stints[on] = { zone, startMs: elapsed };
+        stints[on] = { zone: z, startMs: elapsed };
         subsIn[on] = (subsIn[on] ?? 0) + 1;
         if (!playerIds.includes(on)) playerIds.push(on);
         seeFirst(on);
@@ -228,6 +239,7 @@ export function replayGame(
         closePeriod(qe);
         gameLengthMs += qe;
         quarterActive = false;
+        quartersPlayed.add(typeof meta.quarter === "number" ? meta.quarter : currentQuarter);
         break;
       }
 
@@ -427,6 +439,7 @@ export function replayGame(
     playerLoanMs,
     teamScoreByQtr,
     oppScoreByQtr,
+    quartersPlayed: Array.from(quartersPlayed).sort((a, b) => a - b),
     lineupPeriods,
     playerIds,
     gameLengthMs,

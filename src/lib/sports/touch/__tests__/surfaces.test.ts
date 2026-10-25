@@ -123,6 +123,8 @@ describe("aggregateTouchSeason", () => {
     const agg = aggregateTouchSeason([{ id: "x" }, { id: "y" }], { x: g1.events, y: g2.events });
     expect(agg.totals).toEqual({ games: 2, pointsFor: 2, pointsAgainst: 2, wins: 1, draws: 0, losses: 1 });
     expect(agg.perPlayer.a).toMatchObject({ gamesPlayed: 2, ms: 40 * MIN, middleMs: 40 * MIN, tries: 1, points: 2 });
-    expect(agg.perPlayer.g).toBeUndefined();
+    // g sat on the bench: listed at 0, so the coach sees who missed out
+    // (UX round 2, 24 Oct 2026).
+    expect(agg.perPlayer.g).toMatchObject({ gamesPlayed: 0, ms: 0, tries: 0 });
   });
 });

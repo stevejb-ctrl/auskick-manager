@@ -6,7 +6,6 @@ import { QuarterLengthInput } from "@/components/team/QuarterLengthInput";
 import { OnFieldSizeInput } from "@/components/team/OnFieldSizeInput";
 import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
 import { MidQuarterSubsToggle } from "@/components/team/MidQuarterSubsToggle";
-import { UnbrokenPeriodsToggle } from "@/components/team/UnbrokenPeriodsToggle";
 import { TrackZoneTimeToggle } from "@/components/team/TrackZoneTimeToggle";
 import { TrackScoringToggle } from "@/components/games/TrackScoringToggle";
 import { SettingsSection } from "@/components/team/SettingsSection";
@@ -32,13 +31,16 @@ import { soccerFamilyAgeGroup, soccerFamilyAgeGroupForTeam, soccerFamilyRules } 
 import { PeriodFormatSettings } from "@/components/team/PeriodFormatSettings";
 import { TrackFoulsToggle } from "@/components/team/TrackFoulsToggle";
 import { centreVest } from "@/lib/sports/rugby/zoneTime";
+import { ReadOnlyNote, MANAGER_CAN } from "@/components/team/ReadOnlyNote";
 import type { Sport, TeamRole } from "@/lib/types";
 
 interface SettingsPageProps {
   params: { teamId: string };
+  /** ?invite=1: "Invite a manager" opens People's invite form. */
+  searchParams?: { invite?: string };
 }
 
-export default async function SettingsPage({ params }: SettingsPageProps) {
+export default async function SettingsPage({ params, searchParams }: SettingsPageProps) {
   const supabase = createClient();
 
   const {
@@ -48,7 +50,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   const [{ data: team }, { data: membership }] = await Promise.all([
     supabase
       .from("teams")
-      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, on_field_size, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, allow_mid_quarter_subs, enforce_unbroken_periods, track_zone_time, song_url, song_start_seconds, song_duration_seconds, song_enabled")
+      .select("id, name, sport, age_group, track_scoring, quarter_length_seconds, on_field_size, period_count, track_fouls, mixed_max_boys, mixed_min_girls, mixed_min_boys, girls_try_double, allow_mid_quarter_subs, track_zone_time, song_url, song_start_seconds, song_duration_seconds, song_enabled")
       .eq("id", params.teamId)
       .single(),
     user
@@ -105,7 +107,8 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
     .map((m) => ({
       user_id: m.user_id,
       role: m.role,
-      full_name: m.profiles?.full_name ?? null,
+      // Email sign-ups have a blank name; the row falls back to the email.
+      full_name: m.profiles?.full_name?.trim() || null,
       email: m.profiles?.email ?? null,
       isSelf: !!user && m.user_id === user.id,
     }))
@@ -143,6 +146,14 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
       : isTouch(sport)
         ? touchAgeGroupForTeam(sport, teamAgeGroup, teamPeriodCount)
         : getAgeGroupConfig(sport, teamAgeGroup);
+  // Games already scheduled on the team's size: changing it moves them
+  // too, and the size card says so before the coach saves.
+  const { count: scheduledOnSize } = await supabase
+    .from("games")
+    .select("id", { count: "exact", head: true })
+    .eq("team_id", params.teamId)
+    .eq("status", "upcoming")
+    .eq("on_field_size", teamOnFieldSize(ageGroupCfg, (team as { on_field_size?: number | null }).on_field_size ?? null));
   // Hockey's halves or quarters: the game's length is the age group's
   // (4 × 15 is 2 × 30).
   const hockeyFormat =
@@ -175,6 +186,11 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   // game-day extras, and the danger zone — instead of one long stack.
   return (
     <div className="space-y-8">
+      {!isAdmin && (
+        <ReadOnlyNote>
+          Only the coach can change the team&rsquo;s settings. {MANAGER_CAN}
+        </ReadOnlyNote>
+      )}
       <TeamNameSettings
         teamId={params.teamId}
         currentName={team.name}
@@ -197,20 +213,12 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           positions={(positionRows ?? []) as HowWePlayPosition[]}
           players={(squadRows ?? []).map((p) => ({ id: p.id as string, name: p.full_name as string }))}
           isAdmin={isAdmin}
+          trackScoring={team.track_scoring ?? false}
         />
-        {/* Rugby league §6 Junior Laws: each player plays two full
-            unbroken quarters (U6–U9) or one full half (U10–U12). Off by
-            default for casual comps. U13+ plays international laws:
-            no such rule, so no toggle. */}
-        {isRugby(sport) && (ageGroupCfg.minUnbrokenPeriods ?? 0) > 0 && (
-          <UnbrokenPeriodsToggle
-            teamId={params.teamId}
-            initialEnabled={
-              (team as { enforce_unbroken_periods?: boolean | null }).enforce_unbroken_periods ?? false
-            }
-            isAdmin={isAdmin}
-          />
-        )}
+        {/* Rugby league §6 (two unbroken quarters at U6–U9, one half at
+            U10–U12) has no switch: it's the laws, a locked rule in How we
+            play above (UX audit, 23 Oct 2026: it was a toggle, off by
+            default, so nothing enforced the Must). */}
         {/* Rugby zone-time bar (AFL F/C/B equivalent). */}
         {isRugby(sport) && (
           <TrackZoneTimeToggle
@@ -234,13 +242,14 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         )}
       </SettingsSection>
 
-      <SettingsSection title="People">
+      <SettingsSection title="People" anchor="people">
         <TeamMembersSettings
           teamId={params.teamId}
           isAdmin={isAdmin}
           members={members}
           invites={invites}
           joinCode={joinCode}
+          openInvite={searchParams?.invite === "1"}
         />
       </SettingsSection>
 
@@ -261,10 +270,12 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           // period-length card beside it is keyed on the age too.)
           key={`on-field:${ageGroupCfg.id}`}
           teamId={params.teamId}
+          sport={sport}
           ageGroupDefault={ageGroupCfg.defaultOnFieldSize}
           min={ageGroupCfg.minOnFieldSize}
           max={ageGroupCfg.maxOnFieldSize}
           initialSize={(team as { on_field_size?: number | null }).on_field_size ?? null}
+          scheduledGames={scheduledOnSize ?? 0}
           isAdmin={isAdmin}
         />
         {isBasketball(sport) && (
@@ -364,7 +375,12 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
       </SettingsSection>
 
       <SettingsSection title="Danger zone" tone="danger">
-        <DangerZone teamId={params.teamId} teamName={team.name} isAdmin={isAdmin} />
+        <DangerZone
+          teamId={params.teamId}
+          teamName={team.name}
+          isAdmin={isAdmin}
+          soleCoach={isAdmin && members.filter((m) => m.role === "admin").length <= 1}
+        />
       </SettingsSection>
     </div>
   );

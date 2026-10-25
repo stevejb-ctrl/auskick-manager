@@ -61,7 +61,8 @@ export const UNLISTED_PUBLIC_PATHS: readonly string[] = [
 /**
  * Path prefixes crawlers must stay out of: the signed-in app,
  * tokenised links (/run/<token> gives live control of a game,
- * /join/<token> is a team invite), auth flows and the API. robots.ts
+ * /join/<token> is a team invite, /availability/<token> marks a
+ * game's kids In or Out), auth flows and the API. robots.ts
  * disallows each one, and matching works the same way robots.txt
  * does — a plain prefix.
  */
@@ -91,6 +92,7 @@ export const PRIVATE_PATH_PREFIXES: readonly string[] = [
   "/api/",
   "/auth/",
   "/account",
+  "/availability/",
   "/admin",
   "/dashboard",
   "/join/",

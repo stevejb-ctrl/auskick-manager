@@ -15,6 +15,7 @@ import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { playerMsOnField, replayLeagueGame } from "../../src/lib/sports/rugby_league/fairness";
 import type { GameEvent } from "../../src/lib/types";
+import { openGameSettings, pickBreakStrategy, startFromBreak } from "../helpers/break";
 
 test("rugby league: lend a forward, fill the gap, a back is hurt and replaced, then the lent kid comes back", async ({
   page,
@@ -73,18 +74,23 @@ test("rugby league: lend a forward, fill the gap, a back is hurt and replaced, t
   await page.getByRole("button", { name: /lend to opposition/i }).click();
   await landed((evs) => evs.some((e) => e.type === "player_loan" && e.player_id === lent.id));
 
-  // Bring a bench kid into the gap.
+  // Bring a bench kid into the gap: AFL's confirm, then its toast.
   await tile(filler.id).click();
   await page.getByRole("button", { name: /move selected player to forwards/i }).click();
+  await page.getByRole("dialog", { name: `Move ${filler.full_name} to Forwards?` }).getByRole("button", { name: "Confirm" }).click();
+  await expect(page.getByTestId("swap-toast")).toContainText(`${filler.full_name} on`);
   await landed((evs) => evs.filter((e) => e.type === "lineup_set").length === 2);
 
-  // A back is hurt; the last bench kid comes on.
+  // A back is hurt; the last bench kid comes on. Her sheet knows she's on
+  // the field: Switch swaps her with a teammate or a bench kid.
   await tile(hurt.id).click({ delay: 600 });
+  await expect(page.getByRole("button", { name: /switch player/i })).toContainText(/bench player to sub off/i);
   await page.getByRole("button", { name: /mark injured/i }).click();
   await page
     .getByRole("dialog", { name: /who comes on at/i })
     .getByRole("button", { name: new RegExp(replacement.full_name, "i") })
     .click();
+  await expect(page.getByTestId("swap-toast")).toContainText(`${hurt.full_name} → ${replacement.full_name}`);
   await landed((evs) => evs.some((e) => e.type === "swap" && (e.metadata as { on_player_id?: string }).on_player_id === replacement.id));
 
   // End the half from the clock menu.
@@ -92,14 +98,16 @@ test("rugby league: lend a forward, fill the gap, a back is hurt and replaced, t
   await page.getByRole("button", { name: /^end h1 now$/i }).click();
   await page.getByRole("button", { name: /^end\s*h\s*1$/i }).click();
 
-  // The break pops the start modal; step back to the break to recall.
-  await page.getByRole("button", { name: /back to lineup/i }).click({ timeout: 15_000 });
-  await page.getByTestId(`league-recall-lent-${lent.id}`).click();
+  // At the break, bring the lent kid back from the game settings sheet.
+  await expect(page.getByRole("heading", { name: /^2nd half lineup$/i })).toBeVisible({ timeout: 15_000 });
+  await openGameSettings(page);
+  await page.getByTestId(`break-recall-lent-${lent.id}`).click();
   await landed((evs) =>
     evs.some((e) => e.type === "player_loan" && e.player_id === lent.id && (e.metadata as { loaned?: boolean }).loaned === false),
   );
-  await page.getByRole("button", { name: /^start h2$/i }).first().click();
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
+  // Repeat: H2 starts from H1's last lineup, the coach's moves kept.
+  await pickBreakStrategy(page, "Repeat");
+  await startFromBreak(page, /^start 2nd half/i);
   await landed((evs) => evs.some((e) => e.type === "quarter_start" && (e.metadata as { quarter?: number }).quarter === 2));
 
   // ── The game as it replays ─────────────────────────────────────
@@ -540,15 +548,15 @@ test("rugby league: at the break, next half's vest wearer on the bench is flagge
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
+  // Repeat keeps H1's last lineup, where the planned DH sat on the bench
+  // after their sub; the vest card flags them as off the field.
+  await expect(page.getByRole("heading", { name: /^2nd half lineup$/i })).toBeVisible({ timeout: 15_000 });
+  await pickBreakStrategy(page, "Repeat");
+  // The Vests chip flags the DH to pick; its sheet says why.
+  await page.getByRole("button", { name: /^Vests: .*DH to pick/ }).click({ timeout: 15_000 });
   await expect(page.getByText(new RegExp(`${plannedDh.full_name} isn.t on the field`))).toBeVisible({ timeout: 15_000 });
-  // League auto-opens "Start H2" on entering the break, over the vest
-  // card. Dismiss it first; racing it only passed where the tap landed
-  // before the dialog (Chromium), not on WebKit.
-  const backToLineup = page.getByRole("button", { name: /back to lineup/i });
-  await expect(backToLineup).toBeVisible({ timeout: 15_000 });
-  await backToLineup.click();
-  await expect(backToLineup).toBeHidden({ timeout: 5_000 });
   await page
+    .getByRole("dialog", { name: "Vests" })
     .getByRole("region", { name: "Vest assignment" })
     .getByRole("button", { name: new RegExp(pick.full_name) })
     .click();
@@ -564,4 +572,151 @@ test("rugby league: at the break, next half's vest wearer on the bench is flagge
       );
     }, { timeout: 15_000 })
     .toBe(true);
+});
+
+// ─── The live chrome, as AFL's (UX audit 23 Oct 2026) ───────────
+// League's screen had drifted from AFL's: the scorer was a sheet of its
+// own that a stray tap closed, the undo strip never said what it would
+// take back, a tap-tap sub went straight through, the long-press sheet
+// didn't know the kid's line or their lent minutes, and every tap waited
+// for the server before the screen moved.
+
+async function leagueGame(opts: { name: string; scoring?: boolean; lentBefore?: Record<number, number> }) {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, {
+    ownerId,
+    ageGroup: "U13",
+    sport: "rugby_league",
+    name: `${opts.name}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  });
+  if (opts.scoring) await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15, ageGroup: "U10" });
+  const ids = players.map((p) => p.id);
+  if (opts.lentBefore) {
+    const before = await makeGame(admin, { teamId: team.id, ownerId, scheduledAt: new Date(Date.now() - 7 * 86400_000).toISOString() });
+    const at = (s: number) => new Date(Date.now() - 7 * 86400_000 + s * 1000).toISOString();
+    const lent = Object.entries(opts.lentBefore).flatMap(([i, mins], k) => [
+      { type: "player_loan", player_id: ids[Number(i)], metadata: { loaned: true, quarter: 1, elapsed_ms: 0, sport: "rugby_league" }, created_at: at(10 + k) },
+      { type: "player_loan", player_id: ids[Number(i)], metadata: { loaned: false, quarter: 1, elapsed_ms: mins * 60_000, sport: "rugby_league" }, created_at: at(100 + k) },
+    ]);
+    const { error } = await admin.from("game_events").insert(
+      [
+        { type: "lineup_set", metadata: { lineup: { forwards: ids.slice(0, 6), backs: ids.slice(6, 13), bench: ids.slice(13) }, sport: "rugby_league" }, created_at: at(0) },
+        { type: "quarter_start", metadata: { quarter: 1, sport: "rugby_league" }, created_at: at(1) },
+        ...lent,
+        { type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 1_500_000, sport: "rugby_league" }, created_at: at(190) },
+        { type: "game_finalised", metadata: { quarter: 2, elapsed_ms: 1_500_000, sport: "rugby_league" }, created_at: at(200) },
+      ].map((e) => ({ ...e, game_id: before.id, created_by: ownerId })),
+    );
+    if (error) throw new Error(`seed earlier game: ${error.message}`);
+    await admin.from("games").update({ status: "completed" }).eq("id", before.id);
+  }
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Souths Juniors" });
+  const { error } = await admin.from("games").update({ on_field_size: 13, sub_interval_seconds: 900, status: "in_progress" }).eq("id", game.id);
+  if (error) throw new Error(error.message);
+  const lineup = { forwards: ids.slice(0, 6), backs: ids.slice(6, 13), bench: ids.slice(13) };
+  await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup, sport: "rugby_league" } },
+      { type: "quarter_start", metadata: { quarter: 1, sport: "rugby_league" } },
+    ].map((e, i) => ({ ...e, game_id: game.id, created_by: ownerId, created_at: new Date(Date.now() - (10 - i) * 1000).toISOString() })),
+  );
+  const { data: teamRow } = await admin.from("teams").select("name").eq("id", team.id).single();
+  return { admin, team, game, players, teamName: teamRow!.name as string };
+}
+
+async function openLeagueLive(page: import("@playwright/test").Page, teamId: string, gameId: string) {
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("rl-walkthrough-seen", "1");
+      localStorage.setItem("gm-walkthrough-seen", "1");
+      localStorage.setItem("siren-longpress-seen-v1", "true");
+    } catch {}
+  });
+  await page.goto(`/teams/${teamId}/games/${gameId}/live`);
+  await expect(page.getByRole("button", { name: /^clock — h1, running$/i })).toBeVisible({ timeout: 15_000 });
+}
+
+test("rugby league: the scorer sheet asks who scored and names the score; a stray tap doesn't lose it", async ({ page }) => {
+  const { admin, team, game, players, teamName } = await leagueGame({ name: "RL-SCORER", scoring: true });
+  await openLeagueLive(page, team.id, game.id);
+
+  await page.getByRole("button", { name: "Record a penalty goal for our team" }).click();
+  const sheet = page.getByRole("dialog", { name: "Who scored?" });
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toContainText(/penalty goal/i);
+  // A stray tap on the dimmed backdrop: the sheet (and the goal) stay.
+  await page.mouse.click(8, 8);
+  await expect(sheet).toBeVisible();
+  await sheet.getByRole("button", { name: new RegExp(`^${players[1].full_name}\\b`) }).click();
+  await expect(page.getByTestId("undo-strip")).toContainText(`${teamName} penalty goal — ${players[1].full_name}`);
+  await expect
+    .poll(async () => {
+      const { data } = await admin.from("game_events").select("player_id").eq("game_id", game.id).eq("type", "penalty_goal");
+      return (data ?? []).map((e) => e.player_id);
+    })
+    .toEqual([players[1].id]);
+});
+
+test("rugby league: long-press knows an on-field kid's line and the season's lent minutes", async ({ page }) => {
+  // A forward was lent for 6 minutes in last week's game.
+  const { team, game, players } = await leagueGame({ name: "RL-LONGP", lentBefore: { 3: 6 } });
+  await openLeagueLive(page, team.id, game.id);
+
+  await page.getByTestId(`league-player-tile-${players[3].id}`).click({ delay: 600 });
+  const sheet = page.getByRole("dialog");
+  await expect(sheet.getByRole("button", { name: /switch player/i })).toContainText(/bench player to sub off/i);
+  await expect(sheet.getByRole("button", { name: /lend to opposition/i })).toContainText("Season total: 6m");
+});
+
+/** Every save takes 4 s, as on a ground's patchy signal. */
+async function slowSaves(page: import("@playwright/test").Page, gameId: string) {
+  await page.route(`**/games/${gameId}/live`, async (route) => {
+    if (route.request().method() === "POST") await new Promise((r) => setTimeout(r, 4000));
+    await route.continue();
+  });
+}
+
+test("rugby league: a try, its undo and a sub show before the server saves", async ({ page }) => {
+  test.setTimeout(120_000);
+  const { admin, team, game, players } = await leagueGame({ name: "RL-OPTIM", scoring: true });
+  await openLeagueLive(page, team.id, game.id);
+  await slowSaves(page, game.id);
+
+  const theirs = page.getByTestId("league-points-opponent");
+  await page.getByRole("button", { name: "Record opponent try" }).click();
+  await expect(theirs).toHaveText("4", { timeout: 1_500 });
+  const strip = page.getByTestId("undo-strip");
+  await expect(strip).toContainText("Souths Juniors try", { timeout: 1_500 });
+  await strip.getByRole("button", { name: "Undo" }).click();
+  await expect(theirs).toHaveText("0", { timeout: 1_500 });
+
+  // A bench kid on for a forward: asks first, then shows at once.
+  const [benchKid, fwd] = [players[13], players[0]];
+  await page.getByTestId(`league-player-tile-${benchKid.id}`).click();
+  await page.getByTestId(`league-player-tile-${fwd.id}`).click();
+  await page.getByRole("dialog", { name: /manually sub/i }).getByRole("button", { name: "Confirm" }).click();
+  await expect(page.getByTestId("swap-toast")).toContainText(`${fwd.full_name} → ${benchKid.full_name}`, { timeout: 1_500 });
+  await expect(page.getByRole("group", { name: "Forwards" }).getByTestId(`league-player-tile-${benchKid.id}`)).toBeVisible({
+    timeout: 1_500,
+  });
+
+  // All three save, in the coach's order, and the screen still agrees.
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin.from("game_events").select("type").eq("game_id", game.id).order("created_at");
+        return (data ?? []).map((e) => e.type as string).filter((t) => ["opponent_try", "score_undo", "swap"].includes(t));
+      },
+      { timeout: 30_000 },
+    )
+    .toEqual(["opponent_try", "score_undo", "swap"]);
+  await page.unroute(`**/games/${game.id}/live`);
+  await page.reload();
+  await expect(page.getByRole("group", { name: "Forwards" }).getByTestId(`league-player-tile-${benchKid.id}`)).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(theirs).toHaveText("0");
 });

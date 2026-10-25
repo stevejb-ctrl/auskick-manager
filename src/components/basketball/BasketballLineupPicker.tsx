@@ -15,6 +15,7 @@
 // or the shape suggests again.
 
 import { useMemo, useRef, useState, useTransition } from "react";
+import { useKeptSetting } from "@/components/lineup/useKeptSetting";
 import { useRouter } from "next/navigation";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
 import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
@@ -62,6 +63,8 @@ import { BasketballCourt } from "./BasketballCourt";
 import { BasketballBench } from "./BasketballBench";
 import { BASKETBALL_LINE_LABEL } from "./BasketballPlayerTile";
 import { basketballStrategyLabel } from "./basketballWords";
+import { squadLoanAverage } from "@/lib/live/liveChrome";
+import { noteLiveResult } from "@/lib/live/liveSync";
 
 const POSITION_LABEL = Object.fromEntries(BASKETBALL_POSITION_DEFS.map((p) => [p.key, p.label])) as Record<string, string>;
 
@@ -83,6 +86,8 @@ interface BasketballLineupPickerProps {
   initialLoanedIds: string[];
   availabilityPanel?: React.ReactNode;
   availabilityHref?: string | null;
+  /** Lent minutes in the season's other games, for the long-press sheet. */
+  seasonLoanMinutes?: Record<string, number>;
 }
 
 export function BasketballLineupPicker({
@@ -99,6 +104,7 @@ export function BasketballLineupPicker({
   initialLoanedIds,
   availabilityPanel,
   availabilityHref,
+  seasonLoanMinutes = {},
 }: BasketballLineupPickerProps) {
   const router = useRouter();
   const pickerRootRef = useRef<HTMLDivElement>(null);
@@ -110,9 +116,11 @@ export function BasketballLineupPicker({
   const periodWord = ageGroup.periodCount === 4 ? "quarter" : "half";
 
   const clampSize = (n: number) => Math.max(ageGroup.minOnFieldSize, Math.min(ageGroup.maxOnFieldSize, n));
-  const [onCourtSize, setOnCourtSize] = useState(() => clampSize(initialSize));
+  // Settings are kept through a Who's here change (useKeptSetting): the
+  // picker remounts with a fresh suggestion in the coach's size and shape.
+  const [onCourtSize, setOnCourtSize] = useKeptSetting(gameId, "onFieldSize", () => clampSize(initialSize));
   const playing = useMemo(() => players.filter((p) => !loanedIds.has(p.id)).map((p) => p.id), [players, loanedIds]);
-  const [shapeId, setShapeId] = useState<string | null>(null);
+  const [shapeId, setShapeId] = useKeptSetting<string | null>(gameId, "shape", null);
   const size = Math.min(onCourtSize, playing.length || onCourtSize);
   const shape = basketballShapeFor(strategy, size, shapeId);
   const lineShapes = usesBasketballLines(strategy) && !usesBasketballPositions(strategy) ? basketballShapes(size) : [];
@@ -136,7 +144,7 @@ export function BasketballLineupPicker({
         ...(slots ? { slots } : {}),
       };
     }
-    return suggest(clampSize(initialSize), null, players.map((p) => p.id).filter((id) => !initialLoanedIds.includes(id))).lineup;
+    return suggest(onCourtSize, shapeId, players.map((p) => p.id).filter((id) => !initialLoanedIds.includes(id))).lineup;
   });
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -146,7 +154,7 @@ export function BasketballLineupPicker({
   const [startModalOpen, setStartModalOpen] = useState(false);
   const [savePending, setSavePending] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(initialDraft?.updated_at ?? null);
-  const [subMinInput, setSubMinInput] = useState(String(defaultSubMinutes));
+  const [subMinInput, setSubMinInput] = useKeptSetting(gameId, "subMinutes", String(defaultSubMinutes));
   const subIntervalSeconds = Math.round(subMinutesFrom(subMinInput, defaultSubMinutes) * 60);
 
   const courtIds = basketballOnCourt(lineup);
@@ -231,6 +239,8 @@ export function BasketballLineupPicker({
     setError(null);
     startTransition(async () => {
       const result = await startBasketballGame(auth, gameId, lineup, onCourtSize, true, subIntervalSeconds);
+      // Refused because another phone already started: say so over the page.
+      noteLiveResult(result);
       if (!result.success) {
         setError(result.error ?? "Couldn't start the game.");
         setStartModalOpen(false);
@@ -415,6 +425,7 @@ export function BasketballLineupPicker({
       <LineupPickerFooter
         onFieldCount={courtIds.length}
         benchCount={lineup.bench.length}
+        onFieldLabel="on court"
         onSavePlan={auth.kind === "team" ? () => void handleSavePlan() : undefined}
         savePending={savePending}
         savedAt={savedAt}
@@ -429,11 +440,16 @@ export function BasketballLineupPicker({
         <LockModal
           player={actionPlayer}
           currentLock={null}
-          currentZone={null}
+          // The kid's line for the Switch hint, and the season's lent
+          // minutes, as on the live screen.
+          currentLine={(() => {
+            const line = basketballLineOf(lineup, actionPlayer.id);
+            return !line ? null : line === "court" ? "court" : BASKETBALL_LINE_LABEL[line];
+          })()}
           isInjured={false}
           isLoaned={loanedIds.has(actionPlayer.id)}
-          seasonLoanMins={0}
-          squadLoanMins={0}
+          seasonLoanMins={seasonLoanMinutes[actionPlayer.id] ?? 0}
+          squadLoanMins={squadLoanAverage(seasonLoanMinutes)}
           onUnlock={() => setActionPlayerId(null)}
           onSwitch={() => {
             setActionPlayerId(null);
@@ -485,6 +501,7 @@ export function BasketballLineupPicker({
           quarter={1}
           periodLabel={periodWord}
           cue="ball goes up"
+          shortSide={{ playing: courtIds.length, size: initialSize, min: ageGroup.minOnFieldSize }}
           loading={isPending}
           onStart={handleConfirmStart}
           onCancel={() => setStartModalOpen(false)}

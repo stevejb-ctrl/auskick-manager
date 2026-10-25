@@ -59,29 +59,38 @@ interface RoleHandoverCardProps {
   subtitle: string;
   error?: string | null;
   rows: HandoverRow[];
+  /**
+   * Inside a sheet that carries the title: no card of its own, the rule
+   * as a plain line, and names that wrap rather than cut off.
+   */
+  bare?: boolean;
 }
 
-export function RoleHandoverCard({ ariaLabel, title, subtitle, error, rows }: RoleHandoverCardProps) {
+export function RoleHandoverCard({ ariaLabel, title, subtitle, error, rows, bare = false }: RoleHandoverCardProps) {
   return (
     <section
       aria-label={ariaLabel}
-      className="space-y-3 rounded-xl border border-hairline bg-surface p-3 shadow-card"
+      className={bare ? "space-y-3" : "space-y-3 rounded-xl border border-hairline bg-surface p-3 shadow-card"}
     >
-      <header className="px-1">
-        <h2 className="text-xs font-bold uppercase tracking-wide text-ink-dim">
-          {title}
-        </h2>
-        <p className="text-xs text-ink-mute">{subtitle}</p>
-      </header>
+      {bare ? (
+        <p className="text-xs text-ink-dim">{subtitle}</p>
+      ) : (
+        <header className="px-1">
+          <h2 className="text-xs font-bold uppercase tracking-wide text-ink-dim">
+            {title}
+          </h2>
+          <p className="text-xs text-ink-mute">{subtitle}</p>
+        </header>
+      )}
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
       {rows.map((row) => (
-        <HandoverRowView key={row.key} row={row} />
+        <HandoverRowView key={row.key} row={row} wrapNames={bare} />
       ))}
     </section>
   );
 }
 
-function HandoverRowView({ row }: { row: HandoverRow }) {
+function HandoverRowView({ row, wrapNames = false }: { row: HandoverRow; wrapNames?: boolean }) {
   if (row.holder && !row.picking) {
     return (
       <div className="flex items-center justify-between rounded-lg border border-hairline bg-surface px-3 py-2.5">
@@ -143,7 +152,7 @@ function HandoverRowView({ row }: { row: HandoverRow }) {
                 num={p.jersey_number != null ? String(p.jersey_number) : ""}
                 size={26}
               />
-              <span className="min-w-0 flex-1 truncate text-ink">
+              <span className={`min-w-0 flex-1 text-ink ${wrapNames ? "break-words" : "truncate"}`}>
                 {p.full_name}
               </span>
               {suggested && (

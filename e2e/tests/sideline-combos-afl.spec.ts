@@ -17,6 +17,7 @@ import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { ALL_ZONES, replayGame } from "../../src/lib/fairness";
 import type { GameEvent } from "../../src/lib/types";
+import { closeGameSettings, openGameSettings, pickBreakStrategy, startFromBreak } from "../helpers/break";
 
 test("AFL: lend a kid, a kid gets hurt and replaced, then the lent kid comes back on at the break", async ({
   page,
@@ -95,20 +96,19 @@ test("AFL: lend a kid, a kid gets hurt and replaced, then the lent kid comes bac
 
   // The break: keep the field, bring the lent kid back into the empty
   // back spot.
-  const adjustments = page.getByRole("button", { name: /game settings/i });
-  if ((await adjustments.getAttribute("aria-expanded")) !== "true") await adjustments.click();
-  await page.getByRole("radio", { name: /keep last quarter/i }).click();
-  await page.getByTestId(`qb-recall-lent-${lent.id}`).click();
+  await pickBreakStrategy(page, "Repeat");
+  await openGameSettings(page);
+  await page.getByTestId(`break-recall-lent-${lent.id}`).click();
   await landed((evs) =>
     evs.some((e) => e.type === "player_loan" && e.player_id === lent.id && (e.metadata as { loaned?: boolean }).loaned === false),
   );
-  await page.getByRole("button", { name: "Empty BCK spot" }).first().click();
-  const fillSheet = page.getByRole("dialog", { name: /fill|back|bck/i });
-  await expect(fillSheet).toBeVisible({ timeout: 5_000 });
-  await fillSheet.getByRole("button", { name: new RegExp(lent.full_name, "i") }).click();
+  await closeGameSettings(page);
+  // Tap the empty back spot, then the lent kid (back on the bench).
+  await page.getByRole("group", { name: "Back", exact: true }).getByRole("button", { name: /^empty back spot$/i }).first().click();
+  await page.getByRole("group", { name: "Bench", exact: true }).getByTestId(`player-tile-${lent.id}`).click();
+  await expect(page.getByRole("group", { name: "Back", exact: true }).getByTestId(`player-tile-${lent.id}`)).toBeVisible();
 
-  await page.getByRole("button", { name: /^start q2$/i }).click();
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
+  await startFromBreak(page, /^start q2/i);
   await landed((evs) => evs.some((e) => e.type === "quarter_start" && (e.metadata as { quarter?: number }).quarter === 2));
 
   // ── The game as it replays ─────────────────────────────────────

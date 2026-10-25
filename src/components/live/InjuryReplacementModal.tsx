@@ -2,6 +2,7 @@
 
 import type { Player } from "@/lib/types";
 import { Modal } from "@/components/ui/Modal";
+import { useSquadNames } from "@/components/live/SquadNames";
 
 export interface InjuryReplacementCandidate {
   player: Player;
@@ -32,15 +33,18 @@ interface InjuryReplacementModalProps {
   onCancel: () => void;
   /**
    * Why the kid is coming off, for the words: an injury (the default),
-   * a foul-out or a sit-out (basketball). The flow is the same.
+   * a foul-out or a sit-out (basketball), a loan or a mid-quarter
+   * switch (netball). The flow is the same.
    */
-  reason?: "injured" | "fouled_out" | "sitting_out";
+  reason?: "injured" | "fouled_out" | "sitting_out" | "lent" | "subbed";
 }
 
 const REASON_WORDS = {
   injured: { eyebrow: (n: string) => `Marking ${n} injured`, skip: "Mark injured without replacement" },
   fouled_out: { eyebrow: (n: string) => `${n} has fouled out`, skip: "Play one short" },
   sitting_out: { eyebrow: (n: string) => `${n} sits out`, skip: "Play one short" },
+  lent: { eyebrow: (n: string) => `Lending ${n} to the opposition`, skip: "Lend without replacement" },
+  subbed: { eyebrow: (n: string) => `Taking ${n} off`, skip: "Take off without a replacement" },
 } as const;
 
 function formatMinSec(ms: number): string {
@@ -65,7 +69,8 @@ export function InjuryReplacementModal({
   onCancel,
   reason = "injured",
 }: InjuryReplacementModalProps) {
-  const firstName = injuredPlayer.full_name.trim().split(/\s+/)[0];
+  const names = useSquadNames();
+  const firstName = names.first(injuredPlayer);
   const words = REASON_WORDS[reason];
 
   return (
@@ -89,7 +94,7 @@ export function InjuryReplacementModal({
         <div className="flex-1 overflow-y-auto px-5 pb-3">
           <ul className="flex flex-col gap-2">
             {candidates.map((c, idx) => {
-              const cFirst = c.player.full_name.trim().split(/\s+/)[0];
+              const cFirst = names.first(c.player);
               const isSuggested = idx === 0;
               return (
                 <li key={c.player.id}>

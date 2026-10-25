@@ -8,7 +8,7 @@ import {
   clockElapsedMs,
   useLiveGame,
 } from "@/lib/stores/liveGameStore";
-import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
+import { enqueueLiveAction, pendingWriteCount } from "@/lib/live/registerLiveActions";
 import { aflStoreLocks, type PlayerLock } from "@/lib/live/locks";
 import { hapticTap, hapticSiren } from "@/lib/haptics";
 import { LongPressHint } from "@/components/live/LongPressHint";
@@ -18,7 +18,9 @@ import { Bench } from "@/components/live/Bench";
 import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import { GameHeader } from "@/components/live/GameHeader";
 import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
-import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
+import { SwapDoneToast } from "@/components/live/SwapDoneToast";
+import { undoSwaps } from "@/lib/live/liveChrome";
+import { useSquadNames } from "@/components/live/SquadNames";
 import { SwapCard } from "@/components/live/SwapCard";
 import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
@@ -29,11 +31,13 @@ import { QuarterBreak } from "@/components/live/QuarterBreak";
 import { buildWalkthroughSteps } from "@/components/live/WalkthroughModal";
 import { ClockMenu } from "@/components/live/ClockMenu";
 import { SubDueBanner } from "@/components/live/SubDueBanner";
+import { subDueBannerShows } from "@/components/live/SubDue";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
 import { GameSummaryCard } from "@/components/live/GameSummaryCard";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import type { InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
 import { periodPhase } from "@/lib/live/periodPhase";
+import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 
 // Perf phase 8: dynamic-import the modals that are only rendered
@@ -75,6 +79,17 @@ const ManualEndQuarterConfirm = dynamic(
     ),
   { ssr: false },
 );
+// The pieces the game will need with no signal load once the screen is up,
+// while there's signal: a lazy chunk fetched at the siren with none
+// crashed the page to "Loading chunk … failed" (round-3 offline testing,
+// 24 Oct 2026). The bundle on first load stays as lean as before.
+const OFFLINE_CHUNKS = [
+  () => import("@/components/live/QuarterEndModal"),
+  () => import("@/components/live/FullTimeReview"),
+  () => import("@/components/live/LockModal"),
+  () => import("@/components/live/InjuryReplacementModal"),
+  () => import("@/components/live/ManualEndQuarterConfirm"),
+];
 // Plan-ahead rotation (F1): the SAME shared planner used pre-game,
 // seeded mid-game from the live field. Lazy — only downloads when the
 // coach opens "Plan ahead".
@@ -93,7 +108,7 @@ import {
   type ZoneCaps,
   type ZoneMinutes,
 } from "@/lib/fairness";
-import type { Game, Player, PositionModel, Zone } from "@/lib/types";
+import type { Game, Lineup, Player, PositionModel, Zone } from "@/lib/types";
 import {
   projectUpcomingRotation,
   withPinnedPeriods,
@@ -113,11 +128,14 @@ import { getSportConfig } from "@/lib/sports/registry";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { useHypeSong } from "@/lib/live/useHypeSong";
 import { isFinalSubWindow, canPlanNextPeriod } from "@/lib/live/subCadence";
-import { subIntervalStartFloor } from "@/lib/live/subDistribution";
+import { mergeSubAnchor, type SubAnchor } from "@/lib/live/subAnchor";
+import { clockPauseInput, storeClockFromMark, withQueuedClockPauseMark } from "@/lib/live/clockPause";
+import { onQueueSaved, useWriteQueue } from "@/lib/live/writeQueue";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 
 import { assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
 import { UndoStrip } from "@/components/live/UndoStrip";
+import { requestLiveSync } from "@/lib/live/liveSync";
 // YT IFrame API + playSong logic lives in `@/lib/live/useHypeSong`
 // since 2026-05-16 (extracted for AFL/netball parity). The hook
 // owns the refs, lifecycle, and trigger function.
@@ -204,12 +222,47 @@ interface LiveGameProps {
   ageGroup: AgeGroupConfig;
 }
 
+/**
+ * The store shows what the server's replay does: the same quarter and
+ * phase, score and who's where. A difference with nothing of this phone's
+ * in flight is the other phone's doing.
+ */
+function storeMatchesServer(
+  store: {
+    currentQuarter: number;
+    quarterEnded: boolean;
+    finalised: boolean;
+    teamScore: { goals: number; behinds: number };
+    opponentScore: { goals: number; behinds: number };
+    lineup: Lineup;
+    injuredIds: string[];
+    loanedIds: string[];
+  },
+  server: GameState,
+): boolean {
+  if (store.currentQuarter !== server.currentQuarter) return false;
+  if (store.quarterEnded !== server.quarterEnded || store.finalised !== server.finalised) return false;
+  if (store.teamScore.goals !== server.teamScore.goals || store.teamScore.behinds !== server.teamScore.behinds) return false;
+  if (store.opponentScore.goals !== server.opponentScore.goals || store.opponentScore.behinds !== server.opponentScore.behinds) return false;
+  const same = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((id) => b.includes(id));
+  if (!same(store.injuredIds, server.injuredIds) || !same(store.loanedIds, server.loanedIds)) return false;
+  if (!server.lineup) return true;
+  const zones: (keyof Lineup)[] = ["back", "hback", "mid", "hfwd", "fwd", "bench"];
+  return zones.every((z) => same(store.lineup[z] ?? [], server.lineup?.[z] ?? []));
+}
+
 type LastScore = {
   kind: "goal" | "behind";
   forTeam: "us" | "opponent";
   playerId: string | null;
   playerName: string | null;
   quarter: number;
+  /**
+   * The score's write (its op id, the event's idempotency key): Undo
+   * takes back this one, never "the latest", which may be the other
+   * phone's (UX round 2).
+   */
+  key: string;
 };
 
 /** Per player, the later of the server's and this phone's stamp. */
@@ -252,6 +305,7 @@ export function LiveGame({
   quarterMs,
   ageGroup,
 }: LiveGameProps) {
+  const names = useSquadNames();
   const activeZones = useMemo(() => positionsFor(positionModel), [positionModel]);
   // F3 (Phase 12): labelled zones for the long-press player summary, derived
   // from the AFL sport config in display order and filtered to this age
@@ -294,6 +348,7 @@ export function LiveGame({
   const playerScores = useLiveGame((s) => s.playerScores);
   const startClock = useLiveGame((s) => s.startClock);
   const pauseClock = useLiveGame((s) => s.pauseClock);
+  const restoreClock = useLiveGame((s) => s.restoreClock);
   const beginNextQuarter = useLiveGame((s) => s.beginNextQuarter);
   const endCurrentQuarter = useLiveGame((s) => s.endCurrentQuarter);
   const basePlayedZoneMs = useLiveGame((s) => s.basePlayedZoneMs);
@@ -374,7 +429,20 @@ export function LiveGame({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [subBaseMs, setSubBaseMs] = useState<number | null>(null);
+  // The sub clock: where the quarter's sub interval started (its last
+  // planned swap) and a due batch's swaps still to make. The events'
+  // anchor seeds it (a reload, a new quarter) and this phone's own swaps
+  // move it (mergeSubAnchor, below).
+  const [subAnchor, setSubAnchor] = useState<SubAnchor | null>(null);
+  // The clock_pause events this phone wrote (by op id), and the last one
+  // the clock was set from: a pause another phone made is applied once.
+  const ownClockOpsRef = useRef(new Set<string>());
+  const appliedClockMarkRef = useRef<string | null>(null);
+  // Set when the last of the writes a reload left in the queue saves:
+  // the next init takes the server's game (round 3, 24 Oct 2026: after
+  // a reconnect the screen kept the lineup from before the offline subs
+  // while the database had them, until a manual reload).
+  const resyncAfterQueueRef = useRef(false);
   // Swaps made on this phone, stamped in the replay's absolute game-ms
   // frame. The recency guard's lastSubbedOn/OffMs come from the server
   // replay, which a mid-quarter swap doesn't refresh — so without these
@@ -429,6 +497,8 @@ export function LiveGame({
 
   // Swap-done toast — confirms that a substitution landed.
   const [swapToast, setSwapToast] = useState<string | null>(null);
+  // "Make all swaps"' Undo on the toast, while it shows (undoSwaps).
+  const [swapToastUndo, setSwapToastUndo] = useState<{ run: () => void } | null>(null);
   const swapToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // When the coach taps the own-team `+G`/`+B` chip in the
@@ -512,7 +582,13 @@ export function LiveGame({
     // is initialState changing — that's already in the dep array.
     const fullStoreState = useLiveGame.getState();
     const storeQuarter = fullStoreState.currentQuarter;
-    const storeAheadOfServer = storeQuarter > initialState.currentQuarter;
+    // Ahead because this phone started a quarter the server hasn't got
+    // yet (Start is queued, and with no signal it waits): not a restart.
+    // A refresh landing first would otherwise put the break back.
+    const startQueued = useWriteQueue
+      .getState()
+      .queue.some((op) => op.kind === "startQuarter" && op.args[1] === gameId);
+    const storeAheadOfServer = storeQuarter > initialState.currentQuarter && !startQueued;
     // Phase 5c: after a force-quit, the persist middleware
     // rehydrates `activeGameId` (plus a few in-memory-only fields
     // like lockedIds) but NOT the server-replayable bits — lineup
@@ -533,10 +609,30 @@ export function LiveGame({
     // second run then falls through and re-inits with
     // clockStartedAt=null, silently pausing the freshly-started
     // clock. Steve 2026-05-20 demo clock-auto-resume fix.
+    // Writes a reload left in the write queue have since saved (below):
+    // this screen drew the server's game without them, so take the
+    // server's game again rather than keep the store's.
+    const resync = resyncAfterQueueRef.current;
+    resyncAfterQueueRef.current = false;
+    // Another phone on this game (a parent's game-day link, a co-manager)
+    // moved it on — scored, subbed, started or ended a quarter, finished —
+    // and LiveSync refreshed the page with it. The store only follows its
+    // own taps, so the coach's phone kept the old score and quarter until
+    // a reload (UX round 2). With nothing of this phone's still on its way
+    // to the server, the server's replay is the game: take it, keeping
+    // this phone's clock in the quarter they share.
+    const otherPhoneMovedOn =
+      initedGameIdRef.current === gameId &&
+      fullStoreState.activeGameId === gameId &&
+      !storeAheadOfServer &&
+      pendingWriteCount() === 0 &&
+      !storeMatchesServer(fullStoreState, initialState);
     if (
       fullStoreState.activeGameId === gameId &&
       !storeAheadOfServer &&
-      lineupHasAnyPlayer
+      lineupHasAnyPlayer &&
+      !resync &&
+      !otherPhoneMovedOn
     ) {
       setHydrated(true);
       return;
@@ -548,7 +644,7 @@ export function LiveGame({
     // not to auto-resume. A real page reload remounts; ref starts
     // null; we auto-resume the clock from the server's
     // quarterStartedAt and skip the kickoff modal.
-    const isFreshMount = initedGameIdRef.current !== gameId;
+    const isFreshMount = initedGameIdRef.current !== gameId || resync;
     initedGameIdRef.current = gameId;
 
     let clockStartedAt: number | null = null;
@@ -559,19 +655,49 @@ export function LiveGame({
       initialState.currentQuarter >= 1 &&
       initialState.quarterStartedAt
     ) {
-      // Game ms, the frame the replay's stint stamps are in.
-      accumulatedMs =
-        Math.max(0, Date.now() - new Date(initialState.quarterStartedAt).getTime()) *
-        clockMultiplier;
-      // Auto-resume only on a fresh mount. On a Q-break advance
-      // (same mount, new initialState), Steve's intent stands:
-      // leave clockStartedAt null so the StartQuarterModal blocks
-      // until the coach taps Start. Page reload / test seed /
-      // hard-refresh hit the fresh-mount branch and get the
-      // clock running immediately, matching the pre-70fda29
-      // behaviour for those flows.
-      if (isFreshMount) {
-        clockStartedAt = Date.now();
+      // The quarter's latest pause or resume (its clock_pause event,
+      // or one still queued from before the reload): the clock is held
+      // at the pause, or runs on from the resume with the stoppage
+      // banked. A rebuild from quarter_start alone counted the paused
+      // seconds as play (round 2, 24 Oct 2026).
+      const mark = isFreshMount
+        ? withQueuedClockPauseMark(
+            initialState.clockPause,
+            useWriteQueue.getState().queue,
+            gameId,
+            initialState.currentQuarter,
+          )
+        : null;
+      if (mark) {
+        const clock = storeClockFromMark(mark, Date.now(), clockMultiplier);
+        accumulatedMs = clock.accumulatedMs;
+        clockStartedAt = clock.running ? Date.now() : null;
+        appliedClockMarkRef.current = mark.key;
+      } else {
+        // Game ms, the frame the replay's stint stamps are in.
+        accumulatedMs =
+          Math.max(0, Date.now() - new Date(initialState.quarterStartedAt).getTime()) *
+          clockMultiplier;
+        // Auto-resume only on a fresh mount. On a Q-break advance
+        // (same mount, new initialState), Steve's intent stands:
+        // leave clockStartedAt null so the StartQuarterModal blocks
+        // until the coach taps Start. Page reload / test seed /
+        // hard-refresh hit the fresh-mount branch and get the
+        // clock running immediately, matching the pre-70fda29
+        // behaviour for those flows.
+        if (isFreshMount) {
+          clockStartedAt = Date.now();
+        }
+      }
+      if (otherPhoneMovedOn) {
+        if (initialState.currentQuarter === storeQuarter && !fullStoreState.quarterEnded) {
+          // The quarter this phone is already timing: its clock stands.
+          clockStartedAt = fullStoreState.clockStartedAt;
+          accumulatedMs = fullStoreState.accumulatedMs;
+        } else {
+          // The other phone started it: it's running.
+          clockStartedAt = Date.now();
+        }
       }
     }
     init({
@@ -624,22 +750,55 @@ export function LiveGame({
     return () => clearInterval(id);
   }, [clockStartedAt]);
 
+  // A write a reload left in the queue saved, with no caller here to
+  // refresh: once the last of this game's has, refresh and take the
+  // server's game (resyncAfterQueueRef, above).
+  useEffect(
+    () =>
+      onQueueSaved((op, { hadCaller }) => {
+        if (hadCaller || op.args[1] !== gameId) return;
+        if (useWriteQueue.getState().queue.some((q) => q.args[1] === gameId)) return;
+        resyncAfterQueueRef.current = true;
+        startTransition(() => router.refresh());
+      }),
+    [gameId, router],
+  );
+
+  // A pause or resume another phone made lands with a refresh: put the
+  // clock where its event says. This phone's own are already there.
   useEffect(() => {
+    if (!hydrated) return;
+    const mark = initialState.clockPause;
+    if (!mark || mark.key === appliedClockMarkRef.current) return;
+    appliedClockMarkRef.current = mark.key;
+    if (ownClockOpsRef.current.has(mark.key)) return;
+    if (initialState.currentQuarter !== currentQuarter || quarterEnded || finalised) return;
+    if (quarterEndTriggeredRef.current === currentQuarter) return;
+    const clock = storeClockFromMark(mark, Date.now(), clockMultiplier);
+    restoreClock(clock.accumulatedMs, clock.running);
+  }, [hydrated, initialState, currentQuarter, quarterEnded, finalised, clockMultiplier, restoreClock]);
+
+  // The sub clock from the events: the quarter's last planned swap (0 at
+  // the start), so a reload carries on from it. It used to be re-seeded
+  // on mount by flooring the clock onto the interval grid, before the
+  // clock was back, so a reload just after subbing brought "Sub due —
+  // NOW" straight back (round 2, 24 Oct 2026). The phone's own swaps
+  // win over events that haven't caught up (mergeSubAnchor).
+  const serverHasQuarter = initialState.currentQuarter === currentQuarter && !initialState.quarterEnded;
+  const serverSubAnchorMs = serverHasQuarter ? initialState.subAnchorMs : null;
+  const serverSubBatchLeft = serverHasQuarter ? initialState.subBatchLeft : 0;
+  useEffect(() => {
+    if (!hydrated) return;
     if (currentQuarter >= 1 && !quarterEnded && !finalised) {
-      // Issue 4: seed the sub-interval start by FLOORING the current
-      // clock elapsed onto the interval grid, not to "now". The main
-      // clock recomputes correctly on remount (persisted timestamp), so
-      // the floor is identical before/after a remount — the countdown
-      // resumes from where it was instead of resetting to a full
-      // interval. Both sides are game ms.
-      setSubBaseMs(
-        subIntervalStartFloor({ nowMs: currentElapsedMs(), intervalMs: subIntervalMs }),
+      setSubAnchor((mine) =>
+        mergeSubAnchor(mine, { period: currentQuarter, anchorMs: serverSubAnchorMs, batchLeft: serverSubBatchLeft }),
       );
     } else {
-      setSubBaseMs(null);
+      setSubAnchor(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentQuarter, quarterEnded, finalised]);
+  }, [hydrated, currentQuarter, quarterEnded, finalised, serverSubAnchorMs, serverSubBatchLeft]);
+  const subBaseMs = subAnchor?.period === currentQuarter ? subAnchor.anchorMs : null;
+  const subBatchLeft = subAnchor?.period === currentQuarter ? subAnchor.batchLeft : 0;
 
   function handleTapField(playerId: string, zone: Zone) {
     if (isFinished) return;
@@ -745,17 +904,22 @@ export function LiveGame({
     undoTimerRef.current = setTimeout(() => setUndoToastVisible(false), 8000);
   }
 
+  // "Jack", or "Jack S" beside another Jack (SquadNames).
   function shortName(playerId: string): string {
     const p = playersById.get(playerId);
     if (!p) return "Player";
-    const [first] = p.full_name.trim().split(/\s+/);
-    return first ?? p.full_name;
+    return names.first(p);
   }
 
-  function showSwapToast(text: string) {
+  function showSwapToast(text: string, undo?: () => void) {
     if (swapToastTimerRef.current !== null) clearTimeout(swapToastTimerRef.current);
     setSwapToast(text);
-    swapToastTimerRef.current = setTimeout(() => setSwapToast(null), 2500);
+    setSwapToastUndo(undo ? { run: undo } : null);
+    // Long enough to tap Undo when there's one.
+    swapToastTimerRef.current = setTimeout(() => {
+      setSwapToast(null);
+      setSwapToastUndo(null);
+    }, undo ? 6000 : 2500);
     // Light haptic tap on mobile — confirms the swap landed. Goes
     // via the haptics primitive so iOS users get a real Taptic tap
     // instead of the silent navigator.vibrate no-op WebKit ships.
@@ -785,18 +949,19 @@ export function LiveGame({
     // for now because light haptic is gentle and a behind is
     // worth acknowledging too.
     void hapticTap("light");
-    startUndoToast({
-      kind,
-      forTeam: "us",
-      playerId,
-      playerName: p ? p.full_name.trim().split(/\s+/)[0] : null,
-      quarter,
-    });
-    enqueueLiveAction(kind === "goal" ? "recordGoal" : "recordBehind", [
+    const { id: key } = enqueueLiveAction(kind === "goal" ? "recordGoal" : "recordBehind", [
       auth,
       gameId,
       { player_id: playerId, quarter, elapsed_ms },
     ]);
+    startUndoToast({
+      kind,
+      forTeam: "us",
+      playerId,
+      playerName: p ? names.first(p) : null,
+      quarter,
+      key,
+    });
   }
 
   // Unattributed goal: the coach saw it go through but not who kicked
@@ -811,18 +976,19 @@ export function LiveGame({
     incTeam("goals");
     playSong();
     void hapticTap("light");
+    const { id: key } = enqueueLiveAction("recordGoal", [
+      auth,
+      gameId,
+      { player_id: null, quarter, elapsed_ms, unattributed: true },
+    ]);
     startUndoToast({
       kind: "goal",
       forTeam: "us",
       playerId: null,
       playerName: null,
       quarter,
+      key,
     });
-    enqueueLiveAction("recordGoal", [
-      auth,
-      gameId,
-      { player_id: null, quarter, elapsed_ms, unattributed: true },
-    ]);
   }
 
   // Rushed behind: ball deflects through off the opposition (or
@@ -832,18 +998,19 @@ export function LiveGame({
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = currentElapsedMs();
     incTeam("behinds");
+    const { id: key } = enqueueLiveAction("recordBehind", [
+      auth,
+      gameId,
+      { player_id: null, quarter, elapsed_ms, rushed: true },
+    ]);
     startUndoToast({
       kind: "behind",
       forTeam: "us",
       playerId: null,
       playerName: null,
       quarter,
+      key,
     });
-    enqueueLiveAction("recordBehind", [
-      auth,
-      gameId,
-      { player_id: null, quarter, elapsed_ms, rushed: true },
-    ]);
   }
 
   function handleScore(kind: "goal" | "behind") {
@@ -879,9 +1046,9 @@ export function LiveGame({
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = currentElapsedMs();
     // Issue 5: a forced injury/lent replacement is off-cadence — it must
-    // NOT reset the sub countdown. Leave subBaseMs alone so the timer
-    // keeps running toward the next scheduled rotation. (Was
-    // setSubBaseMs(currentElapsedMs()) here.)
+    // NOT reset the sub countdown. Leave the sub anchor alone so the
+    // timer keeps running toward the next scheduled rotation (the events
+    // skip it too: lib/live/subAnchor matches it to its injury).
     applyInjurySwap(injuredId, replacementId);
     // Two queue ops, dispatched in order. The queue's FIFO contract
     // means the injury event lands before the swap on the server,
@@ -948,17 +1115,17 @@ export function LiveGame({
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = currentElapsedMs();
     incOpponent(kind === "goal" ? "goals" : "behinds");
-    startUndoToast({ kind, forTeam: "opponent", playerId: null, playerName: null, quarter });
-    enqueueLiveAction("recordOpponentScore", [
+    const { id: key } = enqueueLiveAction("recordOpponentScore", [
       auth,
       gameId,
       { kind, quarter, elapsed_ms },
     ]);
+    startUndoToast({ kind, forTeam: "opponent", playerId: null, playerName: null, quarter, key });
   }
 
   function handleUndo() {
     if (!lastScore) return;
-    const { kind, forTeam, playerId, quarter } = lastScore;
+    const { kind, forTeam, playerId, quarter, key } = lastScore;
 
     if (forTeam === "us") {
       undoTeamScore(kind === "goal" ? "goals" : "behinds");
@@ -980,30 +1147,47 @@ export function LiveGame({
         : kind === "goal" ? "opponent_goal" : "opponent_behind";
 
     // On the game's write-queue lane, so it can't overtake its score.
+    // It names the score (its write's key). Refused because the other
+    // phone already took it back: the store catches up from the server.
     const { flushed } = enqueueLiveAction("undoLastScore", [
       auth,
       gameId,
-      { kind: serverKind, quarter, playerId: playerId ?? null },
+      { kind: serverKind, quarter, playerId: playerId ?? null, target: { key } },
     ]);
-    flushed.catch((e: unknown) => setError(e instanceof Error ? e.message : "Couldn't undo that score."));
+    flushed.catch((e: unknown) => {
+      setError(e instanceof Error ? e.message : "Couldn't undo that score.");
+      requestLiveSync();
+    });
   }
 
   // `resetSubTimer` = was this the PLANNED rotation tick? A scheduled
   // rotation (the suggested-swap apply) resets the countdown to a full
   // interval (issue 5). A deliberate off-cadence manual swap leaves it
   // running toward the next scheduled rotation (issue 5 open question,
-  // default "keep running"). Forced injury/lent swaps go through their
-  // own path and never reset.
+  // default "keep running"), and says so (`manual`) so the anchor a
+  // reload rebuilds skips it too. Forced injury/lent swaps go through
+  // their own path and never reset.
+  // `batchLeft`: one swap of a due batch, with this many still to make.
+  // The countdown holds (still due) until the batch is done, as soccer's
+  // does; it used to restart and drop the batch's other pair (round 2,
+  // 24 Oct 2026).
   function persistSwap(
     off: string,
     on: string,
     zone: Zone,
     resetSubTimer = true,
+    batchLeft = 0,
   ) {
     setError(null);
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = currentElapsedMs();
-    if (resetSubTimer) setSubBaseMs(elapsed_ms);
+    if (resetSubTimer) {
+      setSubAnchor({
+        period: currentQuarter,
+        anchorMs: batchLeft > 0 ? subBaseMs ?? 0 : elapsed_ms,
+        batchLeft,
+      });
+    }
     const at = initialState.completedQuarterMs + elapsed_ms;
     setLocalSubbedMs((prev) => ({
       on: { ...prev.on, [on]: at },
@@ -1019,6 +1203,8 @@ export function LiveGame({
         zone,
         quarter,
         elapsed_ms,
+        ...(resetSubTimer ? {} : { manual: true }),
+        ...(resetSubTimer && batchLeft > 0 ? { batch_left: batchLeft } : {}),
       },
     ]);
   }
@@ -1031,8 +1217,19 @@ export function LiveGame({
   // the quarter_start timestamp and starts the clock. No
   // separate handler needed here.
 
+  // A pause or resume is saved (clock_pause), so a reload or another
+  // phone keeps it (lib/live/clockPause).
+  function saveClockPause(paused: boolean, elapsedMs: number) {
+    const input = clockPauseInput(Math.max(1, currentQuarter), paused, elapsedMs, Date.now());
+    const { id } = enqueueLiveAction("recordClockPause", [auth, gameId, input]);
+    ownClockOpsRef.current.add(id);
+  }
+
   function handlePause() {
+    if (clockStartedAt === null) return;
+    const elapsed = currentElapsedMs();
     pauseClock();
+    saveClockPause(true, elapsed);
   }
 
   function handleResume() {
@@ -1046,7 +1243,9 @@ export function LiveGame({
     // "apply the same rules globally" — both sports now share the
     // same hooter-fired-locks-resume invariant.
     if (quarterEndTriggeredRef.current === currentQuarter) return;
+    if (clockStartedAt !== null) return;
     startClock();
+    saveClockPause(false, accumulatedMs);
   }
 
   function handleEndQuarter(opts?: { creditFullQuarter?: boolean }) {
@@ -1148,6 +1347,13 @@ export function LiveGame({
   // Unlock the sub-due beep's AudioContext on the first tap (shared
   // with league and union; see subDueBeep.ts).
   useSubDueAudioUnlock();
+  useEffect(() => {
+    for (const load of OFFLINE_CHUNKS) void load().catch(() => {});
+  }, []);
+
+  // The summary after Finish opens at the top: the final score and Copy
+  // for group chat, not the review's scroll (round 2, 24 Oct 2026).
+  useScrollToTopOnFinish(finalised);
 
   // Game ms, like quarterMs and every stint stamp.
   const nowMs = currentElapsedMs();
@@ -1194,8 +1400,12 @@ export function LiveGame({
     quarterMs,
     effectiveSubIntervalMs: subIntervalMs,
   });
+  // No sub is due once the siren's gone: the quarter-end modal waits on
+  // the coach with quarterEnded still false, and a "Sub due" card sat
+  // behind it through quarter time and full time (AFL audit, 23 Oct 2026).
+  const periodClockDone = quarterEnded || showQuarterEndModal || (quarterMs > 0 && nowMs >= quarterMs);
   const msUntilDue =
-    subBaseMs !== null && !isPreGame && !isFinished
+    subBaseMs !== null && !isPreGame && !isFinished && !periodClockDone
       ? subBaseMs + subIntervalMs - nowMs
       : null;
   // Steve's real-game scenario: lent a player to the opposition,
@@ -1340,13 +1550,19 @@ export function LiveGame({
   ) : null;
 
   if (isBetweenQuarters) {
+    // The quarter this break follows.
+    const breakQuarter = currentQuarter;
     return (
-      <div className="ui-nonselect space-y-3">
-        {liveTopBar}
+      <div className="ui-nonselect">
         {walkthroughOverlay}
         <QuarterBreak
           auth={auth}
           gameId={gameId}
+          game={game}
+          exitHref={exitHref}
+          onHelp={handleOpenWalkthrough}
+          ageGroup={ageGroup}
+          trackScoring={trackScoring}
           players={squadPlayers}
           season={season}
           seasonAvailability={seasonAvailability}
@@ -1360,7 +1576,11 @@ export function LiveGame({
           chipModeByKey={chipModeByKey}
           aflPlaybook={aflPlaybook}
           periodCount={ageGroup.periodCount}
-          onStarted={() => beginNextQuarter()}
+          onStarted={() => {
+            // The page may already have caught up to this quarter (the
+            // start's refresh landing first re-inits the store into it).
+            if (useLiveGame.getState().currentQuarter <= breakQuarter) beginNextQuarter();
+          }}
           onPrimeAudio={primeSong}
         />
       </div>
@@ -1438,7 +1658,9 @@ export function LiveGame({
     suggestions,
     pastHooterCarry,
   } = resolveDisplaySuggestions({
-    rawSuggestions,
+    // A due batch made one swap at a time: just the swaps it has left,
+    // as soccer's card (lib/live/subAnchor openSubBatch).
+    rawSuggestions: subBatchLeft > 0 ? rawSuggestions.slice(0, subBatchLeft) : rawSuggestions,
     subPastHooter,
     pin: pinForThisGame,
     currentPeriod: currentQuarter,
@@ -1531,7 +1753,7 @@ export function LiveGame({
           isLive={!isPreGame}
           onHelp={handleOpenWalkthrough}
           banner={
-            subDueOpen && suggestions.length === 0 ? (
+            subDueBannerShows(subDueOpen, suggestions.length, hasSwappableBench) ? (
               <SubDueBanner onAcknowledge={handleSubDueAcknowledge} />
             ) : null
           }
@@ -1564,45 +1786,22 @@ export function LiveGame({
         />
       )}
 
-      {/* Swap-done toast — flashes briefly after a substitution lands.
-          Wrapped in SirenPulseHalo so the brand pulse halos the toast
-          on appearance. The toast is conditionally rendered (mounts +
-          unmounts each swap), so a constant triggerKey is enough — the
-          halo's inner span re-mounts with the wrapper and the
-          animation restarts each time.
-
-          OVERLAY, not in flow (UI polish audit §7): rendered in-flow
-          it pushed the whole field ~44px down on mount and snapped
-          back 2.5s later — twice per sub, right as the coach's eye is
-          on the two tiles that changed. The zero-height relative
-          wrapper keeps the document where it is; the toast floats
-          over the content below. */}
+      {/* Swap-done toast — flashes briefly after a substitution lands
+          (the shared SwapDoneToast, an overlay that doesn't push the
+          field down). */}
       {swapToast && !isPreGame && !isFinished && (
-        <div className="relative z-30 h-0">
-          <div className="absolute inset-x-0 top-0">
-            <SirenPulseHalo triggerKey="swap" size="sm" display="block" className="rounded-sm">
-              {/* slide-in-bottom (220ms) so the toast rises from below
-                  instead of popping in. The SirenPulseHalo wraps it and
-                  fires its own one-shot halo on the same beat. Exit is a
-                  hard cut at 2.5s — coach is on to the next moment, no
-                  value in animating the disappearance. P1-6 in
-                  MICRO-INTERACTIONS-PLAN.md. */}
-              <div
-                role="status"
-                aria-live="polite"
-                className="flex items-center gap-2 rounded-sm border border-brand-200 bg-brand-50 px-3 py-1.5 text-brand-800 shadow-pop motion-safe:animate-slide-in-bottom"
-              >
-                <span
-                  aria-hidden
-                  className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-[11px] font-bold leading-none text-warm"
-                >
-                  ✓
-                </span>
-                <span className="text-xs font-semibold">{swapToast}</span>
-              </div>
-            </SirenPulseHalo>
-          </div>
-        </div>
+        <SwapDoneToast
+          text={swapToast}
+          undoLabel={swapToast.endsWith(" subs made") ? "Undo swaps" : "Undo"}
+          onUndo={
+            swapToastUndo
+              ? () => {
+                  swapToastUndo.run();
+                  showSwapToast("Swaps undone");
+                }
+              : undefined
+          }
+        />
       )}
 
       {/* Undo strip is rendered inside the sticky-bottom bar
@@ -1689,13 +1888,20 @@ export function LiveGame({
                   for (const s of suggestions) {
                     persistSwap(s.off_player_id, s.on_player_id, s.zone);
                   }
+                  // The toast's Undo puts them back, last first, without
+                  // restarting the sub clock again (undoSwaps).
+                  const undo = undoSwaps(
+                    suggestions.map((s) => ({ off: s.off_player_id, on: s.on_player_id, zone: s.zone })),
+                    (s) => persistSwap(s.off, s.on, s.zone, false),
+                  );
                   if (suggestions.length === 1) {
                     const s = suggestions[0];
                     showSwapToast(
-                      `${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`
+                      `${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`,
+                      undo,
                     );
                   } else if (suggestions.length > 1) {
-                    showSwapToast(`${suggestions.length} subs made`);
+                    showSwapToast(`${suggestions.length} subs made`, undo);
                   }
                   // The pinned plan-ahead sub (if any) has now been
                   // applied — consume it so it can't re-fire next window.
@@ -1704,7 +1910,15 @@ export function LiveGame({
                   handleSubDueAcknowledge();
                 }}
                 onApplyOne={(s) => {
-                  persistSwap(s.off_player_id, s.on_player_id, s.zone);
+                  // One of a due batch: the rest stay due until they're
+                  // made (the sub clock holds; soccer's rule).
+                  persistSwap(
+                    s.off_player_id,
+                    s.on_player_id,
+                    s.zone,
+                    true,
+                    subState === "due" ? suggestions.length - 1 : 0,
+                  );
                   showSwapToast(
                     `${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`
                   );
@@ -1829,13 +2043,10 @@ export function LiveGame({
             isAdmin={isAdmin}
             finished={finalised}
             // Steve 2026-05-20: mid-game settings affordance —
-            // currently just the sub-interval override (drives
-            // the sub-due reminder cadence), but the settings modal
-            // is set up to take more knobs over time without
-            // adding new buttons to this row. AFL-only — the
-            // netball live shell doesn't pass this slot because
-            // netball has no sub-interval concept.
-            extra={
+            // the sub interval and players on field. The row's
+            // standard settings slot; every sport with a sub
+            // interval passes one (netball has none).
+            settings={
               <LiveGameSettingsButton
                 auth={auth}
                 gameId={gameId}
@@ -1903,7 +2114,7 @@ export function LiveGame({
                 )}
                 {selected.kind === "bench" && (
                   <p className="text-xs text-ink-dim">
-                    Tap a field player to swap {p ? p.full_name.split(" ")[0] : "them"} on.
+                    Tap a field player to swap {p ? names.first(p) : "them"} on.
                   </p>
                 )}
                 {/* Swap player — covers both cases:
@@ -2018,6 +2229,7 @@ export function LiveGame({
           SwapConfirmDialog so the visual language stays consistent. */}
       {clockMenuOpen && (
         <ClockMenu
+          sport="afl"
           periodAbbr={`Q${currentQuarter}`}
           running={running}
           onPause={handlePause}
@@ -2032,9 +2244,16 @@ export function LiveGame({
       {showManualEndConfirm && (
         <ManualEndQuarterConfirm
           quarter={currentQuarter}
-          onConfirm={() => {
+          sport="afl"
+          clock={running ? "running" : "paused"}
+          elapsedMs={displayNowMs}
+          periodMs={quarterMs}
+          onConfirm={(full) => {
             setShowManualEndConfirm(false);
-            handleEndQuarter({ creditFullQuarter: true });
+            // The time played, or (the game played on while the app's
+            // clock sat paused) the whole period: the coach's choice. It
+            // used to be the whole period, silently (round 3, 24 Oct 2026).
+            handleEndQuarter({ creditFullQuarter: full });
           }}
           onCancel={() => setShowManualEndConfirm(false)}
         />
@@ -2613,6 +2832,7 @@ export function LiveGame({
               setSubOffSelected(null);
             }}
             onCancel={() => setSubOffSelected(null)}
+            dismissOnBackdrop
           />
         );
       })()}
@@ -2627,6 +2847,8 @@ export function LiveGame({
           opponentName={opponentName}
           trackScoring={trackScoring}
           playersById={playersById}
+          // Finishing refreshes the route, so the replay has every swap.
+          subCount={initialState.subCount}
           presentIds={[
             ...(["back", "hback", "mid", "hfwd", "fwd"] as Zone[]).flatMap((z) => lineup[z]),
             ...lineup.bench,

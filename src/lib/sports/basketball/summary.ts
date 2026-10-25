@@ -1,12 +1,15 @@
 // ─── Basketball game summary ─────────────────────────────────
 // The share text at full time ("Copy for group chat"), from the
 // replayed game: the result (only when scoring is on), the scorers by
-// points, then each kid's game time (with guard and forward split under
+// points (points nobody was named for close the list, "+1 pt (no
+// scorer)", so it adds up to the score), then each kid's game time (with guard and forward split under
 // the line strategies, and a foul-out marked), and the kids who were
 // here but didn't get on.
 
 import type { Player } from "@/lib/types";
+import { shortName, shortNames } from "@/lib/names";
 import { DIDNT_GET_ON, didntGetOn } from "@/lib/live/presentPlayers";
+import { byJerseyThenName } from "@/lib/share/neutralOrder";
 import { basketballGameMs, type BasketballGameState } from "@/lib/sports/basketball/replay";
 
 function fmtMs(ms: number): string {
@@ -29,7 +32,9 @@ export interface BasketballSummaryInput {
 export function buildBasketballSummary(input: BasketballSummaryInput): string {
   const { teamName, opponentName, trackScoring, state, squad, presentIds } = input;
   const byId = new Map(squad.map((p) => [p.id, p]));
-  const first = (p: Player | undefined) => (p ? p.full_name.trim().split(/\s+/)[0] : "Unknown");
+  // Two Mias read "Mia C" and "Mia T" (the number is printed beside them).
+  const short = shortNames(squad, "first", { numberShown: true });
+  const first = (p: Player | undefined) => (p ? short.get(p.id) ?? shortName(p.full_name) : "Unknown");
   const jersey = (p: Player | undefined) => (p?.jersey_number != null ? `#${p.jersey_number} ` : "");
   const lines: string[] = [`🏀 Full time — ${teamName} v ${opponentName}`];
 
@@ -47,26 +52,28 @@ export function buildBasketballSummary(input: BasketballSummaryInput): string {
         const p = byId.get(id);
         return `${first(p)}${p?.jersey_number != null ? ` (#${p.jersey_number})` : ""} ${n}`;
       });
+    const unnamed = us - Object.values(state.playerPoints).reduce((s, n) => s + n, 0);
+    if (unnamed > 0) scorers.push(`+${unnamed} ${unnamed === 1 ? "pt" : "pts"} (no scorer)`);
     if (scorers.length > 0) lines.push(`\n🏀 Points: ${scorers.join(", ")}`);
   }
 
   const fouledOut = new Set(state.fouledOutIds);
   const played = Object.keys(state.ms)
     .map((id) => ({ id, ms: basketballGameMs(state, id), guard: state.ms[id]?.guard ?? 0, forward: state.ms[id]?.forward ?? 0 }))
-    .filter((r) => r.ms >= 1000)
-    .sort((a, b) => b.ms - a.ms);
+    .filter((r) => r.ms >= 1000);
   const rows = played.map(({ id, ms, guard, forward }) => {
     const p = byId.get(id);
     const split = guard >= 1000 && forward >= 1000 ? ` (G ${fmtMs(guard)}, F ${fmtMs(forward)})` : "";
-    return `${jersey(p)}${first(p)} — ${fmtMs(ms)}${split}${fouledOut.has(id) ? " · fouled out" : ""}`;
+    return { id, text: `${jersey(p)}${first(p)} — ${fmtMs(ms)}${split}${fouledOut.has(id) ? " · fouled out" : ""}` };
   });
   for (const id of didntGetOn(presentIds, played.map((r) => r.id))) {
     const p = byId.get(id);
-    if (p) rows.push(`${jersey(p)}${first(p)} — ${DIDNT_GET_ON}`);
+    if (p) rows.push({ id, text: `${jersey(p)}${first(p)} — ${DIDNT_GET_ON}` });
   }
   if (rows.length > 0) {
     lines.push(`\n⏱ Game time`);
-    lines.push(...rows);
+    // By number, never by minutes: this goes to every parent.
+    lines.push(...rows.sort(byJerseyThenName((r) => byId.get(r.id))).map((r) => r.text));
   }
   return lines.join("\n");
 }

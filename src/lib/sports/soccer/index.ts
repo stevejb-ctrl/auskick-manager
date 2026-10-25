@@ -25,7 +25,14 @@
 //   - Shapes for the short sizes (5, 6, 8 and 10 with a keeper): the
 //     plan lists 7, 9 and 11 only.
 
-import type { PositionDef, ScoreTypeDef, SportConfig, ZoneDef } from "@/lib/sports/types";
+import type {
+  BreakZoneColor,
+  PositionDef,
+  ScoreTypeDef,
+  SportBreakSpec,
+  SportConfig,
+  ZoneDef,
+} from "@/lib/sports/types";
 import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
 import { aflSport } from "@/lib/sports/afl";
 import { validateSoccerLineup } from "@/lib/sports/soccer/lineup";
@@ -34,6 +41,7 @@ import type {
   SoccerFamilyRules,
   SoccerFormation,
   SoccerKeeperStrategy,
+  SoccerLine,
   SoccerSubMode,
 } from "@/lib/sports/soccer/types";
 
@@ -175,6 +183,7 @@ export const SOCCER_RULES: SoccerFamilyRules = {
   keeperKitUpSeconds: null,
   keeperGear: "Keeper top",
   halvesOrQuarters: false,
+  rollingSubs: { label: "Rolling subs", note: "any time, as often as you like" },
   minLines: {
     ages: ["U12", "U13"],
     count: 3,
@@ -182,7 +191,7 @@ export const SOCCER_RULES: SoccerFamilyRules = {
   },
   ruleSource: {
     laws: [
-      { id: "miniroos-scores", text: "No scores or ladders are kept", source: MINIROOS, ages: MINIROOS_AGES },
+      { id: "miniroos-scores", text: "No scores or ladders are kept", source: MINIROOS, ages: MINIROOS_AGES, noScoreboard: true },
       { id: "miniroos-subs", text: "Subs roll on and off at any time, as often as you like", source: MINIROOS, ages: MINIROOS_AGES },
       { id: "miniroos-offside", text: "No offside", source: MINIROOS, ages: MINIROOS_AGES },
     ],
@@ -199,7 +208,7 @@ export const SOCCER_RULES: SoccerFamilyRules = {
       fit: "MiniRoos (Under 8 to Under 11)",
     },
     keepers: {
-      blurb: "You name your keepers (home: Keeper) and they share goal. Everyone else rotates through the lines.",
+      blurb: "You mark your keepers (Keen keeper, under Role) and they share goal. Everyone else rotates through the lines.",
       fit: "Under 12 and up",
     },
     minutes: {
@@ -209,6 +218,35 @@ export const SOCCER_RULES: SoccerFamilyRules = {
   },
   emoji: "⚽",
 };
+
+// Break screen, for every soccer-family sport: attack at the top, then
+// the middle, the back and the keeper (the `gk` unit the family counts
+// keeper minutes under), in the sport's own line words. A shape with no
+// lines is one Field (or Court) zone. Slots are the staged lineup's
+// lines, else the age group's default shape at this game's size.
+const SOCCER_BREAK_ZONES: { key: SoccerLine | "gk"; color: BreakZoneColor }[] = [
+  { key: "att", color: "zone1" },
+  { key: "mid", color: "zone2" },
+  { key: "def", color: "zone3" },
+  { key: "gk", color: "zone4" },
+  { key: "field", color: "zone2" },
+];
+
+/** A soccer-family sport's break zones and words, from its rules. */
+export function soccerFamilyPeriodBreak(rules: SoccerFamilyRules): SportBreakSpec {
+  return {
+    zones: ({ ageGroup, onFieldSize, shape }) => {
+      const formation = soccerFormations(ageGroup as SoccerAgeGroupConfig, onFieldSize)[0];
+      const defaults: Record<string, number> = { ...formation.lines, gk: formation.keeper ? 1 : 0 };
+      return SOCCER_BREAK_ZONES.map((z) => {
+        const words = rules.lineLabels[z.key];
+        return { ...z, label: words.label.toUpperCase(), short: words.label, slots: shape?.[z.key] ?? defaults[z.key] ?? 0 };
+      }).filter((z) => z.slots > 0);
+    },
+    scoreDetail: "goals",
+    lowTimeMs: 4 * 60_000,
+  };
+}
 
 // Soccer lives under the main Siren brand, as union: the main site's
 // host (so no host resolves to soccer; see getBrandForHost) and the
@@ -236,5 +274,9 @@ export const soccerSport: SportConfig = {
   jerseyNumbers: true,
   // Like rugby's, soccer's live screen plays no team song (the plan's call).
   teamSong: false,
+  periodBreak: soccerFamilyPeriodBreak(SOCCER_RULES),
+  // Matches SOCCER_RULES.lineLabels.field (MiniRoos says "field").
+  words: { sportName: "football", surface: "field", startCue: "whistle goes", endCue: "whistle" },
+  surfaceArt: "soccer-pitch",
   validateLineup: (lineup, ageGroup, onFieldSize) => validateSoccerLineup(lineup, ageGroup, onFieldSize, SOCCER_RULES),
 };

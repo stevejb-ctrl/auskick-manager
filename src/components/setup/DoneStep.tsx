@@ -7,6 +7,11 @@ interface DoneStepProps {
   playerCount: number;
   gameCount: number;
   scoringEnabled: boolean;
+  /**
+   * A touch or Oztag mixed team: how many of the squad are marked Girl
+   * or Boy (the rule can't keep its cap without it). Null otherwise.
+   */
+  mixedMarked?: number | null;
 }
 
 export function DoneStep({
@@ -15,6 +20,7 @@ export function DoneStep({
   playerCount,
   gameCount,
   scoringEnabled,
+  mixedMarked = null,
 }: DoneStepProps) {
   // Pluralisation helper — keeps the summary copy natural.
   const pl = (n: number, s: string, p: string = s + "s") =>
@@ -64,6 +70,29 @@ export function DoneStep({
         </div>
       </div>
 
+      {/* A mixed team with kids not yet marked: the rule needs it
+          before the first game (the lineup asks again if not). */}
+      {mixedMarked !== null && playerCount > 0 && mixedMarked < playerCount && (
+        <div
+          data-testid="setup-mixed-nudge"
+          className="rounded-lg border border-warn/40 bg-warn-soft/60 p-5 shadow-card"
+        >
+          <h2 className="text-base font-semibold text-ink">
+            {mixedMarked} of {playerCount} marked Girl or Boy
+          </h2>
+          <p className="mt-1 text-sm text-ink-dim">
+            The mixed rule caps the boys on the field, so Siren needs to know who
+            counts as which. It&rsquo;s only used for the rule, and shows nowhere else.
+          </p>
+          <Link
+            href={`/teams/${teamId}/setup?step=squad`}
+            className="mt-3 inline-flex items-center justify-center rounded-md border border-hairline bg-surface px-4 py-2.5 text-sm font-medium text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+          >
+            Mark the squad
+          </Link>
+        </div>
+      )}
+
       {/* Next steps card */}
       <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card">
         <h2 className="text-base font-semibold text-ink">
@@ -80,16 +109,20 @@ export function DoneStep({
           <li className="flex gap-2">
             <span aria-hidden className="mt-0.5 text-brand-600">•</span>
             <span>
-              <strong className="text-ink">Share availability</strong> with
-              parents so you know who&rsquo;s playing before match day.
+              <strong className="text-ink">Ask parents who&rsquo;s in.</strong>{" "}
+              Each game has an availability link to share in the group chat:
+              parents tap In or Out for their child, no account needed. Find
+              it on the game&rsquo;s page under &ldquo;Ask parents who&rsquo;s in&rdquo;.
             </span>
           </li>
         </ul>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
+        {/* Straight to People with the invite form open: it used to land
+            at the top of Team settings, three screens above People. */}
         <Link
-          href={`/teams/${teamId}/settings`}
+          href={`/teams/${teamId}/settings?invite=1#people`}
           className="inline-flex items-center justify-center rounded-md border border-hairline bg-surface px-4 py-2.5 text-sm font-medium text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
         >
           Invite a manager

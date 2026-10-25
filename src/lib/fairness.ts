@@ -29,8 +29,10 @@ import {
   type PositionModel,
   type Zone,
 } from "@/lib/types";
-import { positionsFor } from "@/lib/ageGroups";
+import { emptyZoneCaps, positionsFor, zoneCapsFor, type ZoneCaps } from "@/lib/ageGroups";
 import { replayLocks, type PlayerLock } from "@/lib/live/locks";
+import { lastClockPause, type ClockPauseMark } from "@/lib/live/clockPause";
+import { openSubBatch, resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
 import {
   type ChipKey,
   type ChipMode,
@@ -45,40 +47,10 @@ export const ALL_ZONES: Zone[] = ["back", "hback", "mid", "hfwd", "fwd"];
 // Legacy export retained for 3-zone call sites that don't know the model.
 export const ZONES: Zone[] = ["back", "mid", "fwd"];
 
-export type ZoneCaps = Record<Zone, number>;
-
-function emptyCaps(): ZoneCaps {
-  return { back: 0, hback: 0, mid: 0, hfwd: 0, fwd: 0 };
-}
-
-// Distribute an on-field size across the model's zones.
-// 3-zone: remainder fills mid first, then back. 12 → 4-4-4, 15 → 5-5-5,
-// 18 → 6-6-6, 11 → 4-4-3, 10 → 3-4-3.
-// 5-position: remainder fills mid first, then the half-lines, then back/fwd.
-// Steve 2026-05-20: hardMax used to clamp zones3 to 15, which silently
-// dropped 3 players off the field when U16/U17 (now zones3, was
-// positions5) ran their default 18-a-side lineup. Both models now
-// share the 18-player ceiling.
-export function zoneCapsFor(
-  onFieldSize: number,
-  model: PositionModel = "zones3"
-): ZoneCaps {
-  const zones = positionsFor(model);
-  const hardMax = 18;
-  const size = Math.max(0, Math.min(hardMax, Math.floor(onFieldSize)));
-  const base = Math.floor(size / zones.length);
-  const rem = size % zones.length;
-  const caps = emptyCaps();
-  for (const z of zones) caps[z] = base;
-  // Fill remainder in this priority order. For 3-zone this collapses to
-  // [mid, back]; for 5-position [mid, hback, hfwd, back, fwd].
-  const priority: Zone[] =
-    model === "positions5"
-      ? ["mid", "hback", "hfwd", "back", "fwd"]
-      : ["mid", "back", "fwd"];
-  for (let i = 0; i < rem; i++) caps[priority[i]]++;
-  return caps;
-}
+// Zone caps by on-field size live in ageGroups.ts beside the zones, so
+// the AFL sport config can size its break zones without this engine.
+export { zoneCapsFor, type ZoneCaps } from "@/lib/ageGroups";
+const emptyCaps = emptyZoneCaps;
 
 /**
  * Returns zone caps that preserve the previous quarter's actual
@@ -1112,6 +1084,12 @@ export interface GameState {
    */
   scoreByQuarter: Array<{ ours: QuarterScore; theirs: QuarterScore }>;
   playerScores: Record<string, { goals: number; behinds: number }>;
+  /**
+   * Subs made: the `swap` events (an injury's replacement included). The
+   * full-time summary's "N subs", live and on the game page. Not the live
+   * store's swapCount, which also ticks at every break.
+   */
+  subCount: number;
   finalised: boolean;
   basePlayedZoneMs: Record<string, ZoneMinutes>;
   /**
@@ -1190,6 +1168,20 @@ export interface GameState {
   /** ISO timestamp of the current quarter_start event; null when quarter is ended/not started. */
   quarterStartedAt: string | null;
   /**
+   * The quarter in play's latest clock pause or resume (lib/live/
+   * clockPause), so a reload puts a paused clock back paused. Null when
+   * the clock hasn't stopped this quarter, or none is in play.
+   */
+  clockPause: ClockPauseMark | null;
+  /**
+   * The quarter in play's sub clock (lib/live/subAnchor): game ms of
+   * its last planned swap (0 at the start), and the due batch's swaps
+   * still to make. A reload takes these instead of guessing from the
+   * clock. Null / 0 when no quarter is in play.
+   */
+  subAnchorMs: number | null;
+  subBatchLeft: number;
+  /**
    * Saved holds (Keep on / Keep in {zone}) from player_lock events.
    * Undefined when the game has none, so a game started before holds
    * were saved keeps the ones on the coach's phone.
@@ -1218,6 +1210,7 @@ export function replayGame(events: GameEvent[]): GameState {
     opponentScore: { goals: 0, behinds: 0 },
     scoreByQuarter: [],
     playerScores: {},
+    subCount: 0,
     finalised: false,
     basePlayedZoneMs: {},
     playedZoneMsByPeriod: {},
@@ -1233,6 +1226,9 @@ export function replayGame(events: GameEvent[]): GameState {
     loanStartMs: {},
     basePlayedLoanMs: {},
     quarterStartedAt: null,
+    clockPause: null,
+    subAnchorMs: null,
+    subBatchLeft: 0,
   };
 
   // Ensure scoreByQuarter[q] exists. Quarters are 1-indexed; we pad
@@ -1298,6 +1294,7 @@ export function replayGame(events: GameEvent[]): GameState {
       elapsed_ms?: number;
     };
     const elapsed = meta.elapsed_ms ?? 0;
+    if (ev.type === "swap") state.subCount++;
 
     if (ev.type === "lineup_set" && meta.lineup) {
       const prevOnField = state.lineup ? onFieldSet(state.lineup) : new Set<string>();
@@ -1610,6 +1607,11 @@ export function replayGame(events: GameEvent[]): GameState {
   if (state.lineup) state.lineup = normalizeLineup(state.lineup);
   state.quarterStartedAt = quarterStartedAt;
   if (sorted.some((ev) => ev.type === "player_lock")) state.locks = replayLocks(sorted);
+  if (state.currentQuarter >= 1 && !state.quarterEnded && !state.finalised) {
+    state.clockPause = lastClockPause(sorted, state.currentQuarter);
+    state.subAnchorMs = resolveSubAnchorElapsed(sorted, state.currentQuarter);
+    state.subBatchLeft = openSubBatch(sorted, state.currentQuarter);
+  }
 
   return state;
 }

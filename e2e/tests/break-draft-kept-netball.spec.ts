@@ -15,6 +15,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { pickBreakStrategy, startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -82,13 +83,9 @@ test("netball: two swaps staged at the break are still there after the team page
 
   const [gs, , wa, c] = players;
   const comingOn = players[7];
-  const token = (position: string, name: string) =>
-    page.getByRole("button", { name: new RegExp(`^${position},\\s*${name}`, "i") });
+  // A kid's tile carries the bib of the slot they're in.
+  const tile = (id: string) => page.getByTestId(`player-tile-${id}`);
   const startQ2 = page.getByRole("button", { name: /^start q2$/i });
-  const settings = page.getByRole("button", { name: /game settings/i });
-  const openSettings = async () => {
-    if ((await settings.getAttribute("aria-expanded")) !== "true") await settings.click();
-  };
 
   await suppressWalkthrough(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
@@ -110,17 +107,18 @@ test("netball: two swaps staged at the break are still there after the team page
 
   // Keep last quarter's court, then make two swaps: a bench kid on at
   // GS, and the WA and C trade places.
-  await openSettings();
-  await page.getByRole("radio", { name: /keep last quarter/i }).click();
-  await page.getByRole("button", { name: new RegExp(`^B ${comingOn.full_name}`) }).first().click();
-  await token("Goal Shooter", gs.full_name).click();
-  await token("Wing Attack", wa.full_name).click();
-  await token("Centre", c.full_name).click();
+  await pickBreakStrategy(page, "Repeat");
+  await tile(comingOn.id).click();
+  await tile(gs.id).click();
+  await tile(wa.id).click();
+  await tile(c.id).click();
+  // The tile's tag (its first line's first word) is the bib.
+  const bib = (id: string) => tile(id).locator("span span").first();
   const expectStaged = async () => {
-    await expect(token("Goal Shooter", comingOn.full_name)).toBeVisible({ timeout: 10_000 });
-    await expect(token("Wing Attack", c.full_name)).toBeVisible();
-    await expect(token("Centre", wa.full_name)).toBeVisible();
-    await expect(page.getByRole("button", { name: new RegExp(`,\\s*${gs.full_name}`, "i") })).toHaveCount(0);
+    await expect(bib(comingOn.id)).toHaveText("GS", { timeout: 10_000 });
+    await expect(bib(c.id)).toHaveText("WA");
+    await expect(bib(wa.id)).toHaveText("C");
+    await expect(page.getByRole("group", { name: "Bench", exact: true }).getByTestId(`player-tile-${gs.id}`)).toBeVisible();
   };
   await expectStaged();
 
@@ -130,12 +128,10 @@ test("netball: two swaps staged at the break are still there after the team page
 
   // Both swaps are still staged, in the mode the coach picked.
   await expectStaged();
-  await openSettings();
-  await expect(page.getByRole("radio", { name: /keep last quarter/i })).toBeChecked();
+  await expect(page.getByRole("radio", { name: "Repeat" })).toBeChecked();
 
   // Start Q2: the committed lineup is the staged one.
-  await startQ2.click();
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
+  await startFromBreak(page, /^start q2/i);
   let q2: { positions: Record<string, string[]>; bench: string[] } | null = null;
   await expect
     .poll(

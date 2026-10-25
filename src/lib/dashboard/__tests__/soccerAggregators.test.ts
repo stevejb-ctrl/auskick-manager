@@ -52,7 +52,14 @@ describe("aggregateSoccerSeason", () => {
     expect(agg.perPlayer.b).toMatchObject({ gamesPlayed: 2, goals: 1, keeperMs: 0 });
   });
 
-  it("leaves out a kid who never got on", () => {
-    expect(agg.perPlayer.c).toBeUndefined();
+  it("lists a kid who came but never got on, at 0 (UX round 2, 24 Oct 2026)", () => {
+    // Ethan was here and didn't get on: the coach needs to see him.
+    expect(agg.perPlayer.c).toMatchObject({ gamesPlayed: 0, ms: 0, goals: 0 });
+  });
+
+  it("keeps goals nobody was named for, so the goals add up (UX round 2)", () => {
+    expect(agg.noScorer).toEqual({ goals: 1 });
+    const named = Object.values(agg.perPlayer).reduce((s, r) => s + r.goals, 0);
+    expect(named + agg.noScorer.goals).toBe(agg.totals.goalsFor);
   });
 });

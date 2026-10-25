@@ -6,6 +6,7 @@ import {
   DELETE_CONFIRMATION_WORD,
   GRACE_DAYS,
 } from "@/lib/account/constants";
+import { cleanDisplayName } from "@/lib/members/displayName";
 import type { ActionResult } from "@/lib/types";
 
 /**
@@ -88,4 +89,29 @@ export async function restoreAccount(): Promise<ActionResult> {
 
   revalidatePath("/", "layout");
   return { success: true };
+}
+
+/**
+ * Set the signed-in person's name: what the coach sees in Team › People
+ * and in "X joined your team". Email sign-ups start with a blank name,
+ * and My account had no way to set one (round 2 usability, 24 Oct 2026).
+ */
+export async function updateDisplayName(raw: string): Promise<ActionResult & { name?: string }> {
+  const cleaned = cleanDisplayName(typeof raw === "string" ? raw : "");
+  if (!cleaned.ok) return { success: false, error: cleaned.error };
+
+  const {
+    data: { user },
+  } = await getUser();
+  if (!user) return { success: false, error: "Not signed in." };
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ full_name: cleaned.name })
+    .eq("id", user.id);
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath("/account");
+  return { success: true, name: cleaned.name };
 }

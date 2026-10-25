@@ -58,9 +58,14 @@ export function BasketballDashboardShell({
     );
   }
 
-  const rows = Object.values(aggregate.perPlayer).sort(
-    (a, b) => b.gamesPlayed - a.gamesPlayed || (playerNames[a.playerId] ?? "").localeCompare(playerNames[b.playerId] ?? ""),
-  );
+  // A squad kid who came but never got on is listed at 0, so the coach
+  // sees who missed out (UX round 2, 24 Oct 2026); a fill-in only once
+  // they've played.
+  const rows = Object.values(aggregate.perPlayer)
+    .filter((r) => r.gamesPlayed > 0 || playerNames[r.playerId] !== undefined)
+    .sort(
+      (a, b) => b.gamesPlayed - a.gamesPlayed || (playerNames[a.playerId] ?? "").localeCompare(playerNames[b.playerId] ?? ""),
+    );
   const t = aggregate.totals;
 
   return (
@@ -104,6 +109,20 @@ export function BasketballDashboardShell({
               </tr>
             ))}
           </tbody>
+          {/* Points nobody was named for, so the column adds up to points
+              for (as touch's do: UX round 2, 24 Oct 2026). */}
+          {trackScoring && aggregate.noScorer.points > 0 && (
+            <tfoot>
+              <tr className="border-t border-hairline text-ink-dim">
+                <Td className="text-left">No scorer</Td>
+                <Td>—</Td>
+                <Td>—</Td>
+                {withLines && <Td>—</Td>}
+                <Td>{aggregate.noScorer.points}</Td>
+                {trackFouls && <Td>—</Td>}
+              </tr>
+            </tfoot>
+          )}
         </table>
       </section>
     </div>

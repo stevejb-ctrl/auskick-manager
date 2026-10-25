@@ -1,7 +1,8 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useDialogFocus } from "@/components/ui/useDialogFocus";
 
 type ModalSize = "xs" | "sm" | "md" | "lg" | "xl";
 
@@ -24,7 +25,11 @@ interface ModalProps {
    * phone and centres on wider screens — for pickers and longer forms.
    */
   placement?: "center" | "sheet";
-  /** Card padding (default p-5); "p-0" for cards with their own sections. */
+  /**
+   * Card padding (default 20 px); "p-0" for cards with their own sections.
+   * In px, as the frame's 16 px is, so large text gets the width (UX
+   * round 3: at 200% the rem padding left the player sheet 229 px buttons).
+   */
   padding?: string;
 }
 
@@ -44,7 +49,7 @@ export function Modal({
   onClose,
   className = "",
   placement = "center",
-  padding = "p-5",
+  padding = "p-[20px]",
 }: ModalProps) {
   const sheet = placement === "sheet";
   // Portal-mount at document.body so `position: fixed` is always
@@ -69,20 +74,16 @@ export function Modal({
   // action so the one-frame delay before mount is invisible.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  useEffect(() => {
-    if (!onClose) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  // Focus in, Tab kept inside, Escape → onClose, focus back to the
+  // opener on close (UX round 3, e4).
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef, mounted, onClose);
   if (!mounted) return null;
 
   return createPortal(
     // Padding is safe-area aware so a tall modal never tucks under the
     // iOS status bar / Dynamic Island (or the home indicator at the
-    // bottom). `max(1rem, env(...))` keeps the old 1rem breathing room
+    // bottom). `max(16px, env(...))` keeps the old 16px breathing room
     // on desktop (insets resolve to 0) and grows to clear the notch on
     // device. The inner card is capped to `max-h-full` so it fits inside
     // this padded box — Steve 2026-06-02: the Plan-Ahead planner was
@@ -90,10 +91,10 @@ export function Modal({
     <div
       className={`fixed inset-0 z-50 flex justify-center ${sheet ? "items-end sm:items-center" : "items-center"}`}
       style={{
-        paddingTop: "max(1rem, env(safe-area-inset-top))",
-        paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
-        paddingLeft: "max(1rem, env(safe-area-inset-left))",
-        paddingRight: "max(1rem, env(safe-area-inset-right))",
+        paddingTop: "max(16px, env(safe-area-inset-top))",
+        paddingBottom: "max(16px, env(safe-area-inset-bottom))",
+        paddingLeft: "max(16px, env(safe-area-inset-left))",
+        paddingRight: "max(16px, env(safe-area-inset-right))",
       }}
     >
       {/* Backdrop: fades in over 350ms (existing `fade-in` keyframe).
@@ -143,11 +144,13 @@ export function Modal({
           line 205). z-indexes don't change visual appearance —
           purely a hit-test fix. */}
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
         aria-label={labelledBy ? undefined : label}
-        className={`relative z-10 flex max-h-full w-full ${sizeClasses[size]} flex-col border border-hairline bg-surface ${padding} shadow-modal motion-safe:animate-sheet-up ${sheet ? "rounded-t-2xl sm:rounded-2xl" : "rounded-lg"} ${className}`}
+        className={`relative z-10 flex max-h-full w-full ${sizeClasses[size]} flex-col border border-hairline bg-surface ${padding} shadow-modal outline-none motion-safe:animate-sheet-up ${sheet ? "rounded-t-2xl sm:rounded-2xl" : "rounded-lg"} ${className}`}
       >
         {children}
       </div>

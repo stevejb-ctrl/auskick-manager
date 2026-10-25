@@ -10,16 +10,19 @@ export function SettingsSection({
   title,
   description,
   tone = "default",
+  anchor,
   children,
 }: {
   title: string;
   description?: string;
   tone?: "default" | "danger";
+  /** An id to link straight to (e.g. "people" for /settings#people). */
+  anchor?: string;
   children: ReactNode;
 }) {
   const id = `section-${title.toLowerCase().replace(/[^a-z]+/g, "-")}`;
   return (
-    <section aria-labelledby={id} className="space-y-3">
+    <section id={anchor} aria-labelledby={id} className="scroll-mt-24 space-y-3">
       <div className="px-1">
         <h2
           id={id}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 
 // LocalStorage key — persists "user has discovered long-press" across
@@ -92,6 +92,24 @@ export function LongPressHint({ enabled = true }: { enabled?: boolean }) {
     };
   }, [show]);
 
+  // While it shows, the page leaves room for it above the score bar
+  // (LiveStickyScoreBar's spacer adds this), so the last control on the
+  // page scrolls clear of the hint as well as the bar.
+  const chipRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = document.documentElement;
+    const el = chipRef.current;
+    if (!show || !el) return;
+    const publish = () => root.style.setProperty("--live-hint-h", `${el.offsetHeight + 12}px`);
+    publish();
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(publish);
+    ro?.observe(el);
+    return () => {
+      ro?.disconnect();
+      root.style.removeProperty("--live-hint-h");
+    };
+  }, [show]);
+
   function handleGotIt() {
     try {
       window.localStorage.setItem(STORAGE_KEY, "true");
@@ -104,12 +122,18 @@ export function LongPressHint({ enabled = true }: { enabled?: boolean }) {
   if (show !== true) return null;
 
   return (
-    // Fixed bottom-of-viewport chip, centered horizontally. Sits
-    // ABOVE the sticky scorebug (z-40 vs scorebug z-30) so it
-    // doesn't disappear under the bottom bar. `pb-` accounts for
-    // the iPhone home-bar safe area.
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center pb-[calc(96px+env(safe-area-inset-bottom))]">
-      <div className="pointer-events-auto motion-safe:animate-slide-in-bottom">
+    // Fixed bottom-of-viewport chip, centered horizontally, clear of
+    // the sticky score bar: 12px above its measured height (which
+    // includes the home-bar safe area), or 96px when no bar is up.
+    // z-40 keeps it over the page, never over the score chips.
+    <div
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center"
+      style={{
+        paddingBottom:
+          "max(calc(96px + env(safe-area-inset-bottom)), calc(var(--live-score-bar-h, 0px) + 12px))",
+      }}
+    >
+      <div ref={chipRef} className="pointer-events-auto motion-safe:animate-slide-in-bottom">
         <SirenPulseHalo triggerKey="hint" size="sm" className="rounded-full">
           <div
             role="status"
@@ -127,8 +151,11 @@ export function LongPressHint({ enabled = true }: { enabled?: boolean }) {
                 a short examples list so the lock case still
                 surfaces. */}
             {/* Tap reaches every action since UX plan 1.6 (Player
-                actions in the dock); the hint now sells the shortcut. */}
-            <span>Shortcut: long-press a player for actions (keep on, injured, lend…)</span>
+                actions in the dock); the hint now sells the shortcut.
+                Every sport shows it, so it names only actions every
+                sport's sheet has: rugby has no "keep on" (ten-sport UX
+                audit, 23 Oct 2026). */}
+            <span>Shortcut: long-press a player for actions (switch, injured, lend…)</span>
             <button
               type="button"
               onClick={handleGotIt}

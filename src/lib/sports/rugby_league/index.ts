@@ -42,6 +42,7 @@ import type {
 import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
 // Lineup validation is shared with rugby union.
 import { validateRugbyLineup } from "@/lib/sports/rugby/lineup";
+import { rugbyBreakZones } from "@/lib/sports/rugby/lines";
 
 // ─── Field zones ─────────────────────────────────────────────
 // Junior RL is positionless and the field is treated as a single
@@ -462,6 +463,7 @@ export const rugbyLeagueSport: SportConfig = {
       "Junior rugby league coaching — fair playing time, rotated vests, live game control.",
     defaultSport: "rugby_league",
     palette: "brand",
+    audience: "Junior rugby league",
   },
   zones: RL_ZONES,
   allPositions: RL_POSITIONS,
@@ -476,5 +478,9 @@ export const rugbyLeagueSport: SportConfig = {
   fairnessModel: "unbroken-period",
   jerseyNumbers: true,
   teamSong: false,
+  periodBreak: { zones: rugbyBreakZones, scoreDetail: "points", lowTimeMs: 4 * 60_000 },
+  // Junior league runs on the referee's whistle, not a siren.
+  words: { sportName: "rugby league", surface: "field", startCue: "whistle goes", endCue: "whistle" },
+  surfaceArt: "rugby-field",
   validateLineup: validateRugbyLineup,
 };

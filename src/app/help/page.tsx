@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { HelpFigure } from "@/components/help/HelpPage";
 import { HELP_PAGES } from "@/lib/help/pages";
-import { sportsSentence } from "@/lib/siren-facts";
+import { sportsInASentence } from "@/lib/sports/words";
 
 export const metadata = {
   title: "Help · Siren",
@@ -34,11 +34,10 @@ export default function HelpOverviewPage() {
       <div>
         <h1 className="text-2xl font-bold text-ink">Siren Help</h1>
         <p className="mt-3 text-base leading-relaxed text-ink-dim">
-          Siren helps coaches run their junior sport season, from setting up
-          squads and scheduling games, to running rotations live on the
-          sideline and reviewing fairness stats after the game. It covers{" "}
-          {sportsSentence()}. Use the topics on the left (or the menu above
-          on mobile) to find what you need.
+          Siren helps coaches run their junior {sportsInASentence("or")} season, from
+          setting up squads and scheduling games, to running rotations live on
+          the sideline and reviewing fairness stats after the game. Use the
+          topics on the left (or the menu above on mobile) to find what you need.
         </p>
       </div>
 

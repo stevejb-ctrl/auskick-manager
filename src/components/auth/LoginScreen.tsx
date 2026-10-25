@@ -1,6 +1,6 @@
 import { LoginBrandPanel } from "@/components/auth/LoginBrandPanel";
 import { LoginFooter } from "@/components/auth/LoginFooter";
-import { LoginForm } from "@/components/auth/LoginForm";
+import { LoginForm, type JoinStory } from "@/components/auth/LoginForm";
 import { LoginMobileBand } from "@/components/auth/LoginMobileBand";
 import { SirenWordmark } from "@/components/marketing/SirenWordmark";
 import { getBrand } from "@/lib/brand";
@@ -27,7 +27,7 @@ import { getBrand } from "@/lib/brand";
  * stays readable even on very wide phone-only viewports (when the
  * brand panel is hidden).
  */
-export function LoginScreen() {
+export function LoginScreen({ join = null }: { join?: JoinStory | null }) {
   // Steve 2026-05-17: align with the marketing design refresh
   // (commit 718e7e4 — mint backdrop, accent in place of
   // italic-serif). The form column inherits the mint gradient
@@ -43,19 +43,19 @@ export function LoginScreen() {
       {/* Form column */}
       <div className="flex flex-col px-5 pb-9 pt-5 md:flex-[0_0_52%] md:min-h-screen md:px-14 md:py-10">
         {/* Brand row — hidden on mobile (the band carries it
-            instead). Caption is brand-aware (Steve 2026-05-17):
-            AFL → "Junior AFL team management", netball → "Junior
-            Netball team management". */}
+            instead). Caption is brand-aware (Steve 2026-05-17): the
+            main brand → "Junior sport team management", netball →
+            "Junior netball team management". */}
         <div className="hidden items-center gap-2.5 md:flex">
           <SirenWordmark size="sm" />
           <span className="border-l border-hairline pl-2.5 text-xs text-ink-dim">
-            Junior {brand.shortName} team management
+            {brand.brand.audience} team management
           </span>
         </div>
 
         {/* Form body — vertically centred in the column */}
         <div className="mx-auto flex w-full max-w-[400px] flex-1 flex-col justify-center pb-2 pt-2 md:pb-10 md:pt-10">
-          <LoginForm />
+          <LoginForm join={join} />
         </div>
 
         <LoginFooter />

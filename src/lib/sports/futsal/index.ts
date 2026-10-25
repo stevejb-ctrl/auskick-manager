@@ -22,6 +22,7 @@ import type { PositionDef, ScoreTypeDef, SportConfig, ZoneDef } from "@/lib/spor
 import { deriveSubIntervalSeconds } from "@/lib/sports/subInterval";
 import { aflSport } from "@/lib/sports/afl";
 import { validateSoccerLineup } from "@/lib/sports/soccer/lineup";
+import { soccerFamilyPeriodBreak } from "@/lib/sports/soccer";
 import type {
   SoccerAgeGroupConfig,
   SoccerFamilyRules,
@@ -130,12 +131,14 @@ export const FUTSAL_RULES: SoccerFamilyRules = {
   keeperKitUpSeconds: null,
   keeperGear: "Keeper top",
   halvesOrQuarters: false,
+  // FIFA futsal's flying substitutions, through the sub zone.
+  rollingSubs: { label: "Flying subs", note: "on and off through the sub zone, as often as you like" },
   minLines: null,
   ruleSource: {
     laws: [
       { id: "futsal-subs", text: "Subs fly on and off at any time through the sub zone, as often as you like", source: FIFA_FUTSAL },
       { id: "futsal-keeper", text: "A sub can swap with the keeper at any time", source: FIFA_FUTSAL },
-      { id: "futsal-scores", text: "No scores are kept", source: "Capital Football Minis", ages: ["U6", "U7", "U8", "U9"] },
+      { id: "futsal-scores", text: "No scores are kept", source: "Capital Football Minis", ages: ["U6", "U7", "U8", "U9"], noScoreboard: true },
     ],
     format: { source: FIFA_FUTSAL, ages: AGES.map((a) => a.id) },
     equalTime: "Football Australia: equal playing time is a priority",
@@ -150,7 +153,7 @@ export const FUTSAL_RULES: SoccerFamilyRules = {
       fit: "Under 6 to Under 11",
     },
     keepers: {
-      blurb: "You name your keepers (home: Keeper) and they share goal. Everyone else rotates through the back, the wings and the front.",
+      blurb: "You mark your keepers (Keen keeper, under Role) and they share goal. Everyone else rotates through the back, the wings and the front.",
       fit: "Under 12 and up",
     },
     // Futsal always plays with a keeper, so this one isn't offered.
@@ -187,5 +190,8 @@ export const futsalSport: SportConfig = {
   fairnessModel: "zone-minutes",
   jerseyNumbers: true,
   teamSong: false,
+  periodBreak: soccerFamilyPeriodBreak(FUTSAL_RULES),
+  words: { sportName: "futsal", surface: "court", startCue: "whistle goes", endCue: "whistle" },
+  surfaceArt: "futsal-court",
   validateLineup: (lineup, ageGroup, onFieldSize) => validateSoccerLineup(lineup, ageGroup, onFieldSize, FUTSAL_RULES),
 };

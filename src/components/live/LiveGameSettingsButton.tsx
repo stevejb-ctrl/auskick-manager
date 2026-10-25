@@ -20,8 +20,11 @@
 // Netball doesn't have a sub interval (its sub model is
 // break-only by default, opt-in mid-Q via `Switch player`), so
 // this button isn't rendered on the netball live shell.
-// `LiveAdminUtilityRow` accepts the button as a slot — AFL
-// passes it, netball passes nothing.
+// `LiveAdminUtilityRow` accepts the button as its `settings` slot.
+//
+// Soccer's family and basketball pass the sub interval alone (UX audit
+// 23 Oct 2026): players on field is AFL's lineup store, so it shows
+// only when the on-field props are given.
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -43,14 +46,15 @@ interface LiveGameSettingsButtonProps {
   gameId: string;
   /** Current sub interval in SECONDS (games.sub_interval_seconds). */
   subIntervalSeconds: number;
-  /** Current persisted on-field size. */
-  currentOnFieldSize: number;
+  /** Current persisted on-field size. Omit (with the bounds) for the
+   *  sub interval alone. */
+  currentOnFieldSize?: number;
   /** Inclusive bounds from the team's age-group config. */
-  minOnFieldSize: number;
-  maxOnFieldSize: number;
+  minOnFieldSize?: number;
+  maxOnFieldSize?: number;
   /** Players keyed by id — used by the "who comes off?" picker to
    *  resolve names and jersey numbers for the on-field tiles. */
-  playersById: Map<string, Player>;
+  playersById?: Map<string, Player>;
 }
 
 export function LiveGameSettingsButton({
@@ -106,6 +110,11 @@ function LiveGameSettingsModal({
   onClose,
 }: LiveGameSettingsModalProps) {
   const router = useRouter();
+  const sized =
+    currentOnFieldSize !== undefined &&
+    minOnFieldSize !== undefined &&
+    maxOnFieldSize !== undefined &&
+    playersById !== undefined;
   const initialMinutes = subIntervalSeconds / 60;
   const [minutesInput, setMinutesInput] = useState<string>(String(initialMinutes));
   const [sizeInput, setSizeInput] = useState<string>(String(currentOnFieldSize));
@@ -143,6 +152,19 @@ function LiveGameSettingsModal({
 
   function handleSave() {
     setError(null);
+    if (!sized) {
+      // The sub interval alone.
+      startTransition(async () => {
+        try {
+          await commitSubIntervalIfChanged();
+          onClose();
+          router.refresh();
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "Save failed.");
+        }
+      });
+      return;
+    }
     const newSize = parseInt(sizeInput, 10);
     if (!Number.isFinite(newSize) || newSize < minOnFieldSize || newSize > maxOnFieldSize) {
       setError(
@@ -179,7 +201,7 @@ function LiveGameSettingsModal({
     });
   }
 
-  if (shrinkPickerSize !== null) {
+  if (shrinkPickerSize !== null && sized) {
     return (
       <ShrinkPickerModal
         auth={auth}
@@ -201,7 +223,7 @@ function LiveGameSettingsModal({
       <h2 className="text-center text-lg font-bold text-ink">Game settings</h2>
       <p className="mt-1 text-center text-xs text-ink-mute">
         Adjust without restarting the game. Sub changes apply from the next
-        sub-due reminder; players-on-field changes apply immediately.
+        sub-due reminder{sized ? "; players-on-field changes apply immediately" : ""}.
       </p>
 
       <div className="mt-5 space-y-4">
@@ -236,6 +258,7 @@ function LiveGameSettingsModal({
           </div>
         </div>
 
+        {sized && (
         <div>
           <Label
             htmlFor="live-on-field"
@@ -268,6 +291,7 @@ function LiveGameSettingsModal({
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {error && (

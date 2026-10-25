@@ -26,6 +26,7 @@ import {
   kickoffTakers,
 } from "@/lib/sports/rugby_league/kicks";
 import { getAgeGroupConfig, type RugbySport } from "@/lib/sports/registry";
+import { awayMsByPeriod } from "@/lib/playbook/awayTime";
 import type { Game, GameEvent } from "@/lib/types";
 
 // ─── Per-game snapshot ───────────────────────────────────────
@@ -47,6 +48,11 @@ export interface LeagueGameSnapshot {
   vestsByPlayer: Record<string, { fr: number[]; dh: number[] }>;
   /** Unbroken-period compliance per player THIS game. */
   unbroken: Record<string, UnbrokenPeriodCompliance>;
+  /**
+   * Kids who couldn't play all game (late, hurt, lent): How we played
+   * doesn't hold them to the laws' unbroken periods, and nor do stats.
+   */
+  missedTime: Set<string>;
   /** Team + opponent final scores. */
   teamScore: LeagueScore;
   opponentScore: LeagueScore;
@@ -78,6 +84,22 @@ export function snapshotRugbyGame(
   const vests = vestHistoryByPlayer(events);
   const kickoffs = kickoffTakers(events);
   const unbroken = unbrokenPeriodCompliance(events, required);
+  // Time away, from the shared walker How we played uses. Periods run to
+  // their hooter; any absence at all exempts the kid.
+  const periodEnd: Record<number, number> = {};
+  let periods = 0;
+  for (const e of events) {
+    const m = e.metadata as { quarter?: number; elapsed_ms?: number } | null;
+    if (e.type !== "quarter_end" || typeof m?.quarter !== "number") continue;
+    periods = Math.max(periods, m.quarter);
+    if (typeof m.elapsed_ms === "number") periodEnd[m.quarter] = m.elapsed_ms;
+  }
+  const away = awayMsByPeriod(events, (p) => periodEnd[p] ?? Number.MAX_SAFE_INTEGER, Math.max(1, periods));
+  const missedTime = new Set(
+    Object.entries(away)
+      .filter(([, byPeriod]) => Object.values(byPeriod).some((ms) => ms > 0))
+      .map(([pid]) => pid),
+  );
 
   // Player id set = union of everyone who appeared anywhere
   // (lineup, vest, kickoff, scoring). Keeps the dashboard table
@@ -98,6 +120,7 @@ export function snapshotRugbyGame(
     kickoffTakerIds: kickoffs,
     vestsByPlayer: vests,
     unbroken,
+    missedTime,
     teamScore: state.teamScore,
     opponentScore: state.opponentScore,
     playerIds: Array.from(playerIds),
@@ -128,7 +151,10 @@ export interface LeagueSeasonPlayerStats {
   kickoffs: number;
   /** Games this player met the age group's unbroken-period minimum. */
   unbrokenCompliantGames: number;
-  /** Games this player appeared in but didn't meet the minimum. */
+  /**
+   * Games this player appeared in, could play all of, and didn't meet the
+   * minimum (a kid who was late, hurt or lent isn't short: UX round 2).
+   */
   unbrokenShortfallGames: number;
 }
 
@@ -221,7 +247,7 @@ export function aggregateLeagueSeason(
       const ubp = snap.unbroken[playerId];
       if (ubp) {
         if (ubp.compliant) s.unbrokenCompliantGames++;
-        else s.unbrokenShortfallGames++;
+        else if (!snap.missedTime?.has(playerId)) s.unbrokenShortfallGames++;
       }
     }
   }

@@ -10,6 +10,12 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      screens: {
+        // A short screen: a phone held sideways (844×390), or a short
+        // browser window. The live bars and footers go compact (UX round
+        // 3, e4: in landscape they took 205–232 of 390 px).
+        short: { raw: "(max-height: 500px)" },
+      },
       colors: {
         // Surfaces & neutral ink
         warm:           "#F7F5F1",   // page background (warm off-white)
@@ -17,7 +23,10 @@ const config: Config = {
         "surface-alt":  "#EFECE6",   // inset / track / subtle container
         ink:            "#1A1E1A",   // primary text + primary button bg
         "ink-dim":      "#5E6860",   // secondary text
-        "ink-mute":     "#8A948C",   // tertiary / hints
+        // Tertiary / hints. Was #8A948C: 2.88:1 on the page, 3.14:1 on
+        // white, 2.66:1 on surface-alt, so every hint failed AA (UX round
+        // 3, e4). Now 4.9 / 5.4 / 4.5:1.
+        "ink-mute":     "#646D66",
         hairline:       "#E3DFD7",   // hairlines / subtle borders
 
         // Accent — brand ladder. Values come from CSS variables
@@ -80,6 +89,19 @@ const config: Config = {
         "zone-f":       "#C2410C",   // forward — deep vermillion / burnt orange
         "zone-c":       "#047857",   // centre — emerald-700
         "zone-b":       "#1D4ED8",   // back — royal blue
+        // Words on a zone's 15% tint (the bench "→ FWD" strip and its
+        // "#1" badge): the 900 shades, 5.4:1 and up under the badge
+        // (the zone colours were 2.5–3.8:1; UX round 3, e4).
+        "zone-f-ink":   "#7C2D12",
+        "zone-c-ink":   "#064E3B",
+        "zone-b-ink":   "#1E3A8A",
+        // Break screen (design session 22 Oct 2026): a fourth zone for
+        // a keeper slot (soccer) and the bench grey. Zones 1–3 are
+        // zone-f / zone-c / zone-b above. *-text are the AA text shades.
+        "zone-k":       "#7C3AED",
+        "zone-k-text":  "#6D28D9",
+        "zone-bench":   "#8A857C",
+        "zone-bench-text": "#4A463F",
 
         // ── In-game re-skin (design session, 17 Oct 2026) ──────────
         // Zone-time BAR fills only (labels keep zone-f/c/b). Stepped

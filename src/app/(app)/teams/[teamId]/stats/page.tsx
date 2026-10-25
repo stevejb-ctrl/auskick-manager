@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { bucketFillIns, replayGame } from "@/lib/dashboard/eventReplay";
 import { FILL_IN_STATS_ID, type Player, type Sport } from "@/lib/types";
 import {
+  defaultSeasonYear,
   deriveSeasons,
   filterBySeason,
   computePlayerStats,
@@ -37,7 +38,9 @@ import { teamMixedRule } from "@/lib/sports/touch/mixed";
 import { aggregateSoccerSeason } from "@/lib/dashboard/soccerAggregators";
 import { soccerFamilyAgeGroupForTeam } from "@/lib/sports/soccer/family";
 import type { GameEvent } from "@/lib/types";
+import { distinctFullNames } from "@/lib/names";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { scoresKept } from "@/lib/results";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { loadRollup } from "@/lib/playbook/rollupStore";
 import { seasonFromRollup } from "@/lib/playbook/rollup";
@@ -81,7 +84,10 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         .eq("status", "available"),
     ]);
 
-  const players = playersRaw ?? [];
+  // Two kids with the same name read "Ava Smith #3" / "#12" (or (1) / (2))
+  // in every table and the chat text (round 3 edge testing, 24 Oct 2026).
+  const fullNames = distinctFullNames(playersRaw ?? []);
+  const players = (playersRaw ?? []).map((p) => ({ ...p, full_name: fullNames.get(p.id) ?? p.full_name }));
   const allGames = gamesRaw ?? [];
   const availability = availabilityRaw ?? [];
 
@@ -106,9 +112,10 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     );
   }
 
+  // The season just played, not the newest with any fixture.
   const selectedYear = searchParams.season
     ? parseInt(searchParams.season, 10)
-    : seasons[0].year;
+    : (defaultSeasonYear(allGames) ?? seasons[0].year);
 
   // Two filters running together: status="completed" weeds out
   // upcoming / in-progress games, AND we require a `game_finalised`
@@ -146,6 +153,16 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     arr.push(ev);
     eventsByGame.set(ev.game_id, arr);
   }
+
+  // Which games kept score: each game's own record, not the switch today.
+  // A game played with scoring off counts as played, never as a result
+  // (UX round 3, 24 Oct 2026: Head-to-head counted one as a draw).
+  const keptIds = new Set(
+    seasonGames
+      .filter((g) => scoresKept(sport, g, team.track_scoring ?? false, eventsByGame.get(g.id) ?? []))
+      .map((g) => g.id),
+  );
+  const keptScore = (gameId: string) => keptIds.has(gameId);
 
   // ─── Season balance (UX plan 4.4 / 4.5) ───────────────────
   // Players × units from the per-game rollup (backfilled here for games
@@ -212,9 +229,9 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         seasons={seasons}
         selectedYear={selectedYear}
         playerNames={Object.fromEntries(players.map((p) => [p.id, p.full_name]))}
-        aggregate={aggregateSoccerSeason(seasonGames, eventsByGame)}
+        aggregate={aggregateSoccerSeason(seasonGames, eventsByGame, keptScore)}
         totalGames={seasonGames.length}
-        trackScoring={team.track_scoring ?? false}
+        trackScoring={keptIds.size > 0}
         withKeeper={soccerFamilyAgeGroupForTeam(sport, team.age_group, teamPeriodCount).keeper !== "none"}
         seasonBalance={playbook.strategy.balanceUnit ? seasonBalance : undefined}
       />
@@ -231,9 +248,9 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         seasons={seasons}
         selectedYear={selectedYear}
         playerNames={Object.fromEntries(players.map((p) => [p.id, p.full_name]))}
-        aggregate={aggregateBasketballSeason(seasonGames, eventsByGame)}
+        aggregate={aggregateBasketballSeason(seasonGames, eventsByGame, keptScore)}
         totalGames={seasonGames.length}
-        trackScoring={team.track_scoring ?? false}
+        trackScoring={keptIds.size > 0}
         trackFouls={(team as { track_fouls?: boolean | null }).track_fouls ?? ageB.tracksFoulsDefault}
         withLines={playbook.strategy.id !== "minutes"}
         seasonBalance={playbook.strategy.balanceUnit ? seasonBalance : undefined}
@@ -251,9 +268,9 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         seasons={seasons}
         selectedYear={selectedYear}
         playerNames={Object.fromEntries(players.map((p) => [p.id, p.full_name]))}
-        aggregate={aggregateTouchSeason(seasonGames, eventsByGame)}
+        aggregate={aggregateTouchSeason(seasonGames, eventsByGame, keptScore)}
         totalGames={seasonGames.length}
-        trackScoring={team.track_scoring ?? false}
+        trackScoring={keptIds.size > 0}
         withLanes={playbook.strategy.id !== "minutes"}
         mixed={teamMixedRule(team as { mixed_max_boys?: number | null; mixed_min_girls?: number | null; mixed_min_boys?: number | null }) !== null}
         seasonBalance={playbook.strategy.balanceUnit ? seasonBalance : undefined}
@@ -320,11 +337,12 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     }
     const playerStats = computeNetballPlayerStats(players, snapshots);
     const chemistry = computeNetballChemistry(snapshots);
-    const headToHead = computeNetballHeadToHead(seasonGames, snapshots);
+    const headToHead = computeNetballHeadToHead(seasonGames, snapshots, keptScore);
     const attendanceRows = computeNetballAttendance(
       players,
       seasonGames,
       (availability ?? []) as import("@/lib/types").GameAvailability[],
+      snapshots,
     );
     const playerNames: Record<string, string> = Object.fromEntries(
       players.map((p) => [p.id, p.full_name]),
@@ -350,7 +368,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         totalGames={seasonGames.length}
         hasPlayData={hasPlayData}
         hasScoringData={hasScoringData}
-        hasAvailabilityData={hasAvailabilityData}
+        hasAvailabilityData={hasAvailabilityData || hasPlayData}
         seasonBalance={seasonBalance}
       />
     );
@@ -421,8 +439,8 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   // Compute all sections
   const playerStats = computePlayerStats(playersWithFillIn, snapshots, seasonGames);
   const positionFit = computePositionFit(snapshots);
-  const headToHead = computeHeadToHead(seasonGames, snapshots);
-  const quarterScoring = computeQuarterScoring(snapshots);
+  const headToHead = computeHeadToHead(seasonGames, snapshots, keptScore);
+  const quarterScoring = computeQuarterScoring(snapshots.filter((s) => keptScore(s.gameId)));
   const attendanceRows = computeAttendance(
     players,
     seasonGames,

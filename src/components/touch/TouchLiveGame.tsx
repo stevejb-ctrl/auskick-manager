@@ -6,7 +6,8 @@
 // the same shell: the shared LiveTopBar (sub due as a banner under it),
 // the next-sub card, the field and bench, the shared player dock and
 // LockModal long-press actions, the sticky scorebug with undo, the clock
-// menu, the break, and the full-time review and share card. What's the
+// menu, the shared break screen (TouchBreak), and the full-time review
+// and share card. What's the
 // touch family's own (.planning/FOUR-SPORTS-PLAN.md):
 //
 //   - Lanes are optional: the team's How we play strategy plays no
@@ -15,81 +16,95 @@
 //     after a turnover until the next touch, so the sub-due banner says
 //     to make the change next time you have the ball.
 //   - A mixed team's rule: suggestions keep the boys' cap (a boy comes on
-//     for a boy, a girl for a girl), a manual swap that breaks it warns,
-//     and short of girls the field shrinks ("You can field 4: 3 boys and
-//     1 girl"), recorded as roster_shrink.
+//     for a boy, a girl for a girl). A hand sub that would break it asks
+//     first (AFL's SwapConfirmDialog: "Swap anyway / Pick someone
+//     else"), and with a kid picked, the kids whose swap would break it
+//     dim. A side that breaks it anyway pins "4 boys on · rule 3" with a
+//     Fix under the top bar until it's fixed, and the suggestions fix
+//     the mix first. Short of girls the field shrinks ("You can field
+//     4: 3 boys and 1 girl"), recorded as roster_shrink.
 //   - Tries are 1; on an Oztag mixed team a girl's try is 2, and the
-//     opponent's chips are +1 and +2 (girl).
+//     opponent's chips are +T and +2 (girl).
 //
 // Every write goes through the shared write queue (registerLiveActions)
-// in the one game lane, so the event log keeps the coach's order. Who
+// in the one game lane, so the event log keeps the coach's order. In-game
+// writes are optimistic (useOptimisticEvents): a try, an undo or a sub
+// shows the moment it's tapped, as AFL's store does. The shared live
+// chrome (useLiveChrome) is AFL's undo strip flash, swap confirm (with
+// the mixed rule's warning on it) and toast, and lent minutes. Who
 // counts as a girl or a boy is never drawn on a tile.
 
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SFButton } from "@/components/sf";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
+import { LiveGameSettingsButton } from "@/components/live/LiveGameSettingsButton";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
-import { QuarterKickoffBar } from "@/components/quarter-break/QuarterKickoffBar";
-import { BreakScoreRow } from "@/components/quarter-break/BreakScoreRow";
+import { BreakScoreEditor } from "@/components/quarter-break/BreakScoreEditor";
 import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
 import { ClockMenu } from "@/components/live/ClockMenu";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { SubDueBanner } from "@/components/live/SubDueBanner";
+import { subDueBannerShows } from "@/components/live/SubDue";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { LockModal } from "@/components/live/LockModal";
-import { UndoStrip } from "@/components/live/UndoStrip";
 import { NextSubCard } from "@/components/live/NextSubCard";
-import type { LineTileCaption } from "@/components/live/LinePlayerTile";
 import { InjuryReplacementModal, type InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
+import { useLiveChrome } from "@/components/live/useLiveChrome";
+import { undoSwaps } from "@/lib/live/liveChrome";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
-import { enqueueLiveAction, type LiveActionArgs, type LiveActionKind } from "@/lib/live/registerLiveActions";
+import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
+import { liveEvents } from "@/lib/live/optimisticEvents";
+import { UNDO_GONE_MESSAGE, UNDO_MISSING_MESSAGE, undoTap } from "@/lib/live/undoTarget";
+import { announceLiveNotice } from "@/lib/live/liveSync";
+import { getSportConfig } from "@/lib/sports/registry";
+import { isGirlsTry, TOUCH_SCORE_EVENT_TYPES, touchTryEventType, touchTryWhat } from "@/lib/sports/touch/scoreEvents";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
+import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import { hapticTap } from "@/lib/haptics";
-import { computePeriodClockMs, togglePeriodPause } from "@/lib/live/periodClock";
-import { usePeriodPause } from "@/lib/live/periodPauseStorage";
+import { computePeriodClockMs } from "@/lib/live/periodClock";
+import { clockPauseInput } from "@/lib/live/clockPause";
+import { queuedStartClockMark, useEventPeriodPause } from "@/lib/live/useClockPause";
 import { resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { countTags, keepsComposition, rollingSubDue } from "@/lib/live/rollingSubs";
 import type { Game, GameEvent, LiveAuth, MixedGroup, Player } from "@/lib/types";
+import type { TouchSport } from "@/lib/sports";
 import { normalizeTouchLineup, touchLineOf, touchOnField, type TouchLineup } from "@/lib/sports/touch/lineup";
 import { replayTouchGame, touchCanPlay, touchGameMs, type TouchGameState } from "@/lib/sports/touch/replay";
+import { benchInTouchLineup, swapInTouchLineup } from "@/lib/sports/touch/live";
 import {
-  suggestTouchBreakPlan,
   suggestTouchSubs,
   touchFieldPlan,
+  touchMixFix,
   touchShapeFor,
   touchShapeIdOf,
-  usesTouchLanes,
   type TouchMixed,
   type TouchPrefs,
   type TouchSeasonBalance,
 } from "@/lib/sports/touch/suggest";
-import {
-  benchOutInTouchLineup,
-  placeInTouchLineup,
-  swapInTouchLineup,
-  withEveryoneInTouchLineup,
-} from "@/lib/sports/touch/live";
-import { mixedConstraints, mixedFieldMessage, mixedTags } from "@/lib/sports/touch/mixed";
+import { mixedConstraints, mixedFieldBreach, mixedFieldMessage, mixedTags } from "@/lib/sports/touch/mixed";
 import { TOUCH_LANES, TOUCH_LINES, type MixedRule, type TouchAgeGroupConfig, type TouchLine, type TouchStrategy } from "@/lib/sports/touch/types";
 import { TouchField } from "./TouchField";
 import { TouchBench } from "./TouchBench";
 import { TouchScoreBug } from "./TouchScoreBug";
 import { TouchFullTimeReview, TouchGameSummaryCard } from "./TouchFullTime";
+import { TouchBreak } from "./TouchBreak";
 import {
   TOUCH_CARD_LABEL_CLASS,
   TOUCH_LINE_LABEL,
   TOUCH_LINE_ONE,
   TOUCH_LINE_SHORT,
   TOUCH_SUB_DUE_HINT,
+  touchOpponentChips,
 } from "./touchWords";
 
 interface TouchLiveGameProps {
   auth: LiveAuth;
+  /** Touch or Oztag: the break's words come from its config. */
+  sport: TouchSport;
   game: Game;
   teamName: string;
   /** Every kid who could play: the squad and today's fill-ins. */
@@ -116,6 +131,8 @@ interface TouchLiveGameProps {
   season?: TouchSeasonBalance;
   isAdmin: boolean;
   exitHref: string;
+  /** Lent minutes in the season's other games, for the long-press sheet. */
+  seasonLoanMinutes?: Record<string, number>;
 }
 
 /** The latest whole lineup set (the start, a break, a reshuffle). */
@@ -130,27 +147,11 @@ function lastSetLineup(events: GameEvent[]): TouchLineup | null {
   return null;
 }
 
-function readBreakDraft(key: string): TouchLineup | null {
-  try {
-    const raw = window.sessionStorage.getItem(key);
-    return raw ? normalizeTouchLineup(JSON.parse(raw)) : null;
-  } catch {
-    return null;
-  }
-}
-function writeBreakDraft(key: string, lineup: TouchLineup | null) {
-  try {
-    if (lineup) window.sessionStorage.setItem(key, JSON.stringify(lineup));
-    else window.sessionStorage.removeItem(key);
-  } catch {
-    // Private mode or storage blocked: the plan just won't survive a reload.
-  }
-}
-
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 export function TouchLiveGame({
   auth,
+  sport,
   game,
   teamName,
   squad,
@@ -162,14 +163,14 @@ export function TouchLiveGame({
   girlsTryDouble,
   mixedRule = null,
   mixedGroups,
-  events,
+  events: serverEvents,
   strategy,
   prefs,
   season,
   isAdmin,
   exitHref,
+  seasonLoanMinutes,
 }: TouchLiveGameProps) {
-  const router = useRouter();
   const opponentName = game.opponent || "Opponent";
   const playerById = useMemo(() => new Map(squad.map((p) => [p.id, p])), [squad]);
   const mixed: TouchMixed | undefined = useMemo(
@@ -178,13 +179,14 @@ export function TouchLiveGame({
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [warning, setWarning] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  // The server's events, then the writes it hasn't returned yet.
+  const { events, write } = useOptimisticEvents(serverEvents, { gameId: game.id, onError: setError });
+  // Every write is optimistic, so nothing here waits on a save.
+  const pending = false;
   const [clockMenuOpen, setClockMenuOpen] = useState(false);
   const [endConfirmOpen, setEndConfirmOpen] = useState(false);
   const [startConfirmOpen, setStartConfirmOpen] = useState(false);
   const [pickingScorer, setPickingScorer] = useState(false);
-  const [showBreakScore, setShowBreakScore] = useState(false);
   const [actionPlayerId, setActionPlayerId] = useState<string | null>(null);
   const [fillLine, setFillLine] = useState<TouchLine | null>(null);
   const [leaving, setLeaving] = useState<{ playerId: string; line: TouchLine } | null>(null);
@@ -203,13 +205,20 @@ export function TouchLiveGame({
   const isAtFinal = base.periodEnded && base.currentPeriod >= ageGroup.periodCount && !base.finalised;
   const isFinished = base.finalised || isAtFinal;
   const isPreStart = base.currentPeriod === 0 && !base.finalised;
+  // The summary after Finish opens at the top: the final score and Copy
+  // for group chat, not the review's scroll (round 2, 24 Oct 2026).
+  useScrollToTopOnFinish(base.finalised, liveRootRef);
 
-  // ── Clock: the shared period clock, its pause saved on the phone ──
+  // ── Clock: the shared period clock, its pause a game event ──
   // Game ms since the period started, less real time paused, scaled by
   // the clock multiplier, held at the period's length: the phone waits
-  // there for the referee's whistle.
+  // there for the referee's whistle. The pause is the period's latest
+  // clock_pause event (lib/live/clockPause), so a reload or a second
+  // phone keeps it.
   const [nowMs, setNowMs] = useState<number | null>(null);
-  const [pause, setPause] = usePeriodPause(game.id, base.currentPeriod);
+  const periodStartedAtMs = base.periodStartedAt ? Date.parse(base.periodStartedAt) : NaN;
+  const startedAtMs = Number.isNaN(periodStartedAtMs) ? null : periodStartedAtMs;
+  const pause = useEventPeriodPause(events, base.currentPeriod, startedAtMs, clockMultiplier);
   const running = pause.pausedAtMs === null;
   useEffect(() => {
     if (!isPeriodActive || !running) return;
@@ -218,24 +227,46 @@ export function TouchLiveGame({
     return () => window.clearInterval(id);
   }, [isPeriodActive, running, base.periodStartedAt]);
 
-  const elapsedMs = useMemo(() => {
-    const fallback = base.periodEnded ? base.periodElapsedMs : 0;
-    if (nowMs == null) return fallback;
-    const startedAtMs = base.periodStartedAt ? Date.parse(base.periodStartedAt) : NaN;
-    const raw = computePeriodClockMs({
-      currentQuarter: base.currentPeriod,
-      quarterEnded: base.periodEnded,
-      finalised: base.finalised,
-      quarterStartedAtMs: Number.isNaN(startedAtMs) ? null : startedAtMs,
-      pausedAtMs: pause.pausedAtMs,
-      accumulatedPauseMs: pause.accumulatedPauseMs,
-      fallbackElapsedMs: fallback,
-      clockMultiplier,
-      nowMs,
-    });
-    return isPeriodActive ? Math.min(raw, periodMs) : raw;
-  }, [nowMs, base, pause, clockMultiplier, isPeriodActive, periodMs]);
+  const clockAt = useCallback(
+    (now: number) => {
+      const raw = computePeriodClockMs({
+        currentQuarter: base.currentPeriod,
+        quarterEnded: base.periodEnded,
+        finalised: base.finalised,
+        quarterStartedAtMs: startedAtMs,
+        pausedAtMs: pause.pausedAtMs,
+        accumulatedPauseMs: pause.accumulatedPauseMs,
+        fallbackElapsedMs: base.periodEnded ? base.periodElapsedMs : 0,
+        clockMultiplier,
+        nowMs: now,
+      });
+      return isPeriodActive ? Math.min(raw, periodMs) : raw;
+    },
+    [base, startedAtMs, pause, clockMultiplier, isPeriodActive, periodMs],
+  );
+  // Until the first tick, a running clock shows the server's render; a
+  // paused one reads its pause, which doesn't move.
+  const elapsedMs = useMemo(
+    () => (nowMs == null && running ? (base.periodEnded ? base.periodElapsedMs : 0) : clockAt(nowMs ?? 0)),
+    [nowMs, running, base, clockAt],
+  );
   const elapsedSecond = Math.floor(elapsedMs / 1000);
+
+  // AFL's live chrome: the undo strip's flash, the swap confirm and toast.
+  const chrome = useLiveChrome({
+    teamName,
+    opponentName,
+    playersById: playerById,
+    seasonLoanMinutes,
+    events,
+    openElapsedMs: isPeriodActive ? elapsedMs : null,
+  });
+  // The clock as the write lands: a confirmed swap is stamped when the
+  // coach taps Confirm, not when the sheet opened (AFL reads its clock
+  // at confirm too).
+  const elapsedRef = useRef(elapsedMs);
+  elapsedRef.current = elapsedMs;
+  const at = () => ({ quarter: base.currentPeriod, elapsed_ms: elapsedRef.current });
 
   // ── The game now: every kid's time so far, open stints credited ──
   const state: TouchGameState = useMemo(
@@ -272,76 +303,38 @@ export function TouchLiveGame({
     const key = `${base.currentPeriod}:${fieldSize}->${legal}`;
     if (sizeWriteRef.current === key) return;
     sizeWriteRef.current = key;
-    void enqueueLiveAction("recordTouchFieldSize", [
-      auth,
-      game.id,
-      { on_field_size: legal, quarter: base.currentPeriod, elapsed_ms: isPeriodActive ? elapsedMs : base.periodElapsedMs },
-    ]).flushed.then(() => startTransition(() => router.refresh()));
+    const input = { on_field_size: legal, quarter: base.currentPeriod, elapsed_ms: isPeriodActive ? elapsedMs : base.periodElapsedMs };
+    write("recordTouchFieldSize", [auth, game.id, input], liveEvents.fieldSize(input));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fieldPlan?.size, fieldSize, base.finalised, isPreStart, base.currentPeriod]);
 
-  // ── The break: the plan for the next half ───────────────────
-  // Suggested once per break and kept in session storage, so an edit
-  // survives a trip to the team page; Start commits it.
-  const draftKey = `touch-break:${game.id}:${base.currentPeriod}`;
-  const breakPlan = useMemo(
-    () =>
-      isAtBreak
-        ? suggestTouchBreakPlan({
-            state: base,
-            ageGroup,
-            onFieldSize: game.on_field_size,
-            strategy,
-            shapeId: touchShapeIdOf(lastSetLineup(events)),
-            prefs,
-            season,
-            mixed,
-          })
-        : null,
-    [isAtBreak, base, ageGroup, game.on_field_size, strategy, events, prefs, season, mixed],
-  );
-  const [storedDraft, setBreakDraftState] = useState<TouchLineup | null>(null);
-  useEffect(() => {
-    if (!isAtBreak) {
-      setBreakDraftState(null);
-      return;
-    }
-    setBreakDraftState(readBreakDraft(draftKey) ?? breakPlan?.lineup ?? null);
-  }, [isAtBreak, draftKey, breakPlan]);
-  const setBreakDraft = useCallback(
-    (next: TouchLineup) => {
-      setBreakDraftState(next);
-      writeBreakDraft(draftKey, next);
-    },
-    [draftKey],
-  );
-  // The plan, with anyone who has arrived since it was made on its bench.
-  const breakDraft = useMemo(
-    () => (storedDraft && state.lineup ? withEveryoneInTouchLineup(storedDraft, state.lineup) : storedDraft),
-    [storedDraft, state.lineup],
-  );
-
-  // What the screen shows: the break's plan, else the lineup in play.
-  const lineup: TouchLineup | null = isAtBreak ? breakDraft : state.lineup;
-  const onFieldNow = lineup ? touchOnField(lineup).length : 0;
+  // Half-time is TouchBreak, the shared break screen (below); this
+  // screen shows the lineup in play.
+  const lineup: TouchLineup | null = state.lineup;
   const shape = useMemo(
-    () => touchShapeFor(ageGroup, strategy, isAtBreak ? onFieldNow : fieldSize, touchShapeIdOf(isAtBreak ? breakDraft : lastSetLineup(events))),
-    [ageGroup, strategy, isAtBreak, onFieldNow, fieldSize, breakDraft, events],
+    () => touchShapeFor(ageGroup, strategy, fieldSize, touchShapeIdOf(lastSetLineup(events))),
+    [ageGroup, strategy, fieldSize, events],
   );
   // Places in each lane: the shape's, and an empty place only while the
   // field is short of its size (a field the rule shrank shows none).
   const lineCaps = useMemo(() => {
     const caps = { ...shape.lines };
     if (!lineup) return caps;
-    const full = !isAtBreak && touchOnField(lineup).length >= fieldSize;
+    const full = touchOnField(lineup).length >= fieldSize;
     for (const l of TOUCH_LINES) caps[l] = full ? lineup.lines[l].length : Math.max(caps[l], lineup.lines[l].length);
     return caps;
-  }, [shape, lineup, isAtBreak, fieldSize]);
+  }, [shape, lineup, fieldSize]);
 
   // ── Subs ────────────────────────────────────────────────────
+  // No sub is due once the clock is out: the phone waits at 0:00 for the
+  // whistle, and the Sub due card and OFF badges stayed up through half
+  // time and full time (round 2, 24 Oct 2026; AFL hides them after the
+  // siren too).
+  const periodClockDone = elapsedMs >= periodMs;
+  const subsOpen = isPeriodActive && !periodClockDone;
   const anchorMs = useMemo(
-    () => (isPeriodActive ? resolveSubAnchorElapsed(events, base.currentPeriod) : null),
-    [events, base.currentPeriod, isPeriodActive],
+    () => (subsOpen ? resolveSubAnchorElapsed(events, base.currentPeriod) : null),
+    [events, base.currentPeriod, subsOpen],
   );
   const subDue = rollingSubDue({
     subIntervalMs: subIntervalSeconds != null ? subIntervalSeconds * 1000 : null,
@@ -351,8 +344,10 @@ export function TouchLiveGame({
   });
   const msUntilDue = subDue.msUntilDue;
   const nextSubs = useMemo(() => {
-    if (!isPeriodActive) return [];
-    const opts = { strategy, prefs, season, mixed };
+    if (!subsOpen) return [];
+    // A kid who goes off rests a sub interval before coming back on; an
+    // empty place (a kid hurt with nobody on) is filled first.
+    const opts = { strategy, prefs, season, mixed, restMs: (subIntervalSeconds ?? 0) * 1000, spots: lineCaps };
     const now = suggestTouchSubs({ state, nowMs: absNowMs, ...opts });
     if (now.length > 0 || msUntilDue === null || msUntilDue <= 0) return now;
     // Nothing evens time yet, so show the subs due at the next sub time,
@@ -362,7 +357,7 @@ export function TouchLiveGame({
     const ahead = replayTouchGame(events, { nowMs: aheadMs });
     return suggestTouchSubs({ state: ahead, nowMs: ahead.completedPeriodMs + aheadMs, ...opts });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPeriodActive, state, events, strategy, prefs, season, mixed, periodMs, msUntilDue !== null && msUntilDue <= 0, Math.floor((msUntilDue ?? 0) / 5000)]);
+  }, [subsOpen, state, events, strategy, prefs, season, mixed, periodMs, subIntervalSeconds, lineCaps, msUntilDue !== null && msUntilDue <= 0, Math.floor((msUntilDue ?? 0) / 5000)]);
   const subDueKey = subDue.key === null ? null : `${base.currentPeriod}:${subDue.key}`;
   const subDueShowing = isPeriodActive && subDue.due && nextSubs.length > 0 && subAckKey !== subDueKey;
   useSubDueAudioUnlock();
@@ -376,70 +371,97 @@ export function TouchLiveGame({
   }, [subDueShowing]);
 
   // ── Writes ──────────────────────────────────────────────────
-  const at = () => ({ quarter: base.currentPeriod, elapsed_ms: elapsedMs });
-
-  async function run<K extends LiveActionKind>(kind: K, args: LiveActionArgs<K>) {
-    setPending(true);
+  // A period's end and start are optimistic writes too, like every
+  // other tap: the break opens at the whistle and the next period starts
+  // at the tap, with or without signal. They used to wait on the save,
+  // so End H1 with no signal sat on "Applying…" (round 3, 24 Oct 2026).
+  const endPeriodAt = useCallback(
+    (elapsed: number) => {
+      setError(null);
+      write(
+        "endTouchPeriod",
+        [auth, game.id, base.currentPeriod, elapsed],
+        liveEvents.periodEnd({ quarter: base.currentPeriod, elapsed_ms: elapsed }),
+      );
+    },
+    [auth, game.id, base.currentPeriod, write],
+  );
+  function startFirstPeriod() {
     setError(null);
-    try {
-      await enqueueLiveAction(kind, args).flushed;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "That didn't save. Try again.");
-    } finally {
-      setPending(false);
-    }
-    router.refresh();
+    const mark = queuedStartClockMark(1);
+    write("startTouchPeriod", [auth, game.id, 1], liveEvents.periodStart(1));
+    if (mark) write("recordClockPause", [auth, game.id, mark], liveEvents.clockPause(mark));
   }
 
-  const endPeriodAt = useCallback(
-    async (elapsed: number) => {
-      setPending(true);
-      await enqueueLiveAction("endTouchPeriod", [auth, game.id, base.currentPeriod, elapsed]).flushed;
-      setPending(false);
-      router.refresh();
-    },
-    [auth, game.id, base.currentPeriod, router],
-  );
-
-  /** The mixed rule's warning for a swap a coach makes by hand (a warning, not a block). */
+  /**
+   * How a swap the coach makes by hand would break the mixed rule ("That
+   * puts 4 boys on: the mixed rule allows 3"), or null when it keeps it
+   * (or takes a side already over the rule no further out).
+   */
   function capWarning(offId: string | null, onId: string): string | null {
     if (!mixed || !state.lineup) return null;
-    const counts = countTags(touchOnField(state.lineup), tags, constraints);
+    const on = touchOnField(state.lineup);
+    const counts = countTags(on, tags, constraints);
     if (keepsComposition(counts, offId, onId, tags, constraints)) return null;
-    const boys = counts.boy - (offId && tags(offId).includes("boy") ? 1 : 0) + (tags(onId).includes("boy") ? 1 : 0);
-    const girls = counts.girl - (offId && tags(offId).includes("girl") ? 1 : 0) + (tags(onId).includes("girl") ? 1 : 0);
-    if (boys > mixed.rule.maxBoys) return `That puts ${plural(boys, "boy", "boys")} on: the mixed rule allows ${mixed.rule.maxBoys}.`;
-    if (girls < mixed.rule.minGirls) return `That leaves ${plural(girls, "girl", "girls")} on: the mixed rule needs ${mixed.rule.minGirls}.`;
-    return `That leaves ${plural(boys, "boy", "boys")} on: the mixed rule needs ${mixed.rule.minBoys}.`;
+    const breach = mixedFieldBreach([...on.filter((id) => id !== offId), onId], mixed.rule, mixed.groupOf);
+    if (!breach) return null;
+    return breach.text.startsWith("No ") ? `That leaves no ${breach.text.slice(3)}` : `That puts ${breach.text}`;
   }
 
-  function sub(offId: string | null, onId: string, line?: TouchLine) {
-    setWarning(capWarning(offId, onId));
-    return run("recordTouchSwap", [auth, game.id, { off_player_id: offId, on_player_id: onId, ...(line ? { line } : {}), ...at() }]);
+  // Pause or resume: a clock_pause event, on screen at once.
+  function toggleClock() {
+    if (!isPeriodActive) return;
+    const now = Date.now();
+    const input = clockPauseInput(base.currentPeriod, running, clockAt(now), now);
+    write("recordClockPause", [auth, game.id, input], liveEvents.clockPause(input));
+    // The clock reads now from the tap, not the last tick (a page opened
+    // paused has none yet).
+    setNowMs(now);
+  }
+
+  /** `manual`: made by hand, off the rotation's cadence, so the sub clock doesn't restart (AFL's rule). */
+  function sub(offId: string | null, onId: string, line?: TouchLine, manual = false) {
+    setError(null);
+    const input = { off_player_id: offId, on_player_id: onId, ...(line ? { line } : {}), ...(manual ? { manual } : {}), ...at() };
+    write("recordTouchSwap", [auth, game.id, input], liveEvents.swap(input));
+  }
+  /** A lane in the coach's words ("Wings"), or the field when it plays no lanes. */
+  const spotName = (line: TouchLine | null | undefined) => (line && line !== "field" ? TOUCH_LINE_LABEL[line] : "the field");
+  /**
+   * A sub the coach makes by hand asks first (AFL's confirm), then toasts.
+   * One that would break the mixed rule says so on that same confirm:
+   * "Swap anyway", or "Pick someone else" with the first kid still picked.
+   */
+  function handSub(offId: string | null, onId: string, line: TouchLine | undefined, reselect: string) {
+    const warning = capWarning(offId, onId);
+    chrome.confirmSwap({
+      offId,
+      onId,
+      spotName: spotName(line ?? (offId ? lineOf(offId) : null)),
+      ruleWarning: warning,
+      onCancel: warning ? () => setSelectedId(reselect) : undefined,
+      onConfirm: () => sub(offId, onId, line, true),
+    });
   }
   function move(a: string, b: string | null, zoneB: TouchLine) {
     const zoneA = state.lineup ? touchLineOf(state.lineup, a) : null;
-    if (!zoneA) return Promise.resolve();
-    return run("recordTouchMove", [auth, game.id, { player_a_id: a, zone_a: zoneA, ...(b ? { player_b_id: b } : {}), zone_b: zoneB, ...at() }]);
+    if (!zoneA) return;
+    setError(null);
+    const input = { player_a_id: a, zone_a: zoneA, ...(b ? { player_b_id: b } : {}), zone_b: zoneB, ...at() };
+    write("recordTouchMove", [auth, game.id, input], liveEvents.move(input));
   }
 
-  async function applyAllSubs() {
+  function applyAllSubs() {
     if (nextSubs.length === 0) return;
-    setPending(true);
-    const flushed = nextSubs.map(
-      (s) =>
-        enqueueLiveAction("recordTouchSwap", [
-          auth,
-          game.id,
-          { off_player_id: s.off_player_id, on_player_id: s.on_player_id, line: s.line, ...at() },
-        ]).flushed,
+    for (const s of nextSubs) sub(s.off_player_id, s.on_player_id, s.line);
+    // The toast's Undo puts them back, last first (undoSwaps).
+    const undo = undoSwaps(
+      nextSubs.map((s) => ({ off: s.off_player_id, on: s.on_player_id, line: s.line })),
+      (s) => sub(s.off, s.on, s.line),
     );
-    await Promise.all(flushed).catch(() => {
-      // A failed op rolls back in the queue; just unfreeze the screen.
-    });
-    setPending(false);
+    if (nextSubs.length === 1) chrome.swapped(nextSubs[0].off_player_id, nextSubs[0].on_player_id, undo);
+    else chrome.showToast(`${nextSubs.length} subs made`, undo);
     setSubAckKey(subDueKey);
-    router.refresh();
   }
 
   // ── Taps ────────────────────────────────────────────────────
@@ -451,30 +473,17 @@ export function TouchLiveGame({
   function handleTap(pid: string, line: TouchLine | null) {
     setError(null);
     if (!lineup) return;
-    // At a break a tap edits the plan; the half's Start commits it.
-    if (isAtBreak) {
-      if (pid === "") {
-        if (selectedId && line) setBreakDraft(placeInTouchLineup(lineup, selectedId, line));
-        else if (line) setFillLine(line);
-        setSelectedId(null);
-        return;
-      }
-      if (!selectedId || selectedId === pid) {
-        setSelectedId(selectedId === pid ? null : pid);
-        return;
-      }
-      setBreakDraft(swapInTouchLineup(lineup, selectedId, pid));
-      setSelectedId(null);
-      return;
-    }
     if (!isPeriodActive) return;
 
     if (pid === "") {
       if (!line) return;
       if (selectedId) {
-        const from = lineOf(selectedId);
-        if (from) void move(selectedId, null, line);
-        else if (canComeOn(selectedId)) void sub(null, selectedId, line);
+        const kid = selectedId;
+        if (lineOf(kid)) {
+          // A move on the field, straight away (AFL's empty-zone move).
+          move(kid, null, line);
+          chrome.showToast(`${chrome.firstName(kid)} → ${spotName(line)}`);
+        } else if (canComeOn(kid)) handSub(null, kid, line, kid);
         setSelectedId(null);
       } else {
         setFillLine(line);
@@ -489,46 +498,40 @@ export function TouchLiveGame({
       setSelectedId(null);
       return;
     }
-    const aLine = lineOf(selectedId);
+    const first = selectedId;
+    const aLine = lineOf(first);
     const bLine = lineOf(pid);
     setSelectedId(null);
-    if (aLine && bLine) void move(selectedId, pid, bLine);
-    else if (aLine && !bLine && canComeOn(pid)) void sub(selectedId, pid);
-    else if (!aLine && bLine && canComeOn(selectedId)) void sub(pid, selectedId);
+    if (aLine && bLine) {
+      // Two on the field trade lanes, straight away (AFL's zone swap).
+      move(first, pid, bLine);
+      chrome.showToast(`${chrome.firstName(first)} ⇄ ${chrome.firstName(pid)} — swapped`);
+    } else if (aLine && !bLine && canComeOn(pid)) handSub(first, pid, undefined, first);
+    else if (!aLine && bLine && canComeOn(first)) handSub(pid, first, undefined, first);
     else setSelectedId(pid); // two bench kids: the second is the selection
   }
 
   // ── Score ───────────────────────────────────────────────────
-  // A try shows the moment it's tapped and queues, as basketball's
-  // baskets do. Each tap stays on top of the server's score until its
-  // save has flushed and a refresh has landed. Whether ours is a girl's
-  // try (2) is the scorer's group; the server decides it the same way.
-  const canScore = isPeriodActive || isAtBreak || isAtFinal;
-  const [unsavedTries, setUnsavedTries] = useState<
-    { key: number; side: "ours" | "theirs"; points: 1 | 2; playerId: string | null; flushed: boolean }[]
-  >([]);
-  useEffect(() => {
-    setUnsavedTries((list) => (list.some((b) => b.flushed) ? list.filter((b) => !b.flushed) : list));
-  }, [events]);
+  // A try goes up the moment it's tapped (optimistic), and the undo strip
+  // flashes what was recorded, as AFL's does. Whether ours is a girl's
+  // try (2) is the scorer's group; the server decides it the same way
+  // (scoreEvents.ts). On the scorebug only in play: the break and full
+  // time have their own score editors.
+  const canScore = isPeriodActive;
   function recordTry(side: "ours" | "theirs", playerId: string | null, girl: boolean) {
-    const key = Date.now() + Math.random();
-    const isGirls =
-      girlsTryDouble && (side === "theirs" || !playerId ? girl : mixed?.groupOf(playerId) === "girl");
-    setUnsavedTries((list) => [...list, { key, side, points: isGirls ? 2 : 1, playerId, flushed: false }]);
     setError(null);
-    enqueueLiveAction("recordTouchScore", [
-      auth,
-      game.id,
-      { side, player_id: playerId, ...(girl ? { girl: true } : {}), quarter: base.currentPeriod, elapsed_ms: elapsedMs },
-    ])
-      .flushed.then(() => {
-        setUnsavedTries((list) => list.map((b) => (b.key === key ? { ...b, flushed: true } : b)));
-        startTransition(() => router.refresh());
-      })
-      .catch((e: unknown) => {
-        setUnsavedTries((list) => list.filter((b) => b.key !== key));
-        setError(e instanceof Error ? e.message : "That try didn't save. Try again.");
-      });
+    const girlsTry = isGirlsTry({ girlsTryDouble, side, playerId, girl, groupOf: (id) => mixed?.groupOf(id) });
+    const key = write(
+      "recordTouchScore",
+      [auth, game.id, { side, player_id: playerId, ...(girl ? { girl: true } : {}), ...at() }],
+      liveEvents.score(touchTryEventType(side, girlsTry), side === "ours" ? playerId : null, at()),
+    );
+    chrome.scored({
+      side: side === "ours" ? "us" : "them",
+      what: touchTryWhat(girlsTry),
+      scorerId: side === "ours" ? playerId : null,
+      key,
+    });
   }
   function teamScore(scorerId: string | null, girl = false) {
     if (!trackScoring) return;
@@ -536,16 +539,27 @@ export function TouchLiveGame({
     recordTry("ours", scorerId, girl);
   }
   const opponentScore = (girl: boolean) => recordTry("theirs", null, girl);
-  const unsavedPoints = (side: "ours" | "theirs") => unsavedTries.reduce((n, b) => (b.side === side ? n + b.points : n), 0);
-  const teamPoints = state.teamScore.points + unsavedPoints("ours");
-  const opponentPoints = state.opponentScore.points + unsavedPoints("theirs");
-  const playerTries = useMemo(() => {
-    if (!unsavedTries.some((b) => b.side === "ours" && b.playerId)) return state.playerTries;
-    const out = { ...state.playerTries };
-    for (const b of unsavedTries) if (b.side === "ours" && b.playerId) out[b.playerId] = (out[b.playerId] ?? 0) + 1;
-    return out;
-  }, [state.playerTries, unsavedTries]);
-  const undoScore = () => void run("undoTouchScore", [auth, game.id]);
+  const teamPoints = state.teamScore.points;
+  const opponentPoints = state.opponentScore.points;
+  const playerTries = state.playerTries;
+  // Takes back the try the strip names (this phone's last), or with none
+  // named the latest on screen — never whatever the other phone scored
+  // since (UX round 2).
+  const undoScore = () => {
+    const tap = undoTap(events, TOUCH_SCORE_EVENT_TYPES, chrome.namedScoreKey);
+    // Its score was taken back on the other phone, or never saved (a tap
+    // offline that didn't get through): nothing to write, and never
+    // another score in its place.
+    if (tap.kind === "gone" || tap.kind === "missing") {
+      chrome.undone();
+      announceLiveNotice(tap.kind === "gone" ? UNDO_GONE_MESSAGE : UNDO_MISSING_MESSAGE);
+      return;
+    }
+    if (tap.kind !== "undo") return;
+    setError(null);
+    write("undoTouchScore", [auth, game.id, tap.target], tap.optimistic);
+    chrome.undone();
+  };
 
   // ── Sideline: injuries, loans, late arrivals, holds ─────────
   const swappableBench = useMemo(
@@ -553,10 +567,12 @@ export function TouchLiveGame({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [state.lineup, state.injuredIds, state.loanedIds],
   );
+  // Nobody arrives at a game that's over (AFL's LiveGame filters the same).
   const lateArrivalCandidates = useMemo(() => {
+    if (isFinished) return [];
     const placed = new Set(state.lineup ? [...touchOnField(state.lineup), ...state.lineup.bench] : []);
     return squad.filter((p) => !placed.has(p.id));
-  }, [squad, state.lineup]);
+  }, [squad, state.lineup, isFinished]);
   /** Bench kids who can fill an empty place (or replace `leavingId`) and keep the mixed rule. */
   const keepsRule = useCallback(
     (onId: string, leavingId: string | null) => {
@@ -567,8 +583,61 @@ export function TouchLiveGame({
     [mixed, state.lineup, tags, constraints],
   );
 
-  async function markInjured(pid: string, injured: boolean) {
-    await run("markInjury", [auth, game.id, { player_id: pid, injured, ...at() }]);
+  // A side that breaks the mixed rule (a hand sub the coach swapped
+  // anyway): pinned under the top bar until it's fixed, with the subs
+  // that fix it (the suggestions lead with the same ones), or, over the
+  // boys' cap with no girl to swap in, the boy to take off so the side
+  // plays short at the size the rule allows (round 2 usability, 24 Oct
+  // 2026: the strip said "nobody on the bench can fix it").
+  const breach = useMemo(
+    () => (mixed && state.lineup && isPeriodActive ? mixedFieldBreach(touchOnField(state.lineup), mixed.rule, mixed.groupOf) : null),
+    [mixed, state.lineup, isPeriodActive],
+  );
+  const mixFix = useMemo(
+    () => (breach ? touchMixFix({ state, nowMs: absNowMs, strategy, prefs, season, mixed }) : { subs: [], off: [] }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [breach, state.lineup, state.injuredIds, state.loanedIds, state.locks, strategy, prefs, season, mixed],
+  );
+  const fixSubs = mixFix.subs;
+  const fixOff = mixFix.off;
+  const playsShort = state.lineup ? touchOnField(state.lineup).length - fixOff.length : 0;
+  function applyFix() {
+    if (fixSubs.length === 0 && fixOff.length === 0) return;
+    for (const s of fixSubs) sub(s.off_player_id, s.on_player_id, s.line, true);
+    if (fixOff.length > 0 && state.lineup) {
+      // The subs first, then the boys off with nobody on.
+      const swapped = fixSubs.reduce(
+        (lu, s) => (s.off_player_id ? swapInTouchLineup(lu, s.off_player_id, s.on_player_id) : lu),
+        state.lineup,
+      );
+      takeOff(fixOff, swapped);
+      return;
+    }
+    if (fixSubs.length === 1) chrome.swapped(fixSubs[0].off_player_id, fixSubs[0].on_player_id);
+    else chrome.showToast(`${fixSubs.length} subs made`);
+  }
+  const fullName = (id: string) => playerById.get(id)?.full_name ?? "a player";
+  const fixLabel = [
+    ...fixSubs.map((s) => `${fullName(s.on_player_id)} on for ${s.off_player_id ? fullName(s.off_player_id) : "a player"}`),
+    ...(fixOff.length > 0 ? [`take ${fixOff.map(fullName).join(" and ")} off — play ${playsShort}`] : []),
+  ].join(", ");
+  /**
+   * Kids off the field with nobody on ("Take off, no replacement"): the
+   * side plays short, recorded as the lineup with them on the bench.
+   */
+  function takeOff(pids: readonly string[], from: TouchLineup | null = state.lineup) {
+    if (!from || pids.length === 0) return;
+    setError(null);
+    const lineup = pids.reduce((lu, pid) => benchInTouchLineup(lu, pid), from);
+    const when = at();
+    write("recordTouchLineupSet", [auth, game.id, lineup, when], liveEvents.lineupSet({ lineup, ...when }));
+    chrome.showToast(`${pids.map((id) => chrome.firstName(id)).join(" and ")} off — playing ${touchOnField(lineup).length}`);
+  }
+
+  function markInjured(pid: string, injured: boolean) {
+    setError(null);
+    const input = { player_id: pid, injured, ...at() };
+    write("markInjury", [auth, game.id, input], liveEvents.injury(input));
   }
   /** A kid leaves the field hurt: pick who comes on. */
   function startLeaving(pid: string) {
@@ -578,40 +647,30 @@ export function TouchLiveGame({
       setLeaving({ playerId: pid, line });
       return;
     }
-    void markInjured(pid, true);
+    markInjured(pid, true);
   }
-  async function leaveAndReplace(pid: string, replacementId: string, line: TouchLine) {
+  function leaveAndReplace(pid: string, replacementId: string, line: TouchLine) {
     setLeaving(null);
-    await markInjured(pid, true);
-    await sub(pid, replacementId, line);
+    // In order, in the one game lane: the injury, then who comes on.
+    markInjured(pid, true);
+    sub(pid, replacementId, line);
+    chrome.swapped(pid, replacementId);
   }
-  const setLoan = (pid: string, loaned: boolean) => void run("markLoan", [auth, game.id, { player_id: pid, loaned, ...at() }]);
-  const setHold = (pid: string, lock: { kind: "field" } | null) =>
-    void run("recordPlayerLock", [auth, game.id, { player_id: pid, lock, ...at() }]);
-  const addLateArrival = (pid: string) => void run("addLateArrival", [auth, game.id, { player_id: pid, ...at() }]);
-
-  // ── The next half's Start ───────────────────────────────────
-  async function handleStartNextPeriod() {
-    setStartConfirmOpen(false);
-    setPending(true);
+  const setLoan = (pid: string, loaned: boolean) => {
     setError(null);
-    let el = liveRootRef.current?.parentElement ?? null;
-    while (el) {
-      if (el.scrollTop > 0) el.scrollTop = 0;
-      el = el.parentElement;
-    }
-    window.scrollTo({ top: 0, behavior: "auto" });
-    const plan = breakDraft ?? state.lineup;
-    if (plan) {
-      // Kids who can't play now start on the bench, places left empty.
-      const out = new Set([...touchOnField(plan), ...plan.bench].filter((p) => !touchCanPlay(state, p)));
-      await enqueueLiveAction("recordTouchLineupSet", [auth, game.id, benchOutInTouchLineup(plan, out), undefined]).flushed;
-    }
-    await enqueueLiveAction("startTouchPeriod", [auth, game.id, base.currentPeriod + 1]).flushed;
-    writeBreakDraft(draftKey, null);
-    setPending(false);
-    router.refresh();
-  }
+    const input = { player_id: pid, loaned, ...at() };
+    write("markLoan", [auth, game.id, input], liveEvents.loan(input));
+  };
+  const setHold = (pid: string, lock: { kind: "field" } | null) => {
+    setError(null);
+    const input = { player_id: pid, lock, ...at() };
+    write("recordPlayerLock", [auth, game.id, input], liveEvents.lock(input));
+  };
+  const addLateArrival = (pid: string) => {
+    setError(null);
+    const input = { player_id: pid, ...at() };
+    write("addLateArrival", [auth, game.id, input], liveEvents.arrived(input));
+  };
 
   // ── Tile decorations ────────────────────────────────────────
   const lockModes = useMemo(() => {
@@ -626,28 +685,32 @@ export function TouchLiveGame({
   const swapOns = new Map<string, { pair: number; line: TouchLine }>();
   if (!selectedId && isPeriodActive) {
     nextSubs.forEach((s, i) => {
-      swapOffs.set(s.off_player_id, i + 1);
+      if (s.off_player_id) swapOffs.set(s.off_player_id, i + 1);
       swapOns.set(s.on_player_id, { pair: i + 1, line: s.line });
     });
   }
-  // At a break, each kid's tile says where they're heading.
-  const captions = useMemo(() => {
-    if (!isAtBreak || !breakDraft || !state.lineup) return undefined;
-    const out: Record<string, LineTileCaption> = {};
-    const word = (lu: TouchLineup, pid: string) => {
-      const line = touchLineOf(lu, pid);
-      return line ? TOUCH_LINE_SHORT[line] || "On" : "Bench";
-    };
-    for (const pid of touchOnField(breakDraft)) {
-      const was = touchLineOf(state.lineup, pid) ? word(state.lineup, pid) : "Bench";
-      const to = word(breakDraft, pid);
-      out[pid] = was === to ? { text: "Stays", tone: "stay" } : { text: `${was} → ${to}`, tone: "move" };
-    }
-    return out;
-  }, [isAtBreak, breakDraft, state.lineup]);
-
   const selectedPlayer = selectedId ? (playerById.get(selectedId) ?? null) : null;
   const selectedOnField = selectedId !== null && lineOf(selectedId) !== null;
+  // With a kid picked, the kids a swap with them would break the mixed
+  // rule for (the bench for a field kid, the field for a bench kid) dim
+  // and say why. They can still be tapped: the swap asks first.
+  const ruleNotes = useMemo(() => {
+    const out: Record<string, string> = {};
+    if (!mixed || !lineup || !selectedId || !isPeriodActive) return out;
+    if (selectedOnField) {
+      for (const b of lineup.bench) {
+        const w = canComeOn(b) ? capWarning(selectedId, b) : null;
+        if (w) out[b] = w;
+      }
+    } else if (canComeOn(selectedId)) {
+      for (const f of touchOnField(lineup)) {
+        const w = capWarning(f, selectedId);
+        if (w) out[f] = w;
+      }
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mixed, lineup, selectedId, selectedOnField, isPeriodActive, state.injuredIds, state.loanedIds]);
   const remainingMs = Math.max(0, periodMs - elapsedMs);
   const clockReadout = `${Math.floor(remainingMs / 60_000)}:${Math.floor((remainingMs % 60_000) / 1000)
     .toString()
@@ -656,14 +719,12 @@ export function TouchLiveGame({
   const breakName = base.currentPeriod >= ageGroup.periodCount ? "Full time" : "Half time";
   const playerDockVisible = isPeriodActive && selectedPlayer !== null;
   const scoreDockVisible = playerDockVisible && selectedOnField && trackScoring;
-  // The break has the shared Start bar instead of the scorebug.
-  const hasStickyBottom = !isPreStart && !isAtBreak;
+  const hasStickyBottom = !isPreStart;
 
   const actionPlayer = actionPlayerId ? (playerById.get(actionPlayerId) ?? null) : null;
   const actionLine = actionPlayerId && state.lineup ? touchLineOf(state.lineup, actionPlayerId) : null;
   const actionHeld = actionPlayerId ? (lockModes[actionPlayerId] ?? null) : null;
   const lentPlayers = squad.filter((p) => loanedSet.has(p.id) && !injuredSet.has(p.id));
-  const lanes = usesTouchLanes(strategy);
 
   // The field the rule allows, when it's fewer than the game's size.
   const shortBanner =
@@ -688,28 +749,148 @@ export function TouchLiveGame({
       ]
     : [{ label: "Not sure who", subLabel: "Counts the try without a scorer", onSelect: noScorer(false) }];
 
+  // Who scored a try: the scorebug's +T in play, the break's and full
+  // time's editors. "Who scored?" under what was scored, as soccer's and
+  // basketball's sheets ask; a stray tap on the backdrop keeps the sheet
+  // (SlotFillSheet's default): the try mustn't vanish.
+  const scorerSheet = pickingScorer ? (
+    <SlotFillSheet
+      slotLabel="try"
+      eyebrow={girlsTryDouble ? "Try · a girl's counts 2" : "Try"}
+      title="Who scored?"
+      subtitle="Pick who scored, or count the try without a name."
+      candidates={(state.lineup ? touchOnField(state.lineup) : [])
+        .map((id) => playerById.get(id))
+        .filter((p): p is Player => Boolean(p))
+        .map((p) => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number }))}
+      emptyMessage="Nobody is on the field."
+      extraOptions={scorerOptions}
+      onPick={(pid) => {
+        setPickingScorer(false);
+        teamScore(pid);
+      }}
+      onCancel={() => setPickingScorer(false)}
+    />
+  ) : null;
+
+  // Half-time: the shared break screen.
+  if (isAtBreak) {
+    return (
+      <div ref={liveRootRef}>
+        <TouchBreak
+          auth={auth}
+          write={write}
+          sport={sport}
+          game={game}
+          exitHref={exitHref}
+          squad={squad}
+          ageGroup={ageGroup}
+          state={base}
+          events={events}
+          periodMs={periodMs}
+          strategy={strategy}
+          prefs={prefs}
+          season={season}
+          mixed={mixed}
+          shapeId={touchShapeIdOf(lastSetLineup(events))}
+          score={
+            trackScoring
+              ? {
+                  us: teamPoints,
+                  them: opponentPoints,
+                  editor: (
+                    <>
+                      <BreakScoreEditor
+                        teamName={teamName}
+                        opponentName={opponentName}
+                        teamPoints={teamPoints}
+                        opponentPoints={opponentPoints}
+                        scoreByPeriod={state.scoreByPeriod}
+                        periodCount={ageGroup.periodCount}
+                        currentPeriod={base.currentPeriod}
+                        periodLetter={periodLetter}
+                        periodWord={periodWord}
+                        teamChips={[{ key: "try", text: "+T", label: `Add a try, ${teamName}`, onClick: () => setPickingScorer(true) }]}
+                        opponentChips={touchOpponentChips(girlsTryDouble, opponentName).map((c) => ({
+                          key: c.key,
+                          text: c.text,
+                          sub: c.sub,
+                          label: c.label,
+                          onClick: () => opponentScore(c.girl),
+                        }))}
+                        missedNote={`A try you missed counts in ${periodLetter}${base.currentPeriod}.`}
+                        onUndo={undoScore}
+                        undoDisabled={pending}
+                      />
+                      {scorerSheet}
+                    </>
+                  ),
+                }
+              : undefined
+          }
+        />
+      </div>
+    );
+  }
+
   return (
     // No bottom padding: LiveStickyScoreBar reserves its own height with
     // a measured in-flow spacer, and the player dock floats over the page.
-    <div ref={liveRootRef} className={`space-y-3${isAtBreak ? " pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-0" : ""}`}>
+    <div ref={liveRootRef} className="space-y-3">
       <LiveTopBar
         exitHref={exitHref}
         game={game}
         isLive={base.currentPeriod > 0}
-        banner={subDueShowing ? <SubDueBanner hint={TOUCH_SUB_DUE_HINT} onAcknowledge={() => setSubAckKey(subDueKey)} /> : null}
+        // The sub card is the alert while it has pairs (SubDue.tsx); the
+        // banner speaks only for a due sub with nothing to suggest.
+        banner={
+          <>
+            {isPeriodActive && subDueBannerShows(subDue.due, nextSubs.length, (state.lineup?.bench ?? []).some((id) => canComeOn(id))) && subAckKey !== subDueKey ? (
+              <SubDueBanner hint={TOUCH_SUB_DUE_HINT} onAcknowledge={() => setSubAckKey(subDueKey)} />
+            ) : null}
+            {/* Pinned while the side breaks the mixed rule, as the sub-due
+                strip is: it stays on screen as the coach scrolls. */}
+            {breach && (
+              <div
+                role="status"
+                data-testid="touch-mixed-breach"
+                className="mx-auto flex max-w-4xl items-center gap-3 border-t border-hairline bg-danger/10 px-3 py-1.5"
+              >
+                <span className="shrink-0 rounded-xs bg-danger px-1.5 font-mono text-[10px] font-bold uppercase leading-4 tracking-micro text-white">
+                  Mixed rule
+                </span>
+                <p className="min-w-0 flex-1 text-sm text-ink">
+                  <strong className="font-semibold">{breach.short}</strong>
+                  {fixSubs.length === 0 && fixOff.length > 0 && (
+                    <span className="text-ink-dim">
+                      {" "}
+                      — take {fixOff.length === 1 ? "a boy" : `${fixOff.length} boys`} off: play {playsShort}
+                    </span>
+                  )}
+                  {fixSubs.length === 0 && fixOff.length === 0 && (
+                    <span className="text-ink-dim"> — nobody on the bench can fix it</span>
+                  )}
+                </p>
+                {(fixSubs.length > 0 || fixOff.length > 0) && (
+                  <SFButton
+                    size="md"
+                    variant="ghost"
+                    onClick={applyFix}
+                    disabled={pending}
+                    aria-label={`Fix: ${fixLabel}`}
+                    className="shrink-0"
+                  >
+                    Fix
+                  </SFButton>
+                )}
+              </div>
+            )}
+          </>
+        }
       />
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
-      {warning && (
-        <InlineAlert kind="warn">
-          <span className="flex items-start justify-between gap-2">
-            <span>{warning}</span>
-            <button type="button" onClick={() => setWarning(null)} className="shrink-0 underline">
-              OK
-            </button>
-          </span>
-        </InlineAlert>
-      )}
+      {isPeriodActive && chrome.toast}
       {shortBanner}
 
       {isPreStart && state.lineup && (
@@ -732,10 +913,13 @@ export function TouchLiveGame({
           msUntilDue={subDue.msUntilDue}
           subIntervalMs={subDue.spanMs}
           due={subDue.due}
-          onApplyAll={() => void applyAllSubs()}
+          dueHint={TOUCH_SUB_DUE_HINT.charAt(0).toUpperCase() + TOUCH_SUB_DUE_HINT.slice(1)}
+          onApplyAll={applyAllSubs}
           onApplyOne={(i) => {
             const s = nextSubs[i];
-            if (s) void sub(s.off_player_id, s.on_player_id, s.line);
+            if (!s) return;
+            sub(s.off_player_id, s.on_player_id, s.line);
+            chrome.swapped(s.off_player_id, s.on_player_id);
           }}
           pending={pending}
           playerById={playerById}
@@ -768,56 +952,6 @@ export function TouchLiveGame({
         </div>
       )}
 
-      {/* The break, as AFL's, netball's and basketball's: the orientation
-          strip, the Score row (the per-half breakdown, and late tries),
-          the swap hint, the field and bench with where each kid is
-          heading, and the shared Start bar. */}
-      {isAtBreak && (
-        <>
-          <div className="px-1">
-            <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">{breakName}</p>
-            <p className="mt-0.5 text-lg font-bold text-ink">
-              Lineup for {periodLetter}
-              {base.currentPeriod + 1}
-            </p>
-          </div>
-
-          {trackScoring && (
-            <BreakScoreRow
-              open={showBreakScore}
-              onToggle={() => setShowBreakScore((v) => !v)}
-              teamName={teamName}
-              opponentName={opponentName}
-              teamPoints={teamPoints}
-              opponentPoints={opponentPoints}
-              scoreByPeriod={state.scoreByPeriod}
-              periodCount={ageGroup.periodCount}
-              currentPeriod={base.currentPeriod}
-              periodLetter={periodLetter}
-              periodWord={periodWord}
-              teamChips={[{ key: "try", text: "+T", label: `Add a try, ${teamName}`, onClick: () => setPickingScorer(true) }]}
-              opponentChips={
-                girlsTryDouble
-                  ? [
-                      { key: "try", text: "+1", label: `Add a try, ${opponentName}`, onClick: () => opponentScore(false) },
-                      { key: "girls", text: "+2 (girl)", label: `Add a girl's try, ${opponentName}`, onClick: () => opponentScore(true) },
-                    ]
-                  : [{ key: "try", text: "+T", label: `Add a try, ${opponentName}`, onClick: () => opponentScore(false) }]
-              }
-              missedNote={`A try you missed counts in ${periodLetter}${base.currentPeriod}.`}
-              onUndo={undoScore}
-              undoDisabled={pending}
-            />
-          )}
-
-          <p className="px-1 text-xs text-ink-dim">
-            Who starts the next {periodWord}
-            {lanes ? " and in which lane" : ""}. Tap any two players to swap them.
-          </p>
-          {mixed && <p className="px-1 text-[11px] text-ink-mute">Boys and girls are evened separately under the mixed rule.</p>}
-        </>
-      )}
-
       {!isFinished && lineup && (
         <>
           <TouchField
@@ -836,13 +970,13 @@ export function TouchLiveGame({
             injuredIds={state.injuredIds}
             lockModes={lockModes}
             triesByPlayer={trackScoring ? playerTries : undefined}
-            captions={captions}
+            ruleNotes={ruleNotes}
           />
           <TouchBench
             bench={lineup.bench}
             playersById={playerById}
             onTap={(pid) => handleTap(pid, null)}
-            onLongPress={isPeriodActive || isAtBreak ? setActionPlayerId : undefined}
+            onLongPress={isPeriodActive ? setActionPlayerId : undefined}
             selectedPlayerId={selectedId}
             dimUnselected={isPeriodActive}
             swapOns={swapOns}
@@ -853,6 +987,7 @@ export function TouchLiveGame({
             loanedIds={state.loanedIds}
             lockModes={lockModes}
             triesByPlayer={trackScoring ? playerTries : undefined}
+            ruleNotes={ruleNotes}
           />
         </>
       )}
@@ -905,6 +1040,12 @@ export function TouchLiveGame({
         finished={base.finalised}
         auth={auth}
         gameId={game.id}
+        // The sub interval mid-game, as AFL's.
+        settings={
+          !isFinished && subIntervalSeconds != null ? (
+            <LiveGameSettingsButton auth={auth} gameId={game.id} subIntervalSeconds={subIntervalSeconds} />
+          ) : null
+        }
       />
 
       {playerDockVisible && selectedPlayer && (
@@ -967,7 +1108,8 @@ export function TouchLiveGame({
               clockReadout={clockReadout}
               running={running}
               isPreGame={isPreStart}
-              isFinished={base.finalised}
+              // Full time reads FT from the last hooter, not "running".
+              isFinished={isFinished}
               atHooter={atHooter}
               breakName={breakName}
               trackScoring={trackScoring}
@@ -978,19 +1120,12 @@ export function TouchLiveGame({
               clockPulseKey={base.periodEnded ? `end-${base.currentPeriod}` : null}
             />
           }
-          undoStrip={
-            (teamPoints > 0 || opponentPoints > 0) && !base.finalised ? (
-              <UndoStrip flashing={false} message="" onUndo={undoScore} disabled={pending} />
-            ) : undefined
-          }
-        />
-      )}
-
-      {isAtBreak && (
-        <QuarterKickoffBar
-          onConfirm={() => setStartConfirmOpen(true)}
-          confirmLabel={`Start ${periodLetter}${base.currentPeriod + 1}`}
-          disabled={pending || !breakDraft}
+          // In play only: at full time the review's own Undo fixes a miscount.
+          undoStrip={chrome.undoStrip({
+            show: isPeriodActive && (teamPoints > 0 || opponentPoints > 0),
+            onUndo: undoScore,
+            disabled: pending,
+          })}
         />
       )}
 
@@ -998,15 +1133,12 @@ export function TouchLiveGame({
         <StartQuarterModal
           quarter={base.currentPeriod + 1}
           periodLabel={periodLabel}
-          cue={isPreStart ? "referee starts play" : "whistle goes"}
+          cue={getSportConfig(sport).words.startCue}
+          shortSide={{ playing: state.lineup ? touchOnField(state.lineup).length : 0, size: game.on_field_size, min: ageGroup.minOnFieldSize }}
           loading={pending}
           onStart={() => {
-            if (isPreStart) {
-              setStartConfirmOpen(false);
-              void run("startTouchPeriod", [auth, game.id, 1]);
-            } else {
-              void handleStartNextPeriod();
-            }
+            setStartConfirmOpen(false);
+            startFirstPeriod();
           }}
           onCancel={() => setStartConfirmOpen(false)}
         />
@@ -1014,10 +1146,11 @@ export function TouchLiveGame({
 
       {clockMenuOpen && (
         <ClockMenu
+          sport={sport}
           periodAbbr={`${periodLetter}${base.currentPeriod}`}
           running={running}
-          onPause={() => setPause((p) => togglePeriodPause(p, Date.now()))}
-          onResume={() => setPause((p) => togglePeriodPause(p, Date.now()))}
+          onPause={toggleClock}
+          onResume={toggleClock}
           onEndEarly={isPeriodActive ? () => setEndConfirmOpen(true) : undefined}
           onClose={() => setClockMenuOpen(false)}
         />
@@ -1026,46 +1159,35 @@ export function TouchLiveGame({
       {endConfirmOpen && (
         <ManualEndQuarterConfirm
           quarter={base.currentPeriod}
-          onConfirm={() => {
+          elapsedMs={elapsedMs}
+          periodMs={periodMs}
+          onConfirm={(full) => {
             setEndConfirmOpen(false);
-            // Ending credits the whole period, as every sport does.
-            void endPeriodAt(periodMs);
+            // The time played, or (the game played on while the app's
+            // clock sat paused) the whole period: the coach's choice. It
+            // used to be the whole period, silently (round 3, 24 Oct 2026).
+            endPeriodAt(full ? periodMs : Math.min(clockAt(Date.now()), periodMs));
           }}
           onCancel={() => setEndConfirmOpen(false)}
-          playersLabel="On-field"
+          sport={sport}
+          clock={atHooter ? "hooter" : running ? "running" : "paused"}
           periodLabel={periodLabel}
         />
       )}
 
-      {pickingScorer && (
-        <SlotFillSheet
-          slotLabel="try"
-          titleVerb="Who scored the"
-          subtitle="Pick who scored the try."
-          dismissOnBackdrop={false}
-          candidates={(state.lineup ? touchOnField(state.lineup) : [])
-            .map((id) => playerById.get(id))
-            .filter((p): p is Player => Boolean(p))
-            .map((p) => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number }))}
-          emptyMessage="Nobody is on the field."
-          extraOptions={scorerOptions}
-          onPick={(pid) => {
-            setPickingScorer(false);
-            teamScore(pid);
-          }}
-          onCancel={() => setPickingScorer(false)}
-        />
-      )}
+      {scorerSheet}
 
       {actionPlayer && (
         <LockModal
           player={actionPlayer}
           currentLock={actionHeld}
-          currentZone={null}
+          // The kid's lane (on the field) for the Switch hint, and their
+          // lent minutes, as AFL's sheet has.
+          currentLine={actionLine ? TOUCH_LINE_LABEL[actionLine] : null}
           isInjured={injuredSet.has(actionPlayer.id)}
           isLoaned={loanedSet.has(actionPlayer.id)}
-          seasonLoanMins={0}
-          squadLoanMins={0}
+          seasonLoanMins={chrome.loanMinutes(actionPlayer.id).seasonLoanMins}
+          squadLoanMins={chrome.loanMinutes(actionPlayer.id).squadLoanMins}
           onLockField={
             isPeriodActive && actionLine
               ? () => {
@@ -1082,7 +1204,7 @@ export function TouchLiveGame({
           onToggleInjury={() => {
             const pid = actionPlayer.id;
             setActionPlayerId(null);
-            if (injuredSet.has(pid)) void markInjured(pid, false);
+            if (injuredSet.has(pid)) markInjured(pid, false);
             else startLeaving(pid);
           }}
           onToggleLoan={() => {
@@ -1095,17 +1217,34 @@ export function TouchLiveGame({
             setSelectedId(actionPlayer.id);
           }}
           extraActions={
-            isPeriodActive && actionLine && actionLine !== "field"
-              ? TOUCH_LANES.filter((l) => l !== actionLine).map((l) => ({
-                  label: `Move to ${TOUCH_LINE_LABEL[l].toLowerCase()}`,
-                  hint: `Plays ${TOUCH_LINE_ONE[l]} from now`,
-                  testId: `touch-move-${l}`,
-                  onClick: () => {
-                    const pid = actionPlayer.id;
-                    setActionPlayerId(null);
-                    void move(pid, null, l);
+            isPeriodActive && actionLine
+              ? [
+                  ...(actionLine !== "field"
+                    ? TOUCH_LANES.filter((l) => l !== actionLine).map((l) => ({
+                        label: `Move to ${TOUCH_LINE_LABEL[l].toLowerCase()}`,
+                        hint: `Plays ${TOUCH_LINE_ONE[l]} from now`,
+                        testId: `touch-move-${l}`,
+                        onClick: () => {
+                          const pid = actionPlayer.id;
+                          setActionPlayerId(null);
+                          move(pid, null, l);
+                          chrome.showToast(`${chrome.firstName(pid)} → ${TOUCH_LINE_LABEL[l]}`);
+                        },
+                      }))
+                    : []),
+                  // Off with nobody on: the side plays one short (a mixed
+                  // side over the boys' cap with no girl to bring on).
+                  {
+                    label: "Take off, no replacement",
+                    hint: "The side plays one short until you sub someone on",
+                    testId: "touch-take-off",
+                    onClick: () => {
+                      const pid = actionPlayer.id;
+                      setActionPlayerId(null);
+                      takeOff([pid]);
+                    },
                   },
-                }))
+                ]
               : undefined
           }
           onClose={() => setActionPlayerId(null)}
@@ -1116,7 +1255,7 @@ export function TouchLiveGame({
         <SlotFillSheet
           slotLabel={fillLine === "field" ? "spot" : `${TOUCH_LINE_ONE[fillLine]} spot`}
           candidates={lineup.bench
-            .filter((id) => (isAtBreak ? !injuredSet.has(id) && !loanedSet.has(id) : canComeOn(id) && keepsRule(id, null)))
+            .filter((id) => canComeOn(id) && keepsRule(id, null))
             .map((id) => playerById.get(id))
             .filter((p): p is Player => Boolean(p))
             .map((p) => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number }))}
@@ -1124,8 +1263,9 @@ export function TouchLiveGame({
           onPick={(pid) => {
             const line = fillLine;
             setFillLine(null);
-            if (isAtBreak) setBreakDraft(placeInTouchLineup(lineup, pid, line));
-            else void sub(null, pid, line);
+            // A deliberate pick: straight on, with AFL's toast.
+            sub(null, pid, line, true);
+            chrome.swapped(null, pid);
           }}
           onCancel={() => setFillLine(null)}
         />
@@ -1147,16 +1287,18 @@ export function TouchLiveGame({
               reason="injured"
               spotLabel={leaving.line === "field" ? "their spot" : TOUCH_LINE_ONE[leaving.line]}
               candidates={candidates}
-              onPickReplacement={(rid) => void leaveAndReplace(leaving.playerId, rid, leaving.line)}
+              onPickReplacement={(rid) => leaveAndReplace(leaving.playerId, rid, leaving.line)}
               onSkipReplacement={() => {
                 const { playerId } = leaving;
                 setLeaving(null);
-                void markInjured(playerId, true);
+                markInjured(playerId, true);
               }}
               onCancel={() => setLeaving(null)}
             />
           );
         })()}
+
+      {chrome.overlays}
 
       <LongPressHint enabled={isPeriodActive && !selectedId} />
     </div>

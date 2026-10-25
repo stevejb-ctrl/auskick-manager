@@ -23,43 +23,56 @@
 //     a timed sit-out (the 5-minute sin bin) from the player's actions.
 //
 // Every write goes through the shared write queue (registerLiveActions)
-// in the one game lane, so the event log keeps the coach's order.
+// in the one game lane, so the event log keeps the coach's order. The
+// in-game writes are optimistic (useOptimisticEvents): a basket, an undo,
+// a foul or a sub shows the moment it's tapped and the server's copy
+// takes its place, as AFL's store does. The shared live chrome
+// (useLiveChrome) is AFL's: the undo strip says what was recorded, a
+// tap-tap sub asks first and toasts, the long-press sheet knows the
+// kid's line and lent minutes (UX audit 23 Oct 2026, "Drift from AFL").
 
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SFButton } from "@/components/sf";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
-import { QuarterKickoffBar } from "@/components/quarter-break/QuarterKickoffBar";
 import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
 import { ClockMenu } from "@/components/live/ClockMenu";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { SubDueBanner } from "@/components/live/SubDueBanner";
+import { subDueBannerShows } from "@/components/live/SubDue";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { LockModal } from "@/components/live/LockModal";
-import { UndoStrip } from "@/components/live/UndoStrip";
 import { NextSubCard } from "@/components/live/NextSubCard";
+import { LiveGameSettingsButton } from "@/components/live/LiveGameSettingsButton";
+import { useLiveChrome } from "@/components/live/useLiveChrome";
+import { undoSwaps } from "@/lib/live/liveChrome";
 import {
   InjuryReplacementModal,
   type InjuryReplacementCandidate,
 } from "@/components/live/InjuryReplacementModal";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
-import {
-  enqueueLiveAction,
-  type LiveActionArgs,
-  type LiveActionKind,
-} from "@/lib/live/registerLiveActions";
+import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
+import { liveEvents, type OptimisticEventInput } from "@/lib/live/optimisticEvents";
+import { UNDO_GONE_MESSAGE, UNDO_MISSING_MESSAGE, undoTap } from "@/lib/live/undoTarget";
+import { announceLiveNotice } from "@/lib/live/liveSync";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
+import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import { hapticTap } from "@/lib/haptics";
-import { computePeriodClockMs, togglePeriodPause } from "@/lib/live/periodClock";
-import { usePeriodPause } from "@/lib/live/periodPauseStorage";
+import { computePeriodClockMs } from "@/lib/live/periodClock";
+import { clockPauseInput } from "@/lib/live/clockPause";
+import { queuedStartClockMark, useEventPeriodPause } from "@/lib/live/useClockPause";
 import { resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import { BASKETBALL_POSITION_DEFS } from "@/lib/sports/basketball";
+import {
+  BASKETBALL_SCORE_EVENT_TYPES,
+  basketballPointsWords,
+  basketballScoreEventType,
+} from "@/lib/sports/basketball/scoreEvents";
 import {
   basketballLineOf,
   basketballOnCourt,
@@ -74,21 +87,15 @@ import {
 } from "@/lib/sports/basketball/replay";
 import {
   basketballShapeFor,
-  suggestBasketballBreakPlan,
   suggestBasketballSubs,
   type BasketballPrefs,
   type BasketballSeasonBalance,
 } from "@/lib/sports/basketball/suggest";
 import {
   basketballSubDue,
-  benchOutInBasketballLineup,
-  placeInBasketballLineup,
-  swapInBasketballLineup,
-  withEveryoneInBasketballLineup,
 } from "@/lib/sports/basketball/live";
 import {
   BASKETBALL_LINES,
-  usesBasketballLines,
   type BasketballAgeGroupConfig,
   type BasketballLine,
   type BasketballStrategy,
@@ -96,12 +103,12 @@ import {
 import { BasketballCourt } from "./BasketballCourt";
 import { BasketballBench } from "./BasketballBench";
 import { BasketballScoreBug } from "./BasketballScoreBug";
-import { BreakScoreRow } from "./BreakScoreRow";
+import { BreakScoreEditor } from "@/components/quarter-break/BreakScoreEditor";
+import { BasketballBreak } from "./BasketballBreak";
 import { BasketballFullTimeReview, BasketballGameSummaryCard } from "./BasketballFullTime";
 import {
   BASKETBALL_LINE_LABEL,
   BASKETBALL_LINE_SHORT,
-  type BasketballTileCaption,
 } from "./BasketballPlayerTile";
 
 type Points = 1 | 2 | 3;
@@ -135,6 +142,31 @@ interface BasketballLiveGameProps {
   season?: BasketballSeasonBalance;
   isAdmin: boolean;
   exitHref: string;
+  /** Lent minutes in the season's other games, for the long-press sheet. */
+  seasonLoanMinutes?: Record<string, number>;
+}
+
+/** A foul, or a foul taken back (recordBasketballFoul). */
+function foulEvent(input: { player_id: string; kind?: string; undo?: boolean; quarter: number; elapsed_ms: number }): OptimisticEventInput {
+  return {
+    type: "foul",
+    player_id: input.player_id,
+    metadata: {
+      kind: input.kind ?? "personal",
+      ...(input.undo ? { undo: true } : {}),
+      quarter: input.quarter,
+      elapsed_ms: input.elapsed_ms,
+    },
+  };
+}
+
+/** A timed sit-out (recordBasketballSitOut). */
+function sitOutEvent(input: { player_id: string; duration_ms: number; quarter: number; elapsed_ms: number }): OptimisticEventInput {
+  return {
+    type: "sit_out",
+    player_id: input.player_id,
+    metadata: { duration_ms: input.duration_ms, quarter: input.quarter, elapsed_ms: input.elapsed_ms },
+  };
 }
 
 /** Line colours on the dark next-sub card, as the tiles colour them. */
@@ -164,23 +196,6 @@ function shapeIdOf(lineup: BasketballLineup | null): string | null {
   return `${lineup.lines.guard.length}-${lineup.lines.forward.length}`;
 }
 
-function readBreakDraft(key: string): BasketballLineup | null {
-  try {
-    const raw = window.sessionStorage.getItem(key);
-    return raw ? normalizeBasketballLineup(JSON.parse(raw)) : null;
-  } catch {
-    return null;
-  }
-}
-function writeBreakDraft(key: string, lineup: BasketballLineup | null) {
-  try {
-    if (lineup) window.sessionStorage.setItem(key, JSON.stringify(lineup));
-    else window.sessionStorage.removeItem(key);
-  } catch {
-    // Private mode or storage blocked: the plan just won't survive a reload.
-  }
-}
-
 export function BasketballLiveGame({
   auth,
   game,
@@ -193,24 +208,24 @@ export function BasketballLiveGame({
   trackScoring,
   trackFouls,
   threePointers,
-  events,
+  events: serverEvents,
   strategy,
   prefs,
   season,
   isAdmin,
   exitHref,
+  seasonLoanMinutes,
 }: BasketballLiveGameProps) {
-  const router = useRouter();
   const opponentName = game.opponent || "Opponent";
   const playerById = useMemo(() => new Map(squad.map((p) => [p.id, p])), [squad]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  // Every write is optimistic, so nothing here waits on a save.
+  const pending = false;
   const [clockMenuOpen, setClockMenuOpen] = useState(false);
   const [endConfirmOpen, setEndConfirmOpen] = useState(false);
   const [startConfirmOpen, setStartConfirmOpen] = useState(false);
   const [scorerPoints, setScorerPoints] = useState<Points | null>(null);
-  const [showBreakScore, setShowBreakScore] = useState(false);
   const [actionPlayerId, setActionPlayerId] = useState<string | null>(null);
   const [fillLine, setFillLine] = useState<BasketballLine | null>(null);
   const [leaving, setLeaving] = useState<{
@@ -223,6 +238,8 @@ export function BasketballLiveGame({
   const periodMs = periodSeconds * 1000;
   const periodLetter = ageGroup.periodCount === 4 ? "Q" : "H";
   const periodWord = ageGroup.periodCount === 4 ? "quarter" : "half";
+  // The server's events, then the writes it hasn't returned yet.
+  const { events, write } = useOptimisticEvents(serverEvents, { gameId: game.id, onError: setError });
 
   // ── The game so far (without the open stints), for the clock ──
   const base = useMemo(() => replayBasketballGame(events), [events]);
@@ -232,13 +249,20 @@ export function BasketballLiveGame({
   const isAtFinal = base.periodEnded && base.currentPeriod >= ageGroup.periodCount && !base.finalised;
   const isFinished = base.finalised || isAtFinal;
   const isPreTipoff = base.currentPeriod === 0 && !base.finalised;
+  // The summary after Finish opens at the top: the final score and Copy
+  // for group chat, not the review's scroll (round 2, 24 Oct 2026).
+  useScrollToTopOnFinish(base.finalised, liveRootRef);
 
-  // ── Clock: the shared period clock, its pause saved on the phone ──
+  // ── Clock: the shared period clock, its pause a game event ──
   // Game ms since the period started, less real time paused, scaled by
   // the clock multiplier, held at the period's length: the stadium clock
   // stops in the last minutes, so the phone waits there for the hooter.
+  // The pause is the period's latest clock_pause event
+  // (lib/live/clockPause), so a reload or a second phone keeps it.
   const [nowMs, setNowMs] = useState<number | null>(null);
-  const [pause, setPause] = usePeriodPause(game.id, base.currentPeriod);
+  const periodStartedAtMs = base.periodStartedAt ? Date.parse(base.periodStartedAt) : NaN;
+  const startedAtMs = Number.isNaN(periodStartedAtMs) ? null : periodStartedAtMs;
+  const pause = useEventPeriodPause(events, base.currentPeriod, startedAtMs, clockMultiplier);
   const running = pause.pausedAtMs === null;
   useEffect(() => {
     if (!isPeriodActive || !running) return;
@@ -247,24 +271,40 @@ export function BasketballLiveGame({
     return () => window.clearInterval(id);
   }, [isPeriodActive, running, base.periodStartedAt]);
 
-  const elapsedMs = useMemo(() => {
-    const fallback = base.periodEnded ? base.periodElapsedMs : 0;
-    if (nowMs == null) return fallback;
-    const startedAtMs = base.periodStartedAt ? Date.parse(base.periodStartedAt) : NaN;
-    const raw = computePeriodClockMs({
-      currentQuarter: base.currentPeriod,
-      quarterEnded: base.periodEnded,
-      finalised: base.finalised,
-      quarterStartedAtMs: Number.isNaN(startedAtMs) ? null : startedAtMs,
-      pausedAtMs: pause.pausedAtMs,
-      accumulatedPauseMs: pause.accumulatedPauseMs,
-      fallbackElapsedMs: fallback,
-      clockMultiplier,
-      nowMs,
-    });
-    return isPeriodActive ? Math.min(raw, periodMs) : raw;
-  }, [nowMs, base, pause, clockMultiplier, isPeriodActive, periodMs]);
+  const clockAt = useCallback(
+    (now: number) => {
+      const raw = computePeriodClockMs({
+        currentQuarter: base.currentPeriod,
+        quarterEnded: base.periodEnded,
+        finalised: base.finalised,
+        quarterStartedAtMs: startedAtMs,
+        pausedAtMs: pause.pausedAtMs,
+        accumulatedPauseMs: pause.accumulatedPauseMs,
+        fallbackElapsedMs: base.periodEnded ? base.periodElapsedMs : 0,
+        clockMultiplier,
+        nowMs: now,
+      });
+      return isPeriodActive ? Math.min(raw, periodMs) : raw;
+    },
+    [base, startedAtMs, pause, clockMultiplier, isPeriodActive, periodMs],
+  );
+  // Until the first tick, a running clock shows the server's render; a
+  // paused one reads its pause, which doesn't move.
+  const elapsedMs = useMemo(
+    () => (nowMs == null && running ? (base.periodEnded ? base.periodElapsedMs : 0) : clockAt(nowMs ?? 0)),
+    [nowMs, running, base, clockAt],
+  );
   const elapsedSecond = Math.floor(elapsedMs / 1000);
+
+  // AFL's live chrome: the undo strip's flash, the swap confirm and toast.
+  const chrome = useLiveChrome({
+    teamName,
+    opponentName,
+    playersById: playerById,
+    seasonLoanMinutes,
+    events,
+    openElapsedMs: isPeriodActive ? elapsedMs : null,
+  });
 
   // ── The game now: every kid's time so far, open stints credited ──
   const state: BasketballGameState = useMemo(
@@ -290,50 +330,12 @@ export function BasketballLiveGame({
   }, [state.sittingOut, absNowMs]);
   const foulsByPlayer = trackFouls ? state.fouls : undefined;
 
-  // ── The break: the plan for the next period ─────────────────
-  // Suggested once per break and kept in session storage, so an edit
-  // survives a trip to the team page; Start commits it.
-  const draftKey = `basketball-break:${game.id}:${base.currentPeriod}`;
-  const breakPlan = useMemo(
-    () =>
-      isAtBreak
-        ? suggestBasketballBreakPlan({
-            state: base,
-            onCourtSize: game.on_field_size,
-            strategy,
-            shapeId: shapeIdOf(lastSetLineup(events)),
-            prefs,
-            season,
-          })
-        : null,
-    [isAtBreak, base, game.on_field_size, strategy, events, prefs, season],
-  );
-  const [storedDraft, setBreakDraftState] = useState<BasketballLineup | null>(null);
-  useEffect(() => {
-    if (!isAtBreak) {
-      setBreakDraftState(null);
-      return;
-    }
-    setBreakDraftState(readBreakDraft(draftKey) ?? breakPlan?.lineup ?? null);
-  }, [isAtBreak, draftKey, breakPlan]);
-  const setBreakDraft = useCallback(
-    (next: BasketballLineup) => {
-      setBreakDraftState(next);
-      writeBreakDraft(draftKey, next);
-    },
-    [draftKey],
-  );
-  // The plan, with anyone who has arrived since it was made on its bench.
-  const breakDraft = useMemo(
-    () => (storedDraft && state.lineup ? withEveryoneInBasketballLineup(storedDraft, state.lineup) : storedDraft),
-    [storedDraft, state.lineup],
-  );
-
-  // What the screen shows: the break's plan, else the lineup in play.
-  const lineup: BasketballLineup | null = isAtBreak ? breakDraft : state.lineup;
+  // The break is BasketballBreak, the shared break screen (below); this
+  // screen shows the lineup in play.
+  const lineup: BasketballLineup | null = state.lineup;
   const shape = useMemo(
-    () => basketballShapeFor(strategy, game.on_field_size, shapeIdOf(isAtBreak ? breakDraft : lastSetLineup(events))),
-    [strategy, game.on_field_size, isAtBreak, breakDraft, events],
+    () => basketballShapeFor(strategy, game.on_field_size, shapeIdOf(lastSetLineup(events))),
+    [strategy, game.on_field_size, events],
   );
   const lineCaps = useMemo(() => {
     const caps = { ...shape.lines };
@@ -346,9 +348,15 @@ export function BasketballLiveGame({
   }, [lineup]);
 
   // ── Subs ────────────────────────────────────────────────────
+  // No sub is due once the clock is out: the phone waits at 0:00 for the
+  // buzzer, and the Sub due card and OFF badges stayed up through half
+  // time and full time (round 2, 24 Oct 2026; AFL hides them after the
+  // siren too).
+  const periodClockDone = elapsedMs >= periodMs;
+  const subsOpen = isPeriodActive && !periodClockDone;
   const anchorMs = useMemo(
-    () => (isPeriodActive ? resolveSubAnchorElapsed(events, base.currentPeriod) : null),
-    [events, base.currentPeriod, isPeriodActive],
+    () => (subsOpen ? resolveSubAnchorElapsed(events, base.currentPeriod) : null),
+    [events, base.currentPeriod, subsOpen],
   );
   const subDue = basketballSubDue({
     subIntervalMs: subIntervalSeconds != null ? subIntervalSeconds * 1000 : null,
@@ -359,8 +367,9 @@ export function BasketballLiveGame({
   });
   const msUntilDue = subDue.msUntilDue;
   const nextSubs = useMemo(() => {
-    if (!isPeriodActive) return [];
-    const opts = { strategy, prefs, season, foulOutAt: trackFouls ? ageGroup.foulOutAt : 0 };
+    if (!subsOpen) return [];
+    // Empty spots on court are filled first (the shape's spots).
+    const opts = { strategy, prefs, season, foulOutAt: trackFouls ? ageGroup.foulOutAt : 0, spots: shape.lines };
     const now = suggestBasketballSubs({ state, nowMs: absNowMs, ...opts });
     if (now.length > 0 || msUntilDue === null || msUntilDue <= 0) return now;
     // Nothing evens time yet, so show the subs due at the next sub time
@@ -371,7 +380,7 @@ export function BasketballLiveGame({
     const ahead = replayBasketballGame(events, { nowMs: aheadMs });
     return suggestBasketballSubs({ state: ahead, nowMs: ahead.completedPeriodMs + aheadMs, ...opts });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPeriodActive, state, events, strategy, prefs, season, trackFouls, ageGroup.foulOutAt, periodMs, msUntilDue !== null && msUntilDue <= 0, Math.floor((msUntilDue ?? 0) / 5000)]);
+  }, [subsOpen, state, events, strategy, prefs, season, trackFouls, ageGroup.foulOutAt, periodMs, shape, msUntilDue !== null && msUntilDue <= 0, Math.floor((msUntilDue ?? 0) / 5000)]);
   const subDueKey = subDue.key === null ? null : `${base.currentPeriod}:${subDue.key}`;
   const subDueShowing = isPeriodActive && subDue.due && nextSubs.length > 0 && subAckKey !== subDueKey;
   useSubDueAudioUnlock();
@@ -385,65 +394,72 @@ export function BasketballLiveGame({
   }, [subDueShowing]);
 
   // ── Writes ──────────────────────────────────────────────────
-  const at = () => ({ quarter: base.currentPeriod, elapsed_ms: elapsedMs });
+  // The clock as the write lands: a confirmed swap is stamped when the
+  // coach taps Confirm, not when the sheet opened (AFL reads its clock
+  // at confirm too).
+  const elapsedRef = useRef(elapsedMs);
+  elapsedRef.current = elapsedMs;
+  const at = () => ({ quarter: base.currentPeriod, elapsed_ms: elapsedRef.current });
 
-  async function run<K extends LiveActionKind>(kind: K, args: LiveActionArgs<K>) {
-    setPending(true);
+  // A period's end and start are optimistic writes too, like every
+  // other tap: the break opens at the hooter and the next period starts
+  // at the tap, with or without signal. They used to wait on the save,
+  // so a hooter with no signal sat on "Applying…" while the kids' minutes
+  // ran past the period (round 3, 24 Oct 2026).
+  const endPeriodAt = useCallback(
+    (elapsed: number) => {
+      setError(null);
+      write(
+        "endBasketballPeriod",
+        [auth, game.id, base.currentPeriod, elapsed],
+        liveEvents.periodEnd({ quarter: base.currentPeriod, elapsed_ms: elapsed }),
+      );
+    },
+    [auth, game.id, base.currentPeriod, write],
+  );
+  function startFirstPeriod() {
     setError(null);
-    try {
-      await enqueueLiveAction(kind, args).flushed;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "That didn't save. Try again.");
-    } finally {
-      setPending(false);
-    }
-    router.refresh();
+    const mark = queuedStartClockMark(1);
+    write("startBasketballPeriod", [auth, game.id, 1], liveEvents.periodStart(1));
+    if (mark) write("recordClockPause", [auth, game.id, mark], liveEvents.clockPause(mark));
   }
 
-  const endPeriodAt = useCallback(
-    async (elapsed: number) => {
-      setPending(true);
-      await enqueueLiveAction("endBasketballPeriod", [auth, game.id, base.currentPeriod, elapsed]).flushed;
-      setPending(false);
-      router.refresh();
-    },
-    [auth, game.id, base.currentPeriod, router],
-  );
+  // Pause or resume: a clock_pause event, on screen at once.
+  function toggleClock() {
+    if (!isPeriodActive) return;
+    const now = Date.now();
+    const input = clockPauseInput(base.currentPeriod, running, clockAt(now), now);
+    write("recordClockPause", [auth, game.id, input], liveEvents.clockPause(input));
+    // The clock reads now from the tap, not the last tick (a page opened
+    // paused has none yet).
+    setNowMs(now);
+  }
 
-  function sub(offId: string | null, onId: string, line?: BasketballLine) {
-    return run("recordBasketballSwap", [
-      auth,
-      game.id,
-      { off_player_id: offId, on_player_id: onId, ...(line ? { line } : {}), ...at() },
-    ]);
+  /** `manual`: made by hand, off the rotation's cadence, so the sub clock doesn't restart (AFL's rule). */
+  function sub(offId: string | null, onId: string, line?: BasketballLine, manual = false) {
+    setError(null);
+    const input = { off_player_id: offId, on_player_id: onId, ...(line ? { line } : {}), ...(manual ? { manual } : {}), ...at() };
+    write("recordBasketballSwap", [auth, game.id, input], liveEvents.swap(input));
   }
   function move(a: string, b: string | null, zoneB: BasketballLine) {
     const zoneA = state.lineup ? basketballLineOf(state.lineup, a) : null;
-    if (!zoneA) return Promise.resolve();
-    return run("recordBasketballMove", [
-      auth,
-      game.id,
-      { player_a_id: a, zone_a: zoneA, ...(b ? { player_b_id: b } : {}), zone_b: zoneB, ...at() },
-    ]);
+    if (!zoneA) return;
+    setError(null);
+    const input = { player_a_id: a, zone_a: zoneA, ...(b ? { player_b_id: b } : {}), zone_b: zoneB, ...at() };
+    write("recordBasketballMove", [auth, game.id, input], liveEvents.move(input));
   }
 
-  async function applyAllSubs() {
+  function applyAllSubs() {
     if (nextSubs.length === 0) return;
-    setPending(true);
-    const flushed = nextSubs.map(
-      (s) =>
-        enqueueLiveAction("recordBasketballSwap", [
-          auth,
-          game.id,
-          { off_player_id: s.off_player_id, on_player_id: s.on_player_id, line: s.line, ...at() },
-        ]).flushed,
+    for (const s of nextSubs) sub(s.off_player_id, s.on_player_id, s.line);
+    // The toast's Undo puts them back, last first (undoSwaps).
+    const undo = undoSwaps(
+      nextSubs.map((s) => ({ off: s.off_player_id, on: s.on_player_id, line: s.line })),
+      (s) => sub(s.off, s.on, s.line),
     );
-    await Promise.all(flushed).catch(() => {
-      // A failed op rolls back in the queue; just unfreeze the screen.
-    });
-    setPending(false);
+    if (nextSubs.length === 1) chrome.swapped(nextSubs[0].off_player_id, nextSubs[0].on_player_id, undo);
+    else chrome.showToast(`${nextSubs.length} subs made`, undo);
     setSubAckKey(subDueKey);
-    router.refresh();
   }
 
   // ── Taps ────────────────────────────────────────────────────
@@ -451,34 +467,27 @@ export function BasketballLiveGame({
     return lineup ? basketballLineOf(lineup, pid) : null;
   }
   const canComeOn = (pid: string) => basketballCanPlay(state, pid, absNowMs);
+  /** A line in the coach's words, for the swap confirm and toasts. */
+  const spotName = (line: BasketballLine) => (line === "court" ? "court" : BASKETBALL_LINE_LABEL[line]);
 
   function handleTap(pid: string, line: BasketballLine | null) {
     setError(null);
     if (!lineup) return;
-    // At a break a tap edits the plan; the period's Start commits it.
-    if (isAtBreak) {
-      if (pid === "") {
-        if (selectedId && line) setBreakDraft(placeInBasketballLineup(lineup, selectedId, line));
-        else if (line) setFillLine(line);
-        setSelectedId(null);
-        return;
-      }
-      if (!selectedId || selectedId === pid) {
-        setSelectedId(selectedId === pid ? null : pid);
-        return;
-      }
-      setBreakDraft(swapInBasketballLineup(lineup, selectedId, pid));
-      setSelectedId(null);
-      return;
-    }
     if (!isPeriodActive) return;
 
     if (pid === "") {
       if (!line) return;
       if (selectedId) {
-        const from = lineOf(selectedId);
-        if (from) void move(selectedId, null, line);
-        else if (canComeOn(selectedId)) void sub(null, selectedId, line);
+        const kid = selectedId;
+        const from = lineOf(kid);
+        if (from) {
+          // A move on court, straight away (AFL's empty-zone move).
+          move(kid, null, line);
+          chrome.showToast(`${chrome.firstName(kid)} → ${spotName(line)}`);
+        } else if (canComeOn(kid)) {
+          // A bench kid into an empty spot asks first, as AFL's does.
+          chrome.confirmSwap({ offId: null, onId: kid, spotName: spotName(line), onConfirm: () => sub(null, kid, line, true) });
+        }
         setSelectedId(null);
       } else {
         setFillLine(line);
@@ -493,45 +502,38 @@ export function BasketballLiveGame({
       setSelectedId(null);
       return;
     }
-    const aLine = lineOf(selectedId);
+    const first = selectedId;
+    const aLine = lineOf(first);
     const bLine = lineOf(pid);
     setSelectedId(null);
-    if (aLine && bLine) void move(selectedId, pid, bLine);
-    else if (aLine && !bLine && canComeOn(pid)) void sub(selectedId, pid);
-    else if (!aLine && bLine && canComeOn(selectedId)) void sub(pid, selectedId);
-    else setSelectedId(pid); // two bench kids: the second is the selection
+    if (aLine && bLine) {
+      // Two on court trade places, straight away (AFL's zone swap).
+      move(first, pid, bLine);
+      chrome.showToast(`${chrome.firstName(first)} ⇄ ${chrome.firstName(pid)} — swapped`);
+    } else if (aLine || bLine) {
+      // A court kid and a bench kid: AFL's confirm, then the toast.
+      const off = aLine ? first : pid;
+      const on = aLine ? pid : first;
+      if (!canComeOn(on)) return;
+      chrome.confirmSwap({ offId: off, onId: on, spotName: spotName((aLine ?? bLine)!), onConfirm: () => sub(off, on, undefined, true) });
+    } else setSelectedId(pid); // two bench kids: the second is the selection
   }
 
   // ── Score ───────────────────────────────────────────────────
-  // A basket shows the moment it's tapped and queues, as AFL's and
-  // netball's do (Steve 2026-10-21: "the score bug with the +1,2,3 isn't
-  // working"): waiting on run() held every chip disabled until the save,
-  // and any retry, came back. Each tap stays on top of the server's score
-  // until its save has flushed and a refresh has landed.
-  const canScore = isPeriodActive || isAtBreak || isAtFinal;
-  const [unsavedBaskets, setUnsavedBaskets] = useState<
-    { key: number; side: "ours" | "theirs"; points: Points; playerId: string | null; flushed: boolean }[]
-  >([]);
-  useEffect(() => {
-    setUnsavedBaskets((list) => (list.some((b) => b.flushed) ? list.filter((b) => !b.flushed) : list));
-  }, [events]);
+  // A basket goes up the moment it's tapped (optimistic), and the undo
+  // strip flashes what was recorded, as AFL's does (Steve 2026-10-21:
+  // "the score bug with the +1,2,3 isn't working" — waiting on the save
+  // held every chip). On the scorebug only in play: the break and full
+  // time have their own score editors.
+  const canScore = isPeriodActive;
   function recordBasket(side: "ours" | "theirs", points: Points, playerId: string | null) {
-    const key = Date.now() + Math.random();
-    setUnsavedBaskets((list) => [...list, { key, side, points, playerId, flushed: false }]);
     setError(null);
-    enqueueLiveAction("recordBasketballScore", [
-      auth,
-      game.id,
-      { side, points, player_id: playerId, quarter: base.currentPeriod, elapsed_ms: elapsedMs },
-    ])
-      .flushed.then(() => {
-        setUnsavedBaskets((list) => list.map((b) => (b.key === key ? { ...b, flushed: true } : b)));
-        startTransition(() => router.refresh());
-      })
-      .catch((e: unknown) => {
-        setUnsavedBaskets((list) => list.filter((b) => b.key !== key));
-        setError(e instanceof Error ? e.message : "That basket didn't save. Try again.");
-      });
+    const key = write(
+      "recordBasketballScore",
+      [auth, game.id, { side, points, player_id: playerId, ...at() }],
+      liveEvents.score(basketballScoreEventType(side, points), side === "ours" ? playerId : null, at()),
+    );
+    chrome.scored({ side: side === "ours" ? "us" : "them", what: basketballPointsWords(points), scorerId: playerId, key });
   }
   function teamScore(points: Points, scorerId: string | null) {
     if (!trackScoring) return;
@@ -539,17 +541,27 @@ export function BasketballLiveGame({
     recordBasket("ours", points, scorerId);
   }
   const opponentScore = (points: Points) => recordBasket("theirs", points, null);
-  const unsavedPoints = (side: "ours" | "theirs") =>
-    unsavedBaskets.reduce((n, b) => (b.side === side ? n + b.points : n), 0);
-  const teamPoints = state.teamScore.points + unsavedPoints("ours");
-  const opponentPoints = state.opponentScore.points + unsavedPoints("theirs");
-  const playerPoints = useMemo(() => {
-    if (!unsavedBaskets.some((b) => b.side === "ours" && b.playerId)) return state.playerPoints;
-    const out = { ...state.playerPoints };
-    for (const b of unsavedBaskets) if (b.side === "ours" && b.playerId) out[b.playerId] = (out[b.playerId] ?? 0) + b.points;
-    return out;
-  }, [state.playerPoints, unsavedBaskets]);
-  const undoScore = () => void run("undoBasketballScore", [auth, game.id]);
+  const teamPoints = state.teamScore.points;
+  const opponentPoints = state.opponentScore.points;
+  const playerPoints = state.playerPoints;
+  // Takes back the basket the strip names (this phone's last), or with
+  // none named the latest on screen — never whatever the other phone
+  // scored since (UX round 2).
+  const undoScore = () => {
+    const tap = undoTap(events, BASKETBALL_SCORE_EVENT_TYPES, chrome.namedScoreKey);
+    // Its score was taken back on the other phone, or never saved (a tap
+    // offline that didn't get through): nothing to write, and never
+    // another score in its place.
+    if (tap.kind === "gone" || tap.kind === "missing") {
+      chrome.undone();
+      announceLiveNotice(tap.kind === "gone" ? UNDO_GONE_MESSAGE : UNDO_MISSING_MESSAGE);
+      return;
+    }
+    if (tap.kind !== "undo") return;
+    setError(null);
+    write("undoBasketballScore", [auth, game.id, tap.target], tap.optimistic);
+    chrome.undone();
+  };
 
   // ── Sideline: injuries, loans, late arrivals, holds ─────────
   const swappableBench = useMemo(
@@ -557,13 +569,17 @@ export function BasketballLiveGame({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [state.lineup, state.injuredIds, state.loanedIds, state.sittingOut, absNowMs],
   );
+  // Nobody arrives at a game that's over (AFL's LiveGame filters the same).
   const lateArrivalCandidates = useMemo(() => {
+    if (isFinished) return [];
     const placed = new Set(state.lineup ? [...basketballOnCourt(state.lineup), ...state.lineup.bench] : []);
     return squad.filter((p) => !placed.has(p.id));
-  }, [squad, state.lineup]);
+  }, [squad, state.lineup, isFinished]);
 
-  async function markInjured(pid: string, injured: boolean, reason?: string) {
-    await run("markInjury", [auth, game.id, { player_id: pid, injured, ...at(), ...(reason ? { reason } : {}) }]);
+  function markInjured(pid: string, injured: boolean, reason?: string) {
+    setError(null);
+    const input = { player_id: pid, injured, ...at(), ...(reason ? { reason } : {}) };
+    write("markInjury", [auth, game.id, input], liveEvents.injury(input));
   }
   /** A kid leaves the court (hurt, fouled out, sat out): pick who comes on. */
   function startLeaving(pid: string, reason: "injured" | "fouled_out" | "sitting_out") {
@@ -572,62 +588,54 @@ export function BasketballLiveGame({
       setLeaving({ playerId: pid, line, reason });
       return;
     }
-    void leaveNow(pid, reason);
+    leaveNow(pid, reason);
   }
-  async function leaveNow(pid: string, reason: "injured" | "fouled_out" | "sitting_out") {
+  function leaveNow(pid: string, reason: "injured" | "fouled_out" | "sitting_out") {
     if (reason === "sitting_out") {
-      await run("recordBasketballSitOut", [auth, game.id, { player_id: pid, duration_ms: SIT_OUT_MS, ...at() }]);
+      setError(null);
+      const input = { player_id: pid, duration_ms: SIT_OUT_MS, ...at() };
+      write("recordBasketballSitOut", [auth, game.id, input], sitOutEvent(input));
     } else {
-      await markInjured(pid, true, reason === "fouled_out" ? "fouled_out" : undefined);
+      markInjured(pid, true, reason === "fouled_out" ? "fouled_out" : undefined);
     }
   }
-  async function leaveAndReplace(pid: string, replacementId: string, line: BasketballLine, reason: "injured" | "fouled_out" | "sitting_out") {
+  function leaveAndReplace(pid: string, replacementId: string, line: BasketballLine, reason: "injured" | "fouled_out" | "sitting_out") {
     setLeaving(null);
-    await leaveNow(pid, reason);
-    await sub(pid, replacementId, line);
+    // In order, in the one game lane: the kid leaves, then who comes on.
+    leaveNow(pid, reason);
+    sub(pid, replacementId, line);
+    chrome.swapped(pid, replacementId);
   }
-  const setLoan = (pid: string, loaned: boolean) =>
-    void run("markLoan", [auth, game.id, { player_id: pid, loaned, ...at() }]);
-  const setHold = (pid: string, lock: { kind: "field" } | null) =>
-    void run("recordPlayerLock", [auth, game.id, { player_id: pid, lock, ...at() }]);
-  const addLateArrival = (pid: string) =>
-    void run("addLateArrival", [auth, game.id, { player_id: pid, ...at() }]);
+  const setLoan = (pid: string, loaned: boolean) => {
+    setError(null);
+    const input = { player_id: pid, loaned, ...at() };
+    write("markLoan", [auth, game.id, input], liveEvents.loan(input));
+  };
+  const setHold = (pid: string, lock: { kind: "field" } | null) => {
+    setError(null);
+    const input = { player_id: pid, lock, ...at() };
+    write("recordPlayerLock", [auth, game.id, input], liveEvents.lock(input));
+  };
+  const addLateArrival = (pid: string) => {
+    setError(null);
+    const input = { player_id: pid, ...at() };
+    write("addLateArrival", [auth, game.id, input], liveEvents.arrived(input));
+  };
 
   // ── Fouls ───────────────────────────────────────────────────
-  async function foul(pid: string) {
+  function writeFoul(pid: string, undo: boolean) {
+    setError(null);
+    const input = { player_id: pid, ...(undo ? { undo: true } : { kind: "personal" as const }), ...at() };
+    write("recordBasketballFoul", [auth, game.id, input], foulEvent(input));
+  }
+  function foul(pid: string) {
     setSelectedId(null);
     const count = (state.fouls[pid] ?? 0) + 1;
-    await run("recordBasketballFoul", [auth, game.id, { player_id: pid, kind: "personal", ...at() }]);
+    writeFoul(pid, false);
     // The limit: out for the game. The coach picks who comes on.
     if (count >= ageGroup.foulOutAt && !fouledOutSet.has(pid)) startLeaving(pid, "fouled_out");
   }
-  const undoFoul = (pid: string) =>
-    void run("recordBasketballFoul", [auth, game.id, { player_id: pid, undo: true, ...at() }]);
-
-  // ── The next period's Start ─────────────────────────────────
-  async function handleStartNextPeriod() {
-    setStartConfirmOpen(false);
-    setPending(true);
-    setError(null);
-    let el = liveRootRef.current?.parentElement ?? null;
-    while (el) {
-      if (el.scrollTop > 0) el.scrollTop = 0;
-      el = el.parentElement;
-    }
-    window.scrollTo({ top: 0, behavior: "auto" });
-    const plan = breakDraft ?? state.lineup;
-    if (plan) {
-      // Kids who can't play now start on the bench, places left empty.
-      const startMs = state.completedPeriodMs;
-      const out = new Set([...basketballOnCourt(plan), ...plan.bench].filter((p) => !basketballCanPlay(state, p, startMs)));
-      await enqueueLiveAction("recordBasketballLineupSet", [auth, game.id, benchOutInBasketballLineup(plan, out), undefined])
-        .flushed;
-    }
-    await enqueueLiveAction("startBasketballPeriod", [auth, game.id, base.currentPeriod + 1]).flushed;
-    writeBreakDraft(draftKey, null);
-    setPending(false);
-    router.refresh();
-  }
+  const undoFoul = (pid: string) => writeFoul(pid, true);
 
   // ── Tile decorations ────────────────────────────────────────
   const lockModes = useMemo(() => {
@@ -642,29 +650,11 @@ export function BasketballLiveGame({
   const swapOns = new Map<string, { pair: number; line: BasketballLine; positionLabel?: string | null }>();
   if (!selectedId && isPeriodActive) {
     nextSubs.forEach((s, i) => {
-      swapOffs.set(s.off_player_id, i + 1);
-      const pos = state.lineup?.slots?.[s.off_player_id];
+      if (s.off_player_id) swapOffs.set(s.off_player_id, i + 1);
+      const pos = s.off_player_id ? state.lineup?.slots?.[s.off_player_id] : null;
       swapOns.set(s.on_player_id, { pair: i + 1, line: s.line, positionLabel: pos ? POSITION_LABEL[pos] : null });
     });
   }
-  // At a break, each kid's tile says where they're heading.
-  const captions = useMemo(() => {
-    if (!isAtBreak || !breakDraft || !state.lineup) return undefined;
-    const out: Record<string, BasketballTileCaption> = {};
-    const word = (lu: BasketballLineup, pid: string) => {
-      const pos = lu.slots?.[pid];
-      if (pos) return POSITION_LABEL[pos];
-      const line = basketballLineOf(lu, pid);
-      return line ? BASKETBALL_LINE_SHORT[line] || "On" : "Bench";
-    };
-    for (const pid of basketballOnCourt(breakDraft)) {
-      const was = basketballLineOf(state.lineup, pid) ? word(state.lineup, pid) : "Bench";
-      const to = word(breakDraft, pid);
-      out[pid] = was === to ? { text: "Stays", tone: "stay" } : { text: `${was} → ${to}`, tone: "move" };
-    }
-    return out;
-  }, [isAtBreak, breakDraft, state.lineup]);
-
   const selectedPlayer = selectedId ? playerById.get(selectedId) ?? null : null;
   const selectedOnCourt = selectedId !== null && lineOf(selectedId) !== null;
   const remainingMs = Math.max(0, periodMs - elapsedMs);
@@ -692,24 +682,140 @@ export function BasketballLiveGame({
   const scoreChips: Points[] = threePointers ? [1, 2, 3] : [1, 2];
   const otherLine: Record<BasketballLine, BasketballLine | null> = { guard: "forward", forward: "guard", court: null };
 
+  // Who scored a basket: the scorebug's +1/+2/+3 in play, the score
+  // sheet's at the break, the review's at full time. "Who scored?", what
+  // for ("2 points"), the kids on court first, then the bench (a kid
+  // just subbed off may have scored). A stray tap on the backdrop keeps
+  // the sheet (SlotFillSheet's default): the basket mustn't vanish.
+  const scorerCandidates = (state.lineup ? [...basketballOnCourt(state.lineup), ...state.lineup.bench] : [])
+    .filter((id) => !injuredSet.has(id) && !loanedSet.has(id))
+    .map((id) => playerById.get(id))
+    .filter((p): p is Player => Boolean(p))
+    .map((p) => {
+      const line = state.lineup ? basketballLineOf(state.lineup, p.id) : null;
+      const pos = state.lineup?.slots?.[p.id];
+      return {
+        id: p.id,
+        name: p.full_name,
+        jerseyNumber: p.jersey_number,
+        subLabel: !line ? "Bench" : pos ? POSITION_LABEL[pos] : BASKETBALL_LINE_SHORT[line] || "Court",
+      };
+    });
+  const scorerEyebrow = (n: Points) =>
+    n === 1 ? "Free throw · 1 point" : n === 3 ? "Three · 3 points" : basketballPointsWords(n);
+  const breakScorerPicker =
+    scorerPoints !== null ? (
+      <SlotFillSheet
+        slotLabel="basket"
+        eyebrow={scorerEyebrow(scorerPoints)}
+        title="Who scored?"
+        subtitle="Pick who scored, or count the points without a name."
+        candidates={scorerCandidates}
+        emptyMessage="Nobody is on court."
+        extraOption={{
+          label: "Not sure who",
+          subLabel: "Counts the points without a scorer",
+          onSelect: () => {
+            const n = scorerPoints;
+            setScorerPoints(null);
+            teamScore(n, null);
+          },
+        }}
+        onPick={(pid) => {
+          const n = scorerPoints;
+          setScorerPoints(null);
+          teamScore(n, pid);
+        }}
+        onCancel={() => setScorerPoints(null)}
+      />
+    ) : null;
+
+  // The break: the shared break screen.
+  if (isAtBreak) {
+    return (
+      <div ref={liveRootRef}>
+        <BasketballBreak
+          auth={auth}
+          write={write}
+          game={game}
+          exitHref={exitHref}
+          squad={squad}
+          ageGroup={ageGroup}
+          state={base}
+          events={events}
+          periodMs={periodMs}
+          strategy={strategy}
+          prefs={prefs}
+          season={season}
+          trackFouls={trackFouls}
+          shapeId={shapeIdOf(lastSetLineup(events))}
+          score={
+            trackScoring
+              ? {
+                  us: teamPoints,
+                  them: opponentPoints,
+                  editor: (
+                    <>
+                      <BreakScoreEditor
+                        teamName={teamName}
+                        opponentName={opponentName}
+                        teamPoints={teamPoints}
+                        opponentPoints={opponentPoints}
+                        scoreByPeriod={state.scoreByPeriod}
+                        periodCount={ageGroup.periodCount}
+                        currentPeriod={base.currentPeriod}
+                        periodLetter={periodLetter}
+                        periodWord={periodWord}
+                        teamChips={scoreChips.map((n) => ({
+                          key: String(n),
+                          text: `+${n}`,
+                          label: `Add ${n} ${n === 1 ? "point" : "points"}, ${teamName}`,
+                          onClick: () => setScorerPoints(n),
+                        }))}
+                        opponentChips={scoreChips.map((n) => ({
+                          key: String(n),
+                          text: `+${n}`,
+                          label: `Add ${n} ${n === 1 ? "point" : "points"}, ${opponentName}`,
+                          onClick: () => opponentScore(n),
+                        }))}
+                        missedNote={`A basket you missed counts in ${periodLetter}${base.currentPeriod}.`}
+                        onUndo={undoScore}
+                        undoDisabled={pending}
+                      />
+                      {breakScorerPicker}
+                    </>
+                  ),
+                }
+              : undefined
+          }
+        />
+        {error && <InlineAlert kind="danger">{error}</InlineAlert>}
+      </div>
+    );
+  }
+
   return (
     // No bottom padding: LiveStickyScoreBar reserves its own height with
     // a measured in-flow spacer, and the player dock floats over the
     // page as AFL's does (Steve 2026-10-21: "Some blank space when
     // scrolling").
-    <div
-      ref={liveRootRef}
-      // The break's Start bar is fixed on phones and reserves no space of its own.
-      className={`space-y-3${isAtBreak ? " pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-0" : ""}`}
-    >
+    <div ref={liveRootRef} className="space-y-3">
       <LiveTopBar
         exitHref={exitHref}
         game={game}
         isLive={base.currentPeriod > 0}
-        banner={subDueShowing ? <SubDueBanner onAcknowledge={() => setSubAckKey(subDueKey)} /> : null}
+        // The sub card is the alert while it has pairs (SubDue.tsx); the
+        // banner speaks only for a due sub with nothing to suggest.
+        banner={
+          isPeriodActive && subDueBannerShows(subDue.due, nextSubs.length, (state.lineup?.bench ?? []).some((id) => canComeOn(id))) && subAckKey !== subDueKey ? (
+            <SubDueBanner onAcknowledge={() => setSubAckKey(subDueKey)} />
+          ) : null
+        }
       />
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
+
+      {isPeriodActive && chrome.toast}
 
       {isPreTipoff && state.lineup && (
         <section className="rounded-xl border border-brand-500/40 bg-brand-50 p-4 shadow-card">
@@ -723,7 +829,7 @@ export function BasketballLiveGame({
       {isPeriodActive && nextSubs.length > 0 && (
         <NextSubCard
           pairs={nextSubs.map((s) => {
-            const pos = state.lineup?.slots?.[s.off_player_id];
+            const pos = s.off_player_id ? state.lineup?.slots?.[s.off_player_id] : null;
             return {
               offId: s.off_player_id,
               onId: s.on_player_id,
@@ -734,10 +840,12 @@ export function BasketballLiveGame({
           msUntilDue={subDue.msUntilDue}
           subIntervalMs={subDue.spanMs}
           due={subDue.due}
-          onApplyAll={() => void applyAllSubs()}
+          onApplyAll={applyAllSubs}
           onApplyOne={(i) => {
             const s = nextSubs[i];
-            if (s) void sub(s.off_player_id, s.on_player_id, s.line);
+            if (!s) return;
+            sub(s.off_player_id, s.on_player_id, s.line);
+            chrome.swapped(s.off_player_id, s.on_player_id);
           }}
           pending={pending}
           playerById={playerById}
@@ -772,49 +880,6 @@ export function BasketballLiveGame({
         </div>
       )}
 
-      {/* The break, as AFL's and netball's (Steve 2026-10-21: "The half
-          time breaks in basketball look different to the other sports"):
-          the orientation strip, the Score row (the per-period breakdown,
-          and late baskets), the swap hint, the court and bench with where
-          each kid is heading, and the shared Start bar. */}
-      {isAtBreak && (
-        <>
-          <div className="px-1">
-            <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">{breakName}</p>
-            <p className="mt-0.5 text-lg font-bold text-ink">
-              Lineup for {periodLetter}
-              {base.currentPeriod + 1}
-            </p>
-          </div>
-
-          {trackScoring && (
-            <BreakScoreRow
-              open={showBreakScore}
-              onToggle={() => setShowBreakScore((v) => !v)}
-              teamName={teamName}
-              opponentName={opponentName}
-              teamPoints={teamPoints}
-              opponentPoints={opponentPoints}
-              scoreByPeriod={state.scoreByPeriod}
-              periodCount={ageGroup.periodCount}
-              currentPeriod={base.currentPeriod}
-              periodLetter={periodLetter}
-              periodWord={periodWord}
-              chips={scoreChips}
-              onTeamScore={(n) => setScorerPoints(n)}
-              onOpponentScore={opponentScore}
-              onUndo={undoScore}
-              undoDisabled={pending}
-            />
-          )}
-
-          <p className="px-1 text-xs text-ink-dim">
-            Who starts the next {periodWord}
-            {usesBasketballLines(strategy) ? " and where" : ""}. Tap any two players to swap them.
-          </p>
-        </>
-      )}
-
       {!isFinished && lineup && (
         <>
           <BasketballCourt
@@ -836,14 +901,13 @@ export function BasketballLiveGame({
             foulOutAt={ageGroup.foulOutAt}
             lockModes={lockModes}
             pointsByPlayer={trackScoring ? playerPoints : undefined}
-            captions={captions}
             positionLabels={positionLabels}
           />
           <BasketballBench
             bench={lineup.bench}
             playersById={playerById}
             onTap={(pid) => handleTap(pid, null)}
-            onLongPress={isPeriodActive || isAtBreak ? setActionPlayerId : undefined}
+            onLongPress={isPeriodActive ? setActionPlayerId : undefined}
             selectedPlayerId={selectedId}
             dimUnselected={isPeriodActive}
             swapOns={swapOns}
@@ -910,6 +974,12 @@ export function BasketballLiveGame({
         finished={base.finalised}
         auth={auth}
         gameId={game.id}
+        // The sub interval mid-game, as AFL's.
+        settings={
+          !isFinished && subIntervalSeconds != null ? (
+            <LiveGameSettingsButton auth={auth} gameId={game.id} subIntervalSeconds={subIntervalSeconds} />
+          ) : null
+        }
       />
 
       {playerDockVisible && selectedPlayer && (
@@ -947,16 +1017,34 @@ export function BasketballLiveGame({
                     ))}
                   </div>
                 )}
+                {/* Fouls step both ways (Steve 2026-10-22: "Need to be able to
+                    undo fouls in basketball"): − takes the last one back. */}
                 {trackFouls && (
-                  <button
-                    type="button"
-                    data-testid="basketball-foul"
-                    onClick={() => void foul(selectedPlayer.id)}
-                    disabled={pending}
-                    className="w-full rounded-sm border border-due/50 bg-due-tint py-2.5 font-mono text-sm font-bold uppercase tracking-micro text-due transition-colors duration-fast ease-out-quart hover:bg-due/10 disabled:opacity-60"
-                  >
-                    + Foul ({state.fouls[selectedPlayer.id] ?? 0} of {ageGroup.foulOutAt})
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      data-testid="basketball-unfoul"
+                      onClick={() => {
+                        const pid = selectedPlayer.id;
+                        setSelectedId(null);
+                        undoFoul(pid);
+                      }}
+                      disabled={pending || (state.fouls[selectedPlayer.id] ?? 0) === 0}
+                      aria-label={`Take back a foul from ${selectedPlayer.full_name}`}
+                      className="min-h-[44px] min-w-[44px] rounded-sm border border-due/50 bg-surface font-mono text-base font-bold text-due transition-colors duration-fast ease-out-quart hover:bg-due/10 disabled:opacity-40"
+                    >
+                      −
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="basketball-foul"
+                      onClick={() => foul(selectedPlayer.id)}
+                      disabled={pending}
+                      className="min-h-[44px] flex-1 rounded-sm border border-due/50 bg-due-tint py-2.5 font-mono text-sm font-bold uppercase tracking-micro text-due transition-colors duration-fast ease-out-quart hover:bg-due/10 disabled:opacity-60"
+                    >
+                      + Foul ({state.fouls[selectedPlayer.id] ?? 0} of {ageGroup.foulOutAt})
+                    </button>
+                  </div>
                 )}
                 <p className="text-center text-[11px] text-ink-mute">
                   Or tap a bench player to swap <strong>{selectedPlayer.full_name}</strong> off.
@@ -990,7 +1078,8 @@ export function BasketballLiveGame({
               clockReadout={clockReadout}
               running={running}
               isPreGame={isPreTipoff}
-              isFinished={base.finalised}
+              // Full time reads FT from the last hooter, not "running".
+              isFinished={isFinished}
               atHooter={atHooter}
               breakName={breakName}
               trackScoring={trackScoring}
@@ -1001,35 +1090,25 @@ export function BasketballLiveGame({
               clockPulseKey={base.periodEnded ? `end-${base.currentPeriod}` : null}
             />
           }
-          undoStrip={
-            (teamPoints > 0 || opponentPoints > 0) && !base.finalised ? (
-              <UndoStrip flashing={false} message="" onUndo={undoScore} disabled={pending} />
-            ) : undefined
-          }
-        />
-      )}
-
-      {isAtBreak && (
-        <QuarterKickoffBar
-          onConfirm={() => setStartConfirmOpen(true)}
-          confirmLabel={`Start ${periodLetter}${base.currentPeriod + 1}`}
-          disabled={pending || !breakDraft}
+          // In play only: at full time the review's own Undo fixes a miscount.
+          undoStrip={chrome.undoStrip({
+            show: isPeriodActive && (teamPoints > 0 || opponentPoints > 0),
+            onUndo: undoScore,
+            disabled: pending,
+          })}
         />
       )}
 
       {startConfirmOpen && (
         <StartQuarterModal
-          quarter={base.currentPeriod + 1}
+          quarter={1}
           periodLabel={periodWord}
-          cue={isPreTipoff ? "ball goes up" : "whistle goes"}
+          cue="ball goes up"
+          shortSide={{ playing: state.lineup ? basketballOnCourt(state.lineup).length : 0, size: game.on_field_size, min: ageGroup.minOnFieldSize }}
           loading={pending}
           onStart={() => {
-            if (isPreTipoff) {
-              setStartConfirmOpen(false);
-              void run("startBasketballPeriod", [auth, game.id, 1]);
-            } else {
-              void handleStartNextPeriod();
-            }
+            setStartConfirmOpen(false);
+            startFirstPeriod();
           }}
           onCancel={() => setStartConfirmOpen(false)}
         />
@@ -1037,10 +1116,11 @@ export function BasketballLiveGame({
 
       {clockMenuOpen && (
         <ClockMenu
+          sport="basketball"
           periodAbbr={`${periodLetter}${base.currentPeriod}`}
           running={running}
-          onPause={() => setPause((p) => togglePeriodPause(p, Date.now()))}
-          onResume={() => setPause((p) => togglePeriodPause(p, Date.now()))}
+          onPause={toggleClock}
+          onResume={toggleClock}
           onEndEarly={isPeriodActive ? () => setEndConfirmOpen(true) : undefined}
           onClose={() => setClockMenuOpen(false)}
         />
@@ -1049,57 +1129,71 @@ export function BasketballLiveGame({
       {endConfirmOpen && (
         <ManualEndQuarterConfirm
           quarter={base.currentPeriod}
-          onConfirm={() => {
+          elapsedMs={elapsedMs}
+          periodMs={periodMs}
+          onConfirm={(full) => {
             setEndConfirmOpen(false);
-            // Ending credits the whole period, as every sport does: the
-            // real game ran on while the phone's clock waited or stopped.
-            void endPeriodAt(periodMs);
+            // The time played, or (the game played on while the app's
+            // clock sat paused) the whole period: the coach's choice. It
+            // used to be the whole period, silently (round 3, 24 Oct 2026).
+            endPeriodAt(full ? periodMs : Math.min(clockAt(Date.now()), periodMs));
           }}
           onCancel={() => setEndConfirmOpen(false)}
-          playersLabel="on-court"
+          sport="basketball"
+          clock={atHooter ? "hooter" : running ? "running" : "paused"}
           periodLabel={periodWord}
         />
       )}
 
-      {scorerPoints !== null && (
-        <SlotFillSheet
-          slotLabel={scorerPoints === 1 ? "free throw" : scorerPoints === 2 ? "basket" : "three"}
-          titleVerb="Who scored the"
-          candidates={(state.lineup ? basketballOnCourt(state.lineup) : [])
-            .map((id) => playerById.get(id))
-            .filter((p): p is Player => Boolean(p))
-            .map((p) => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number }))}
-          emptyMessage="Nobody is on court."
-          extraOption={{
-            label: "Not sure who",
-            subLabel: "Counts the points without a scorer",
-            onSelect: () => {
-              const n = scorerPoints;
-              setScorerPoints(null);
-              teamScore(n, null);
-            },
-          }}
-          onPick={(pid) => {
-            const n = scorerPoints;
-            setScorerPoints(null);
-            teamScore(n, pid);
-          }}
-          onCancel={() => setScorerPoints(null)}
-        />
-      )}
+      {breakScorerPicker}
 
       {actionPlayer && (
         <LockModal
           player={actionPlayer}
           currentLock={actionHeld}
-          currentZone={null}
+          // The kid's line (on court) for the Switch hint, and their lent
+          // minutes, as AFL's sheet has.
+          currentLine={actionLine ? spotName(actionLine) : null}
           isInjured={injuredSet.has(actionPlayer.id)}
           isLoaned={loanedSet.has(actionPlayer.id)}
-          seasonLoanMins={0}
-          squadLoanMins={0}
+          seasonLoanMins={chrome.loanMinutes(actionPlayer.id).seasonLoanMins}
+          squadLoanMins={chrome.loanMinutes(actionPlayer.id).squadLoanMins}
           outForGameNote={
             fouledOutSet.has(actionPlayer.id)
               ? `Fouled out — ${ageGroup.foulOutAt} fouls. Out for the rest of the game, and skipped by the sub rotation.`
+              : undefined
+          }
+          outForGameActions={
+            // A mistaken fifth foul isn't final (UX audit 23 Oct 2026, P1):
+            // take it back and they're back in the game. A kid marked out
+            // by hand (fewer fouls) just comes back.
+            fouledOutSet.has(actionPlayer.id)
+              ? [
+                  (state.fouls[actionPlayer.id] ?? 0) >= ageGroup.foulOutAt
+                    ? {
+                        label: "Take back the last foul",
+                        hint: `Back to ${(state.fouls[actionPlayer.id] ?? 0) - 1} of ${ageGroup.foulOutAt}, and back in the game`,
+                        testId: "basketball-undo-foul-out",
+                        onClick: () => {
+                          const pid = actionPlayer.id;
+                          setActionPlayerId(null);
+                          // The optimistic writers, in order in the game lane: the
+                          // foul comes off, then the kid is back in the game.
+                          writeFoul(pid, true);
+                          markInjured(pid, false);
+                        },
+                      }
+                    : {
+                        label: "Not fouled out",
+                        hint: "Back in the game",
+                        testId: "basketball-undo-foul-out",
+                        onClick: () => {
+                          const pid = actionPlayer.id;
+                          setActionPlayerId(null);
+                          markInjured(pid, false);
+                        },
+                      },
+                ]
               : undefined
           }
           onLockField={
@@ -1118,7 +1212,7 @@ export function BasketballLiveGame({
           onToggleInjury={() => {
             const pid = actionPlayer.id;
             setActionPlayerId(null);
-            if (injuredSet.has(pid)) void markInjured(pid, false);
+            if (injuredSet.has(pid)) markInjured(pid, false);
             else startLeaving(pid, "injured");
           }}
           onToggleLoan={() => {
@@ -1136,7 +1230,7 @@ export function BasketballLiveGame({
               ? () => {
                   const pid = actionPlayer.id;
                   setActionPlayerId(null);
-                  void move(pid, null, otherLine[actionLine]!);
+                  move(pid, null, otherLine[actionLine]!);
                 }
               : undefined
           }
@@ -1152,7 +1246,8 @@ export function BasketballLiveGame({
                           onClick: () => {
                             const pid = actionPlayer.id;
                             setActionPlayerId(null);
-                            void run("recordBasketballSitOut", [auth, game.id, { player_id: pid, duration_ms: 0, ...at() }]);
+                            const input = { player_id: pid, duration_ms: 0, ...at() };
+                            write("recordBasketballSitOut", [auth, game.id, input], sitOutEvent(input));
                           },
                         },
                       ]
@@ -1165,7 +1260,7 @@ export function BasketballLiveGame({
                             const pid = actionPlayer.id;
                             setActionPlayerId(null);
                             if (actionLine) startLeaving(pid, "sitting_out");
-                            else void leaveNow(pid, "sitting_out");
+                            else leaveNow(pid, "sitting_out");
                           },
                         },
                       ]),
@@ -1178,7 +1273,22 @@ export function BasketballLiveGame({
                           onClick: () => {
                             const pid = actionPlayer.id;
                             setActionPlayerId(null);
-                            void foul(pid);
+                            foul(pid);
+                          },
+                        },
+                      ]
+                    : []),
+                  ...(trackFouls && (state.fouls[actionPlayer.id] ?? 0) >= 2
+                    ? [
+                        {
+                          label: "Clear fouls",
+                          hint: `Takes back all ${state.fouls[actionPlayer.id]}`,
+                          testId: "basketball-clear-fouls",
+                          onClick: () => {
+                            const pid = actionPlayer.id;
+                            const n = state.fouls[pid] ?? 0;
+                            setActionPlayerId(null);
+                            for (let i = 0; i < n; i++) writeFoul(pid, true);
                           },
                         },
                       ]
@@ -1201,6 +1311,8 @@ export function BasketballLiveGame({
                     label: "Fouled out",
                     hint: "Out for the rest of the game",
                     testId: "basketball-foul-out",
+                    // One tap was final; it asks first (UX audit 23 Oct 2026).
+                    confirm: `${chrome.firstName(actionPlayer.id)} is out for the rest of the game.`,
                     onClick: () => {
                       const pid = actionPlayer.id;
                       setActionPlayerId(null);
@@ -1218,7 +1330,7 @@ export function BasketballLiveGame({
         <SlotFillSheet
           slotLabel={fillLine === "court" ? "spot" : `${BASKETBALL_LINE_LABEL[fillLine].toLowerCase().replace(/s$/, "")} spot`}
           candidates={lineup.bench
-            .filter((id) => (isAtBreak ? !injuredSet.has(id) && !loanedSet.has(id) : canComeOn(id)))
+            .filter((id) => canComeOn(id))
             .map((id) => playerById.get(id))
             .filter((p): p is Player => Boolean(p))
             .map((p) => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number }))}
@@ -1226,8 +1338,9 @@ export function BasketballLiveGame({
           onPick={(pid) => {
             const line = fillLine;
             setFillLine(null);
-            if (isAtBreak) setBreakDraft(placeInBasketballLineup(lineup, pid, line));
-            else void sub(null, pid, line);
+            // A deliberate pick: straight on, with AFL's toast.
+            sub(null, pid, line, true);
+            chrome.swapped(null, pid);
           }}
           onCancel={() => setFillLine(null)}
         />
@@ -1249,16 +1362,18 @@ export function BasketballLiveGame({
               reason={leaving.reason}
               spotLabel={pos ? POSITION_LABEL[pos] : leaving.line === "court" ? "their spot" : BASKETBALL_LINE_LABEL[leaving.line].replace(/s$/, "")}
               candidates={candidates}
-              onPickReplacement={(rid) => void leaveAndReplace(leaving.playerId, rid, leaving.line, leaving.reason)}
+              onPickReplacement={(rid) => leaveAndReplace(leaving.playerId, rid, leaving.line, leaving.reason)}
               onSkipReplacement={() => {
                 const { playerId, reason } = leaving;
                 setLeaving(null);
-                void leaveNow(playerId, reason);
+                leaveNow(playerId, reason);
               }}
               onCancel={() => setLeaving(null)}
             />
           );
         })()}
+
+      {chrome.overlays}
 
       <LongPressHint enabled={isPeriodActive && !selectedId} />
     </div>

@@ -22,10 +22,13 @@ import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { hapticTap } from "@/lib/haptics";
 import { dispatchLongPressEvent } from "@/components/live/LongPressHint";
 import { KeepOnMarker } from "@/components/playbook/KeepOnMarker";
+import { useSquadNames } from "@/components/live/SquadNames";
 
 interface PositionTokenProps {
   positionId: string;
   playerName?: string | null;
+  /** The kid's id, so a clashing short name is told apart (SquadNames). */
+  playerId?: string | null;
   onTap?: () => void;
   /** Triggered after a 500ms hold; suppresses the trailing tap. */
   onLongPress?: () => void;
@@ -59,8 +62,6 @@ interface PositionTokenProps {
    * clockPulseKey pattern on GameHeader / NetballScoreBug.
    */
   pulseKey?: string | number | null;
-  /** Break caption — "STAYS" / "GA → WA" (same shape as AFL PlayerTile). */
-  caption?: { text: string; tone: "move" | "stay" } | null;
   /** Season role "Plays every minute" (lineup screens). */
   keepOn?: boolean;
 }
@@ -81,6 +82,7 @@ const THIRD_DISC: Record<"attack" | "centre" | "defence", string> = {
 export function PositionToken({
   positionId,
   playerName,
+  playerId,
   onTap,
   onLongPress,
   selected,
@@ -94,7 +96,6 @@ export function PositionToken({
   totalMs,
   goalCount,
   pulseKey,
-  caption,
   keepOn = false,
 }: PositionTokenProps) {
   const pos = netballSport.allPositions.find((p) => p.id === positionId);
@@ -155,15 +156,10 @@ export function PositionToken({
     onTap?.();
   }
 
-  // Pull a "First L" display name like the AFL tile.
-  const parts = (playerName ?? "").trim().split(/\s+/).filter(Boolean);
-  const firstName = parts[0] ?? "";
-  const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  const display = playerName
-    ? lastInitial
-      ? `${firstName} ${lastInitial}`
-      : firstName
-    : "—";
+  // "First L" like the AFL tile, told apart from a squad-mate with the
+  // same (SquadNames).
+  const names = useSquadNames();
+  const display = playerName ? names.tile({ id: playerId ?? "", full_name: playerName }) : "—";
 
   // Re-skin (design session 17 Oct 2026): a white card that sits ON
   // the court — no border, the court lift shadow — laid out as a row:
@@ -283,17 +279,6 @@ export function PositionToken({
         </span>
       )}
 
-      {caption && (
-        <div
-          className={`rounded-t-[11px] border-b px-1 py-0.5 text-center font-mono text-[9px] font-bold uppercase leading-none tracking-micro ${
-            caption.tone === "move"
-              ? "border-brand-700 bg-brand-600 text-white"
-              : "border-hairline bg-surface-alt text-ink-dim"
-          }`}
-        >
-          {caption.text}
-        </div>
-      )}
 
       <div className="flex min-h-[52px] items-center gap-2 py-2 pl-1.5 pr-2">
         {/* Bib disc — white mono on the third's colour (5.2–6.7:1). */}

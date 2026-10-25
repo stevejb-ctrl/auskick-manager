@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { useStickyInset } from "@/components/ui/useStickyInset";
 
 // ─── LiveStickyScoreBar ──────────────────────────────────────
 // Shared sticky-bottom wrapper that hosts the in-play scorebug +
@@ -72,11 +73,47 @@ export function LiveStickyScoreBar({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  // Floating chips above the bar (the long-press hint) read its height,
+  // so they never sit on the score chips (Steve 2026-10-22: basketball's
+  // taller bar had the hint over +1 / +2, and taps hit the hint).
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--live-score-bar-h", `${barHeight}px`);
+    return () => {
+      root.style.removeProperty("--live-score-bar-h");
+    };
+  }, [barHeight]);
+  // Focus scrolls clear of the bar (the page's scroll padding).
+  useStickyInset(barRef, "bottom");
+  // Never more than 45% of the screen: past that (large text) the bar
+  // scrolls inside itself and the field keeps the rest (UX round 3, e4:
+  // at 200% text it was 525 of 844 px and no kid showed). Only then,
+  // since a scrolling bar would clip the "+6" ghost over the chips.
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [capped, setCapped] = useState(false);
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const check = () => setCapped(el.offsetHeight > window.innerHeight * 0.45);
+    check();
+    window.addEventListener("resize", check);
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(check);
+    ro?.observe(el);
+    return () => {
+      window.removeEventListener("resize", check);
+      ro?.disconnect();
+    };
+  }, []);
   return (
     <>
-      <div aria-hidden className="md:hidden" style={{ height: barHeight }} />
-      <div ref={barRef} className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(26,30,26,0.05)] motion-safe:animate-slide-in-bottom-fast md:sticky md:inset-x-auto">
-        <div className="mx-auto max-w-4xl">
+      <div aria-hidden className="md:hidden" style={{ height: `calc(${barHeight}px + var(--live-hint-h, 0px))` }} />
+      <div
+        ref={barRef}
+        className={`fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(26,30,26,0.05)] motion-safe:animate-slide-in-bottom-fast md:sticky md:inset-x-auto ${
+          capped ? "max-h-[45dvh] overflow-y-auto overscroll-contain" : ""
+        }`}
+      >
+        <div ref={contentRef} className="mx-auto max-w-4xl">
           {scoringOff && (
             <p className="px-4 pb-0.5 text-center text-[11px] text-ink-mute">
               Scoring is off

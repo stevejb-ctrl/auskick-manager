@@ -5,6 +5,11 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { seedDefaultAvailability } from "@/lib/games/seedDefaultAvailability";
 import { newGameDefaults, PERIOD_MINUTES_MAX } from "@/lib/games/newGameDefaults";
+import { pinPlayedPeriodLength } from "@/lib/games/pinPlayedPeriodLength";
+import { gameWriteError } from "@/lib/games/gameWriteError";
+import { teamSport } from "@/lib/sports/registry";
+import { onSurfaceLabel } from "@/lib/sports/words";
+import { gameDateError } from "@/lib/games/gameDates";
 import type { ActionResult } from "@/lib/types";
 
 async function getAuthedAdmin(teamId: string) {
@@ -53,9 +58,8 @@ export async function createGame(
   if (!input.opponent.trim()) {
     return { success: false, error: "Opponent is required." };
   }
-  if (!input.scheduled_at) {
-    return { success: false, error: "Date and time are required." };
-  }
+  const dateError = gameDateError(input.scheduled_at);
+  if (dateError) return { success: false, error: dateError };
 
   // Pre-generate the row UUID server-side so we don't need an
   // `.insert(...).select("id").single()` read-back. Even though
@@ -74,6 +78,7 @@ export async function createGame(
     .single();
   const defaults = newGameDefaults(team?.sport, team?.age_group, team?.on_field_size, team?.period_count);
   const gameId = crypto.randomUUID();
+  const onFieldSize = input.on_field_size ?? defaults.on_field_size;
   const { error: insertError } = await supabase
     .from("games")
     .insert({
@@ -84,13 +89,17 @@ export async function createGame(
       location: input.location?.trim() || null,
       round_number: input.round_number ?? null,
       notes: input.notes?.trim() || null,
-      on_field_size: input.on_field_size ?? defaults.on_field_size,
+      on_field_size: onFieldSize,
       sub_interval_seconds: defaults.sub_interval_seconds,
       created_by: user.id,
     });
 
   if (insertError) {
-    return { success: false, error: insertError.message };
+    // In the coach's words, never a constraint's name (UX round 3).
+    return {
+      success: false,
+      error: gameWriteError(insertError, { size: onFieldSize, onSurface: onSurfaceLabel(teamSport(team?.sport)) }),
+    };
   }
 
   // Default: all active players are "available". Coach un-selects
@@ -123,11 +132,28 @@ export async function setTrackScoring(
     .from("teams")
     .update({ track_scoring: enabled })
     .eq("id", teamId);
+  // A game on now goes with the switch: its record says whether it kept
+  // score, so a later change never rewrites its result (UX round 3).
+  if (!updateError) {
+    const { data: live } = await supabase
+      .from("games")
+      .select("id, playbook_snapshot")
+      .eq("team_id", teamId)
+      .eq("status", "in_progress");
+    for (const g of live ?? []) {
+      const snapshot = g.playbook_snapshot as Record<string, unknown> | null;
+      if (!snapshot) continue;
+      await supabase.from("games").update({ playbook_snapshot: { ...snapshot, trackScoring: enabled } }).eq("id", g.id);
+    }
+  }
 
   if (updateError) return { success: false, error: updateError.message };
 
   revalidatePath(`/teams/${teamId}/games`);
   revalidatePath(`/teams/${teamId}/settings`);
+  // The setup wizard's How we play step shows the toggle beside the
+  // locked rules, and "No scores are kept" goes once the team keeps score.
+  revalidatePath(`/teams/${teamId}/setup`);
   return { success: true };
 }
 
@@ -135,7 +161,8 @@ export async function setTrackScoring(
  * Per-team override for quarter duration (in seconds). Pass `null` to
  * clear the override and fall back to the age-group default. The form
  * validates sane ranges (1–60 min: union's U17–U18 halves run 35); the
- * DB column has no CHECK.
+ * DB column has no CHECK. Games not yet started take the new length;
+ * games already played keep theirs (pinPlayedPeriodLength).
  */
 export async function setQuarterLengthSeconds(
   teamId: string,
@@ -151,6 +178,13 @@ export async function setQuarterLengthSeconds(
         error: `Period length must be a whole number of minutes between 1 and ${PERIOD_MINUTES_MAX}.`,
       };
     }
+  }
+
+  // Past games keep the length they were played with (UX round 2).
+  try {
+    await pinPlayedPeriodLength(supabase, teamId);
+  } catch (e) {
+    return { success: false, error: (e as Error).message };
   }
 
   const { error: updateError } = await supabase
@@ -228,40 +262,13 @@ export async function setGameAllowMidQuarterSubs(
 }
 
 /**
- * Team-level default for the Junior Rugby League §6 unbroken-period
- * enforcement rule. Off by default — many casual competitions don't
- * enforce it strictly. When on, this becomes the standing preference
- * for new games created for this team, and coaches can still override
- * per-game via the in-game Game Settings sheet.
- *
- * Mirror of `setAllowMidQuarterSubs` — same shape, same admin guard.
- */
-export async function setEnforceUnbrokenPeriods(
-  teamId: string,
-  enabled: boolean,
-): Promise<ActionResult> {
-  const { supabase, error } = await getAuthedAdmin(teamId);
-  if (error) return { success: false, error };
-
-  const { error: updateError } = await supabase
-    .from("teams")
-    .update({ enforce_unbroken_periods: enabled })
-    .eq("id", teamId);
-
-  if (updateError) return { success: false, error: updateError.message };
-
-  revalidatePath(`/teams/${teamId}/settings`);
-  return { success: true };
-}
-
-/**
  * Team-level default for the rugby-league zone-time tracking bar (AFL
  * F/C/B equivalent, with FR / DH vest time mapped to "centre"). Off by
  * default — only useful for teams that actually rotate the vests. When
  * on, this becomes the standing preference for new games and coaches
  * can still flip it per-game via the in-game Game Settings sheet.
  *
- * Mirror of `setEnforceUnbrokenPeriods` — same shape, same admin guard.
+ * Mirror of `setAllowMidQuarterSubs` — same shape, same admin guard.
  */
 export async function setTrackZoneTime(
   teamId: string,
@@ -296,6 +303,19 @@ export async function updateGame(
 ): Promise<ActionResult> {
   const { supabase, error } = await getAuthedAdmin(teamId);
   if (error) return { success: false, error };
+
+  if (patch.opponent !== undefined && !patch.opponent.trim()) {
+    return { success: false, error: "Opponent is required." };
+  }
+  // A new date must be a sane one; a finished game's old date can stay.
+  if (patch.scheduled_at !== undefined) {
+    const { data: current } = await supabase.from("games").select("scheduled_at").eq("id", gameId).eq("team_id", teamId).maybeSingle();
+    // To the minute: the form has no seconds.
+    const minute = (iso: string) => Math.floor(new Date(iso).getTime() / 60_000);
+    const same = current && minute(current.scheduled_at as string) === minute(patch.scheduled_at);
+    const dateError = same ? null : gameDateError(patch.scheduled_at);
+    if (dateError) return { success: false, error: dateError };
+  }
 
   const { error: updateError } = await supabase
     .from("games")

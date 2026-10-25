@@ -15,7 +15,7 @@
 // scores" behaviour across QuarterBreak, NetballQuarterBreak,
 // FullTimeReview, NetballFullTimeReview.
 
-import { startTransition, useState, useTransition } from "react";
+import { startTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { finaliseGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
@@ -25,6 +25,7 @@ import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
 import type { LiveAuth, Player } from "@/lib/types";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { useFinishGame } from "@/components/live/useFinishGame";
 
 interface FullTimeReviewProps {
   auth: LiveAuth;
@@ -55,17 +56,14 @@ export function FullTimeReview({
   const opponentScore = useLiveGame((s) => s.opponentScore);
   const scoreByQuarter = useLiveGame((s) => s.scoreByQuarter);
 
-  const [finalisePending, startFinaliseTransition] = useTransition();
-  const [finaliseError, setFinaliseError] = useState<string | null>(null);
-
-  function handleFinalise() {
-    setFinaliseError(null);
-    startFinaliseTransition(async () => {
-      const result = await finaliseGame(auth, gameId, finalisedElapsedMs);
-      if (!result.success) {
-        setFinaliseError(result.error);
-        return;
-      }
+  // A failure keeps this screen up, and Finish is safe to tap again.
+  const {
+    finish: handleFinalise,
+    pending: finalisePending,
+    error: finaliseError,
+  } = useFinishGame(
+    (key) => finaliseGame(auth, gameId, finalisedElapsedMs, key),
+    () => {
       // Flip the live store's `finalised` flag locally so LiveGame's
       // render branches re-evaluate immediately (isAtFullTime → false,
       // GameSummaryCard mounts). Without this, router.refresh()
@@ -78,8 +76,8 @@ export function FullTimeReview({
       // MICRO-INTERACTIONS-PLAN.md.
       void hapticSiren();
       startTransition(() => router.refresh());
-    });
-  }
+    },
+  );
 
   return (
     <div className="rounded-md border border-hairline bg-surface p-4 shadow-card">

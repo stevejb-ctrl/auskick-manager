@@ -36,6 +36,10 @@ describe("rule check (RuleCheckBar)", () => {
       ["warn", "Mia and Jack are both in Forward"],
     ]);
     expect(summariseCheck(items)).toEqual({ status: "fail", text: "Ava would sit out twice in a row" });
+    // The break screen prints the rule under it and its Fix moves the
+    // kids it names first.
+    expect(items[1]).toMatchObject({ rule: "Nobody sits out two quarters in a row", playerIds: ["ava"] });
+    expect(items[2]).toMatchObject({ rule: "Keep Mia and Jack apart", playerIds: ["mia", "jack"] });
   });
 
   it("doesn't claim 'All rules kept' when it only checked the floor, and says where season balance stands", () => {
@@ -77,6 +81,32 @@ describe("rule check (RuleCheckBar)", () => {
     expect(items[1]).toMatchObject({ status: "fail", text: "Mia and Ava won't get to every line this game" });
   });
 
+  it("counts the time rolling subs can still give a kid who starts on the bench", () => {
+    // Two halves. Ava and Sam sat out the first. On the bench for the
+    // second they can still play all of it on flying subs: 50%.
+    const H = 20 * 60_000;
+    const halves = {
+      ...base,
+      periodMs: H,
+      periodCount: 2,
+      periodWord: "half",
+      onField: { mia: "back" },
+      bench: ["ava", "sam"],
+      playedThisGame: { mia: { back: H }, ava: {}, sam: {} },
+      benchedLastPeriod: [],
+      period: 2,
+      rules: [],
+    };
+    // Subs only at the break: neither can get there from the bench.
+    expect(checkRules(halves)[0]).toMatchObject({ status: "fail", text: "Ava and Sam can't reach 50% now" });
+    // Rolling subs: the whole half is still there.
+    const rolling = checkRules({ ...halves, benchReachMs: H });
+    expect(rolling[0]).toMatchObject({ status: "ok", text: "Everyone can play at least 50%" });
+    // Sub windows from 5 minutes in leave 15 of the 40: short of 60%.
+    const short = checkRules({ ...halves, minGameTimePct: 60, benchReachMs: H * 0.75 });
+    expect(short[0]).toMatchObject({ status: "fail", text: "Ava and Sam can't reach 60% now" });
+  });
+
   it("nudges the biggest season gaps", () => {
     const items = checkRules({
       ...base,
@@ -92,7 +122,41 @@ describe("rule check (RuleCheckBar)", () => {
         unitLabel: (k) => label(k).toLowerCase(),
       },
     });
-    expect(items[1]).toEqual({ id: "season-mia-fwd", status: "warn", text: "Mia hasn't played forward this season" });
+    expect(items[1]).toEqual({
+      id: "season-mia-fwd",
+      status: "warn",
+      text: "Mia hasn't played forward this season",
+      playerIds: ["mia"],
+    });
+  });
+
+  it("says a season gap this lineup closes is being closed, not short (UX round 2, 24 Oct 2026)", () => {
+    // "Hugo hasn't played back this season" in amber, with Hugo at BCK in
+    // the very lineup on screen.
+    const items = checkRules({
+      ...base,
+      onField: { hugo: "back", mia: "back" },
+      bench: [],
+      playedThisGame: {},
+      benchedLastPeriod: [],
+      period: 1,
+      rules: [],
+      season: {
+        time: { hugo: { mid: 4 * P, fwd: 4 * P }, mia: { back: 4 * P, mid: 4 * P } },
+        units: ["back", "mid", "fwd"],
+        unitLabel: (k) => label(k).toLowerCase(),
+      },
+    });
+    const season = items.filter((i) => i.id.startsWith("season-"));
+    expect(season).toContainEqual({ id: "season-hugo-back", status: "ok", text: "Hugo plays back this quarter" });
+    // A gap the lineup leaves open still nudges.
+    expect(season).toContainEqual({
+      id: "season-mia-fwd",
+      status: "warn",
+      text: "Mia hasn't played forward this season",
+      playerIds: ["mia"],
+    });
+    expect(summariseCheck(items)).toEqual({ status: "warn", text: "Mia hasn't played forward this season" });
   });
 
   it("explains a move in one line", () => {

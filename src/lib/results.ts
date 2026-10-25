@@ -123,6 +123,55 @@ export function scorersFromEvents(sport: Sport, events: GameEvent[]): ScorerTall
   return rows.sort((a, b) => b.points - a.points || (a.playerId < b.playerId ? -1 : a.playerId > b.playerId ? 1 : 0));
 }
 
+/**
+ * What was scored with nobody named, for the scorers card's "No scorer"
+ * row, so the card adds up to the score (UX round 2, 24 Oct 2026: futsal's
+ * 2 read "Who found the net: Harper"). The soccer family, basketball,
+ * touch and Oztag, where "Not sure who" is a choice on the scorer sheet;
+ * null elsewhere, and when every score has a name.
+ */
+export function unnamedScoreFromEvents(sport: Sport, events: GameEvent[]): { detail: string; points: number } | null {
+  const sum = (byKid: Record<string, number>) => Object.values(byKid).reduce((s, n) => s + n, 0);
+  if (isSoccer(sport)) {
+    const r = replaySoccerGame(events);
+    const goals = r.teamScore.goals - sum(r.playerGoals);
+    return goals > 0 ? { detail: `${goals} ${goals === 1 ? "goal" : "goals"}`, points: goals } : null;
+  }
+  if (isBasketball(sport)) {
+    const r = replayBasketballGame(events);
+    const points = r.teamScore.points - sum(r.playerPoints);
+    return points > 0 ? { detail: `${points} ${points === 1 ? "pt" : "pts"}`, points } : null;
+  }
+  if (isTouch(sport)) {
+    const r = replayTouchGame(events);
+    const tries = r.teamScore.tries - sum(r.playerTries);
+    return tries > 0 ? { detail: `${tries} ${tries === 1 ? "try" : "tries"}`, points: r.teamScore.points - sum(r.playerPoints) } : null;
+  }
+  return null;
+}
+
+/**
+ * Whether a game kept score: its own record (games.playbook_snapshot's
+ * trackScoring, taken at kick-off and kept current if the switch moves
+ * mid-game), not the team's switch today. A season mixing scored and
+ * unscored games had every past result follow the switch: an unscored
+ * hockey game read "0 drew with 0" once scoring went back on, and AFL's
+ * Head-to-head counted it as a draw (UX round 3, 24 Oct 2026). A game
+ * played before that record kept score if it has a score, else goes by
+ * the team's switch.
+ */
+export function scoresKept(
+  sport: Sport,
+  game: { playbook_snapshot?: unknown },
+  teamTrackScoring: boolean,
+  events: GameEvent[],
+): boolean {
+  const recorded = (game.playbook_snapshot as { trackScoring?: unknown } | null | undefined)?.trackScoring;
+  if (typeof recorded === "boolean") return recorded;
+  const score = scoreFromEvents(sport, events);
+  return score.us + score.them > 0 || teamTrackScoring;
+}
+
 export function outcomeOf(score: GameScore): Outcome {
   if (score.us > score.them) return "W";
   if (score.us < score.them) return "L";

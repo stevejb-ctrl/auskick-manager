@@ -84,3 +84,55 @@ export async function seedDefaultAvailability({
   }
   return rows.length;
 }
+
+interface SeedNewPlayersArgs {
+  supabase: SupabaseClient;
+  teamId: string;
+  /** Players just added to the squad, or brought back. */
+  playerIds: string[];
+  createdBy: string | null;
+}
+
+/**
+ * The same rule for a kid who joins after games are made: In for every
+ * upcoming game. Availability is seeded when a game is made, so a kid
+ * added mid-season had no row and opened every scheduled game as "Out"
+ * — left out of the suggested lineup and the Game plan without the coach
+ * ever marking them out (UX round 2, 24 Oct 2026). Same upsert as above,
+ * so a returning kid the coach had marked out stays out.
+ *
+ * Returns the number of rows written.
+ */
+export async function seedAvailabilityForNewPlayers({
+  supabase,
+  teamId,
+  playerIds,
+  createdBy,
+}: SeedNewPlayersArgs): Promise<number> {
+  if (playerIds.length === 0) return 0;
+  const { data: games, error: gamesError } = await supabase
+    .from("games")
+    .select("id")
+    .eq("team_id", teamId)
+    .eq("status", "upcoming");
+  if (gamesError) {
+    throw new Error(`Failed to load upcoming games: ${gamesError.message}`);
+  }
+  if (!games || games.length === 0) return 0;
+
+  const rows = (games as { id: string }[]).flatMap((g) =>
+    playerIds.map((pid) => ({
+      game_id: g.id,
+      player_id: pid,
+      status: "available" as const,
+      updated_by: createdBy,
+    })),
+  );
+  const { error: insertError } = await supabase
+    .from("game_availability")
+    .upsert(rows, { onConflict: "game_id,player_id", ignoreDuplicates: true });
+  if (insertError) {
+    throw new Error(`Failed to seed availability: ${insertError.message}`);
+  }
+  return rows.length;
+}

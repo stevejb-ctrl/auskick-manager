@@ -30,6 +30,8 @@
 
 import {
   assignLeagueLines,
+  canPlayPosition,
+  restrictedKeysInForce,
   lastVestWearer,
   leagueLineScores,
   nextInOrder,
@@ -40,6 +42,7 @@ import { normalizeLeagueLineup, leagueOnField } from "@/lib/types";
 import { getSportConfig, type RugbySport } from "@/lib/sports/registry";
 import type { ScoreTypeDef } from "@/lib/sports/types";
 import { chipZone } from "./positions";
+import { takeUndoTarget } from "@/lib/live/scoreUndo";
 
 /**
  * One side's rugby score. `points` = each score times the sport's
@@ -110,6 +113,19 @@ export function rugbyScoreWords(sport: RugbySport): RugbyScoreWords {
     return { label: type.label, short: type.shortLabel };
   };
   return { penaltyGoal: words("penalty_goal"), fieldGoal: words("field_goal") };
+}
+
+/**
+ * What the undo strip says was scored, in the sport's own words: "try",
+ * "conversion" (or "missed conversion": a miss is undone like a score),
+ * "penalty goal", union's "drop goal". Either side's event type.
+ */
+export function rugbyScoreWhat(sport: RugbySport, type: string, made = true): string {
+  const kind = type.replace(/^opponent_/, "");
+  if (kind === "try") return "try";
+  if (kind === "conversion" || kind === "conversion_attempt") return made ? "conversion" : "missed conversion";
+  const words = rugbyScoreWords(sport);
+  return (kind === "penalty_goal" ? words.penaltyGoal : words.fieldGoal).label.toLowerCase();
 }
 
 /** "2T · 1C · 1PG" — penalty and field (drop) goals only when there are some. */
@@ -228,7 +244,10 @@ export function replayRugbyGame(events: GameEvent[], points: RugbyPoints): Leagu
     | { kind: "conversion"; player: string; made: boolean }
     | { kind: "opp_conversion" }
     | { kind: "goal"; side: "team" | "opponent"; goal: "penalty" | "field"; player: string | null };
-  const undoStack: UndoOp[] = [];
+  // Each entry keeps its score's id: an undo takes back the score it
+  // names (two phones can score; "the latest" may be the other's), else
+  // the latest (takeUndoTarget, as the server and the score log do).
+  const undoStack: (UndoOp & { id: string })[] = [];
 
   // SUB-01/B4: absolute game-elapsed timeline for lastSubbedOnMs.
   // `elapsed_ms` is per-quarter, so accumulate each completed quarter's
@@ -357,14 +376,14 @@ export function replayRugbyGame(events: GameEvent[], points: RugbyPoints): Leagu
           state.playerTries[ev.player_id] =
             (state.playerTries[ev.player_id] ?? 0) + 1;
         }
-        undoStack.push({ kind: "try", player: ev.player_id });
+        undoStack.push({ id: ev.id, kind: "try", player: ev.player_id });
         break;
       }
 
       case "opponent_try": {
         state.opponentScore.tries++;
         state.opponentScore.points += points.try;
-        undoStack.push({ kind: "opp_try" });
+        undoStack.push({ id: ev.id, kind: "opp_try" });
         break;
       }
 
@@ -385,6 +404,7 @@ export function replayRugbyGame(events: GameEvent[], points: RugbyPoints): Leagu
         // rotation logic in Phase 5 will use this to roll back the
         // cycle.
         undoStack.push({
+          id: ev.id,
           kind: "conversion",
           player: kicker ?? "",
           made,
@@ -395,7 +415,7 @@ export function replayRugbyGame(events: GameEvent[], points: RugbyPoints): Leagu
       case "opponent_conversion": {
         state.opponentScore.conversions++;
         state.opponentScore.points += points.conversion;
-        undoStack.push({ kind: "opp_conversion" });
+        undoStack.push({ id: ev.id, kind: "opp_conversion" });
         break;
       }
 
@@ -414,12 +434,12 @@ export function replayRugbyGame(events: GameEvent[], points: RugbyPoints): Leagu
           state.playerGoals[player] ??= { penalty: 0, field: 0 };
           state.playerGoals[player][goal]++;
         }
-        undoStack.push({ kind: "goal", side, goal, player });
+        undoStack.push({ id: ev.id, kind: "goal", side, goal, player });
         break;
       }
 
       case "score_undo": {
-        const op = undoStack.pop();
+        const op = takeUndoTarget(undoStack, ev.metadata);
         if (!op) break;
         switch (op.kind) {
           case "try": {
@@ -627,6 +647,12 @@ export function replayRugbyGame(events: GameEvent[], points: RugbyPoints): Leagu
 
 /** §7 carve-out threshold — three minutes of playing time. */
 const INJURY_CARVEOUT_MS = 3 * 60 * 1000;
+/**
+ * A swap put straight back (the toast's Undo after "Make all swaps", or
+ * a mistapped sub undone by hand) within this long isn't a break: the
+ * kid never really left the field.
+ */
+const SWAP_UNDONE_MS = 10 * 1000;
 
 export interface UnbrokenPeriodCompliance {
   /**
@@ -687,6 +713,9 @@ function walkUnbrokenPeriods(events: GameEvent[]): {
     t.pendingInjury.delete(pid);
     if (elapsed - startedAt > INJURY_CARVEOUT_MS) t.removed.add(pid);
   };
+  // This period's swap-offs: when, and whether the kid's period was
+  // already broken (an undo mustn't mend an earlier break).
+  let swappedOff = new Map<string, { at: number; wasBroken: boolean }>();
 
   for (const ev of sorted) {
     const meta = ev.metadata as {
@@ -727,6 +756,7 @@ function walkUnbrokenPeriods(events: GameEvent[]): {
           pendingInjury: new Map(),
           closed: false,
         });
+        swappedOff = new Map();
         break;
       }
       case "quarter_end": {
@@ -748,10 +778,17 @@ function walkUnbrokenPeriods(events: GameEvent[]): {
         // injury-only). A hurt kid being replaced keeps their incident
         // open: it closes if they come back on in time.
         if (off && slots.has(off)) {
-          if (onField(off)) tracker()?.removed.add(off);
+          const t = tracker();
+          if (onField(off) && t) {
+            swappedOff.set(off, { at: elapsed, wasBroken: t.removed.has(off) });
+            t.removed.add(off);
+          }
           slots.delete(off);
         }
         if (on) {
+          const back = swappedOff.get(on);
+          if (back && !back.wasBroken && elapsed - back.at <= SWAP_UNDONE_MS) tracker()?.removed.delete(on);
+          swappedOff.delete(on);
           slots.add(on);
           allPlayers.add(on);
           if (onField(on)) closeIncident(on, elapsed);
@@ -836,8 +873,9 @@ export function unbrokenPeriodCompliance(
  * PROVISIONALLY but doesn't count toward `compliant` until
  * `quarter_end` lands).
  *
- * Used by `UnbrokenPeriodWarning` to flag at-risk players
- * BEFORE the hooter, giving the coach a chance to leave them on.
+ * Read by `unbrokenPeriodNeeds` (the live warning and the sub card)
+ * to flag kids BEFORE the hooter, giving the coach a chance to leave
+ * them on.
  */
 export interface UnbrokenPeriodLiveStatus extends UnbrokenPeriodCompliance {
   /**
@@ -904,6 +942,54 @@ export function unbrokenPeriodLiveStatus(
     };
   });
   return result;
+}
+
+/**
+ * The unbroken periods each kid needs this game: the age group's §6
+ * count wherever the laws have it (Mini Footy and Mod League), none
+ * past it or in a sport without the law. Always enforced — How we play
+ * shows it as a locked Must (UX audit, 23 Oct 2026: it used to sit
+ * behind a switch that was off by default).
+ */
+export function unbrokenPeriodsRequired(
+  ageGroup: { unbrokenPeriods?: boolean; minUnbrokenPeriods?: number },
+): number {
+  return ageGroup.unbrokenPeriods === true ? (ageGroup.minUnbrokenPeriods ?? 0) : 0;
+}
+
+export interface UnbrokenPeriodNeeds {
+  /** On track this period and short without it: on to the hooter. */
+  mustStay: string[];
+  /** Not on track now and needing every period left: start the next one. */
+  mustStartNext: string[];
+  /** Can't get their unbroken periods any more this game. */
+  missed: string[];
+}
+
+/**
+ * Mid-period, who §6 still binds: kids who must stay on to the hooter,
+ * kids who must start (and play out) every period left, and kids who
+ * can no longer make it. The live warning and the sub suggester
+ * (mustStayOn) read the same walk.
+ */
+export function unbrokenPeriodNeeds(
+  events: GameEvent[],
+  opts: { required: number; currentQuarter: number; periodCount: number; elapsedMs: number },
+): UnbrokenPeriodNeeds {
+  const out: UnbrokenPeriodNeeds = { mustStay: [], mustStartNext: [], missed: [] };
+  if (opts.required <= 0) return out;
+  const remainingAfter = Math.max(0, opts.periodCount - opts.currentQuarter);
+  const status = unbrokenPeriodLiveStatus(events, opts.required, opts.elapsedMs);
+  for (const [pid, s] of Object.entries(status)) {
+    const need = opts.required - s.unbrokenPeriods.length;
+    if (need <= 0) continue;
+    // This period counts if they play it out.
+    const left = s.inProgressPeriods.includes(opts.currentQuarter) ? remainingAfter + 1 : remainingAfter;
+    if (need > left) out.missed.push(pid);
+    else if (left > remainingAfter && need > remainingAfter) out.mustStay.push(pid);
+    else if (need === remainingAfter && left === remainingAfter) out.mustStartNext.push(pid);
+  }
+  return out;
 }
 
 // ─── Auto-suggest lineup ─────────────────────────────────────
@@ -1420,7 +1506,8 @@ export function rugbyScoreByPeriod(
       | { kind: "conv"; period: number; made: boolean }
       | { kind: "opp_conv"; period: number }
       | { kind: "goal"; period: number; side: "team" | "opponent"; goal: "penalty" | "field" };
-  const stack: Op[] = [];
+  // With each score's id, so an undo takes back the one it names.
+  const stack: (Op & { id: string })[] = [];
 
   for (const ev of sorted) {
     const meta = (ev.metadata ?? {}) as { quarter?: number; made?: boolean };
@@ -1442,22 +1529,22 @@ export function rugbyScoreByPeriod(
     if (ev.type === "try") {
       out[period].team.tries += 1;
       out[period].team.points += points.try;
-      stack.push({ kind: "try", period });
+      stack.push({ id: ev.id, kind: "try", period });
     } else if (ev.type === "opponent_try") {
       out[period].opponent.tries += 1;
       out[period].opponent.points += points.try;
-      stack.push({ kind: "opp_try", period });
+      stack.push({ id: ev.id, kind: "opp_try", period });
     } else if (ev.type === "conversion_attempt") {
       const made = meta.made === true;
       if (made) {
         out[period].team.conversions += 1;
         out[period].team.points += points.conversion;
       }
-      stack.push({ kind: "conv", period, made });
+      stack.push({ id: ev.id, kind: "conv", period, made });
     } else if (ev.type === "opponent_conversion") {
       out[period].opponent.conversions += 1;
       out[period].opponent.points += points.conversion;
-      stack.push({ kind: "opp_conv", period });
+      stack.push({ id: ev.id, kind: "opp_conv", period });
     } else if (
       ev.type === "penalty_goal"
       || ev.type === "field_goal"
@@ -1470,9 +1557,9 @@ export function rugbyScoreByPeriod(
       if (goal === "penalty") slot.penaltyGoals += 1;
       else slot.fieldGoals += 1;
       slot.points += goalPoints(points, goal);
-      stack.push({ kind: "goal", period, side, goal });
+      stack.push({ id: ev.id, kind: "goal", period, side, goal });
     } else if (ev.type === "score_undo") {
-      const op = stack.pop();
+      const op = takeUndoTarget(stack, ev.metadata);
       if (!op) continue;
       if (op.kind === "goal") {
         const slot = out[op.period][op.side];
@@ -1989,6 +2076,19 @@ export function playerZoneMsOnField(
 }
 
 /**
+ * Season balance's line time (audit, 23 Oct 2026): ms per player in the
+ * forwards and the backs, vest time in the line the lineup has the kid
+ * in, where the field draws them (arrangeLeagueField). The tiles' bar
+ * keeps vest time as its centre (playerZoneMsOnField); balance has no
+ * centre line to owe, so vest time used to drop out of it. It then went
+ * to the vest's nominal line (FR a back, DH a forward), which the field
+ * contradicted (round 2 usability, 24 Oct 2026). Completed periods only.
+ */
+export function playerLineMsOnField(events: GameEvent[]): Record<string, { forwards: number; backs: number }> {
+  return walkLeagueStints(events, Number.MAX_SAFE_INTEGER, 0).lines;
+}
+
+/**
  * Named positions (5.7): ms per player per position key, from the
  * slots recorded on each lineup_set. A sub takes over the slot of the
  * player they replace; a forward/back move leaves the kid unslotted
@@ -2013,6 +2113,7 @@ function walkLeagueStints(
   currentElapsedMs: number,
 ): {
   zones: Record<string, LeagueZoneMs>;
+  lines: Record<string, { forwards: number; backs: number }>;
   slots: Record<string, Record<string, number>>;
   slotOf: Record<string, string>;
 } {
@@ -2025,6 +2126,13 @@ function walkLeagueStints(
     const row = total[pid] ?? { forwards: 0, centre: 0, backs: 0 };
     row[bucket] += ms;
     total[pid] = row;
+  };
+  // Line time rides along, a vest's time in the kid's own line.
+  const lineTotal: Record<string, { forwards: number; backs: number }> = {};
+  const addLineMs = (pid: string, line: "forwards" | "backs", ms: number) => {
+    if (ms <= 0) return;
+    lineTotal[pid] ??= { forwards: 0, backs: 0 };
+    lineTotal[pid][line] += ms;
   };
   // Slot time rides along: each open stint is credited to the slot the
   // player holds when it closes.
@@ -2062,13 +2170,13 @@ function walkLeagueStints(
     vestPlanByPeriod.set(meta.period, row);
   }
 
-  // Open-stint state. `zone` is "forward" | "back"; `vest` true when
-  // the player is currently wearing FR or DH. Players not in the map
-  // are currently off-field.
+  // Open-stint state. `zone` is "forward" | "back"; `vest` the vest
+  // the player is wearing (FR or DH), null for none. Players not in the
+  // map are currently off-field.
   type Stint = {
     startMs: number;
     zone: "forward" | "back";
-    vest: boolean;
+    vest: "fr" | "dh" | null;
   };
   const openStint: Record<string, Stint> = {};
   let activeQuarter: number | null = null;
@@ -2081,16 +2189,21 @@ function walkLeagueStints(
   // the on-player the off-player's vacated zone).
   let snapshot: LeagueLineup | null = null;
 
-  const closeStint = (pid: string, endMs: number) => {
-    const s = openStint[pid];
-    if (!s) return;
-    const dur = Math.max(0, endMs - s.startMs);
+  const credit = (pid: string, s: Stint, dur: number) => {
     if (s.vest) addMs(pid, "centre", dur);
     else if (s.zone === "forward") addMs(pid, "forwards", dur);
     else addMs(pid, "backs", dur);
+    addLineMs(pid, s.zone === "forward" ? "forwards" : "backs", dur);
     addSlotMs(pid, dur);
+  };
+  const closeStint = (pid: string, endMs: number) => {
+    const s = openStint[pid];
+    if (!s) return;
+    credit(pid, s, Math.max(0, endMs - s.startMs));
     delete openStint[pid];
   };
+  const vestOf = (pid: string): "fr" | "dh" | null =>
+    pid === vestWearer.fr ? "fr" : pid === vestWearer.dh ? "dh" : null;
 
   const zoneOfPid = (pid: string): "forward" | "back" => {
     if (snapshot) {
@@ -2134,9 +2247,7 @@ function walkLeagueStints(
         };
         if (snapshot) {
           for (const pid of leagueOnField(snapshot)) {
-            const zone = zoneOfPid(pid);
-            const vest = pid === vestWearer.fr || pid === vestWearer.dh;
-            openStint[pid] = { startMs: 0, zone, vest };
+            openStint[pid] = { startMs: 0, zone: zoneOfPid(pid), vest: vestOf(pid) };
           }
         }
         break;
@@ -2164,8 +2275,7 @@ function walkLeagueStints(
           snapshot = swapInLeagueLineup(snapshot, off, on).lineup;
         }
         if (on && openStint[on] === undefined) {
-          const vest = on === vestWearer.fr || on === vestWearer.dh;
-          openStint[on] = { startMs: at, zone: offZone, vest };
+          openStint[on] = { startMs: at, zone: offZone, vest: vestOf(on) };
         }
         // Like-for-like: the sub takes the slot the off player held.
         if (off && on) {
@@ -2256,7 +2366,7 @@ function walkLeagueStints(
             openStint[oldWearer] = {
               startMs: at,
               zone: zoneOfPid(oldWearer),
-              vest: false,
+              vest: null,
             };
           }
         }
@@ -2268,7 +2378,7 @@ function walkLeagueStints(
           openStint[newWearer] = {
             startMs: at,
             zone: zoneOfPid(newWearer),
-            vest: true,
+            vest: vestKind,
           };
         }
         vestWearer = { ...vestWearer, [vestKind]: newWearer };
@@ -2288,17 +2398,13 @@ function walkLeagueStints(
   // Live: extend any open stints in the active period to currentElapsedMs.
   if (activeQuarter === currentQuarter) {
     for (const pid of Object.keys(openStint)) {
-      const s = openStint[pid];
-      const dur = Math.max(0, currentElapsedMs - s.startMs);
+      const dur = Math.max(0, currentElapsedMs - openStint[pid].startMs);
       if (dur <= 0) continue;
-      if (s.vest) addMs(pid, "centre", dur);
-      else if (s.zone === "forward") addMs(pid, "forwards", dur);
-      else addMs(pid, "backs", dur);
-      addSlotMs(pid, dur);
+      credit(pid, openStint[pid], dur);
     }
   }
 
-  return { zones: total, slots: slotTotal, slotOf };
+  return { zones: total, lines: lineTotal, slots: slotTotal, slotOf };
 }
 
 // ─── Whole-bench rotation suggestion ──────────────────────────
@@ -2340,6 +2446,62 @@ export interface LeagueSubSuggestion {
   on: { playerId: string; msOnBench: number };
   /** Zone the off-player vacated — the on-player joins this zone. */
   zone: LeagueZone;
+  /** Named positions: the slot the on-player takes over ("HK2"). */
+  position?: { key: string; label: string };
+}
+
+/**
+ * The game's rules a rolling sub must keep (UX audit, 23 Oct 2026: the
+ * card suggested taking off a kid who'd sat out H1, breaking §6 and the
+ * 50% floor, both Musts on How we play).
+ */
+export interface LeagueSubLaws {
+  periodCount: number;
+  periodMs: number;
+  /** §6: unbroken periods each kid needs this game (0 = no such law). */
+  requiredUnbroken: number;
+  /** The game-time floor, % of the game (0 or absent = none). */
+  minGameTimePct?: number;
+  /**
+   * Cross to the other line when its longest-on kid has been on this
+   * much longer than the best same-line choice (the sub interval).
+   */
+  crossLineGapMs?: number;
+}
+
+/**
+ * Kids who must stay on this period: their unbroken period (§6) or their
+ * share of the game can only still be reached in it. A kid on track for
+ * an unbroken period who'd be short without this one stays; so does a
+ * kid whose floor needs more time than the periods after this hold.
+ */
+export function mustStayOn(
+  events: GameEvent[],
+  currentQuarter: number,
+  onFieldIds: readonly string[],
+  elapsedMs: number,
+  laws: LeagueSubLaws,
+): Set<string> {
+  const out = new Set<string>();
+  const remainingAfter = Math.max(0, laws.periodCount - currentQuarter);
+  const onField = new Set(onFieldIds);
+  unbrokenPeriodNeeds(events, {
+    required: laws.requiredUnbroken,
+    currentQuarter,
+    periodCount: laws.periodCount,
+    elapsedMs,
+  }).mustStay.forEach((pid) => {
+    if (onField.has(pid)) out.add(pid);
+  });
+  const pct = laws.minGameTimePct ?? 0;
+  if (pct > 0) {
+    const target = (pct / 100) * laws.periodCount * laws.periodMs;
+    const played = playerMsOnField(events, currentQuarter, elapsedMs);
+    for (const pid of onFieldIds) {
+      if (target - (played[pid] ?? 0) > remainingAfter * laws.periodMs) out.add(pid);
+    }
+  }
+  return out;
 }
 
 export function suggestLeagueSubs(
@@ -2351,6 +2513,8 @@ export function suggestLeagueSubs(
   chipByPlayerId?: ReadonlyMap<string, import("@/lib/types").PlayerChip | null>,
   /** How we play: home line, never-plays and keep-on instead of chips. */
   playbook?: LeaguePlaybookInput,
+  /** §6, the game-time floor and when to cross lines. */
+  laws?: LeagueSubLaws,
 ): LeagueSubSuggestion[] {
   const onFieldIds = leagueOnField(currentLineup);
   if (onFieldIds.length === 0 || currentLineup.bench.length === 0) {
@@ -2360,6 +2524,8 @@ export function suggestLeagueSubs(
   // catalogue rule league offers).
   if (playbook?.rules?.some((r) => r.kind === "subs-at-breaks")) return [];
   const excludeSet = new Set(excludeOffPlayers);
+  // Kids whose unbroken period or floor needs this period stay on.
+  if (laws) mustStayOn(events, currentQuarter, onFieldIds, elapsedMs, laws).forEach((pid) => excludeSet.add(pid));
   type Stint = { startedAt: number; location: "field" | "bench" };
   const stint = new Map<string, Stint>();
   // SUB-01/B4: track stints on an ABSOLUTE game-elapsed timeline that
@@ -2445,8 +2611,7 @@ export function suggestLeagueSubs(
   );
 
   // Field candidates per zone — longest-on-field first within each
-  // zone. We mutate cursors as we consume players from each zone
-  // bucket so each suggestion picks a fresh off-target.
+  // zone; each suggestion takes a fresh off-target.
   const fieldByZone: Record<LeagueZone, string[]> = {
     forward: [],
     back: [],
@@ -2460,11 +2625,33 @@ export function suggestLeagueSubs(
   for (const z of ["forward", "back"] as LeagueZone[]) {
     fieldByZone[z].sort((a, b) => msAt(b) - msAt(a));
   }
-  const cursor: Record<LeagueZone, number> = { forward: 0, back: 0 };
+
+  // Named positions: a sub takes the slot of the kid they replace, so
+  // pairs go by position (UX audit, 23 Oct 2026: "Make all swaps" put a
+  // late arrival at loosehead and a winger at hooker). A bench kid may
+  // replace only a kid whose slot they can play (never-plays out; a
+  // restricted spot in force, union's front row, only if picked for it).
+  const positions = playbook?.positions?.length ? playbook.positions : null;
+  const heldSlot = positions ? leagueSlotsNow(events) : {};
+  const inForce = positions ? restrictedKeysInForce(playbook) : new Set<string>();
+  const canTake = (benchId: string, offId: string) => {
+    const slot = heldSlot[offId];
+    return !slot || canPlayPosition(playbook, benchId, slot, inForce);
+  };
+  // How well the bench kid fits the off kid's slot: home, also, other.
+  const fit = (benchId: string, offId: string) => {
+    const slot = heldSlot[offId];
+    const role = playbook?.positionRoles?.[benchId];
+    if (!slot || !role) return 2;
+    return role.home === slot ? 0 : role.also.includes(slot) ? 1 : 2;
+  };
 
   const swaps: LeagueSubSuggestion[] = [];
   const usedOff = new Set<string>();
   const usedOn = new Set<string>();
+  // The kids a bench kid could replace in a line, longest-on first.
+  const pool = (z: LeagueZone, benchId: string) =>
+    fieldByZone[z].filter((id) => !usedOff.has(id) && canTake(benchId, id));
 
   for (const benchId of benchSorted) {
     if (usedOn.has(benchId)) continue;
@@ -2490,25 +2677,30 @@ export function suggestLeagueSubs(
     // No preference between two open lines: rule 2 above — whoever has
     // been on longest, either line. Defaulting to forwards-first meant the
     // backs never came off and a just-subbed forward was pulled straight
-    // back (round 5, league-u8-vests).
-    if (noPreference && zoneOrder.length === 2) {
-      const fwd = fieldByZone.forward[cursor.forward];
-      const back = fieldByZone.back[cursor.back];
-      if (back && (!fwd || msAt(back) > msAt(fwd))) zoneOrder = ["back", "forward"];
+    // back (round 5, league-u8-vests). With a preference, the other line
+    // still wins when its longest-on kid has been on a sub interval
+    // longer (audit, 23 Oct 2026: a kid two minutes on was pulled while
+    // the backs had played twenty).
+    if (zoneOrder.length === 2) {
+      const [mine, other] = zoneOrder;
+      const a = pool(mine, benchId)[0];
+      const b = pool(other, benchId)[0];
+      const gap = noPreference ? 0 : laws?.crossLineGapMs;
+      if (b && gap !== undefined && (!a || msAt(b) - msAt(a) > gap)) zoneOrder = [other, mine];
     }
     let pickedOff: string | null = null;
     let pickedZone: LeagueZone | null = null;
     for (const z of zoneOrder) {
-      while (cursor[z] < fieldByZone[z].length) {
-        const candidate = fieldByZone[z][cursor[z]];
-        cursor[z]++;
-        if (!usedOff.has(candidate)) {
-          pickedOff = candidate;
-          pickedZone = z;
-          break;
-        }
-      }
-      if (pickedOff) break;
+      const options = pool(z, benchId);
+      if (options.length === 0) continue;
+      // Named positions: among kids on about as long as the longest (a
+      // sub interval), the one in the bench kid's own position.
+      const close = positions
+        ? options.filter((id) => msAt(options[0]) - msAt(id) <= (laws?.crossLineGapMs ?? 0))
+        : [options[0]];
+      pickedOff = [...close].sort((a, b) => fit(benchId, a) - fit(benchId, b) || msAt(b) - msAt(a))[0];
+      pickedZone = z;
+      break;
     }
     if (!pickedOff || !pickedZone) {
       // With roles, this kid may just have no line open — try the next.
@@ -2517,10 +2709,13 @@ export function suggestLeagueSubs(
     }
     usedOff.add(pickedOff);
     usedOn.add(benchId);
+    const slot = heldSlot[pickedOff];
+    const label = slot ? positions?.find((p) => p.key === slot)?.label : undefined;
     swaps.push({
       off: { playerId: pickedOff, msOnField: msAt(pickedOff) },
       on: { playerId: benchId, msOnBench: msAt(benchId) },
       zone: pickedZone,
+      ...(slot && label ? { position: { key: slot, label } } : {}),
     });
   }
   return swaps;

@@ -3,7 +3,7 @@
 // F3 (Phase 12) — SHARED, sport-agnostic long-press player summary.
 //
 // Consumed verbatim by AFL (LockModal), rugby league (LockModal) and
-// netball (NetballPlayerActions) via the host's `insight` slot. It owns
+// netball (LockModal too) via the host's `insight` slot. It owns
 // presentation only; the numbers come from the pure `buildPlayerInsight`
 // view-model so all three sports render identical chrome (reuse-before-fork).
 //
@@ -33,7 +33,9 @@ export function PlayerInsightSummary({ input }: PlayerInsightSummaryProps) {
         <div className="flex items-baseline justify-between">
           <span className={SECTION_LABEL}>This game</span>
           <span className="text-xs text-ink-dim">
-            {vm.msSinceLastSub === null ? (
+            {vm.onBench ? (
+              "On the bench"
+            ) : vm.msSinceLastSub === null ? (
               "Not on yet"
             ) : (
               <>

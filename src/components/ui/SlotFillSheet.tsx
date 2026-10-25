@@ -1,5 +1,9 @@
 "use client";
 
+import { useId, useRef } from "react";
+import { useDialogFocus } from "@/components/ui/useDialogFocus";
+import { useSquadNames } from "@/components/live/SquadNames";
+
 // ─── Slot Fill Sheet ─────────────────────────────────────────
 // Modal sheet that opens when a coach taps an empty slot in the
 // lineup picker (pre-game OR quarter-break, AFL OR netball). Lists
@@ -30,9 +34,22 @@ interface Props {
   onCancel: () => void;
   /**
    * Optional title verb override. Defaults to "Fill". Useful for
-   * surfaces that want a more specific verb ("Place", "Assign").
+   * surfaces that want a more specific verb ("Place", "Assign"). The
+   * heading reads "{titleVerb} {slotLabel}".
    */
   titleVerb?: string;
+  /**
+   * The whole heading, in place of "{titleVerb} {slotLabel}" — a
+   * question reads better whole ("Who scored?").
+   */
+  title?: string;
+  /**
+   * The small label above the heading. Defaults to "Pick a player",
+   * true of every sheet. It used to repeat the title verb, which read
+   * "WHO SCORED THE" and "ADD" (UX audit 23 Oct 2026). The scorer
+   * sheets name what was scored ("Goal", "2 points").
+   */
+  eyebrow?: string;
   /**
    * Optional override for the small instruction line under the
    * heading. Defaults to "Pick a player to place in the {slotLabel}
@@ -49,14 +66,12 @@ interface Props {
   emptyMessage?: string;
   /**
    * Whether tapping the dimmed backdrop calls `onCancel`. Default
-   * `true` — matches the natural-feeling bottom-sheet behaviour
-   * for slot-filling flows. Set `false` when an accidental tap-
-   * outside would lose substantive state — e.g. the score-
-   * attribution picker on the live scorebug, where dismissing
-   * silently when the coach taps the next +G chip caused the
-   * goal-attribution to vanish without feedback (Stagehand
-   * exploration 2026-05-09). The X/Cancel button remains the
-   * only dismissal path in that mode.
+   * `false`: a stray tap outside must not lose what the sheet is for.
+   * The score-attribution picker lost the goal that way (Stagehand
+   * 2026-05-09 on AFL; again in hockey and basketball, whose sheets
+   * took the old default, UX audit 23 Oct 2026). Cancel is the way
+   * out. Pass `true` only where dismissing loses nothing — the
+   * late-arrival menu, the break's settings pickers, AFL's swap picker.
    */
   dismissOnBackdrop?: boolean;
   /**
@@ -89,12 +104,28 @@ export function SlotFillSheet({
   onPick,
   onCancel,
   titleVerb = "Fill",
+  title,
+  eyebrow = "Pick a player",
   subtitle,
   emptyMessage,
-  dismissOnBackdrop = true,
+  dismissOnBackdrop = false,
   extraOption,
   extraOptions = [],
 }: Props) {
+  // Focus in, Tab kept inside, Escape cancels, focus back to the chip
+  // that opened it (UX round 3, e4: Tab walked the score chips behind
+  // the backdrop and Escape did nothing).
+  const sheetRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(sheetRef, true, onCancel);
+  const titleId = useId();
+  // Two kids with the same full name read "Jack Smith (1)" / "(2)" (or
+  // their numbers), as their tiles do; any other label stays as given.
+  const names = useSquadNames();
+  const label = (c: Candidate) => {
+    const full = names.full({ id: c.id, full_name: c.name });
+    // Only the duplicate's suffix is added: a first name a caller passed stays as it is.
+    return full.startsWith(c.name.trim()) && /^ (#\d+|\(\d+\))$/.test(full.slice(c.name.trim().length)) ? full : c.name;
+  };
   return (
     <div
       // z-60 (one step above Modal's z-50) because SlotFillSheet is
@@ -113,13 +144,21 @@ export function SlotFillSheet({
       // P0-5 (2026-05-15): the backdrop fades in (350ms) so the
       // dim arrives gracefully rather than slamming on. The inner
       // sheet has its own entrance animation below.
-      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-ink/60 p-4 motion-safe:animate-fade-in"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="slot-fill-title"
+      //
+      // !m-0: the sheet renders in place (no portal), often inside a
+      // space-y-* stack, whose margin-top pushed the fixed backdrop
+      // 12px down. The top bar's back link showed through that strip,
+      // so a stray tap at the top left the live screen with the pick
+      // unmade (UX audit 23 Oct 2026, the scorer-sheet backdrop tests).
+      className="fixed inset-0 z-[60] !m-0 flex items-end sm:items-center justify-center bg-ink/60 p-[16px] motion-safe:animate-fade-in"
       onClick={dismissOnBackdrop ? onCancel : undefined}
     >
       <div
+        ref={sheetRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         // Inner sheet entrance — mobile rides up from the bottom
         // edge (240ms, full sheet height); desktop pops in place
         // (200ms, scale 0.96 → 1 + fade). The two animations
@@ -128,92 +167,101 @@ export function SlotFillSheet({
         // as the same component with the right geometry for each
         // form factor. P0-5 in
         // .planning/MICRO-INTERACTIONS-PLAN.md.
-        className="w-full max-w-md rounded-t-lg sm:rounded-lg border border-hairline bg-surface shadow-modal motion-safe:animate-sheet-up-mobile sm:motion-safe:animate-pop-in"
+        //
+        // Capped to the screen, with the list scrolling between the
+        // heading and Cancel (UX round 3, e4: a fixed max-h-72 list and no
+        // cap put union's heading above a phone held sideways and Cancel
+        // below it; at 200% text the heading sat at y = -41).
+        className="flex max-h-[calc(100dvh-32px)] w-full max-w-md flex-col rounded-t-lg sm:rounded-lg border border-hairline bg-surface shadow-modal outline-none motion-safe:animate-sheet-up-mobile sm:motion-safe:animate-pop-in"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="border-b border-hairline px-5 py-4">
+        <div className="shrink-0 border-b border-hairline px-5 py-4">
           <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
-            {titleVerb}
+            {eyebrow}
           </p>
           <h2
-            id="slot-fill-title"
+            id={titleId}
             className="text-base font-semibold text-ink"
           >
-            {titleVerb} {slotLabel}
+            {title ?? `${titleVerb} ${slotLabel}`}
           </h2>
           <p className="mt-1 text-xs text-ink-mute">
             {subtitle ?? `Pick a player to place in the ${slotLabel} slot.`}
           </p>
         </div>
 
-        {[...(extraOption ? [extraOption] : []), ...extraOptions].map((option) => (
-          <button
-            key={option.label}
-            type="button"
-            onClick={option.onSelect}
-            className="flex w-full items-center gap-3 border-b border-hairline bg-surface-alt px-5 py-3 text-left text-sm hover:bg-surface"
-          >
-            <span
-              aria-hidden="true"
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-hairline bg-surface font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute"
+        {/* Extra rows and the kids scroll together between the heading
+            and Cancel. */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          {[...(extraOption ? [extraOption] : []), ...extraOptions].map((option) => (
+            <button
+              key={option.label}
+              type="button"
+              onClick={option.onSelect}
+              className="flex w-full items-center gap-3 border-b border-hairline bg-surface-alt px-5 py-3 text-left text-sm hover:bg-surface"
             >
-              —
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate font-medium text-ink">
-                {option.label}
+              <span
+                aria-hidden="true"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-hairline bg-surface font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute"
+              >
+                —
               </span>
-              {option.subLabel && (
-                <span className="block truncate text-[11px] text-ink-mute">
-                  {option.subLabel}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium text-ink">
+                  {option.label}
                 </span>
-              )}
-            </span>
-          </button>
-        ))}
+                {option.subLabel && (
+                  <span className="block truncate text-[11px] text-ink-mute">
+                    {option.subLabel}
+                  </span>
+                )}
+              </span>
+            </button>
+          ))}
 
-        {candidates.length === 0 ? (
-          <p className="px-5 py-8 text-center text-sm text-ink-mute">
-            {emptyMessage ?? "Nobody available — every player is already on field."}
-          </p>
-        ) : (
-          <ul className="max-h-72 divide-y divide-hairline overflow-y-auto">
-            {candidates.map((c) => (
-              <li key={c.id}>
-                <button
-                  type="button"
-                  onClick={() => onPick(c.id)}
-                  className="flex w-full items-center gap-3 px-5 py-3 text-left text-sm text-ink hover:bg-surface-alt"
-                >
-                  {c.jerseyNumber != null && c.jerseyNumber !== "" && (
-                    <span
-                      aria-hidden="true"
-                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-hairline bg-surface-alt font-mono text-[11px] font-bold tabular-nums text-ink"
-                    >
-                      {c.jerseyNumber}
-                    </span>
-                  )}
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium text-ink">
-                      {c.name}
-                    </span>
-                    {c.subLabel && (
-                      <span className="block truncate text-[11px] text-ink-mute">
-                        {c.subLabel}
+          {candidates.length === 0 ? (
+            <p className="px-5 py-8 text-center text-sm text-ink-mute">
+              {emptyMessage ?? "Nobody available — every player is already on field."}
+            </p>
+          ) : (
+            <ul className="divide-y divide-hairline">
+              {candidates.map((c) => (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    onClick={() => onPick(c.id)}
+                    className="flex w-full items-center gap-3 px-5 py-3 text-left text-sm text-ink hover:bg-surface-alt"
+                  >
+                    {c.jerseyNumber != null && c.jerseyNumber !== "" && (
+                      <span
+                        aria-hidden="true"
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-hairline bg-surface-alt font-mono text-[11px] font-bold tabular-nums text-ink"
+                      >
+                        {c.jerseyNumber}
                       </span>
                     )}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-ink">
+                        {label(c)}
+                      </span>
+                      {c.subLabel && (
+                        <span className="block truncate text-[11px] text-ink-mute">
+                          {c.subLabel}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
-        <div className="border-t border-hairline px-5 py-3">
+        <div className="shrink-0 border-t border-hairline px-5 py-3">
           <button
             type="button"
             onClick={onCancel}
-            className="w-full rounded-md border border-hairline bg-surface px-3 py-2 text-sm font-medium text-ink hover:bg-surface-alt"
+            className="min-h-[44px] w-full rounded-md border border-hairline bg-surface px-3 py-2 text-sm font-medium text-ink hover:bg-surface-alt"
           >
             Cancel
           </button>

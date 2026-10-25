@@ -216,6 +216,12 @@ export interface BrandConfig {
   tagline: string;
   /** Default sport created when a user signs up on this brand. */
   defaultSport: SportId;
+  /**
+   * Who the brand is for, before "team management" on the login screen:
+   * "Junior netball". The main Siren brand serves every sport, so it
+   * says "Junior sport".
+   */
+  audience: string;
   /** Tailwind brand palette key. */
   palette: "brand" | "netball";
 }
@@ -233,6 +239,94 @@ export interface ValidationResult {
   ok: boolean;
   issues: ValidationIssue[];
 }
+
+// ─── Period break (the screen between periods) ───────────────
+// One break screen serves every sport (docs/handoffs/siren-footy-
+// break-redesign-HANDOFF.md). Everything it says about a sport comes
+// from here: which zones it shows and in what order, how many slots
+// each has, the zone's colour, the bib on a netball slot, how the score
+// reads and when a kid's game time turns orange. The screen never asks
+// which sport it's showing.
+
+/** The four zone colours the break screen paints with (bench is its own grey). */
+export type BreakZoneColor = "zone1" | "zone2" | "zone3" | "zone4";
+
+/** One section of the break screen: a zone of the field, in display order. */
+export interface BreakZoneDef {
+  /**
+   * The lineup group this section shows: AFL "fwd"/"mid"/"back", soccer
+   * "att"/"mid"/"def"/"keeper", netball "attack"/"centre"/"defence".
+   */
+  key: string;
+  /** Section header, upper case ("FORWARD"). */
+  label: string;
+  /** Said in a tile's movement line: "From Fwd". */
+  short: string;
+  color: BreakZoneColor;
+  /** Players on the field in this zone. */
+  slots: number;
+  /**
+   * Netball: the position each slot is (["gs", "ga"]). A swap moves the
+   * kids; the position stays with the slot. Length === slots.
+   */
+  slotIds?: string[];
+  /** Netball: the bib printed on each slot (["GS", "GA"]). Length === slots. */
+  slotLabels?: string[];
+}
+
+export interface BreakZoneContext {
+  ageGroup: AgeGroupConfig;
+  /** Players on the field this game. */
+  onFieldSize: number;
+  /**
+   * Players per lineup group in the lineup being staged, when the caller
+   * knows it (AFL's effective zone caps, a soccer formation's lines).
+   * Absent: the age group's own shape at `onFieldSize`.
+   */
+  shape?: Readonly<Record<string, number>>;
+}
+
+export interface SportBreakSpec {
+  /**
+   * The zones, attack first, then the middle, then defence, then a
+   * keeper. The bench always follows and isn't listed. Counts come from
+   * the context, never a constant.
+   */
+  zones: (ctx: BreakZoneContext) => BreakZoneDef[];
+  /**
+   * The line under the score: "goals-behinds" reads AFL's "2.0 v 0.0";
+   * "goals" and "points" name the unit ("Goals" / "Points").
+   */
+  scoreDetail: "goals-behinds" | "goals" | "points";
+  /** A tile's game time turns orange this far under the team average. */
+  lowTimeMs: number;
+}
+
+// ─── A sport's own words ─────────────────────────────────────
+// What shared screens call the playing surface and the sounds that
+// start and end play. A shared screen never says "siren" or "field"
+// itself: it asks the sport (src/lib/sports/words.ts builds the lines).
+export interface SportWords {
+  /** The sport in a sentence: "AFL", "netball", "touch football". */
+  sportName: string;
+  /** Where the kids play: "field" ("on field") or "court" ("on court"). */
+  surface: "field" | "court";
+  /** What starts play, after "when the": "siren goes", "umpire calls play", "ball goes up". */
+  startCue: string;
+  /** What ends a period: "siren", "whistle", "buzzer". */
+  endCue: string;
+}
+
+/** The decorative outline a shared screen draws for the sport's surface. */
+export type SurfaceArt =
+  | "oval"
+  | "netball-court"
+  | "rugby-field"
+  | "soccer-pitch"
+  | "futsal-court"
+  | "hockey-pitch"
+  | "basketball-court"
+  | "touch-field";
 
 // Forward-declared — the concrete Lineup shape lives in `@/lib/types`
 // and is imported into `SportConfig.validateLineup` where needed.
@@ -282,6 +376,12 @@ export interface SportConfig {
    * netball goals). League's doesn't, so its settings don't offer one.
    */
   teamSong: boolean;
+  /** The period break screen's zones, score line and low-time threshold. */
+  periodBreak: SportBreakSpec;
+  /** What shared screens call the surface and the start and end of play. */
+  words: SportWords;
+  /** The surface outline drawn behind the team home's "Next up" card. */
+  surfaceArt: SurfaceArt;
   /** Sport-specific event types layered on top of the base enum. */
   extraEventTypes?: string[];
   /**

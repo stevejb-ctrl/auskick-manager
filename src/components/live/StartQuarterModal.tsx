@@ -2,6 +2,7 @@
 
 import { SFButton } from "@/components/sf";
 import { Modal } from "@/components/ui/Modal";
+import { shortSideNote, type ShortSide } from "@/lib/live/shortSide";
 
 interface StartQuarterModalProps {
   quarter: number;
@@ -22,10 +23,30 @@ interface StartQuarterModalProps {
    */
   periodLabel?: "quarter" | "half" | "period";
   /**
-   * What the coach waits for before starting the clock. AFL and
-   * league: the siren. Netball passes "umpire calls play".
+   * The period's name in full, over the abbreviation: the period
+   * break's "Q3" or "2nd half" (lib/sports/break.ts).
    */
-  cue?: string;
+  periodName?: string;
+  /**
+   * What the coach waits for before starting the clock, from the
+   * sport's config (`words.startCue`): AFL's "siren goes", netball's
+   * "umpire calls play". No default: league was told to wait for a
+   * siren it doesn't have.
+   */
+  cue: string;
+  /**
+   * Rules the lineup breaks (the period break). Any at all turns this
+   * into "Start with N rules broken?": Start anyway, or Fix first (back
+   * to the lineup). Never a block.
+   */
+  brokenRules?: string[];
+  /** Rise from the bottom as a sheet (the period break) rather than centre. */
+  sheet?: boolean;
+  /**
+   * Kickoff's side: fewer on than the side's size reads "Playing 6 of
+   * 7" (more firmly under the age group's minimum). Never a block.
+   */
+  shortSide?: ShortSide;
 }
 
 /**
@@ -40,11 +61,17 @@ export function StartQuarterModal({
   onStart,
   onCancel,
   periodLabel = "quarter",
-  cue = "siren goes",
+  periodName,
+  cue,
+  brokenRules = [],
+  sheet = false,
+  shortSide,
 }: StartQuarterModalProps) {
-  const abbr = periodLabel.charAt(0).toUpperCase();
+  const name = periodName ?? `${periodLabel.charAt(0).toUpperCase()}${quarter}`;
+  const broken = brokenRules.length;
+  const short = shortSide ? shortSideNote(shortSide) : null;
   return (
-    <Modal>
+    <Modal placement={sheet ? "sheet" : "center"} label={broken ? `Start with ${broken} broken` : `Start ${name}`}>
       {/* The action keeps its name through the whole flow (UI polish
           audit §15): the button that opened this modal says "Start
           Q{n}" and the primary here used to rename itself to "Start
@@ -54,18 +81,33 @@ export function StartQuarterModal({
           the accessible name unique against the CTA behind the
           scrim. */}
       <h2 className="text-center text-lg font-bold text-ink">
-        Start {abbr}{quarter}
+        {broken ? `Start with ${broken} rule${broken === 1 ? "" : "s"} broken?` : `Start ${name}`}
       </h2>
+      {broken > 0 && (
+        <ul className="mt-2 space-y-1 text-center text-sm font-semibold text-danger">
+          {brokenRules.map((r) => (
+            <li key={r}>{r}</li>
+          ))}
+        </ul>
+      )}
+      {short && (
+        <p
+          className={`mt-2 text-center text-sm font-semibold ${short.belowMin ? "text-danger" : "text-warn"}`}
+          data-testid="short-side"
+        >
+          {short.text}
+        </p>
+      )}
       <p className="mt-1 text-center text-sm text-ink-dim">
         Tap when the {cue} — the clock starts then.
       </p>
       <div className="mt-4 space-y-2">
         <SFButton variant="accent" size="lg" full onClick={onStart} loading={loading}>
-          Start {abbr}{quarter} now
+          {broken ? "Start anyway" : `Start ${name} now`}
         </SFButton>
         {onCancel && (
           <SFButton variant="ghost" size="md" full onClick={onCancel} disabled={loading}>
-            Back to lineup
+            {broken ? "Fix first" : "Back to lineup"}
           </SFButton>
         )}
       </div>

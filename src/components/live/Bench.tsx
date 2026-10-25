@@ -3,7 +3,7 @@
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import type { Lineup, Player, Zone } from "@/lib/types";
 import type { ZoneMinutes } from "@/lib/fairness";
-import { PlayerTile, type TileCaption } from "@/components/live/PlayerTile";
+import { PlayerTile } from "@/components/live/PlayerTile";
 import type { ChipKey, ChipMode } from "@/lib/chips";
 
 interface BenchProps {
@@ -25,7 +25,6 @@ interface BenchProps {
   selectedPlayerId?: string | null;
   /** Dim bench tiles while another is selected (live only). */
   dimUnselected?: boolean;
-  captions?: Record<string, TileCaption>;
   chipModeByKey?: Partial<Record<ChipKey, ChipMode>>;
   /** Kids with a season keep-on role (lineup screens). */
   keepOnIds?: Set<string>;
@@ -47,7 +46,6 @@ export function Bench({
   lineup: lineupProp,
   selectedPlayerId,
   dimUnselected = true,
-  captions,
   chipModeByKey,
   keepOnIds,
 }: BenchProps) {
@@ -108,7 +106,6 @@ export function Bench({
                 loaned={loanedSet.has(pid)}
                 lockMode={lockedSet.has(pid) ? "field" : zoneLockedPlayers?.[pid] ? "zone" : null}
                 score={playerScores?.[pid]}
-                caption={captions?.[pid]}
                 chipModes={chipModeByKey}
                 keepOn={keepOnIds?.has(pid)}
               />

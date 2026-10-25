@@ -5,16 +5,33 @@ import { useRouter } from "next/navigation";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { Guernsey } from "@/components/sf";
 import { PulseDot } from "@/components/ui/PulseDot";
-import type { AvailabilityStatus, LiveAuth } from "@/lib/types";
+import type { ActionResult, AvailabilityStatus, LiveAuth } from "@/lib/types";
 
 interface AvailabilityRowProps {
-  auth: LiveAuth;
+  /** The team's or runner's auth, for the live write queue (not needed with onWrite). */
+  auth?: LiveAuth;
   gameId: string;
   playerId: string;
   playerName: string;
   jerseyNumber: number | null;
   status: AvailabilityStatus;
   canEdit: boolean;
+  /**
+   * Write the answer some other way than the team's live write queue:
+   * the parent availability link (/availability/[token]) answers with
+   * its own token-checked action. A refused answer rolls back and says
+   * why.
+   */
+  onWrite?: (next: AvailabilityStatus) => Promise<ActionResult>;
+  /** A small line under the name: "Replied" when a parent answered. */
+  note?: string;
+  /**
+   * A parent answering for their child: every tap is an answer, even on
+   * the side already shown (a new game starts everyone In, and the coach
+   * needs to see the parent confirmed it), and a kid nobody's answered
+   * for shows neither In nor Out.
+   */
+  answering?: boolean;
 }
 
 // Two-state availability: anything that isn't explicitly "available" is
@@ -51,6 +68,9 @@ export function AvailabilityRow({
   jerseyNumber,
   status,
   canEdit,
+  onWrite,
+  note,
+  answering = false,
 }: AvailabilityRowProps) {
   // Optimistic-flip state (perf phase 4a). Before this rework, the
   // handler awaited setAvailability inside startTransition — the
@@ -66,6 +86,7 @@ export function AvailabilityRow({
   const router = useRouter();
   const [optimistic, setOptimistic] = useState<AvailabilityStatus | null>(null);
   const isPending = optimistic !== null;
+  const [writeError, setWriteError] = useState<string | null>(null);
 
   // When the server-known `status` prop catches up to (or past) the
   // optimistic guess, clear the optimistic state so we go back to
@@ -77,6 +98,9 @@ export function AvailabilityRow({
   }, [status, optimistic]);
 
   const shownStatus: AvailabilityStatus = optimistic ?? status;
+  // Two-state for the coach ("unknown" reads Out); a parent answering
+  // sees an unanswered kid as neither.
+  const isOut = answering ? shownStatus === "unavailable" : shownStatus !== "available";
 
   // Post-write flash. `flashKey` is bumped whenever the SHOWN
   // status changes — the absolutely-positioned overlay span is
@@ -98,12 +122,27 @@ export function AvailabilityRow({
     // Tapping the already-active side is a no-op — the control shows
     // state and takes the tap in one place.
     const isIn = shownStatus === "available";
-    if ((next === "available") === isIn) return;
+    if (!answering && (next === "available") === isIn) return;
     // Snapshot the server-known status for rollback. Don't snapshot
     // `shownStatus` — if a previous optimistic flip is still
     // pending, we want to fall back to the real server value.
     const rollback = status;
     setOptimistic(next);
+    setWriteError(null);
+    if (onWrite) {
+      onWrite(next)
+        .then((res) => {
+          if (!res.success) {
+            setOptimistic(null);
+            setWriteError(res.error);
+            return;
+          }
+          router.refresh();
+        })
+        .catch(() => setOptimistic(null));
+      return;
+    }
+    if (!auth) return;
     const { flushed } = enqueueLiveAction("setAvailability", [
       auth,
       gameId,
@@ -146,7 +185,15 @@ export function AvailabilityRow({
       )}
       <div className="relative flex min-w-0 items-center gap-3">
         {jerseyNumber != null && <Guernsey num={jerseyNumber} size={32} />}
-        <span className="truncate text-sm font-medium text-ink">{playerName}</span>
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-medium text-ink">{playerName}</span>
+          {note && <span className="block text-[11px] font-medium text-ok">{note}</span>}
+          {writeError && (
+            <span className="block text-[11px] text-danger" role="alert">
+              {writeError}
+            </span>
+          )}
+        </span>
       </div>
       {/* relative so the control paints ABOVE the absolutely-
           positioned flash overlay. Without this the content sits
@@ -183,9 +230,9 @@ export function AvailabilityRow({
               type="button"
               onClick={() => handleSet("unavailable")}
               disabled={isPending}
-              aria-pressed={shownStatus !== "available"}
+              aria-pressed={isOut}
               className={`border-l border-hairline px-4 py-2.5 text-xs font-semibold transition-colors ${
-                shownStatus !== "available"
+                isOut
                   ? "bg-ink-dim text-white"
                   : "bg-surface text-ink-dim hover:bg-surface-alt"
               }`}

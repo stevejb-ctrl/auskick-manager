@@ -5,6 +5,7 @@
 // or a boy: a girl's try counts in points, not as a kind of try.
 
 import type { GameEvent } from "@/lib/types";
+import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { replayTouchGame, touchGameMs } from "@/lib/sports/touch/replay";
 
 export interface TouchSeasonPlayerStats {
@@ -30,31 +31,45 @@ export interface TouchSeasonAggregate {
     draws: number;
     losses: number;
   };
+  /** Every kid who came, at 0 if they never got on (UX round 2). */
   perPlayer: Record<string, TouchSeasonPlayerStats>;
+  /** Tries nobody was named for, and their points: with the kids', points for. */
+  noScorer: { tries: number; points: number };
 }
 
 /** The season so far, from each finished game's events. */
 export function aggregateTouchSeason(
   games: readonly { id: string }[],
   eventsByGame: ReadonlyMap<string, GameEvent[]> | Readonly<Record<string, GameEvent[]>>,
+  /**
+   * Whether a game kept score (lib/results scoresKept). A game that didn't
+   * counts as played, but not as a result: no draw, no goals against.
+   */
+  keptScore: (gameId: string) => boolean = () => true,
 ): TouchSeasonAggregate {
   const eventsOf = (id: string): GameEvent[] =>
     (eventsByGame instanceof Map ? eventsByGame.get(id) : (eventsByGame as Record<string, GameEvent[]>)[id]) ?? [];
   const out: TouchSeasonAggregate = {
     totals: { games: 0, pointsFor: 0, pointsAgainst: 0, wins: 0, draws: 0, losses: 0 },
     perPlayer: {},
+    noScorer: { tries: 0, points: 0 },
   };
   for (const game of games) {
     const state = replayTouchGame(eventsOf(game.id));
     const t = out.totals;
     t.games++;
-    t.pointsFor += state.teamScore.points;
-    t.pointsAgainst += state.opponentScore.points;
-    if (state.teamScore.points > state.opponentScore.points) t.wins++;
-    else if (state.teamScore.points < state.opponentScore.points) t.losses++;
-    else t.draws++;
+    if (keptScore(game.id)) {
+      t.pointsFor += state.teamScore.points;
+      t.pointsAgainst += state.opponentScore.points;
+      if (state.teamScore.points > state.opponentScore.points) t.wins++;
+      else if (state.teamScore.points < state.opponentScore.points) t.losses++;
+      else t.draws++;
+      const sum = (byKid: Record<string, number>) => Object.values(byKid).reduce((s, n) => s + n, 0);
+      out.noScorer.tries += state.teamScore.tries - sum(state.playerTries);
+      out.noScorer.points += state.teamScore.points - sum(state.playerPoints);
+    }
 
-    const ids = new Set([...Object.keys(state.ms), ...Object.keys(state.playerTries)]);
+    const ids = new Set([...presentPlayerIds(eventsOf(game.id)), ...Object.keys(state.ms), ...Object.keys(state.playerTries)]);
     ids.forEach((pid) => {
       const row = (out.perPlayer[pid] ??= {
         playerId: pid,

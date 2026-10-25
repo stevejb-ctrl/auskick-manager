@@ -3,10 +3,14 @@
 // replayed game, under the sport's own emoji (⚽, or hockey's 🏑): the
 // result (only when scoring is on: MiniRoos records
 // none), the goal scorers, then each kid's game time with their time in
-// goal, and the kids who were here but didn't get on.
+// goal, and the kids who were here but didn't get on. Goals nobody was
+// named for close the scorers ("+1 goal (no scorer)"), as touch's tries
+// do, so the list adds up to the score.
 
 import type { Player } from "@/lib/types";
+import { shortName, shortNames } from "@/lib/names";
 import { DIDNT_GET_ON, didntGetOn } from "@/lib/live/presentPlayers";
+import { byJerseyThenName } from "@/lib/share/neutralOrder";
 import { soccerGameMs, type SoccerGameState } from "@/lib/sports/soccer/replay";
 
 function fmtMs(ms: number): string {
@@ -31,7 +35,9 @@ export interface SoccerSummaryInput {
 export function buildSoccerSummary(input: SoccerSummaryInput): string {
   const { emoji, teamName, opponentName, trackScoring, state, squad, presentIds } = input;
   const byId = new Map(squad.map((p) => [p.id, p]));
-  const first = (p: Player | undefined) => (p ? p.full_name.trim().split(/\s+/)[0] : "Unknown");
+  // Two Mias read "Mia C" and "Mia T" (the number is printed beside them).
+  const short = shortNames(squad, "first", { numberShown: true });
+  const first = (p: Player | undefined) => (p ? short.get(p.id) ?? shortName(p.full_name) : "Unknown");
   const jersey = (p: Player | undefined) => (p?.jersey_number != null ? `#${p.jersey_number} ` : "");
   const lines: string[] = [`${emoji} Full time — ${teamName} v ${opponentName}`];
 
@@ -49,24 +55,26 @@ export function buildSoccerSummary(input: SoccerSummaryInput): string {
         const p = byId.get(id);
         return `${first(p)}${p?.jersey_number != null ? ` (#${p.jersey_number})` : ""}${n > 1 ? ` ×${n}` : ""}`;
       });
+    const unnamed = us - Object.values(state.playerGoals).reduce((s, n) => s + n, 0);
+    if (unnamed > 0) scorers.push(`+${unnamed} ${unnamed === 1 ? "goal" : "goals"} (no scorer)`);
     if (scorers.length > 0) lines.push(`\n${emoji} Goals: ${scorers.join(", ")}`);
   }
 
   const played = Object.keys(state.ms)
     .map((id) => ({ id, ms: soccerGameMs(state, id), gk: state.ms[id]?.gk ?? 0 }))
-    .filter((r) => r.ms >= 1000)
-    .sort((a, b) => b.ms - a.ms);
+    .filter((r) => r.ms >= 1000);
   const rows = played.map(({ id, ms, gk }) => {
     const p = byId.get(id);
-    return `${jersey(p)}${first(p)} — ${fmtMs(ms)}${gk >= 1000 ? ` (in goal ${fmtMs(gk)})` : ""}`;
+    return { id, text: `${jersey(p)}${first(p)} — ${fmtMs(ms)}${gk >= 1000 ? ` (in goal ${fmtMs(gk)})` : ""}` };
   });
   for (const id of didntGetOn(presentIds, played.map((r) => r.id))) {
     const p = byId.get(id);
-    if (p) rows.push(`${jersey(p)}${first(p)} — ${DIDNT_GET_ON}`);
+    if (p) rows.push({ id, text: `${jersey(p)}${first(p)} — ${DIDNT_GET_ON}` });
   }
   if (rows.length > 0) {
     lines.push(`\n⏱ Game time`);
-    lines.push(...rows);
+    // By number, never by minutes: this goes to every parent.
+    lines.push(...rows.sort(byJerseyThenName((r) => byId.get(r.id))).map((r) => r.text));
   }
   return lines.join("\n");
 }

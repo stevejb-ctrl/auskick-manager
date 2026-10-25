@@ -10,11 +10,13 @@ import { Label } from "@/components/ui/Label";
 import { getSportConfig, isTouch, periodLabels } from "@/lib/sports";
 import { Toggle } from "@/components/ui/Toggle";
 import { mixedRuleSummary } from "@/lib/sports/touch/mixed";
+import { playersOnSurfaceLabel } from "@/lib/sports/words";
 import type { TouchAgeGroupConfig } from "@/lib/sports/touch/types";
 import { PERIOD_MINUTES_MAX, teamOnFieldSize } from "@/lib/games/newGameDefaults";
 import { isBetaSport } from "@/lib/siren-facts";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Sport } from "@/lib/types";
+import { TEAM_NAME_MAX, teamNameError } from "@/lib/strings";
 
 interface TeamBasicsFormProps {
   userId: string;
@@ -138,8 +140,9 @@ export function TeamBasicsForm({
     e.preventDefault();
     setError(null);
 
-    if (!name.trim()) {
-      setError("Team name is required.");
+    const nameError = teamNameError(name);
+    if (nameError) {
+      setError(nameError);
       return;
     }
     const minutes = Number(periodMinutes);
@@ -276,6 +279,7 @@ export function TeamBasicsForm({
         <Input
           id="team-name"
           type="text"
+          maxLength={TEAM_NAME_MAX}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder={NAME_EXAMPLE[sport]}
@@ -306,7 +310,7 @@ export function TeamBasicsForm({
       <div className="space-y-2">
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <Label htmlFor="team-on-field">Players on the field</Label>
+            <Label htmlFor="team-on-field">{playersOnSurfaceLabel(sport)}</Label>
             <select
               id="team-on-field"
               value={players}

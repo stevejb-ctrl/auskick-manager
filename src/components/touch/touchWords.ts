@@ -6,6 +6,7 @@
 
 import type { TileLineStyle } from "@/components/live/LinePlayerTile";
 import type { TouchLine, TouchStrategy } from "@/lib/sports/touch/types";
+import { ZONE_STRIP } from "@/components/live/zoneStrip";
 
 /** Each lane's short label, as the tile and the swap strip print it. */
 export const TOUCH_LINE_SHORT: Record<TouchLine, string> = { middle: "M", link: "L", wing: "W", field: "" };
@@ -28,21 +29,21 @@ export const TOUCH_TILE_STYLES: Record<TouchLine, TileLineStyle> = {
     label: "Middles",
     textClass: "text-zone-c",
     fillClass: "bg-zone-c-fill",
-    stripClass: "border-zone-c/40 bg-zone-c/15 text-zone-c",
+    stripClass: ZONE_STRIP.c,
   },
   link: {
     short: "L",
     label: "Links",
     textClass: "text-zone-b",
     fillClass: "bg-zone-b-fill",
-    stripClass: "border-zone-b/40 bg-zone-b/15 text-zone-b",
+    stripClass: ZONE_STRIP.b,
   },
   wing: {
     short: "W",
     label: "Wings",
     textClass: "text-zone-f",
     fillClass: "bg-zone-f-fill",
-    stripClass: "border-zone-f/40 bg-zone-f/15 text-zone-f",
+    stripClass: ZONE_STRIP.f,
   },
   field: {
     short: "",
@@ -86,4 +87,28 @@ export const TOUCH_SUB_DUE_HINT = "make the change next time you have the ball";
 export function touchTryChip(tries: number | undefined): { text: string; label: string } | null {
   if (!tries || tries <= 0) return null;
   return { text: `${tries}T`, label: `${tries} ${tries === 1 ? "try" : "tries"}` };
+}
+
+/** One of the opponent's try chips. */
+export interface TouchOpponentChip {
+  key: "try" | "girls";
+  /** A girl's try (Oztag mixed: 2 points). */
+  girl: boolean;
+  text: string;
+  /** A small word under the text ("girl"). */
+  sub?: string;
+  /** Spoken label ("Add a girl's try, 2 points, Sharks"). */
+  label: string;
+}
+
+/**
+ * The opponent's try chips, in the same words on the scorebug, the
+ * break's score editor and full time: "+T", as ours reads, and on an
+ * Oztag mixed team a girl's try, "+2" marked girl. We never know their
+ * scorer, so theirs is the only side with a girl's chip.
+ */
+export function touchOpponentChips(girlsTryDouble: boolean, opponentName: string): TouchOpponentChip[] {
+  const tryChip: TouchOpponentChip = { key: "try", girl: false, text: "+T", label: `Add a try, ${opponentName}` };
+  if (!girlsTryDouble) return [tryChip];
+  return [tryChip, { key: "girls", girl: true, text: "+2", sub: "girl", label: `Add a girl's try, 2 points, ${opponentName}` }];
 }

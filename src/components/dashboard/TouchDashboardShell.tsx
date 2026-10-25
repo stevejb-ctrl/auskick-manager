@@ -3,8 +3,10 @@
 // league, soccer and basketball dashboards (header with the season
 // picker, a totals strip, season balance, the player table), so a coach
 // coming from another sport finds it where they expect. The touch
-// family's own numbers: tries, the result (when scoring is on), minutes,
-// and time in each lane (the position strategies). A mixed team's note
+// family's own numbers: tries and points (when scoring is on), the
+// result, minutes, and time in each lane (the position strategies). Tries
+// nobody was named for get their own row, so the points add up to points
+// for (a girl's try is worth 2 in Oztag). A mixed team's note
 // says boys and girls are evened separately; no kid's group is shown.
 
 import { SeasonBalanceSection, type SeasonBalanceSectionProps } from "./SeasonBalanceGrid";
@@ -58,9 +60,14 @@ export function TouchDashboardShell({
     );
   }
 
-  const rows = Object.values(aggregate.perPlayer).sort(
-    (a, b) => b.gamesPlayed - a.gamesPlayed || (playerNames[a.playerId] ?? "").localeCompare(playerNames[b.playerId] ?? ""),
-  );
+  // A squad kid who came but never got on is listed at 0, so the coach
+  // sees who missed out (UX round 2, 24 Oct 2026); a fill-in only once
+  // they've played.
+  const rows = Object.values(aggregate.perPlayer)
+    .filter((r) => r.gamesPlayed > 0 || playerNames[r.playerId] !== undefined)
+    .sort(
+      (a, b) => b.gamesPlayed - a.gamesPlayed || (playerNames[a.playerId] ?? "").localeCompare(playerNames[b.playerId] ?? ""),
+    );
   const t = aggregate.totals;
 
   return (
@@ -96,6 +103,7 @@ export function TouchDashboardShell({
               <Th>Mins</Th>
               {withLanes && <Th>M · L · W</Th>}
               {trackScoring && <Th>Tries</Th>}
+              {trackScoring && <Th>Pts</Th>}
             </tr>
           </thead>
           <tbody>
@@ -106,9 +114,22 @@ export function TouchDashboardShell({
                 <Td>{fmtMins(r.ms)}</Td>
                 {withLanes && <Td>{`${fmtMins(r.middleMs)} · ${fmtMins(r.linkMs)} · ${fmtMins(r.wingMs)}`}</Td>}
                 {trackScoring && <Td>{r.tries || "—"}</Td>}
+                {trackScoring && <Td>{r.points || "—"}</Td>}
               </tr>
             ))}
           </tbody>
+          {trackScoring && aggregate.noScorer.tries > 0 && (
+            <tfoot>
+              <tr className="border-t border-hairline text-ink-dim">
+                <Td className="text-left">No scorer</Td>
+                <Td>—</Td>
+                <Td>—</Td>
+                {withLanes && <Td>—</Td>}
+                <Td>{aggregate.noScorer.tries}</Td>
+                <Td>{aggregate.noScorer.points}</Td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </section>
     </div>

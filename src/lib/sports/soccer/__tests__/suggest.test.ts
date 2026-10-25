@@ -17,6 +17,7 @@ import {
 } from "@/lib/sports/soccer/suggest";
 import { SOCCER_WINDOWS_PRESET } from "@/lib/sports/soccer";
 import { MIN, SEVEN, game } from "./soccerGame";
+import { soccerKeeperPrefs } from "@/lib/sports/soccer/playbook";
 
 const NINE_KIDS = ["k1", "k2", "k3", "k4", "k5", "k6", "k7", "k8", "k9"];
 const U9 = soccerFamilyAgeGroup("soccer", "U9");
@@ -176,7 +177,7 @@ describe("suggestSoccerRollingSub", () => {
     for (let minute = 2; minute < 20; minute += 2) {
       const state = replaySoccerGame(g.events, { nowMs: minute * MIN });
       const sub = suggestSoccerRollingSub({ state, nowMs: minute * MIN, minStintMs: 4 * MIN });
-      if (sub) g.swap(sub.off_player_id, sub.on_player_id, minute);
+      if (sub) g.swap(sub.off_player_id!, sub.on_player_id, minute);
     }
     g.end(1, 20);
     const s = replaySoccerGame(g.events);
@@ -219,7 +220,7 @@ describe("suggestSoccerWindowBatch", () => {
     expect(batch.map((s) => s.on_player_id)).toEqual(["b1", "m3"]);
     for (const sub of batch) {
       expect(sub.off_player_id).not.toBe("k");
-      expect(soccerUnitOf(live.state.lineup as SoccerLineup, sub.off_player_id)).toBe(sub.line);
+      expect(soccerUnitOf(live.state.lineup as SoccerLineup, sub.off_player_id!)).toBe(sub.line);
     }
     expect(new Set(batch.map((s) => s.off_player_id)).size).toBe(2);
   });
@@ -326,5 +327,75 @@ describe("suggestSoccerHalfTime", () => {
 
   it("needs a lineup", () => {
     expect(suggestSoccerHalfTime({ state: replaySoccerGame([]), ageGroup: U9, onFieldSize: 7 })).toBeNull();
+  });
+});
+
+// Steve 2026-10-22: "For soccer … you can go forward and backs or further
+// tailor it." A kid's "Plays as" lines are stored as never rows for the
+// rest (notInLine); every suggester keeps them to those lines.
+describe("plays as: the lines a kid plays", () => {
+  it("seats a kid only in the lines they play at kick-off", () => {
+    // k2 and k3 would start in defence; k2 plays attack only.
+    const { lineup } = suggestSoccerLineup({
+      ageGroup: U9,
+      onFieldSize: 7,
+      players: NINE_KIDS,
+      prefs: { notInLine: { k2: ["def", "mid"] } },
+    });
+    expect(lineup.lines.att).toContain("k2");
+  });
+
+  it("brings a kid on only for a line they play (rolling sub and window batch)", () => {
+    // b1 plays attack only, so comes on for a1, not d1 (first in line).
+    const live = inPlay(6);
+    const prefs = { notInLine: { b1: ["def", "mid"] as const } };
+    expect(suggestSoccerRollingSub({ ...live, prefs })).toEqual({ off_player_id: "a1", on_player_id: "b1", line: "att" });
+    const batch = suggestSoccerWindowBatch({ state: live.state, nowMs: live.nowMs, prefs });
+    expect(batch.find((s) => s.on_player_id === "b1")?.line).toBe("att");
+  });
+
+  it("plans the next half with each kid in the lines they play", () => {
+    const g = game();
+    g.lineup(SEVEN);
+    g.start(1);
+    g.end(1, 20);
+    const plan = suggestSoccerHalfTime({
+      state: replaySoccerGame(g.events),
+      ageGroup: U9,
+      onFieldSize: 7,
+      prefs: { notInLine: { d1: ["def", "mid"] } },
+    });
+    if (plan!.lineup.keeper !== "d1" && !plan!.lineup.bench.includes("d1")) expect(plan!.lineup.lines.att).toContain("d1");
+  });
+
+  it("picks a shape every kid's Plays as fits when the team hasn't picked one", () => {
+    // Futsal's default 2-2 has no wings: a Wings-only kid was put at
+    // Front. The diamond (1-2-1) has wings.
+    const futsalU10 = soccerFamilyAgeGroup("futsal", "U10");
+    const kids = ["f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8"];
+    const wings = { notInLine: { f2: ["def", "att"] as const } };
+    const fits = suggestSoccerLineup({ ageGroup: futsalU10, onFieldSize: 5, players: kids, prefs: wings });
+    expect(fits.formation.id).toBe("1-2-1");
+    expect(fits.lineup.lines.mid).toContain("f2");
+    // The kid's on the bench at kick-off: rolling subs bring them on
+    // only for a line they play, so the shape still needs wings.
+    const later = suggestSoccerLineup({ ageGroup: futsalU10, onFieldSize: 5, players: kids, prefs: { notInLine: { f8: ["def", "att"] } } });
+    expect(later.lineup.bench).toContain("f8");
+    expect(later.formation.id).toBe("1-2-1");
+    // No roles: the default. A shape the team picked is theirs to keep.
+    expect(suggestSoccerLineup({ ageGroup: futsalU10, onFieldSize: 5, players: kids }).formation.id).toBe("2-2");
+    expect(suggestSoccerLineup({ ageGroup: futsalU10, onFieldSize: 5, players: kids, prefs: wings, formationId: "3-1" }).formation.id).toBe("3-1");
+    // Nothing fits (three on court plays 1-1, no wings): the default.
+    expect(suggestSoccerLineup({ ageGroup: futsalU10, onFieldSize: 3, players: kids, prefs: wings }).formation.id).toBe("1-1");
+  });
+
+  it("reads the lines a kid doesn't play from their role", () => {
+    expect(
+      soccerKeeperPrefs([
+        { player_id: "k1", position_key: null, line: "def", kind: "never", rank: null },
+        { player_id: "k1", position_key: null, line: "mid", kind: "never", rank: null },
+        { player_id: "k2", position_key: null, line: "gk", kind: "never", rank: null },
+      ]).notInLine,
+    ).toEqual({ k1: ["def", "mid"] });
   });
 });

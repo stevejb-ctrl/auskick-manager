@@ -16,7 +16,9 @@
 //     empty; we still gate the row mount on candidates.length to
 //     skip the row chrome when only the LateArrival affordance
 //     would be relevant but has nothing left to surface.
-//   - ResetGameButton is admin-gated by the caller via `isAdmin`.
+//   - ResetGameButton is admin-gated by the caller via `isAdmin`, and
+//     never shown on a game-day link (resetGame refuses one: the link
+//     is shared in group chats, UX round 2).
 //
 // The "+G/+B" record-score floating dock (z-40) and sticky-bottom
 // scorebug (z-30) overlay this row when active, so it stays
@@ -43,24 +45,32 @@ interface LiveAdminUtilityRowProps {
   auth: LiveAuth;
   /** Game id threaded to ResetGameButton. */
   gameId: string;
-  /** True when the user has admin rights (renders the destructive reset button). */
+  /** True when the user has admin rights (renders the destructive reset button; never for a game-day link). */
   isAdmin?: boolean;
+  /**
+   * The Game settings button (the sub interval mid-game): a standard
+   * slot, between late arrival and Restart. Every sport with a sub
+   * interval passes one — AFL, soccer's family and basketball
+   * `<LiveGameSettingsButton>`; netball has none. UX audit 23 Oct
+   * 2026: soccer's family and basketball had no way to change it.
+   */
+  settings?: ReactNode;
   /**
    * Optional extra action(s) rendered in the same row alongside
    * Late-arrival + Reset. Composed by the caller so sport-specific
    * affordances don't have to be plumbed through this shared shell.
-   * Steve 2026-05-20: AFL passes `<LiveGameSettingsButton>`,
-   * rugby league passes `<LeagueGameSettingsButton>`; netball
-   * passes nothing (no sub-interval concept).
+   * Rugby league passes `<LeagueGameSettingsButton>` here (to move
+   * to `settings`).
    *
-   * When `extra` is the ONLY thing renderable (no late candidates,
-   * not admin), the row still mounts so the extra slot can surface.
+   * When `extra` or `settings` is the ONLY thing renderable (no late
+   * candidates, not admin), the row still mounts so it can surface.
    */
   extra?: ReactNode;
   /**
-   * The game is finalised: no Restart and no `extra` (settings for a
-   * game that's over). Restart stays on the game page's More menu for
-   * team admins; a runner link can't wipe a finished game.
+   * The game is finalised: no late arrival (nobody arrives at a game
+   * that's over — UX audit 23 Oct 2026), no Restart and no settings.
+   * Restart stays on the game page's More menu for team admins; a
+   * runner link can't wipe a finished game.
    */
   finished?: boolean;
 }
@@ -72,17 +82,19 @@ export function LiveAdminUtilityRow({
   auth,
   gameId,
   isAdmin: isAdminProp = false,
+  settings: settingsProp,
   extra: extraProp,
   finished = false,
 }: LiveAdminUtilityRowProps) {
-  const showLate = candidates.length > 0;
-  const isAdmin = isAdminProp && !finished;
+  const showLate = candidates.length > 0 && !finished;
+  const isAdmin = isAdminProp && !finished && auth.kind !== "token";
+  const settings = finished ? null : settingsProp;
   const extra = finished ? null : extraProp;
   // Row mounts whenever ANY slot has content — extra now joins
   // late-candidates and isAdmin in the "is there anything to show"
   // gate so the Game-settings button (AFL or RL) surfaces even on
   // a non-admin / no-late-arrivals render.
-  if (!showLate && !isAdmin && !extra) return null;
+  if (!showLate && !isAdmin && !settings && !extra) return null;
   return (
     <div className="flex items-center justify-center gap-3 border-t border-hairline pt-4">
       {showLate && (
@@ -92,6 +104,7 @@ export function LiveAdminUtilityRow({
           pending={lateArrivalPending}
         />
       )}
+      {settings}
       {extra}
       {isAdmin && <ResetGameButton auth={auth} gameId={gameId} />}
     </div>

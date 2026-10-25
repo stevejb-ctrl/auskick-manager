@@ -34,6 +34,7 @@
 // the squad page.
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useKeptSetting } from "@/components/lineup/useKeptSetting";
 import { useRouter } from "next/navigation";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
 import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
@@ -54,6 +55,7 @@ import {
   seasonVestCountsByPlayer,
   suggestLeagueLineup,
   suggestVestRotation,
+  unbrokenPeriodsRequired,
 } from "@/lib/sports/rugby_league/fairness";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type {
@@ -67,6 +69,7 @@ import { LeagueField } from "./LeagueField";
 import { LeagueBenchStrip } from "./LeagueBenchStrip";
 
 import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_league/engine";
+import { vestStartBlocker } from "@/lib/sports/rugby_league/vests";
 import { linePositionOrder } from "@/lib/sports/rugby/fieldPositions";
 import { useRoleSheet, type RoleSheetConfig } from "@/components/playbook/useRoleSheet";
 import { GamePlanButton, type GamePlanButtonProps } from "@/components/game-plan/GamePlanButton";
@@ -74,8 +77,12 @@ import { keepOnIds } from "@/components/playbook/KeepOnMarker";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { pinLaterPeriods, withPinnedPeriods } from "@/lib/game-plan";
 import { SUB_MINUTES_MAX, SUB_MINUTES_MIN, subMinutesFrom } from "@/lib/live/subCadence";
-import { periodLabels, type RugbySport } from "@/lib/sports";
+import { getSportConfig, periodLabels, type RugbySport } from "@/lib/sports";
+import { onSurfaceLabel } from "@/lib/sports/words";
 import { rugbyForwards } from "@/lib/sports/rugby/lines";
+import { seasonLoanMinutes } from "@/lib/fairness";
+import { squadLoanAverage } from "@/lib/live/liveChrome";
+import { noteLiveResult } from "@/lib/live/liveSync";
 // Sub-minute formula from the previous picker — kept inline so the
 // spike doesn't fan-out into shared modules until we know it
 // sticks. RL §6 lock minutes are subtracted from rotateable time
@@ -110,13 +117,6 @@ interface LeagueLineupPickerProps {
   maxOnFieldSize: number;
   initialDraft?: { lineup: LeagueLineup; updated_at: string } | null;
   availabilityHref?: string | null;
-  /**
-   * Junior League §6 (unbroken periods) is opt-in per team / game
-   * (enforce_unbroken_periods). When off, the suggester and the sub
-   * interval ignore the age group's minUnbrokenPeriods (UX plan H7 —
-   * the flag used to be stored but never read here).
-   */
-  enforceUnbrokenPeriods?: boolean;
   /** First-visit tour offer (LeagueWalkthroughOffer), shown under the breadcrumb. */
   walkthroughOffer?: React.ReactNode;
   /** Game-day "Who's here" panel, shown under the breadcrumb. */
@@ -168,7 +168,6 @@ export function LeagueLineupPicker({
   maxOnFieldSize,
   initialDraft,
   availabilityHref,
-  enforceUnbrokenPeriods = false,
   walkthroughOffer,
   availabilityPanel,
   gamePlan,
@@ -222,7 +221,9 @@ export function LeagueLineupPicker({
 
   // ── Game settings collapsible state ─────────────────────────
   const [gameSettingsOpen, setGameSettingsOpen] = useState(false);
-  const [onFieldSize, setOnFieldSize] = useState(defaultOnFieldSize);
+  // Kept through a Who's here change (useKeptSetting): the picker
+  // remounts with a fresh suggestion at the coach's size.
+  const [onFieldSize, setOnFieldSize] = useKeptSetting(gameId, "onFieldSize", defaultOnFieldSize);
   const [lineupMode, setLineupMode] = useState<"suggested" | "manual">(() =>
     initialDraft ? "manual" : "suggested",
   );
@@ -236,17 +237,16 @@ export function LeagueLineupPicker({
     () => seasonVestCountsByPlayer(seasonEvents),
     [seasonEvents],
   );
-  const requiredUnbroken = enforceUnbrokenPeriods
-    ? (ageGroup.minUnbrokenPeriods ?? 0)
-    : 0;
+  // §6 wherever the grade plays it: the laws, with no switch.
+  const requiredUnbroken = unbrokenPeriodsRequired(ageGroup);
 
   // ── Initial suggestion ──────────────────────────────────────
   const initialSuggestion = useMemo(
     () =>
       suggestLeagueLineup({
         players: playersForLineup,
-        defaultOnFieldSize,
-        forwardCount: rugbyForwards(ageGroup, defaultOnFieldSize),
+        defaultOnFieldSize: onFieldSize,
+        forwardCount: rugbyForwards(ageGroup, onFieldSize),
         seasonEvents,
         requiredUnbrokenPeriods: requiredUnbroken,
         vestRequirements: reqs,
@@ -318,7 +318,9 @@ export function LeagueLineupPicker({
       gameMinutes,
       unbrokenLockedMinutes,
     );
-  const [subMinInput, setSubMinInput] = useState<string>(
+  const [subMinInput, setSubMinInput] = useKeptSetting<string>(
+    gameId,
+    "subMinutes",
     String(suggestedSubMin),
   );
   const subIntervalSeconds = Math.round(subMinutesFrom(subMinInput, suggestedSubMin) * 60);
@@ -366,6 +368,8 @@ export function LeagueLineupPicker({
     if (backIds.includes(id)) return "back";
     return null;
   };
+  // The long-press sheet's lent minutes: the season's other games.
+  const loanMins = useMemo(() => seasonLoanMinutes(seasonEvents), [seasonEvents]);
 
   // Pre-game vest preview (no events yet — just the period-1
   // picks) so LeagueField can render the FR/DH badges.
@@ -947,12 +951,8 @@ export function LeagueLineupPicker({
       setError(`Pick a Dummy Half — required at ${ageGroup.label}.`);
       return;
     }
-    if (fieldIds.length < minOnFieldSize) {
-      const proceed = window.confirm(
-        `Only ${fieldIds.length} players on the field — recommended minimum for ${ageGroup.label} is ${minOnFieldSize}. Proceed anyway?`,
-      );
-      if (!proceed) return;
-    }
+    // Under the minimum: the kickoff confirm says so (shortSide), as in
+    // every sport, instead of a browser confirm.
     // Reset scrolled ancestors before kickoff so the live view
     // lands at the top of the DeviceFrame on the public /run demo.
     // See LeagueLiveGame.handleStartNextPeriod for the full
@@ -986,6 +986,8 @@ export function LeagueLineupPicker({
         vestPlan,
         subIntervalSeconds,
       );
+      // Refused because another phone already started: say so over the page.
+      noteLiveResult(result);
       if (!result.success) {
         setError(result.error ?? "Couldn't start the game.");
         setStartModalOpen(false);
@@ -1448,6 +1450,7 @@ export function LeagueLineupPicker({
       <LineupPickerFooter
         onFieldCount={fieldIds.length}
         benchCount={benchIds.length}
+        onFieldLabel={onSurfaceLabel(sport)}
         onSavePlan={
           auth.kind === "team" ? () => void handleSavePlan() : undefined
         }
@@ -1459,6 +1462,11 @@ export function LeagueLineupPicker({
           `Start ${periodLabels(sport, ageGroup).label.charAt(0).toUpperCase()}1`
         }
         confirmDisabled={confirmDisabled}
+        confirmHint={
+          fieldIds.length > 0
+            ? vestStartBlocker({ onField: fieldIds.length, required: reqs, fr: frId, dh: dhId })
+            : null
+        }
         confirmLoading={isPending}
       />
 
@@ -1467,11 +1475,13 @@ export function LeagueLineupPicker({
         <LockModal
           player={actionPlayer}
           currentLock={null}
-          currentZone={null}
+          // The kid's line (on the field), and the season's lent minutes,
+          // as the live sheet has.
+          currentLine={zoneOf(actionPlayer.id) ? (zoneOf(actionPlayer.id) === "forward" ? "Forwards" : "Backs") : null}
           isInjured={false}
           isLoaned={false}
-          seasonLoanMins={0}
-          squadLoanMins={0}
+          seasonLoanMins={loanMins[actionPlayer.id] ?? 0}
+          squadLoanMins={squadLoanAverage(loanMins)}
           onUnlock={() => setActionSheetPlayerId(null)}
           onSwitch={handleActionSwitch}
           // "Move to {Forwards/Backs}" hidden from the long-press
@@ -1506,6 +1516,8 @@ export function LeagueLineupPicker({
         <StartQuarterModal
           quarter={1}
           periodLabel={periodLabels(sport, ageGroup).label}
+          shortSide={{ playing: fieldIds.length, size: defaultOnFieldSize, min: minOnFieldSize }}
+          cue={getSportConfig(sport).words.startCue}
           loading={isPending}
           onStart={handleConfirmStart}
           onCancel={() => setStartModalOpen(false)}

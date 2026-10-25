@@ -15,10 +15,12 @@
 // moving soccer's and basketball's onto it is a follow-up, as with
 // lib/live/rollingSubs.ts.
 
-import { memo, useEffect, useRef, useState, type ReactNode } from "react";
+import { memo, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { Player } from "@/lib/types";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
+import { useSquadNames } from "@/components/live/SquadNames";
+import { KeepOnMarker } from "@/components/playbook/KeepOnMarker";
 
 /** How a sport draws one of its lines on a tile. */
 export interface TileLineStyle {
@@ -40,11 +42,6 @@ export interface LineTileSwap {
   /** Where a bench kid is going on (a line key the style map knows). */
   line?: string;
   totalPairs?: number;
-}
-
-export interface LineTileCaption {
-  text: string;
-  tone: "move" | "stay";
 }
 
 export interface LinePlayerTileProps {
@@ -69,11 +66,23 @@ export interface LinePlayerTileProps {
   lockMode?: "field" | "zone" | null;
   /** The scoring chip ("2T"), with its spoken label; omitted for none. */
   score?: { text: string; label: string } | null;
-  caption?: LineTileCaption | null;
   /** The sub card is in its SUB DUE state (AFL's due ring and tint). */
   swapDue?: boolean;
   /** A sport's own status chip after the score (basketball's fouls). */
   extraChip?: ReactNode;
+  /** Named positions: the kid's position ("HK") in place of the line's label. */
+  positionLabel?: string | null;
+  /** Season role "Plays every minute": the corner marker. */
+  keepOn?: boolean;
+  /** The tile's test id (default `player-tile-<id>`). */
+  testId?: string;
+  /**
+   * Why swapping this kid in now would break a rule ("Would put 4 boys
+   * on: the mixed rule allows 3"): the tile dims and says so to screen
+   * readers (its description). It can still be tapped; the sport asks
+   * before the swap.
+   */
+  ruleNote?: string | null;
 }
 
 function formatMinSec(ms: number): string {
@@ -102,11 +111,15 @@ function LinePlayerTileImpl({
   loaned,
   lockMode,
   score,
-  caption,
   swapDue = false,
   extraChip,
+  positionLabel = null,
+  keepOn = false,
+  testId,
+  ruleNote = null,
 }: LinePlayerTileProps) {
   const { handlers: longPressHandlers, arming: longPressArming, consumedLongPress } = useLongPress({ onLongPress });
+  const ruleNoteId = useId();
 
   function handleClick() {
     if (consumedLongPress()) return;
@@ -137,13 +150,11 @@ function LinePlayerTileImpl({
                 ? "bg-surface shadow-lift-field ring-1 ring-inset ring-warn/50"
                 : "bg-surface shadow-lift-field";
 
-  const parts = player.full_name.trim().split(/\s+/);
-  const firstName = parts[0] ?? "";
-  const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  const displayName = lastInitial ? `${firstName} ${lastInitial}` : firstName;
+  // "First L", told apart from a squad-mate with the same (SquadNames).
+  const displayName = useSquadNames().tile(player);
 
   const style = line ? styles[line] : undefined;
-  const lineLabel = style?.short || null;
+  const lineLabel = positionLabel || style?.short || null;
 
   // The swap handover, as AFL's tile: a tile marked OFF that receives
   // the kid coming on pops a green ✓ and rolls the names.
@@ -173,20 +184,23 @@ function LinePlayerTileImpl({
     <SirenPulseHalo triggerKey={swap?.pair ?? null} size="md" display="block" className="rounded-md">
       <button
         type="button"
-        data-testid={`player-tile-${player.id}`}
+        data-testid={testId ?? `player-tile-${player.id}`}
+        aria-pressed={selected ?? false}
         onClick={handleClick}
         {...longPressHandlers}
         disabled={!onClick && !onLongPress}
+        aria-describedby={ruleNote ? ruleNoteId : undefined}
         className={[
           "relative flex min-h-[68px] w-full flex-col items-stretch rounded-md text-left [transition:transform_120ms_cubic-bezier(0.2,0.8,0.2,1),opacity_120ms_cubic-bezier(0.2,0.8,0.2,1),box-shadow_240ms_cubic-bezier(0.2,0.8,0.2,1),background-color_240ms_cubic-bezier(0.2,0.8,0.2,1)]",
           baseBg,
-          dimmed && !selected ? "opacity-40" : "",
+          (dimmed || ruleNote) && !selected ? "opacity-40" : "",
           away ? "grayscale" : "",
           !onClick && !onLongPress ? "cursor-default" : "",
           onClick || onLongPress ? "motion-safe:active:scale-[0.97]" : "",
           longPressArming && !selected ? "ring-2 ring-brand-300 ring-offset-1" : "",
         ].join(" ")}
       >
+        {keepOn && !away && !score && <KeepOnMarker />}
         {isOn && (
           <div
             className={`flex items-center justify-center gap-1 rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-micro ${
@@ -199,23 +213,14 @@ function LinePlayerTileImpl({
           </div>
         )}
 
-        {caption && !isOff && !isOn && (
-          <div
-            className={`flex items-center justify-center rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[10px] font-bold uppercase leading-none tracking-micro ${
-              caption.tone === "move"
-                ? "border-brand-700 bg-brand-600 text-white"
-                : "border-hairline bg-surface-alt text-ink-dim"
-            }`}
-          >
-            {caption.text}
-          </div>
-        )}
-
         <div className="flex flex-1 flex-col px-[10px] py-2">
           {/* Row 1 · labels left, status chip right. */}
           <span className="flex h-4 items-center gap-1.5">
             {lineLabel && (
-              <span className={`font-mono text-[10px] font-bold uppercase leading-4 tracking-micro ${style?.textClass ?? "text-ink-dim"}`}>
+              <span
+                className={`font-mono text-[10px] font-bold uppercase leading-4 tracking-micro ${style?.textClass ?? "text-ink-dim"}`}
+                aria-label={positionLabel ? `Position ${positionLabel}` : undefined}
+              >
                 {lineLabel}
               </span>
             )}
@@ -323,6 +328,12 @@ function LinePlayerTileImpl({
             </span>
           )}
         </div>
+        {/* The description only (hidden from the name; aria-describedby still reads it). */}
+        {ruleNote && (
+          <span id={ruleNoteId} aria-hidden className="sr-only">
+            {ruleNote}
+          </span>
+        )}
       </button>
     </SirenPulseHalo>
   );
@@ -346,11 +357,11 @@ function areEqual(a: LinePlayerTileProps, b: LinePlayerTileProps): boolean {
     a.injured !== b.injured ||
     a.loaned !== b.loaned ||
     a.lockMode !== b.lockMode ||
+    a.positionLabel !== b.positionLabel ||
+    a.keepOn !== b.keepOn ||
     a.score?.text !== b.score?.text ||
     a.swapDue !== b.swapDue ||
-    a.extraChip !== b.extraChip ||
-    a.caption?.text !== b.caption?.text ||
-    a.caption?.tone !== b.caption?.tone
+    a.extraChip !== b.extraChip
   ) {
     return false;
   }

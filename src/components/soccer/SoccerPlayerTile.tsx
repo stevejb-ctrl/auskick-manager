@@ -17,7 +17,9 @@ import type { SoccerUnit, SoccerUnitWords } from "@/lib/sports/soccer/types";
 import type { SoccerUnitMs } from "@/lib/sports/soccer/replay";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
+import { useSquadNames } from "@/components/live/SquadNames";
 import { KeepOnMarker } from "@/components/playbook/KeepOnMarker";
+import { ZONE_STRIP } from "@/components/live/zoneStrip";
 
 // Lines take AFL's three zone colours by place on the field (attack is
 // AFL's forward, midfield its centre, defence its back), so the palette
@@ -38,9 +40,9 @@ const UNIT_FILL: Record<SoccerUnit, string> = {
 };
 const UNIT_STRIP: Record<SoccerUnit, string> = {
   gk: "border-ink/30 bg-ink/10 text-ink",
-  def: "border-zone-b/40 bg-zone-b/15 text-zone-b",
-  mid: "border-zone-c/40 bg-zone-c/15 text-zone-c",
-  att: "border-zone-f/40 bg-zone-f/15 text-zone-f",
+  def: ZONE_STRIP.b,
+  mid: ZONE_STRIP.c,
+  att: ZONE_STRIP.f,
   field: "border-brand-700 bg-brand-600 text-white",
 };
 
@@ -53,11 +55,6 @@ export interface SoccerSwapRole {
   /** Where a bench kid is going on. */
   unit?: SoccerUnit;
   totalPairs?: number;
-}
-
-export interface SoccerTileCaption {
-  text: string;
-  tone: "move" | "stay";
 }
 
 interface SoccerPlayerTileProps {
@@ -79,7 +76,6 @@ interface SoccerPlayerTileProps {
   /** "field" = Keep on or Keep in goal (never subbed); "zone" = kept in a line. */
   lockMode?: "field" | "zone" | null;
   goals?: number;
-  caption?: SoccerTileCaption | null;
   /** Named positions: shown in place of the unit ("CB"). */
   positionLabel?: string | null;
   keepOn?: boolean;
@@ -111,7 +107,6 @@ function SoccerPlayerTileImpl({
   loaned,
   lockMode,
   goals,
-  caption,
   positionLabel,
   keepOn,
   swapDue = false,
@@ -147,10 +142,8 @@ function SoccerPlayerTileImpl({
                 ? "bg-surface shadow-lift-field ring-1 ring-inset ring-warn/50"
                 : "bg-surface shadow-lift-field";
 
-  const parts = player.full_name.trim().split(/\s+/);
-  const firstName = parts[0] ?? "";
-  const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  const displayName = lastInitial ? `${firstName} ${lastInitial}` : firstName;
+  // "First L", told apart from a squad-mate with the same (SquadNames).
+  const displayName = useSquadNames().tile(player);
 
   const unitLabel = positionLabel ?? (unit ? words[unit].short || null : null);
 
@@ -212,17 +205,6 @@ function SoccerPlayerTileImpl({
           </div>
         )}
 
-        {caption && !isOff && !isOn && (
-          <div
-            className={`flex items-center justify-center rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[10px] font-bold uppercase leading-none tracking-micro ${
-              caption.tone === "move"
-                ? "border-brand-700 bg-brand-600 text-white"
-                : "border-hairline bg-surface-alt text-ink-dim"
-            }`}
-          >
-            {caption.text}
-          </div>
-        )}
 
         {keepOn && !injured && !loaned && !hasGoals && <KeepOnMarker />}
 
@@ -361,9 +343,7 @@ function areEqual(a: SoccerPlayerTileProps, b: SoccerPlayerTileProps): boolean {
     a.goals !== b.goals ||
     a.positionLabel !== b.positionLabel ||
     a.keepOn !== b.keepOn ||
-    a.swapDue !== b.swapDue ||
-    a.caption?.text !== b.caption?.text ||
-    a.caption?.tone !== b.caption?.tone
+    a.swapDue !== b.swapDue
   ) {
     return false;
   }

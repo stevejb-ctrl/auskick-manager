@@ -209,3 +209,29 @@ describe("formatGamePlan — short squad (no bench)", () => {
     expect(text).not.toContain("Bench:");
   });
 });
+
+describe("formatGamePlan — when, where and who's out (UX round 2, 24 Oct 2026)", () => {
+  // The night-before text for parents had no date, time, venue or who's
+  // out: they had to ask in the chat.
+  it("says when and where the game is, and who's out", () => {
+    const at = "2026-10-25T09:00:00+11:00";
+    const text = formatGamePlan(aflPlan(), {
+      teamName: "Hawks",
+      opponentName: "Eagles",
+      playerName: nameOf,
+      details: { scheduledAt: at, venue: "Ross Reserve", out: ["Noah", "Sienna"] },
+    });
+    const d = new Date(at);
+    const when = `${d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })} · ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+    const lines = text.split("\n");
+    expect(lines[0]).toBe("🗓 Game plan — Hawks v Eagles");
+    expect(lines[1]).toBe(`${when} · Ross Reserve`);
+    expect(text).toContain("Out: Noah, Sienna");
+  });
+
+  it("leaves out what it doesn't know", () => {
+    const text = formatGamePlan(aflPlan(), { teamName: "Hawks", playerName: nameOf, details: { out: [] } });
+    expect(text).not.toContain("Out:");
+    expect(text.split("\n")[1]).toMatch(/^4 quarters/);
+  });
+});

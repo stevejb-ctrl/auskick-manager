@@ -12,12 +12,16 @@ import {
   StatusPill,
 } from "@/components/sf";
 import { getSeasonEvents } from "@/lib/season";
-import { outcomeOf, scoreFromEvents, seasonRecord, type GameScore } from "@/lib/results";
+import { outcomeOf, scoreFromEvents, scoresKept, seasonRecord, type GameScore } from "@/lib/results";
 import type { Game, GameEvent, Sport } from "@/lib/types";
-import { teamSport } from "@/lib/sports";
+import { getSportConfig, teamSport, type SurfaceArt } from "@/lib/sports";
+import { SurfaceMotif } from "@/components/brand/SurfaceMotif";
 import { PLAYHQ_TENANT } from "@/lib/playhq";
 import { teamSportById } from "@/lib/sports/teamSportById";
 import { notFound } from "next/navigation";
+import { emptyHeroCopy } from "@/lib/teamHome/emptyHero";
+import { NotPlayedGames } from "@/components/games/NotPlayedGames";
+import { notPlayedCutoffIso, playedInSiren } from "@/lib/games/notPlayed";
 
 interface TeamDashboardProps {
   params: { teamId: string };
@@ -28,7 +32,9 @@ interface TeamDashboardProps {
  *
  *   1. Finish-setup banner (admins on empty squads only)
  *   2. Hero — live game, else the next game; on game day its primary
- *      goes straight to the game-day screen ("Start game day")
+ *      goes straight to the game-day screen ("Start game day"). With
+ *      nothing upcoming, the coach's one "add a game" button (parents
+ *      and managers can't add games, so they get none)
  *   3. To-dos — setup gaps the coach can close in one tap
  *   4. Last result + season snapshot (record across final games)
  *   5. More upcoming
@@ -39,6 +45,11 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
   const {
     data: { user },
   } = await getUser();
+
+  // A game well past its start that was never run isn't "Next up"; it's
+  // listed under Not played (lib/games/notPlayed).
+  const cutoff = notPlayedCutoffIso();
+  const nextOrLive = `status.eq.in_progress,scheduled_at.gte."${cutoff}"`;
 
   const [
     { data: upcomingRaw },
@@ -54,6 +65,7 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
       .select("*")
       .eq("team_id", params.teamId)
       .neq("status", "completed")
+      .or(nextOrLive)
       .order("scheduled_at", { ascending: true })
       .limit(3),
 
@@ -67,7 +79,8 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
       .from("games")
       .select("*", { count: "exact", head: true })
       .eq("team_id", params.teamId)
-      .neq("status", "completed"),
+      .neq("status", "completed")
+      .or(nextOrLive),
 
     user
       ? supabase
@@ -86,7 +99,7 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
 
     supabase
       .from("games")
-      .select("id, opponent, scheduled_at, round_number")
+      .select("id, opponent, scheduled_at, round_number, playbook_snapshot")
       .eq("team_id", params.teamId)
       .eq("status", "completed")
       .order("scheduled_at", { ascending: false }),
@@ -101,12 +114,14 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
   const trackScoring = teamRow?.track_scoring === true;
   const finals = (finalGames ?? []) as Pick<
     Game,
-    "id" | "opponent" | "scheduled_at" | "round_number"
+    "id" | "opponent" | "scheduled_at" | "round_number" | "playbook_snapshot"
   >[];
   // Scores come from each final game's events (one cached read for the
-  // whole season — the same cache the lineup suggester uses).
+  // whole season — the same cache the lineup suggester uses), for the
+  // games that kept score: each game's own record, not the switch today
+  // (UX round 3, 24 Oct 2026: an unscored game read as a draw).
   const scoresById = new Map<string, GameScore>();
-  if (trackScoring && finals.length > 0) {
+  if (finals.length > 0) {
     const byGame = new Map<string, GameEvent[]>();
     for (const ev of await getSeasonEvents(params.teamId)) {
       const list = byGame.get(ev.game_id) ?? [];
@@ -114,10 +129,20 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
       byGame.set(ev.game_id, list);
     }
     for (const g of finals) {
-      scoresById.set(g.id, scoreFromEvents(sport, byGame.get(g.id) ?? []));
+      // A game marked played (not run in Siren) has no score: not a 0–0.
+      const events = byGame.get(g.id) ?? [];
+      if (playedInSiren(events) && scoresKept(sport, g, trackScoring, events)) scoresById.set(g.id, scoreFromEvents(sport, events));
     }
   }
   const lastFinal = finals[0] ?? null;
+  const { data: notPlayedRaw } = await supabase
+    .from("games")
+    .select("id, opponent, scheduled_at, round_number")
+    .eq("team_id", params.teamId)
+    .eq("status", "upcoming")
+    .lt("scheduled_at", cutoff)
+    .order("scheduled_at", { ascending: false })
+    .limit(5);
 
   const upcomingIds = (upcomingRaw ?? []).map((g) => g.id);
   const { data: availabilityRaw } = upcomingIds.length
@@ -146,21 +171,14 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
   const [featuredGame, ...moreGames] = nextGames;
 
   // To-dos: setup gaps the coach can close in one tap (admins only).
+  // Adding a game isn't one: the empty hero carries that button, once.
   const todos: { id: string; label: string; detail: string; href: string }[] = [];
-  if (isAdmin && playerCount > 0 && upcomingCount === 0) {
-    todos.push({
-      id: "add-game",
-      label: "Add your next game",
-      detail: PLAYHQ_TENANT[sport] ? "Import the fixture from PlayHQ or add one by hand." : "Add it from your fixture.",
-      href: `/teams/${params.teamId}/games`,
-    });
-  }
   if (isAdmin && (memberCount ?? 0) <= 1) {
     todos.push({
       id: "invite",
       label: "Invite a manager",
       detail: "Someone to run the game when you can't be on the sideline.",
-      href: `/teams/${params.teamId}/settings`,
+      href: `/teams/${params.teamId}/settings?invite=1#people`,
     });
   }
 
@@ -177,10 +195,18 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
           available={availMap.get(featuredGame.id) ?? 0}
           playerCount={playerCount}
           canRun={canRun}
+          surfaceArt={getSportConfig(sport).surfaceArt}
         />
       ) : (
-        <EmptyHero teamId={params.teamId} />
+        <EmptyHero
+          teamId={params.teamId}
+          canAddGames={isAdmin}
+          hasPlayed={finals.length > 0}
+          playHq={!!PLAYHQ_TENANT[sport]}
+        />
       )}
+
+      <NotPlayedGames teamId={params.teamId} games={notPlayedRaw ?? []} canEdit={isAdmin} />
 
       {todos.length > 0 && <TodoList todos={todos} />}
 
@@ -189,13 +215,14 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
           teamId={params.teamId}
           game={lastFinal}
           score={scoresById.get(lastFinal.id) ?? null}
+          scoresNotKept={!scoresById.has(lastFinal.id)}
         />
       )}
 
       {finals.length > 0 && (
         <SeasonSnapshot
           played={finals.length}
-          record={trackScoring ? seasonRecord(Array.from(scoresById.values())) : null}
+          record={scoresById.size > 0 ? seasonRecord(Array.from(scoresById.values())) : null}
         />
       )}
 
@@ -226,19 +253,6 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
         </section>
       )}
 
-      {!liveGame && !featuredGame && upcomingCount === 0 && isAdmin && (
-        <SFCard>
-          <Eyebrow>Get started</Eyebrow>
-          <p className="mt-2 text-sm text-ink-dim">
-            Add a game to start tracking availability and lineups.
-          </p>
-          <div className="mt-3">
-            <SFButton href={`/teams/${params.teamId}/games`} variant="primary" size="sm">
-              Add a game
-            </SFButton>
-          </div>
-        </SFCard>
-      )}
     </div>
   );
 }
@@ -326,11 +340,14 @@ function LastResult({
   teamId,
   game,
   score,
+  scoresNotKept = false,
 }: {
   teamId: string;
   game: Pick<Game, "id" | "opponent" | "scheduled_at" | "round_number">;
-  /** null when the team doesn't keep score. */
+  /** null when the game didn't keep score. */
   score: GameScore | null;
+  /** The game was played with scoring off: it says so. */
+  scoresNotKept?: boolean;
 }) {
   const outcome = score ? outcomeOf(score) : null;
   const tone =
@@ -368,7 +385,7 @@ function LastResult({
                 {score.us}–{score.them}
               </span>
             ) : (
-              <span className="text-xs text-ink-mute">Summary</span>
+              <span className="text-xs text-ink-mute">{scoresNotKept ? "Scores not kept" : "Summary"}</span>
             )}
           </div>
         </SFCard>
@@ -408,31 +425,25 @@ function NextUpHero({
   available,
   playerCount,
   canRun,
+  surfaceArt,
 }: {
   teamId: string;
   game: Game;
   available: number;
   playerCount: number;
   canRun: boolean;
+  /** The sport's own surface: AFL's oval, a netball court, a pitch. */
+  surfaceArt: SurfaceArt;
 }) {
   const startsGameDay = canRun && isGameDay(game);
   return (
     <SFCard pad={0} className="overflow-hidden">
       <div className="relative overflow-hidden bg-gradient-to-br from-brand-700 to-brand-800 px-5 py-6 text-warm sm:px-8 sm:py-8">
-        {/* Decorative footy-field oval, top-right */}
-        <svg
-          aria-hidden="true"
+        {/* Decorative outline of the sport's surface, top-right */}
+        <SurfaceMotif
+          art={surfaceArt}
           className="pointer-events-none absolute -right-10 -top-8 opacity-[0.12]"
-          width="240"
-          height="260"
-          viewBox="0 0 200 220"
-          fill="none"
-          stroke="currentColor"
-        >
-          <ellipse cx="100" cy="110" rx="80" ry="100" strokeWidth="1.5" />
-          <ellipse cx="100" cy="110" rx="55" ry="75" strokeWidth="1" />
-          <line x1="100" y1="35" x2="100" y2="185" strokeWidth="1" opacity="0.6" />
-        </svg>
+        />
 
         <div className="relative">
           <Eyebrow className="!text-warm/70">
@@ -508,24 +519,41 @@ function NextUpHero({
   );
 }
 
-// ─── Empty state (admin, no upcoming) ────────────────────────────────────────
+// ─── Empty state (no upcoming) ───────────────────────────────────────────────
 
-function EmptyHero({ teamId }: { teamId: string }) {
+function EmptyHero({
+  teamId,
+  canAddGames,
+  hasPlayed,
+  playHq,
+}: {
+  teamId: string;
+  /** Only the coach adds games: everyone else gets no button. */
+  canAddGames: boolean;
+  /** A game's been played: it's the next one, never the first. */
+  hasPlayed: boolean;
+  /** The sport's fixture can come from PlayHQ. */
+  playHq: boolean;
+}) {
+  const copy = emptyHeroCopy({ canAddGames, hasPlayed });
   return (
     <SFCard className="text-center">
-      <Eyebrow>No upcoming games</Eyebrow>
+      <Eyebrow>{copy.title}</Eyebrow>
       <p className="mt-2 text-sm text-ink-dim">
-        Add your first game to start tracking availability and lineups.
+        {copy.body}
+        {copy.cta && playHq && " Import the fixture from PlayHQ or add one by hand."}
       </p>
-      <div className="mt-4">
-        <SFButton
-          href={`/teams/${teamId}/games`}
-          variant="primary"
-          iconAfter={<SFIcon.chevronRight color="currentColor" />}
-        >
-          Add a game
-        </SFButton>
-      </div>
+      {copy.cta && (
+        <div className="mt-4">
+          <SFButton
+            href={`/teams/${teamId}/games`}
+            variant="primary"
+            iconAfter={<SFIcon.chevronRight color="currentColor" />}
+          >
+            {copy.cta}
+          </SFButton>
+        </div>
+      )}
     </SFCard>
   );
 }

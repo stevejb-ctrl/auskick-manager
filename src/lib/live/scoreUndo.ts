@@ -32,7 +32,7 @@ export function takeUndoTarget<T extends { id: string }>(standing: T[], metadata
 }
 
 /** undo id → the score it removes, for events in order. */
-export function pairScoreUndos(events: UndoableEvent[], scoreTypes: Set<string>): Map<string, string> {
+export function pairScoreUndos(events: UndoableEvent[], scoreTypes: ReadonlySet<string>): Map<string, string> {
   const standing: { id: string }[] = [];
   const out = new Map<string, string>();
   for (const ev of events) {

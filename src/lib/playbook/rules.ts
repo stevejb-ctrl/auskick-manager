@@ -9,7 +9,7 @@
 // and vests.
 
 import type { ResolvedPlaybook } from "@/lib/playbook/team";
-import type { BalanceUnit, LockedRule } from "@/lib/playbook/types";
+import type { BalanceUnit, LawRulesTeam, LockedRule } from "@/lib/playbook/types";
 import { getSportPlaybook } from "@/lib/playbook/index";
 import type { Sport } from "@/lib/types";
 
@@ -224,9 +224,10 @@ export type { LockedRule } from "@/lib/playbook/types";
 
 /**
  * The rules a coach sees locked: the game-time floor, season balance,
- * and the team's own sport's laws, each with its own source.
+ * and the team's own sport's laws, each with its own source. `team` is
+ * how the team is set up (whether it keeps score).
  */
-export function lockedRules(resolved: ResolvedPlaybook): LockedRule[] {
+export function lockedRules(resolved: ResolvedPlaybook, team: LawRulesTeam = {}): LockedRule[] {
   const out: LockedRule[] = [];
   const { policy } = resolved;
   const playbook = getSportPlaybook(resolved.sport);
@@ -239,7 +240,7 @@ export function lockedRules(resolved: ResolvedPlaybook): LockedRule[] {
       : agePolicy.minGameTimePct.source ?? "Siren default",
   });
   // The sport's own laws (AFL zones; league unbroken periods and vests).
-  out.push(...playbook.lawRules(policy, agePolicy));
+  out.push(...playbook.lawRules(policy, agePolicy, team));
   if (resolved.seasonBalance !== "off" && resolved.strategy.balanceUnit) {
     const label = resolved.seasonBalance.charAt(0).toUpperCase() + resolved.seasonBalance.slice(1);
     out.push({

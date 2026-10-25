@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getUser } from "@/lib/supabase/server";
+import { createClient, getUser } from "@/lib/supabase/server";
+import { hasDisplayName } from "@/lib/members/displayName";
 import { JoinTeamForm } from "./JoinTeamForm";
 
 /**
@@ -22,6 +23,14 @@ export default async function JoinTeamPage() {
   } = await getUser();
   if (!user) redirect("/login?next=/join-team");
 
+  // Email sign-ups have a blank name: ask for it with the code, so the
+  // coach can tell who joined.
+  const { data: profile } = await createClient()
+    .from("profiles")
+    .select("full_name")
+    .eq("id", user.id)
+    .maybeSingle();
+
   return (
     <div className="mx-auto max-w-md space-y-6 py-4 sm:py-8">
       <div className="space-y-2 text-center">
@@ -38,9 +47,17 @@ export default async function JoinTeamPage() {
           </code>
           .
         </p>
+        {/* A code always joins as a Parent (joinTeamByCode). Say so,
+            and how to become a Manager: a helper handed the code used
+            to land read-only with no word why. */}
+        <p className="text-sm text-ink-dim">
+          You&rsquo;ll join as a Parent: you can follow games and scores, and
+          mark availability. Helping run games? Ask your coach to make you a
+          Manager once you&rsquo;ve joined.
+        </p>
       </div>
 
-      <JoinTeamForm />
+      <JoinTeamForm needsName={!hasDisplayName(profile?.full_name)} />
 
       <p className="text-center text-xs text-ink-mute">
         Don&rsquo;t have a code?{" "}
