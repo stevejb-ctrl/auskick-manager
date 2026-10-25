@@ -55,7 +55,7 @@ export function ActionSheet({ title, subtitle, actions, onClose }: ActionSheetPr
       }}
     >
       <div
-        className="absolute inset-0 z-0 bg-ink/40 motion-safe:animate-fade-in"
+        className="absolute inset-0 z-0 bg-scrim/40 motion-safe:animate-fade-in"
         onClick={onClose}
         aria-hidden
       />

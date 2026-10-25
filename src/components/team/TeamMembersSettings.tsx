@@ -491,14 +491,14 @@ function InviteForm({
   if (addedMemberName) {
     return (
       <div
-        className="space-y-3 rounded-md border border-emerald-300 bg-emerald-50 p-4"
+        className="space-y-3 rounded-md border border-ok/40 bg-win-soft p-4"
         data-testid="invite-added"
       >
-        <p className="text-sm font-semibold text-emerald-800">
+        <p className="text-sm font-semibold text-win">
           ✓ Added <span className="font-bold">{addedMemberName}</span> to the
           team as {ROLE_LABEL[role]}.
         </p>
-        <p className="text-xs text-emerald-900/70">
+        <p className="text-xs text-ink-dim">
           They&rsquo;ve been notified by push and email. They can leave the team
           from its settings page if they didn&rsquo;t expect this.
         </p>
@@ -540,7 +540,7 @@ function InviteForm({
 
         {emailStatus.kind === "sent" && (
           <p
-            className="rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+            className="rounded border border-ok/40 bg-win-soft px-3 py-2 text-sm text-win"
             role="status"
           >
             ✓ Invite emailed to <strong>{emailStatus.recipient}</strong>.
@@ -726,7 +726,7 @@ function LookupHint({
   if (r.kind === "existing") {
     return (
       <p
-        className="text-xs font-medium text-emerald-700"
+        className="text-xs font-medium text-ok"
         data-testid="lookup-existing"
       >
         ✓ {r.fullName} already has a Siren account — adding them directly.
@@ -851,7 +851,7 @@ function InviteRow({
           </p>
         )}
         {resendNote && (
-          <p className="mt-1 text-xs text-emerald-700" role="status">
+          <p className="mt-1 text-xs text-ok" role="status">
             {resendNote}
           </p>
         )}
