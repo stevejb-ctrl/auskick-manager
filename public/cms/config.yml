@@ -160,7 +160,11 @@ collections:
               - name: subtitle
                 label: Subtitle
                 widget: text
-                hint: Sentence under the headline.
+                hint: >
+                  Sentence under the headline. The site puts "One app,
+                  six sports: junior AFL, netball, …" in front of it from
+                  its own list of sports, so don't list or count the
+                  sports here.
               - name: trustLine
                 label: Trust line
                 widget: string

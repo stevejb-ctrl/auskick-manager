@@ -1,4 +1,6 @@
+import Image from "next/image";
 import Link from "next/link";
+import { HELP_SCREENSHOTS, type HelpScreenshotPath } from "@/lib/help/screenshots";
 
 interface HelpPageProps {
   children: React.ReactNode;
@@ -42,20 +44,32 @@ export function HelpPage({
   );
 }
 
-/** Screenshot placeholder — swap in the real image by replacing src. */
+/**
+ * A help screenshot, by its public path. next/image serves it resized
+ * (WebP, lazy-loaded) at the size src/lib/help/screenshots.ts gives; a
+ * path not listed there doesn't compile.
+ */
 export function HelpFigure({
   src,
   alt,
   caption,
 }: {
-  src: string;
+  src: HelpScreenshotPath;
   alt: string;
   caption: string;
 }) {
   return (
     <figure className="help-figure my-6 overflow-hidden rounded-lg border border-hairline shadow-card">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt={alt} className="w-full" />
+      <Image
+        src={src}
+        width={HELP_SCREENSHOTS[src].width}
+        height={HELP_SCREENSHOTS[src].height}
+        alt={alt}
+        // The article column: full width on phones, about 760px beside
+        // the help sidebar from md up.
+        sizes="(min-width: 768px) 760px, 100vw"
+        className="h-auto w-full"
+      />
       <figcaption className="border-t border-hairline bg-surface-alt px-4 py-2 text-sm text-ink-dim">
         {caption}
       </figcaption>

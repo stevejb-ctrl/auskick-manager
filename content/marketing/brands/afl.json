@@ -102,14 +102,14 @@
       "id": "quarterly",
       "eyebrow": "Quarter breaks",
       "title": { "before": "Walk into every quarter with a ", "italic": "plan", "after": "." },
-      "body": "At the break, Siren suggests a reshuffle to balance zone minutes. One tap to accept, or rearrange manually. The fairness score updates live as you adjust.",
+      "body": "At the break, Siren suggests a reshuffle to balance zone minutes and shows where each kid is moving. One tap to accept, or tap two players to swap them. The rule check updates as you go: your zone rules, the game-time floor and season balance, with the reasons behind the suggested moves.",
       "bullets": [
         "Suggested lineup based on zone equity",
-        "One tap to accept or drag to customise",
-        "Fairness score updates as you swap players"
+        "One tap to accept, or tap two players to swap",
+        "Rule check updates as you swap players"
       ],
       "image": "/marketing/screenshots/quarterly.png",
-      "imageAlt": "Quarter break screen with suggested reshuffle and fairness bars"
+      "imageAlt": "Quarter break screen with the suggested reshuffle, each player's move and their zone-time bars"
     },
     {
       "id": "share",
@@ -127,11 +127,11 @@
     {
       "id": "playhq",
       "eyebrow": "PlayHQ integration",
-      "title": { "before": "Fixtures imported ", "italic": "automatically", "after": "." },
-      "body": "Connect your PlayHQ club URL and Siren pulls in your draw. Rounds, opponents, and results stay in sync so you never have to enter a game twice.",
+      "title": { "before": "Your fixtures, straight from ", "italic": "PlayHQ", "after": "." },
+      "body": "Paste your team's PlayHQ link and Siren lists your draw. Pick the games you want and they arrive with the round, date, time, venue and opponent filled in, so you never type a fixture twice. Import again and any changed games are updated.",
       "bullets": [
-        "Fixtures imported from PlayHQ automatically",
-        "Round results synced after each game",
+        "Fixtures imported from your team's PlayHQ link",
+        "Round, date, time, venue and opponent filled in",
         "Works alongside manually created games"
       ],
       "image": "/marketing/screenshots/fixtures.png",

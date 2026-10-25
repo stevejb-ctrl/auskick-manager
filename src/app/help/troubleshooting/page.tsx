@@ -89,9 +89,10 @@ export default function TroubleshootingPage() {
         </p>
         <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm text-ink-dim">
           <li>
-            <strong className="text-ink">Check your connection.</strong> If you
-            were offline when a score was recorded, the server action may have
-            failed silently. The toast failure would have indicated this.
+            <strong className="text-ink">Check your connection.</strong> Taps
+            made with no signal wait on the phone that made them and are sent
+            once it reconnects, so other phones won&apos;t see them until then.
+            Open the game on that phone with signal to send them.
           </li>
           <li>
             <strong className="text-ink">Hard-refresh the page.</strong> On mobile

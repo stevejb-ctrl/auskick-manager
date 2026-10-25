@@ -15,6 +15,11 @@ describe("isGaAllowed", () => {
     for (const { path } of INDEXABLE_ROUTES) expect(allowed(path), path).toBe(true);
   });
 
+  it("allows sign-in, though it's out of the sitemap", () => {
+    expect(INDEXABLE_ROUTES.map((r) => r.path)).not.toContain("/login");
+    expect(allowed("/login")).toBe(true);
+  });
+
   it("allows campaign tags and ad-click IDs", () => {
     expect(allowed("/?utm_source=club&utm_medium=email&utm_campaign=kotara")).toBe(true);
     expect(allowed("/demo?gclid=abc")).toBe(true);

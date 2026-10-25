@@ -13,6 +13,7 @@ import { mixedRuleSummary } from "@/lib/sports/touch/mixed";
 import { playersOnSurfaceLabel } from "@/lib/sports/words";
 import type { TouchAgeGroupConfig } from "@/lib/sports/touch/types";
 import { PERIOD_MINUTES_MAX, teamOnFieldSize } from "@/lib/games/newGameDefaults";
+import { isBetaSport } from "@/lib/siren-facts";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import type { Sport } from "@/lib/types";
 import { TEAM_NAME_MAX, teamNameError } from "@/lib/strings";
@@ -223,7 +224,7 @@ export function TeamBasicsForm({
               disabled={isPending}
               title="Junior Football (soccer)"
               subtitle="MiniRoos to U17. Manage subs, a fair turn in goal, lines, scoring and more."
-              badge="Beta"
+              badge={isBetaSport("soccer") ? "Beta" : undefined}
             />
             {/* Open to every coach while it's in beta, as soccer was. */}
             <SportPill
@@ -232,7 +233,7 @@ export function TeamBasicsForm({
               disabled={isPending}
               title="Junior Basketball"
               subtitle="U8–U18. Manage subs at the table, guard and forward rotations, fouls, scoring and more."
-              badge="Beta"
+              badge={isBetaSport("basketball") ? "Beta" : undefined}
             />
             {/* Futsal: open to every coach while it's in beta, as soccer was. */}
             <SportPill
@@ -241,7 +242,7 @@ export function TeamBasicsForm({
               disabled={isPending}
               title="Junior Futsal"
               subtitle="U6–U17. Manage flying subs, a fair turn in goal, back, wings and front, scoring and more."
-              badge="Beta"
+              badge={isBetaSport("futsal") ? "Beta" : undefined}
             />
             {/* Hockey: open to every coach while it's in beta, as soccer was. */}
             <SportPill
@@ -250,7 +251,7 @@ export function TeamBasicsForm({
               disabled={isPending}
               title="Junior Hockey"
               subtitle="U7–U17. Manage subs, keeper turns at the breaks, halves or quarters, scoring and more."
-              badge="Beta"
+              badge={isBetaSport("hockey") ? "Beta" : undefined}
             />
             {/* Touch and Oztag: open to every coach while they're in beta, as basketball was. */}
             <SportPill
@@ -259,7 +260,7 @@ export function TeamBasicsForm({
               disabled={isPending}
               title="Junior Touch football"
               subtitle="U6–U17. Manage rolling subs, middle, link and wing rotations, the mixed rule, scoring and more."
-              badge="Beta"
+              badge={isBetaSport("touch") ? "Beta" : undefined}
             />
             <SportPill
               active={sport === "oztag"}
@@ -267,7 +268,7 @@ export function TeamBasicsForm({
               disabled={isPending}
               title="Junior Oztag"
               subtitle="U6–U17. Manage rolling subs from the sub box, the mixed rule and girls' tries, scoring and more."
-              badge="Beta"
+              badge={isBetaSport("oztag") ? "Beta" : undefined}
             />
           </div>
         </div>

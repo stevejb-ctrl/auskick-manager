@@ -6,6 +6,7 @@
 
 import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
+import { sportsSentence } from "@/lib/siren-facts";
 
 export const metadata = {
   title: "Getting Started · Help · Siren",
@@ -64,7 +65,7 @@ export default function GettingStartedPage() {
           </li>
           <li>
             Give your team a name (e.g. <em>Brunswick U10s</em>), pick a sport
-            (AFL, netball or rugby league), and select the age group. The age
+            ({sportsSentence()}), and select the age group. The age
             group controls how many positions appear during a live game, how
             long each quarter or half runs, and how rotation suggestions are
             generated.

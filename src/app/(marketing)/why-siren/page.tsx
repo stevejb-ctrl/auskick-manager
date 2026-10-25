@@ -3,6 +3,7 @@ import { FinalCTA } from "@/components/marketing/FinalCTA";
 import { RevealOnScroll } from "@/components/marketing/RevealOnScroll";
 import { getBrand } from "@/lib/brand";
 import { baseOpenGraph } from "@/lib/seo";
+import { MAKER, sportsSentence } from "@/lib/siren-facts";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 
 // A function rather than a const: baseOpenGraph() reads the brand,
@@ -11,14 +12,12 @@ import { getBrandCopy } from "@/lib/sports/brand-copy";
 export function generateMetadata(): Metadata {
   return {
     title: "Why Siren · Built for junior coaches",
-    description:
-      "Siren tracks where every kid has played, not just how long they've been on. Built for junior football and netball coaches who care about giving every player a crack at every part of the game.",
+    description: `Siren tracks where every kid has played, not just how long they've been on, so every player gets a crack at every part of the game. For junior ${sportsSentence()}.`,
     alternates: { canonical: "/why-siren" },
     openGraph: {
       ...baseOpenGraph(),
       title: "Why Siren. Every kid. Every position. Every quarter.",
-      description:
-        "The sideline tool built for junior football and netball. Fair rotations across every position, without the clipboard.",
+      description: `The sideline tool for junior coaches: fair rotations across every position, without the clipboard. For ${sportsSentence()}.`,
     },
   };
 }
@@ -195,9 +194,10 @@ export default function WhySirenPage() {
                   go, I&apos;d love your help shaping it.
                 </p>
               </div>
-              <p className="mt-6 text-sm font-semibold text-ink">Steve Bull</p>
+              <p className="mt-6 text-sm font-semibold text-ink">{MAKER.name}</p>
               <p className="text-sm text-ink-mute">
-                Parent-coach &middot; Australia
+                {MAKER.role.charAt(0).toUpperCase() + MAKER.role.slice(1)} &middot;{" "}
+                {MAKER.country}
               </p>
             </div>
           </RevealOnScroll>

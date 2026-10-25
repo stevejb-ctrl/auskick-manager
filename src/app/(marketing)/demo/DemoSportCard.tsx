@@ -2,6 +2,7 @@
 
 import { useFormStatus } from "react-dom";
 import type { MarketingSportConfig } from "@/lib/sports/marketing-sports";
+import { isBetaSport } from "@/lib/siren-facts";
 import { PulseMark } from "@/components/brand/PulseMark";
 import {
   AflOvalField,
@@ -54,7 +55,7 @@ function DemoSportCardButton({ sport }: { sport: MarketingSportConfig }) {
       // Disable while pending so re-clicks during the action's
       // ~1-2s round-trip don't trigger a second submission.
       disabled={pending}
-      aria-label={`Start ${sport.label} demo game`}
+      aria-label={`Start ${sport.label} demo game${isBetaSport(sport.sport) ? " (beta)" : ""}`}
       aria-busy={pending}
       data-testid={`demo-card-${sport.id}`}
       className="
@@ -149,6 +150,8 @@ function CardTextOverlay({
         style={{ color: "rgba(255,255,255,0.75)" }}
       >
         {sport.code}
+        {/* Beta sports say so, as on the homepage picker. */}
+        {isBetaSport(sport.sport) && " · Beta"}
       </p>
       <div>
         <p

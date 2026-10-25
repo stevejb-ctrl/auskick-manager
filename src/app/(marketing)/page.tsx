@@ -7,6 +7,7 @@ import { NativeMarketingBounce } from "@/components/marketing/NativeMarketingBou
 import { JsonLd } from "@/components/seo/JsonLd";
 import { getBrand } from "@/lib/brand";
 import { siteUrl } from "@/lib/seo";
+import { PRICE, sportsSentence } from "@/lib/siren-facts";
 import { getBrandCopy } from "@/lib/sports/brand-copy";
 import {
   organizationJsonLd,
@@ -19,7 +20,13 @@ import { getUser } from "@/lib/supabase/server";
 // (`sirenfooty.com.au/`) and www variants as "Duplicate without
 // user-selected canonical". Resolves against `metadataBase` set in
 // the root layout.
+//
+// The homepage covers every sport, so its title and description do
+// too (the root layout's are the brand's own, AFL on sirenfooty). The
+// sports and price come from src/lib/siren-facts.ts.
 export const metadata: Metadata = {
+  title: "Siren: fair rotations and subs for junior footy, netball, league and more",
+  description: `Fair rotations, subs and live scores for junior ${sportsSentence()}. ${PRICE.line}.`,
   alternates: { canonical: "/" },
 };
 
@@ -50,7 +57,7 @@ export default async function Home() {
       {/* Structured data: who makes Siren, the site, and the app. */}
       <JsonLd data={organizationJsonLd(site)} />
       <JsonLd data={websiteJsonLd(site, copy.productName)} />
-      <JsonLd data={softwareApplicationJsonLd(site, copy)} />
+      <JsonLd data={softwareApplicationJsonLd(site, copy.productName)} />
       {/* Belt-and-braces redirect off marketing for native Capacitor
           users. The canonical fix is in capacitor.config.ts +
           middleware.ts, but TestFlight Build 1 was archived before
