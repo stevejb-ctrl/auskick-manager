@@ -231,7 +231,7 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
     .getByRole("dialog", { name: /record conversion/i })
     .locator("div.rounded-lg")
     .filter({ hasText: kicker.full_name });
-  await kickerRow.getByRole("button", { name: /^made$/i }).click();
+  await kickerRow.getByRole("button", { name: /^made\b/i }).click();
 
   await expect
     .poll(

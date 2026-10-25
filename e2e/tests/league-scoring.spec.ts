@@ -120,10 +120,10 @@ test("a conversion needs a try to convert, and Undo takes back the latest score"
   const dialog = page.getByRole("dialog", { name: /record conversion/i });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText(/no try to convert/i)).toBeVisible();
-  await expect(kickerRow(page, kicker.full_name).getByRole("button", { name: /^made$/i })).toBeDisabled();
+  await expect(kickerRow(page, kicker.full_name).getByRole("button", { name: /^made\b/i })).toBeDisabled();
   // Force is the fouled-try-scorer carve-out: it opens the rows up.
   await dialog.getByRole("checkbox").check();
-  await expect(kickerRow(page, kicker.full_name).getByRole("button", { name: /^made$/i })).toBeEnabled();
+  await expect(kickerRow(page, kicker.full_name).getByRole("button", { name: /^made\b/i })).toBeEnabled();
   await dialog.getByRole("button", { name: /^cancel$/i }).click();
   await expect(dialog).toBeHidden();
 
@@ -134,7 +134,7 @@ test("a conversion needs a try to convert, and Undo takes back the latest score"
   const [tryEvent] = await eventsOfType(admin, game.id, "try");
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText(/no try to convert/i)).toBeHidden();
-  await kickerRow(page, kicker.full_name).getByRole("button", { name: /^made$/i }).click();
+  await kickerRow(page, kicker.full_name).getByRole("button", { name: /^made\b/i }).click();
   await expectWrite.poll(async () => (await eventsOfType(admin, game.id, "conversion_attempt")).length).toBe(1);
   const [conversion] = await eventsOfType(admin, game.id, "conversion_attempt");
   expect((conversion.metadata as { try_event_id?: string }).try_event_id).toBe(tryEvent.id);
@@ -156,7 +156,7 @@ test("a conversion needs a try to convert, and Undo takes back the latest score"
   await page.getByRole("button", { name: "Record a conversion for our team" }).click();
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText(/no try to convert/i)).toBeHidden();
-  await expect(kickerRow(page, kicker.full_name).getByRole("button", { name: /^made$/i })).toBeEnabled();
+  await expect(kickerRow(page, kicker.full_name).getByRole("button", { name: /^made\b/i })).toBeEnabled();
 });
 
 test("U13 plays international laws: anyone may kick, and there's no kickoff rotation", async ({ page }) => {
@@ -183,7 +183,7 @@ test("U13 plays international laws: anyone may kick, and there's no kickoff rota
     await expect(dialog.getByText("Pick the kicker.")).toBeVisible();
     // No rotation, so no Force carve-out either.
     await expect(dialog.getByRole("checkbox")).toHaveCount(0);
-    await kickerRow(page, kicker.full_name).getByRole("button", { name: /^made$/i }).click();
+    await kickerRow(page, kicker.full_name).getByRole("button", { name: /^made\b/i }).click();
     await expectWrite.poll(async () => (await eventsOfType(admin, game.id, "conversion_attempt")).length).toBe(n);
     await expect(dialog).toBeHidden();
   }

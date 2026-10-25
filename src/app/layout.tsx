@@ -103,6 +103,11 @@ export function generateViewport(): Viewport {
     initialScale: 1,
     viewportFit: "cover",
     themeColor,
+    // Light only, so Chrome's auto-dark and Samsung Internet's dark
+    // mode leave the page alone (UX round 3, e4: they inverted it, and
+    // the dark sub card and clock pill sank into the darkened page).
+    // A real dark theme would be a design job of its own.
+    colorScheme: "only light",
   };
 }
 
