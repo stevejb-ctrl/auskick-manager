@@ -231,6 +231,28 @@ test("netball: both phones tapping Start Q2 at once start it once", async ({ pag
 
   await coachPhone(page, team.id, game.id);
   const runner = await runnerPhone(browser, game.share_token, { behind: true });
+  // Two taps a few ms apart still reach the server one after the other,
+  // so each phone's Start Q2 request (the server action called with
+  // period 2: [auth, gameId, 2, key]) is held until both have been sent,
+  // then both go at once: the race two phones ~100 ms apart can hit.
+  let release: () => void = () => {};
+  const bothSent = new Promise<void>((resolve) => (release = resolve));
+  let held = 0;
+  for (const phone of [page, runner]) {
+    await phone.route("**/*", async (route) => {
+      const req = route.request();
+      let args: unknown = null;
+      try {
+        args = req.method() === "POST" && req.headers()["next-action"] ? JSON.parse(req.postData() ?? "null") : null;
+      } catch {}
+      if (Array.isArray(args) && args.length === 4 && args[2] === 2) {
+        if (++held === 2) release();
+        // Never wait for ever: a phone that doesn't send one lets the other go.
+        await Promise.race([bothSent, new Promise((r) => setTimeout(r, 5_000))]);
+      }
+      await route.fallback();
+    });
+  }
   // Both phones at the break, each with its confirm sheet open.
   const nowButtons: Locator[] = [];
   for (const phone of [page, runner]) {
@@ -247,6 +269,8 @@ test("netball: both phones tapping Start Q2 at once start it once", async ({ pag
   await expect.poll(async () => (await events(admin, game.id, "quarter_start")).length, SYNC).toBeGreaterThanOrEqual(2);
   await liveWritesSaved(page);
   await liveWritesSaved(runner);
+  // Both phones really did send a start, together.
+  expect(held).toBe(2);
   const starts = (await events(admin, game.id, "quarter_start")).filter((e) => e.metadata.quarter === 2);
   expect(starts).toHaveLength(1);
   // Both phones are in Q2, neither on its break.
