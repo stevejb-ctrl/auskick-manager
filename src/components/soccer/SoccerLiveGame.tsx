@@ -905,6 +905,7 @@ export function SoccerLiveGame({
       )}
 
       <LiveAdminUtilityRow
+        trackScoring={trackScoring}
         candidates={lateArrivalCandidates}
         onLateArrival={addLateArrival}
         lateArrivalPending={pending}

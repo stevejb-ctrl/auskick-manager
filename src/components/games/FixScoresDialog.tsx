@@ -3,7 +3,8 @@
 // ─── FixScoresDialog ─────────────────────────────────────────
 // A finished game's scores, fixable from the game page's More (round 3
 // edge testing, 24 Oct 2026: "Open game screen: fix scores" opened a
-// read-only summary, and the only edit was Restart). Every sport: take a
+// read-only summary, and the only edit was Restart), and a game's in
+// play from the live screen (LiveFixScoresButton). Every sport: take a
 // score off, change who scored, add a missed one. The list and its
 // delete confirm follow the live Fix-scores panel (ScoreReviewPanel),
 // which is tied to the live screen's store and AFL's actions; the writes
@@ -44,7 +45,12 @@ export function FixScoresDialog({
   teamName,
   opponentName,
   onClose,
-}: FixScoresProps & { onClose: () => void }) {
+  onFixed,
+}: FixScoresProps & {
+  onClose: () => void;
+  /** After each fix (the live screen reads the log again). */
+  onFixed?: () => void;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +80,7 @@ export function FixScoresDialog({
       }
       done();
       router.refresh();
+      onFixed?.();
     });
   }
 

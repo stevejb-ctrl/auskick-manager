@@ -345,3 +345,50 @@ test("undo steps back through the game's scores, even after a reload", async ({ 
     .poll(async () => (await undoTargets()).sort(), { timeout: 15_000 })
     .toEqual(scores!.map((s) => s.id).sort());
 });
+
+// Usability pass, 26 Oct 2026: Undo takes back the latest score only, so
+// a wrong one from earlier in the quarter stayed until the break. The
+// live screen has Fix scores now, as the game page does after full time.
+test("Fix scores takes off an earlier score mid-quarter", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
+  await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await startGameInDb({
+    admin,
+    gameId: game.id,
+    playerIds: players.map((p) => p.id),
+    onFieldSize: game.on_field_size,
+    ageGroup: team.ageGroup,
+    createdBy: ownerId,
+  });
+  const [wrong, right] = players;
+  const { data: goals } = await admin
+    .from("game_events")
+    .insert([
+      { game_id: game.id, type: "goal", player_id: wrong.id, metadata: { quarter: 1, elapsed_ms: 60_000 }, created_by: ownerId, created_at: new Date(Date.now() - 20_000).toISOString() },
+      { game_id: game.id, type: "goal", player_id: right.id, metadata: { quarter: 1, elapsed_ms: 90_000 }, created_by: ownerId, created_at: new Date(Date.now() - 10_000).toISOString() },
+    ])
+    .select("id, player_id");
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await page.getByTestId("live-fix-scores").click({ timeout: 15_000 });
+  const dialog = page.getByRole("dialog", { name: "Fix scores" });
+  await expect(dialog.getByTestId("fix-scores-total")).toHaveText(/12 – 0/, { timeout: 15_000 });
+  await dialog.getByRole("button", { name: new RegExp(`^Take off ${wrong.full_name}'s goal in Q1`) }).click();
+  await page.getByRole("dialog", { name: "Take off this score?" }).getByRole("button", { name: "Take it off" }).click();
+  await expect(dialog.getByTestId("fix-scores-total")).toHaveText(/6 – 0/, { timeout: 15_000 });
+  await dialog.getByRole("button", { name: "Done" }).click();
+  await expect(page).toHaveURL(new RegExp(`/games/${game.id}/live`));
+
+  // The earlier goal came off (not the latest), and it's a live fix, not
+  // one after full time.
+  const { data: undos } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "score_undo");
+  expect(undos?.map((u) => (u.metadata as { target_event_id?: string }).target_event_id)).toEqual([
+    goals!.find((g) => g.player_id === wrong.id)!.id,
+  ]);
+  expect((undos?.[0].metadata as { fixed_after_finish?: boolean }).fixed_after_finish).toBeUndefined();
+});

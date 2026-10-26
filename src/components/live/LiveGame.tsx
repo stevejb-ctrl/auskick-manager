@@ -2063,6 +2063,7 @@ export function LiveGame({
           : [];
         return (
           <LiveAdminUtilityRow
+            trackScoring={trackScoring}
             candidates={lateCandidates}
             onLateArrival={handleLateArrival}
             lateArrivalPending={isPending}

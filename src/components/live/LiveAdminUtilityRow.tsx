@@ -32,6 +32,7 @@
 import type { ReactNode } from "react";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { ResetGameButton } from "@/components/games/ResetGameButton";
+import { LiveFixScoresButton } from "@/components/live/LiveFixScoresButton";
 import type { LiveAuth, Player } from "@/lib/types";
 
 interface LiveAdminUtilityRowProps {
@@ -73,6 +74,8 @@ interface LiveAdminUtilityRowProps {
    * runner link can't wipe a finished game.
    */
   finished?: boolean;
+  /** The game keeps score: coaches get Fix scores (LiveFixScoresButton). */
+  trackScoring?: boolean;
 }
 
 export function LiveAdminUtilityRow({
@@ -85,6 +88,7 @@ export function LiveAdminUtilityRow({
   settings: settingsProp,
   extra: extraProp,
   finished = false,
+  trackScoring = false,
 }: LiveAdminUtilityRowProps) {
   const showLate = candidates.length > 0 && !finished;
   const isAdmin = isAdminProp && !finished && auth.kind !== "token";
@@ -106,6 +110,7 @@ export function LiveAdminUtilityRow({
       )}
       {settings}
       {extra}
+      {isAdmin && trackScoring && auth.kind === "team" && <LiveFixScoresButton teamId={auth.teamId} gameId={gameId} />}
       {isAdmin && <ResetGameButton auth={auth} gameId={gameId} />}
     </div>
   );

@@ -2410,6 +2410,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           already pre-filtered by netball's state machine, so we
           just pass it through. */}
       <LiveAdminUtilityRow
+        trackScoring={trackScoring}
         candidates={lateArrivalCandidates}
         onLateArrival={handleLateArrival}
         lateArrivalPending={isPending}

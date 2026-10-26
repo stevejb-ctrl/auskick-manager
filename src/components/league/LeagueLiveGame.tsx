@@ -2061,6 +2061,7 @@ export function LeagueLiveGame({
       )}
 
       <LiveAdminUtilityRow
+        trackScoring={trackScoring}
         candidates={lateArrivalCandidates}
         onLateArrival={handleAddLateArrival}
         lateArrivalPending={pending}

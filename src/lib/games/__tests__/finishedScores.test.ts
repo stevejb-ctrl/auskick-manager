@@ -155,3 +155,32 @@ describe("fixing a finished game's scores", () => {
     });
   });
 });
+
+// Usability pass, 26 Oct 2026: a wrong score from earlier in the quarter
+// stayed until the break. The live screen's Fix scores writes the same
+// events, without the after-full-time tag.
+describe("fixing a game that's on", () => {
+  it("takes off an earlier score mid-quarter, untagged", () => {
+    const events = [
+      ev("lineup_set", null, {}),
+      ev("quarter_start", null, { quarter: 1 }),
+      ev("goal", "ava", { quarter: 1 }),
+      ev("goal", "ben", { quarter: 1 }),
+    ];
+    const rows = scoreFixRows("afl", events, { op: "delete", eventId: events[2].id }, { finished: false });
+    if ("error" in rows) throw new Error(rows.error);
+    expect(rows).toEqual([
+      { type: "score_undo", player_id: "ava", metadata: { target_event_id: events[2].id, original_type: "goal", quarter: 1 } },
+    ]);
+    const after = [...events, ...rows.map((r) => ev(r.type, r.player_id, r.metadata))];
+    expect(scoreFromEvents("afl", after)).toMatchObject({ us: 6 });
+    expect(scorersFromEvents("afl", after).map((s) => s.playerId)).toEqual(["ben"]);
+  });
+
+  it("still tags a fix after full time", () => {
+    const events = [ev("quarter_start", null, { quarter: 1 }), ev("goal", "ava", { quarter: 1 })];
+    const rows = scoreFixRows("afl", events, { op: "delete", eventId: events[1].id });
+    if ("error" in rows) throw new Error(rows.error);
+    expect(rows[0].metadata).toMatchObject({ fixed_after_finish: true });
+  });
+});
