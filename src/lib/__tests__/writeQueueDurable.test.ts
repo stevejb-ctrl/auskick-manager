@@ -25,12 +25,14 @@ import {
   clearActionHandlers,
   isNetworkFailure,
   notifyOnline,
+  OFFLINE_PROBE_MS,
   onQueueSaved,
   registerActionHandler,
   useWriteQueue,
   type ActionResult,
 } from "@/lib/live/writeQueue";
 import { liveGameStorage } from "@/lib/live/persistStorage";
+import { deviceOffline } from "@/lib/live/useOnline";
 import { queuedOptimisticEvents } from "@/lib/live/optimisticEvents";
 
 const MIN = 60_000;
@@ -82,27 +84,57 @@ describe("a live write survives no signal", () => {
     expect(queue()).toEqual([]);
   });
 
-  it("sends nothing while the phone says it's offline, then everything, in order, when it's back", async () => {
+  it("only probes now and then while the phone says it's offline, then sends everything, in order, when it's back", async () => {
     vi.stubGlobal("navigator", { onLine: false });
     const sent: string[] = [];
-    registerActionHandler("recordGoal", async (...args: unknown[]): Promise<ActionResult> => {
+    let tries = 0;
+    // A real outage: a request with no signal never gets an answer.
+    const handler = async (...args: unknown[]): Promise<ActionResult> => {
+      tries++;
+      if (navigator.onLine === false) throw new TypeError("Failed to fetch");
       sent.push(args[0] as string);
       return { success: true };
-    });
-    registerActionHandler("recordSwap", async (...args: unknown[]): Promise<ActionResult> => {
-      sent.push(args[0] as string);
-      return { success: true };
-    });
+    };
+    registerActionHandler("recordGoal", handler);
+    registerActionHandler("recordSwap", handler);
     useWriteQueue.getState().enqueue("recordGoal", ["goal"]);
     useWriteQueue.getState().enqueue("recordSwap", ["swap"]);
     await vi.advanceTimersByTimeAsync(MIN);
     expect(sent).toEqual([]);
+    // Nothing tried on enqueue; one try at the head of the lane per probe.
+    expect(tries).toBeLessThanOrEqual(MIN / OFFLINE_PROBE_MS);
+    expect(queue().map((op) => op.attemptCount)).toEqual([0, 0]);
 
     vi.stubGlobal("navigator", { onLine: true });
     notifyOnline();
     await vi.advanceTimersByTimeAsync(0);
     expect(sent).toEqual(["goal", "swap"]);
     expect(queue()).toEqual([]);
+  });
+
+  // Usability pass, 26 Oct 2026: a browser said offline for a whole game
+  // while pages loaded. The queue believed it and sent nothing: 39 taps
+  // waited, "Finish game" waited for them, and the game never finished.
+  it("sends anyway when the phone says offline but the server answers", async () => {
+    vi.stubGlobal("navigator", { onLine: false });
+    const sent: string[] = [];
+    registerActionHandler("recordGoal", async (...args: unknown[]): Promise<ActionResult> => {
+      sent.push(args[0] as string);
+      return { success: true };
+    });
+    useWriteQueue.getState().enqueue("recordGoal", ["goal"]);
+    useWriteQueue.getState().enqueue("recordGoal", ["behind"]);
+    expect(deviceOffline()).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(OFFLINE_PROBE_MS + 1_000);
+    expect(sent).toEqual(["goal", "behind"]);
+    expect(queue()).toEqual([]);
+    // Everyone else (the banner, Finish game) hears we're online.
+    expect(deviceOffline()).toBe(false);
+    // A tap after that sends straight away.
+    useWriteQueue.getState().enqueue("recordGoal", ["goal 2"]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sent).toEqual(["goal", "behind", "goal 2"]);
   });
 
   it("retries a server error and never drops it", async () => {

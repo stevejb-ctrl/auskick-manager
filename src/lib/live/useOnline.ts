@@ -20,9 +20,38 @@ let cachedOnline = true;
 const subscribers = new Set<() => void>();
 let nativeCleanup: (() => void) | null = null;
 let listenerStarting = false;
+// The browser said offline, but a write reached the server since. The
+// flag lies that way too (usability pass, 26 Oct 2026: a browser said
+// offline for a whole game while pages loaded, so 39 taps sat unsent,
+// "Finish game" waited forever, and the banner said "You're offline").
+// Believed until the browser next changes its mind.
+let reachedWhileFlaggedOffline = false;
 
 function notify(): void {
   subscribers.forEach((s) => s());
+}
+
+function browserSaysOffline(): boolean {
+  return typeof navigator !== "undefined" && navigator.onLine === false;
+}
+
+/**
+ * No signal, as far as anyone knows: the browser says offline and no
+ * write has reached the server since. What the write queue asks before
+ * it sends.
+ */
+export function deviceOffline(): boolean {
+  // Once the browser says online again, its next "offline" is news.
+  if (!browserSaysOffline()) reachedWhileFlaggedOffline = false;
+  return browserSaysOffline() && !reachedWhileFlaggedOffline;
+}
+
+/** A write just reached the server: whatever the browser says, we're online. */
+export function noteServerReached(): void {
+  if (!browserSaysOffline() || reachedWhileFlaggedOffline) return;
+  reachedWhileFlaggedOffline = true;
+  cachedOnline = true;
+  notify();
 }
 
 async function startListener(): Promise<void> {
@@ -50,8 +79,9 @@ async function startListener(): Promise<void> {
         handle.remove();
       };
     } else if (typeof window !== "undefined") {
-      cachedOnline = navigator.onLine;
+      cachedOnline = navigator.onLine || reachedWhileFlaggedOffline;
       const onChange = () => {
+        reachedWhileFlaggedOffline = false;
         cachedOnline = navigator.onLine;
         notify();
       };

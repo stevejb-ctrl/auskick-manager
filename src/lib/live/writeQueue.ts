@@ -6,6 +6,7 @@ import { liveGameStorage } from "./persistStorage";
 import { isNative } from "@/lib/platform";
 import type { OptimisticEventInput } from "./optimisticEvents";
 import { noteLiveResult } from "./liveSync";
+import { deviceOffline, noteServerReached } from "./useOnline";
 
 // ─── Durable write queue for live-game server actions ─────────
 //
@@ -220,7 +221,8 @@ interface WriteQueueState {
   /** Kinds halted after a failure / missing handler. Cleared by resume(). */
   pausedKinds: string[];
   enqueue: (kind: string, args: unknown[], optimistic?: QueuedEvent) => EnqueueResult;
-  drain: () => Promise<void>;
+  /** `probe`: send even though the phone says it's offline (scheduleOfflineProbe). */
+  drain: (opts?: { probe?: boolean }) => Promise<void>;
   /** Clear pausedKinds so previously-failed lanes get retried. */
   resume: () => void;
   /** The coach's Retry: try the stuck writes (and the rest behind them) again now. */
@@ -231,9 +233,9 @@ interface WriteQueueState {
   clearQueue: () => void;
 }
 
-/** The phone says it has no signal. */
+/** The phone says it has no signal, and no write has got through since. */
 function isOffline(): boolean {
-  return typeof navigator !== "undefined" && navigator.onLine === false;
+  return deviceOffline();
 }
 
 /**
@@ -358,7 +360,8 @@ export const useWriteQueue = create<WriteQueueState>()(
         return { id, flushed };
       },
 
-      drain: async () => {
+      drain: async (opts) => {
+        let probe = opts?.probe === true;
         // Per-kind lanes: in each pass, find every op whose kind
         // is neither in-flight nor paused, dispatch them in
         // parallel, await the batch, and re-evaluate. Same-kind
@@ -366,8 +369,15 @@ export const useWriteQueue = create<WriteQueueState>()(
         // most one in-flight op at a time.
         while (true) {
           // No signal: send nothing, so no attempt is spent on a request
-          // that can't arrive. The 'online' listener drains again.
-          if (isOffline()) break;
+          // that can't arrive. The 'online' listener drains again, and a
+          // probe tries anyway now and then, in case the phone is wrong.
+          if (isOffline() && !probe) {
+            if (get().queue.length > 0) scheduleOfflineProbe();
+            break;
+          }
+          // One pass sends regardless; after that the phone's word (or the
+          // probe's success, noteServerReached) decides.
+          probe = false;
           const state = get();
           // Track which kinds we've already scheduled this pass so
           // we don't schedule two ops of the same kind at once
@@ -448,6 +458,7 @@ export const useWriteQueue = create<WriteQueueState>()(
         retryTimers.forEach((t) => clearTimeout(t));
         retryTimers.clear();
         networkStreaks.clear();
+        clearOfflineProbe();
         set({ queue: [], inFlightKinds: [], pausedKinds: [] });
       },
     }),
@@ -485,6 +496,7 @@ export function notifyOnline(): void {
   retryTimers.forEach((t) => clearTimeout(t));
   retryTimers.clear();
   networkStreaks.clear();
+  clearOfflineProbe();
   useWriteQueue.getState().resume();
   void useWriteQueue.getState().drain();
 }
@@ -508,6 +520,28 @@ function scheduleLaneRetry(lane: string, attempt: number): void {
       void useWriteQueue.getState().drain();
     }, delay),
   );
+}
+
+// ─── A probe while the phone says it's offline ────────────────
+// The browser's offline flag can be wrong: one said offline for a whole
+// game while pages loaded (usability pass, 26 Oct 2026), and the queue,
+// believing it, sent nothing. So while it says offline and writes wait,
+// one pass every OFFLINE_PROBE_MS sends anyway. With truly no signal the
+// request fails at once and spends no attempt; when it gets through,
+// noteServerReached tells everyone we're online after all.
+export const OFFLINE_PROBE_MS = 20_000;
+let offlineProbe: ReturnType<typeof setTimeout> | null = null;
+function scheduleOfflineProbe(): void {
+  if (offlineProbe) return;
+  offlineProbe = setTimeout(() => {
+    offlineProbe = null;
+    useWriteQueue.setState({ pausedKinds: [] });
+    void useWriteQueue.getState().drain({ probe: true });
+  }, OFFLINE_PROBE_MS);
+}
+function clearOfflineProbe(): void {
+  if (offlineProbe) clearTimeout(offlineProbe);
+  offlineProbe = null;
 }
 
 // Helper used by drain(). Runs a handler, post-processes the
@@ -560,6 +594,8 @@ async function dispatchOp(op: QueueOp): Promise<void> {
 
   if (result.success) {
     networkStreaks.delete(lane);
+    // The server answered: if the phone said offline, it was wrong.
+    noteServerReached();
     // Resolve the caller's flushed-promise (if any — rehydrated
     // ops from a previous session won't have an entry here) BEFORE
     // popping the queue, so a .then() chain doesn't race a

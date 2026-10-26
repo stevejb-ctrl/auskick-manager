@@ -24,6 +24,7 @@
 import { startTransition, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { notifyLiveGameGone, onLiveSyncRequest, useLiveNotice } from "@/lib/live/liveSync";
+import { deviceOffline } from "@/lib/live/useOnline";
 
 /** How often a phone in view checks the game. */
 const SYNC_INTERVAL_MS = 3000;
@@ -42,7 +43,7 @@ export function LiveSync({ stamp, syncUrl }: { stamp: string | null; syncUrl: st
 
   const check = useCallback(async () => {
     if (inFlight.current || document.visibilityState !== "visible") return;
-    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+    if (deviceOffline()) return;
     inFlight.current = true;
     try {
       const res = await fetch(syncUrl, { cache: "no-store", headers: { accept: "application/json" } });
