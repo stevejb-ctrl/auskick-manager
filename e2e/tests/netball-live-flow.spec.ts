@@ -1281,3 +1281,38 @@ test("a benched kid's summary says they're on the bench, not a ticking On time",
   await page.getByRole("button", { name: new RegExp(`^Goal Shooter,\\s*${players[7].full_name}`, "i") }).click({ delay: 600 });
   await expect(page.getByRole("dialog").getByTestId("player-insight-ingame")).toContainText(/On [12]:\d\d/);
 });
+
+// Usability pass, 26 Oct 2026: netball's Undo held only the goal this
+// phone last tapped, so after a reload (or one undo, or the other phone's
+// goal) a wrong goal stayed until the break. Undo now goes back through
+// every standing goal, one per tap.
+test("NETBALL-03: undo steps back through the game's goals, even after a reload", async ({ page }) => {
+  const { team, game, players, admin, ownerId } = await setupNetballTeam({ trackScoring: true });
+  await seedQ1InProgress({ admin, gameId: game.id, ownerId, playerIds: players.map((p) => p.id) });
+  const gs = players[0];
+  const { data: goals } = await admin
+    .from("game_events")
+    .insert([
+      { game_id: game.id, type: "goal", player_id: gs.id, metadata: { quarter: 1, elapsed_ms: 60_000 }, created_by: ownerId, created_at: new Date(Date.now() - 2_000).toISOString() },
+      { game_id: game.id, type: "opponent_goal", metadata: { quarter: 1, elapsed_ms: 90_000 }, created_by: ownerId, created_at: new Date(Date.now() - 1_000).toISOString() },
+    ])
+    .select("id, type");
+  const undoTargets = async () =>
+    ((await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "score_undo")).data ?? []).map(
+      (e) => (e.metadata as { target_event_id?: string }).target_event_id,
+    );
+  await suppressWalkthrough(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+
+  const strip = page.getByTestId("undo-strip");
+  await expect(strip).toBeVisible({ timeout: 15_000 });
+  await expect(strip).not.toContainText(gs.full_name.split(" ")[0]);
+  await strip.getByRole("button", { name: /^undo$/i }).click();
+  await expect(strip).toContainText(`goal — ${gs.full_name.split(" ")[0]}`);
+  await expect.poll(undoTargets, { timeout: 15_000 }).toEqual([goals!.find((g) => g.type === "opponent_goal")!.id]);
+  await strip.getByRole("button", { name: /^undo$/i }).click();
+  await expect(strip).toHaveCount(0);
+  await expect
+    .poll(async () => (await undoTargets()).sort(), { timeout: 15_000 })
+    .toEqual(goals!.map((g) => g.id).sort());
+});

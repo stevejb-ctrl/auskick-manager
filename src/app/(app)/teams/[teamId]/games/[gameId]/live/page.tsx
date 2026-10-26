@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient, getUser, getMembership } from "@/lib/supabase/server";
+import { AFL_SCORE_TYPES, standingScores } from "@/lib/live/undoStack";
 import { getSeasonEvents } from "@/lib/season";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { roleModelFor, rolesFromPrefs } from "@/lib/playbook/roles";
@@ -1360,6 +1361,7 @@ async function LivePageBody({ params }: LivePageProps) {
             on /live routes so this info needs a home in the in-game
             chrome itself. */}
         <LiveGame
+          standingScores={standingScores((thisGameEvents ?? []) as GameEvent[], AFL_SCORE_TYPES)}
           auth={{ kind: "team", teamId: params.teamId }}
           gameId={params.gameId}
           game={g}

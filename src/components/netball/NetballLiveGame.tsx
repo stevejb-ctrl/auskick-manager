@@ -126,6 +126,7 @@ import {
   type GamePlan,
 } from "@/lib/game-plan";
 import { UndoStrip } from "@/components/live/UndoStrip";
+import { NETBALL_SCORE_TYPES, stackIds, stackRef, standingScores, undoStack, type StackScore } from "@/lib/live/undoStack";
 import { pairScoreUndos } from "@/lib/live/scoreUndo";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { periodLabels } from "@/lib/sports";
@@ -1075,30 +1076,39 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // recorded (which replaces it). Tap fires score_undo naming this
   // phone's goal (`key`, its write's op id): with two phones scoring,
   // "the latest goal" may be the other phone's (UX round 2).
-  const [lastScore, setLastScore] = useState<
-    | { kind: "team" | "opp"; playerName: string | null; key: string | null }
-    | null
-  >(null);
+  // Undo goes back through every standing goal, one per tap, as AFL's
+  // and every other sport's does (lib/live/undoStack): the server's, plus
+  // this phone's taps it hasn't got yet, less the ones taken back here.
+  // It used to hold only this phone's last goal, so after one undo, a
+  // reload or the other phone's goal there was nothing to undo until the
+  // break (usability pass, 26 Oct 2026).
+  const [localScores, setLocalScores] = useState<StackScore[]>([]);
+  const [undoneScoreIds, setUndoneScoreIds] = useState<ReadonlySet<string>>(() => new Set());
+  const serverStanding = useMemo(() => standingScores(serverEvents, NETBALL_SCORE_TYPES), [serverEvents]);
+  const undoTop = undoStack(serverStanding, localScores, undoneScoreIds).at(-1) ?? null;
   const [undoToastVisible, setUndoToastVisible] = useState(false);
   const undoToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startUndoToast = useCallback(
-    (kind: "team" | "opp", playerName: string | null, key: string | null) => {
+    (kind: "team" | "opp", playerId: string | null, key: string | null) => {
       if (undoToastTimerRef.current !== null) {
         clearTimeout(undoToastTimerRef.current);
       }
-      setLastScore({ kind, playerName, key });
+      setLocalScores((prev) => [
+        ...prev,
+        { eventId: null, key, type: kind === "team" ? "goal" : "opponent_goal", playerId, quarter: currentQuarter },
+      ]);
       setUndoToastVisible(true);
       undoToastTimerRef.current = setTimeout(() => {
         setUndoToastVisible(false);
       }, 8000);
     },
-    [],
+    [currentQuarter],
   );
   const handleUndoLastScore = useCallback(() => {
-    if (!lastScore) return;
-    const undoKind = lastScore.kind;
-    const undoKey = lastScore.key;
-    setLastScore(null);
+    if (!undoTop) return;
+    const undoKind = undoTop.type === "goal" ? "team" : "opp";
+    const scorer = undoTop.playerId;
+    setUndoneScoreIds((prev) => new Set(Array.from(prev).concat(stackIds(undoTop))));
     setUndoToastVisible(false);
     if (undoToastTimerRef.current !== null) {
       clearTimeout(undoToastTimerRef.current);
@@ -1110,31 +1120,32 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // (server caught up to the goal first) we go briefly negative,
     // then the prop-refresh useEffect resets to 0 with the new
     // lower truth. Net result: no visible glitch either way.
-    setLocalScoreDelta((prev) =>
-      undoKind === "team"
-        ? { ...prev, team: prev.team - 1 }
-        : { ...prev, opp: prev.opp - 1 },
-    );
-    const { flushed } = enqueueLiveAction("undoNetballScore", [auth, game.id, undoKey ? { key: undoKey } : null]);
+    const step = (by: number) =>
+      setLocalScoreDelta((prev) =>
+        undoKind === "team"
+          ? {
+              ...prev,
+              team: prev.team + by,
+              player: scorer ? { ...prev.player, [scorer]: (prev.player[scorer] ?? 0) + by } : prev.player,
+            }
+          : { ...prev, opp: prev.opp + by },
+      );
+    step(-1);
+    const { flushed } = enqueueLiveAction("undoNetballScore", [auth, game.id, stackRef(undoTop)]);
     // Refresh after flush so the rolled-back goal disappears from
     // the scorebug + PositionToken chip on the next render. Refused
     // (the other phone already took it back): put the goal back.
     flushed
       .then(() => startTransition(() => router.refresh()))
       .catch(() => {
-        setLocalScoreDelta((prev) =>
-          undoKind === "team" ? { ...prev, team: prev.team + 1 } : { ...prev, opp: prev.opp + 1 },
-        );
+        step(1);
         startTransition(() => router.refresh());
       });
-  }, [lastScore, auth, game.id, router]);
+  }, [undoTop, auth, game.id, router]);
   // Reset the undo state if the user transitions out of LIVE play
   // (Q-break, finalised) so a stale chip doesn't carry across phases.
   useEffect(() => {
-    if (quarterEnded || finalised) {
-      setLastScore(null);
-      setUndoToastVisible(false);
-    }
+    if (quarterEnded || finalised) setUndoToastVisible(false);
   }, [quarterEnded, finalised]);
 
   const squadById = useMemo(() => new Map(squad.map((p) => [p.id, p])), [squad]);
@@ -1391,9 +1402,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const handleConfirmGoal = () => {
     if (!pendingGoal) return;
     const { playerId } = pendingGoal;
-    const player = squadById.get(playerId);
-    const playerName =
-      player?.full_name.trim().split(/\s+/)[0] ?? null;
     // Optimistic delta — scorebug + per-player chip tick instantly
     // (Steve 2026-05-17 audit fix). Reset when server refresh
     // lands via the useEffect on score-prop change.
@@ -1411,7 +1419,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     ]);
     flushed.then(() => startTransition(() => router.refresh()));
     setPendingGoal(null);
-    startUndoToast("team", playerName, goalKey);
+    startUndoToast("team", playerId, goalKey);
     // Light haptic tap — confirms the goal recorded. P1-10 mirror
     // of AFL `15b0a7c`. Fire-and-forget; the bridge no-ops on web.
     void hapticTap("light");
@@ -2589,8 +2597,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             candidates={candidates}
             onPick={(playerId) => {
               setPickScorerOpen(false);
-              const player = squadById.get(playerId);
-              const playerName = player?.full_name.trim().split(/\s+/)[0] ?? null;
               // Optimistic delta — same as the court-tap path.
               setLocalScoreDelta((prev) => ({
                 ...prev,
@@ -2608,7 +2614,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                 clockMs,
               ]);
               flushed.then(() => startTransition(() => router.refresh()));
-              startUndoToast("team", playerName, goalKey);
+              startUndoToast("team", playerId, goalKey);
               // Same light-tap haptic as the court flow's
               // handleConfirmGoal so coaches feel the same
               // confirmation regardless of entry point.
@@ -2681,11 +2687,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               : undefined
           }
         undoStrip={
-          trackScoring && lastScore ? (
+          trackScoring && undoTop ? (
             <UndoStrip
               flashing={undoToastVisible}
-              message={`${lastScore.kind === "team" ? teamName : game.opponent} goal${
-                lastScore.playerName ? ` — ${lastScore.playerName}` : ""
+              message={`${undoTop.type === "goal" ? teamName : game.opponent} goal${
+                undoTop.type === "goal" && undoTop.playerId && squadById.get(undoTop.playerId)
+                  ? ` — ${squadById.get(undoTop.playerId)!.full_name.trim().split(/\s+/)[0]}`
+                  : ""
               }`}
               onUndo={handleUndoLastScore}
               disabled={isPending}

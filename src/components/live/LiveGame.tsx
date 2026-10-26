@@ -135,6 +135,7 @@ import { LiveTopBar } from "@/components/live/LiveTopBar";
 
 import { assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
 import { UndoStrip } from "@/components/live/UndoStrip";
+import { stackIds, stackRef, undoStack, type StackScore } from "@/lib/live/undoStack";
 import { requestLiveSync } from "@/lib/live/liveSync";
 // YT IFrame API + playSong logic lives in `@/lib/live/useHypeSong`
 // since 2026-05-16 (extracted for AFL/netball parity). The hook
@@ -202,6 +203,11 @@ interface LiveGameProps {
    * estate (Steve 2026-05-13).
    */
   isAdmin?: boolean;
+  /**
+   * The game's scores still standing, from the server (lib/live/undoStack):
+   * Undo goes back through them, not just this phone's last tap.
+   */
+  standingScores: StackScore[];
   /** Public URL of the team song audio file, if configured. */
   songUrl?: string | null;
   /** Seconds into the song to start playback from (default 0). */
@@ -255,7 +261,6 @@ type LastScore = {
   kind: "goal" | "behind";
   forTeam: "us" | "opponent";
   playerId: string | null;
-  playerName: string | null;
   quarter: number;
   /**
    * The score's write (its op id, the event's idempotency key): Undo
@@ -298,6 +303,7 @@ export function LiveGame({
   aflPlaybook,
   exitHref,
   isAdmin = false,
+  standingScores,
   songUrl,
   songStartSeconds = 0,
   songDurationSeconds = 15,
@@ -491,7 +497,15 @@ export function LiveGame({
   } | null>(null);
 
   // Undo-score state
-  const [lastScore, setLastScore] = useState<LastScore | null>(null);
+  // Undo goes back through every standing score, one per tap, as every
+  // other sport's does: the server's, plus this phone's taps it hasn't
+  // got yet, less the ones this phone took back. It used to hold only
+  // this phone's last tap, so after one undo, a reload or the other
+  // phone's score there was nothing to undo until the break (usability
+  // pass, 26 Oct 2026).
+  const [localScores, setLocalScores] = useState<StackScore[]>([]);
+  const [undoneScoreIds, setUndoneScoreIds] = useState<ReadonlySet<string>>(() => new Set());
+  const undoTop = undoStack(standingScores, localScores, undoneScoreIds).at(-1) ?? null;
   const [undoToastVisible, setUndoToastVisible] = useState(false);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -899,7 +913,16 @@ export function LiveGame({
 
   function startUndoToast(score: LastScore) {
     if (undoTimerRef.current !== null) clearTimeout(undoTimerRef.current);
-    setLastScore(score);
+    setLocalScores((prev) => [
+      ...prev,
+      {
+        eventId: null,
+        key: score.key,
+        type: score.forTeam === "us" ? score.kind : `opponent_${score.kind}`,
+        playerId: score.playerId,
+        quarter: score.quarter,
+      },
+    ]);
     setUndoToastVisible(true);
     undoTimerRef.current = setTimeout(() => setUndoToastVisible(false), 8000);
   }
@@ -958,7 +981,6 @@ export function LiveGame({
       kind,
       forTeam: "us",
       playerId,
-      playerName: p ? names.first(p) : null,
       quarter,
       key,
     });
@@ -985,7 +1007,6 @@ export function LiveGame({
       kind: "goal",
       forTeam: "us",
       playerId: null,
-      playerName: null,
       quarter,
       key,
     });
@@ -1007,7 +1028,6 @@ export function LiveGame({
       kind: "behind",
       forTeam: "us",
       playerId: null,
-      playerName: null,
       quarter,
       key,
     });
@@ -1120,12 +1140,22 @@ export function LiveGame({
       gameId,
       { kind, quarter, elapsed_ms },
     ]);
-    startUndoToast({ kind, forTeam: "opponent", playerId: null, playerName: null, quarter, key });
+    startUndoToast({ kind, forTeam: "opponent", playerId: null, quarter, key });
+  }
+
+  // "Roos goal — Mia": what Undo takes back.
+  function undoScoreMessage(score: StackScore): string {
+    const ours = !score.type.startsWith("opponent_");
+    const kind = score.type.endsWith("behind") ? "behind" : "goal";
+    const who = ours && score.playerId ? ` — ${shortName(score.playerId)}` : "";
+    return `${ours ? teamName : opponentName} ${kind}${who}`;
   }
 
   function handleUndo() {
-    if (!lastScore) return;
-    const { kind, forTeam, playerId, quarter, key } = lastScore;
+    if (!undoTop) return;
+    const forTeam = undoTop.type.startsWith("opponent_") ? "opponent" : "us";
+    const kind: "goal" | "behind" = undoTop.type.endsWith("behind") ? "behind" : "goal";
+    const { playerId, quarter } = undoTop;
 
     if (forTeam === "us") {
       undoTeamScore(kind === "goal" ? "goals" : "behinds");
@@ -1134,25 +1164,23 @@ export function LiveGame({
       undoOpponentScore(kind === "goal" ? "goals" : "behinds");
     }
 
-    setLastScore(null);
+    setUndoneScoreIds((prev) => new Set(Array.from(prev).concat(stackIds(undoTop))));
     setUndoToastVisible(false);
     if (undoTimerRef.current !== null) {
       clearTimeout(undoTimerRef.current);
       undoTimerRef.current = null;
     }
 
-    const serverKind: "goal" | "behind" | "opponent_goal" | "opponent_behind" =
-      forTeam === "us"
-        ? kind
-        : kind === "goal" ? "opponent_goal" : "opponent_behind";
+    const serverKind = undoTop.type as "goal" | "behind" | "opponent_goal" | "opponent_behind";
 
     // On the game's write-queue lane, so it can't overtake its score.
-    // It names the score (its write's key). Refused because the other
-    // phone already took it back: the store catches up from the server.
+    // It names the score (its event, or its write's key). Refused because
+    // the other phone already took it back: the store catches up from
+    // the server.
     const { flushed } = enqueueLiveAction("undoLastScore", [
       auth,
       gameId,
-      { kind: serverKind, quarter, playerId: playerId ?? null, target: { key } },
+      { kind: serverKind, quarter, playerId: playerId ?? null, target: stackRef(undoTop) },
     ]);
     flushed.catch((e: unknown) => {
       setError(e instanceof Error ? e.message : "Couldn't undo that score.");
@@ -1805,7 +1833,7 @@ export function LiveGame({
       )}
 
       {/* Undo strip is rendered inside the sticky-bottom bar
-          during live play (Steve 2026-05-13). The lastScore +
+          during live play (Steve 2026-05-13). The undoTop +
           isPreGame/isFinished gates apply down there too — when
           conditions fail the strip just doesn't render and the
           sticky bar is shorter. */}
@@ -2923,10 +2951,10 @@ export function LiveGame({
               : undefined
           }
           undoStrip={
-            lastScore && !isPreGame && !isFinished ? (
+            undoTop && !isPreGame && !isFinished ? (
               <UndoStrip
                 flashing={undoToastVisible}
-                message={`${lastScore.forTeam === "us" ? teamName : opponentName} ${lastScore.kind}${lastScore.playerName ? ` — ${lastScore.playerName}` : ""}`}
+                message={undoScoreMessage(undoTop)}
                 onUndo={handleUndo}
                 disabled={isPending}
               />

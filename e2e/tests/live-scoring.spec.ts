@@ -298,3 +298,50 @@ test("Q-by-Q shows the score of the quarter in play", async ({ page }) => {
   await expect(q1).toContainText("1.1");
   await expect(q1).toContainText("1.0");
 });
+
+// Usability pass, 26 Oct 2026: AFL's Undo held only the score this phone
+// last tapped, so after a reload (or one undo, or the other phone's
+// score) a wrong score stayed until the break. Undo now goes back through
+// every standing score, one per tap, as the other sports' does.
+test("undo steps back through the game's scores, even after a reload", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
+  await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Undo Eagles" });
+  await startGameInDb({
+    admin,
+    gameId: game.id,
+    playerIds: players.map((p) => p.id),
+    onFieldSize: game.on_field_size,
+    ageGroup: team.ageGroup,
+    createdBy: ownerId,
+  });
+  // Two scores already saved (another phone, or before a reload).
+  const scorer = players[0];
+  const { data: scores } = await admin
+    .from("game_events")
+    .insert([
+      { game_id: game.id, type: "goal", player_id: scorer.id, metadata: { quarter: 1, elapsed_ms: 60_000 }, created_by: ownerId, created_at: new Date(Date.now() - 20_000).toISOString() },
+      { game_id: game.id, type: "opponent_behind", metadata: { quarter: 1, elapsed_ms: 90_000 }, created_by: ownerId, created_at: new Date(Date.now() - 10_000).toISOString() },
+    ])
+    .select("id, type");
+  const undoTargets = async () =>
+    ((await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "score_undo")).data ?? []).map(
+      (e) => (e.metadata as { target_event_id?: string }).target_event_id,
+    );
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  const strip = page.getByTestId("undo-strip");
+  await expect(strip).toContainText("Undo Eagles behind", { timeout: 15_000 });
+  await strip.getByRole("button", { name: /^undo$/i }).click();
+  await expect(strip).toContainText(`goal — ${scorer.full_name.split(" ")[0]}`);
+  await expect.poll(undoTargets, { timeout: 15_000 }).toEqual([scores!.find((s) => s.type === "opponent_behind")!.id]);
+  await strip.getByRole("button", { name: /^undo$/i }).click();
+  await expect(strip).toHaveCount(0);
+  await expect
+    .poll(async () => (await undoTargets()).sort(), { timeout: 15_000 })
+    .toEqual(scores!.map((s) => s.id).sort());
+});
