@@ -7,6 +7,7 @@ import {
   nextEligibleKickoffTakers,
   kickoffRecordedForPeriod,
   kickoffTakers,
+  opponentTriesToConvert,
   seasonKickoffCountsByPlayer,
   unconvertedTryIds,
 } from "@/lib/sports/rugby_league/kicks";
@@ -488,5 +489,25 @@ describe("unconvertedTryIds", () => {
     const t2 = ev("try", {}, "p3");
     expect(unconvertedTryIds([t1, t2])).toEqual([t1.id, t2.id]);
     expect(unconvertedTryIds([t1, t2, conversion("p2", false)])).toEqual([t2.id]);
+  });
+});
+
+// ─── opponentTriesToConvert ──────────────────────────────────
+// Usability pass, 26 Oct 2026: an opponent conversion went in at 0–0.
+
+describe("opponentTriesToConvert", () => {
+  it("their conversion needs one of their tries", () => {
+    reset();
+    expect(opponentTriesToConvert([])).toBe(0);
+    expect(opponentTriesToConvert([ev("opponent_try")])).toBe(1);
+    expect(opponentTriesToConvert([ev("opponent_try"), ev("opponent_conversion")])).toBe(0);
+    expect(opponentTriesToConvert([ev("opponent_try"), ev("opponent_try"), ev("opponent_conversion")])).toBe(1);
+  });
+
+  it("our tries don't count for them, and an undone try is gone", () => {
+    reset();
+    expect(opponentTriesToConvert([ev("try", {}, "p1")])).toBe(0);
+    reset();
+    expect(opponentTriesToConvert([ev("opponent_try"), ev("score_undo")])).toBe(0);
   });
 });

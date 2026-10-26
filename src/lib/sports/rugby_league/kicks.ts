@@ -177,6 +177,27 @@ export function unconvertedTryIds(events: GameEvent[]): string[] {
   return waiting;
 }
 
+/** What the screen and the server say to an opponent conversion with no try. */
+export const OPPONENT_NO_TRY = "They have no try to convert. Record their try first.";
+
+/**
+ * The opponent's tries still waiting for a conversion. Their +C records
+ * a made kick, so each one takes a try; undone scores don't count. A
+ * usability pass (26 Oct 2026) logged an opponent conversion at 0–0:
+ * an impossible rugby scoreline.
+ */
+export function opponentTriesToConvert(events: GameEvent[]): number {
+  const sorted = [...events].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const undone = new Set(pairScoreUndos(sorted, RUGBY_SCORE_EVENT_TYPES).values());
+  let waiting = 0;
+  for (const ev of sorted) {
+    if (undone.has(ev.id)) continue;
+    if (ev.type === "opponent_try") waiting += 1;
+    else if (ev.type === "opponent_conversion") waiting = Math.max(0, waiting - 1);
+  }
+  return waiting;
+}
+
 /**
  * The try a conversion names: the first waiting, once the server has it.
  * A try still on its way (on screen, not yet saved) has no row to name,
