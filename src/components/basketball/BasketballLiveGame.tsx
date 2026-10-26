@@ -232,6 +232,8 @@ export function BasketballLiveGame({
     playerId: string;
     line: BasketballLine;
     reason: "injured" | "fouled_out" | "sitting_out";
+    /** Opened by the foul that reached the limit: Cancel takes it back. */
+    fromFoul?: boolean;
   } | null>(null);
   const [subAckKey, setSubAckKey] = useState<string | null>(null);
   const liveRootRef = useRef<HTMLDivElement>(null);
@@ -582,10 +584,10 @@ export function BasketballLiveGame({
     write("markInjury", [auth, game.id, input], liveEvents.injury(input));
   }
   /** A kid leaves the court (hurt, fouled out, sat out): pick who comes on. */
-  function startLeaving(pid: string, reason: "injured" | "fouled_out" | "sitting_out") {
+  function startLeaving(pid: string, reason: "injured" | "fouled_out" | "sitting_out", fromFoul = false) {
     const line = state.lineup ? basketballLineOf(state.lineup, pid) : null;
     if (isPeriodActive && line && swappableBench.length > 0) {
-      setLeaving({ playerId: pid, line, reason });
+      setLeaving({ playerId: pid, line, reason, fromFoul });
       return;
     }
     leaveNow(pid, reason);
@@ -630,10 +632,13 @@ export function BasketballLiveGame({
   }
   function foul(pid: string) {
     setSelectedId(null);
+    // Fouls stop at the limit. A sixth used to count, so taking one back
+    // said "Back to 5 of 5, and back in the game".
+    if ((state.fouls[pid] ?? 0) >= ageGroup.foulOutAt) return;
     const count = (state.fouls[pid] ?? 0) + 1;
     writeFoul(pid, false);
     // The limit: out for the game. The coach picks who comes on.
-    if (count >= ageGroup.foulOutAt && !fouledOutSet.has(pid)) startLeaving(pid, "fouled_out");
+    if (count >= ageGroup.foulOutAt && !fouledOutSet.has(pid)) startLeaving(pid, "fouled_out", true);
   }
   const undoFoul = (pid: string) => writeFoul(pid, true);
 
@@ -1039,7 +1044,7 @@ export function BasketballLiveGame({
                       type="button"
                       data-testid="basketball-foul"
                       onClick={() => foul(selectedPlayer.id)}
-                      disabled={pending}
+                      disabled={pending || (state.fouls[selectedPlayer.id] ?? 0) >= ageGroup.foulOutAt}
                       className="min-h-[44px] flex-1 rounded-sm border border-due/50 bg-due-tint py-2.5 font-mono text-sm font-bold uppercase tracking-micro text-due transition-colors duration-fast ease-out-quart hover:bg-due/10 disabled:opacity-60"
                     >
                       + Foul ({state.fouls[selectedPlayer.id] ?? 0} of {ageGroup.foulOutAt})
@@ -1264,7 +1269,7 @@ export function BasketballLiveGame({
                           },
                         },
                       ]),
-                  ...(trackFouls && !fouledOutSet.has(actionPlayer.id)
+                  ...(trackFouls && !fouledOutSet.has(actionPlayer.id) && (state.fouls[actionPlayer.id] ?? 0) < ageGroup.foulOutAt
                     ? [
                         {
                           label: "Add a foul",
@@ -1368,7 +1373,15 @@ export function BasketballLiveGame({
                 setLeaving(null);
                 leaveNow(playerId, reason);
               }}
-              onCancel={() => setLeaving(null)}
+              // Cancel on the sheet a fifth foul opened kept the foul and left
+              // the kid on court with 5F, not out (usability pass, 26 Oct
+              // 2026). A cancelled foul-out is a mistaken foul: it comes off.
+              cancelLabel={leaving.fromFoul ? "Cancel, and take back the foul" : undefined}
+              onCancel={() => {
+                const { playerId, fromFoul } = leaving;
+                setLeaving(null);
+                if (fromFoul) undoFoul(playerId);
+              }}
             />
           );
         })()}

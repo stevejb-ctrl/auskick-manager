@@ -188,3 +188,66 @@ test("a scorer's tile says points, not 2P", async ({ page }) => {
   await waitForHydration(page);
   await expect(page.getByTestId(`player-tile-${k[6]}`).getByLabel("2 points")).toHaveText("2 PTS", { timeout: 15_000 });
 });
+
+// Usability pass, 26 Oct 2026: Cancel on the "who comes on" sheet a
+// fifth foul opened kept the foul and left the kid on court with 5F, not
+// out. A sixth foul then counted, and taking one back said "Back to 5 of
+// 5". Cancel takes the fifth foul back now, and fouls stop at the limit.
+test("cancelling the foul-out sheet takes the fifth foul back", async ({ page }) => {
+  const { admin, team, game, k, lineup, ev } = await seedFoulGame("BBL-FOCANCEL");
+  await admin.from("game_events").insert([
+    ev("lineup_set", 0, { lineup }),
+    ev("quarter_start", 0, {}),
+    ...[1, 2, 3, 4].map((s) => ev("foul", s, { kind: "personal" }, k[0])),
+  ]);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  await expect(page.getByTestId(`fouls-${k[0]}`)).toHaveText("4F", { timeout: 15_000 });
+  await page.getByTestId(`player-tile-${k[0]}`).click();
+  await page.getByTestId("basketball-foul").click();
+  const sheet = page.getByRole("dialog");
+  await expect(sheet).toContainText(/has fouled out/i, { timeout: 10_000 });
+  await sheet.getByRole("button", { name: /^cancel, and take back the foul$/i }).click();
+
+  await expect(page.getByTestId(`fouls-${k[0]}`)).toHaveText("4F", { timeout: 10_000 });
+  await expect(page.getByTestId(`player-tile-${k[0]}`).getByLabel("Fouled out")).toHaveCount(0);
+  // Saved: the fifth foul and its take-back, and no foul-out.
+  await expect
+    .poll(
+      async () => {
+        const { data } = await admin.from("game_events").select("type, metadata").eq("game_id", game.id).eq("player_id", k[0]);
+        const rows = (data ?? []) as { type: string; metadata: { undo?: boolean } }[];
+        return {
+          fouls: rows.filter((r) => r.type === "foul" && !r.metadata.undo).length,
+          undone: rows.filter((r) => r.type === "foul" && r.metadata.undo).length,
+          out: rows.filter((r) => r.type === "injury").length,
+        };
+      },
+      { timeout: 15_000 },
+    )
+    .toEqual({ fouls: 5, undone: 1, out: 0 });
+});
+
+test("a kid on five fouls can't be given a sixth", async ({ page }) => {
+  const { admin, team, game, k, lineup, ev } = await seedFoulGame("BBL-FOCAP");
+  // Five fouls and still on court: what the old Cancel left behind.
+  await admin.from("game_events").insert([
+    ev("lineup_set", 0, { lineup }),
+    ev("quarter_start", 0, {}),
+    ...[1, 2, 3, 4, 5].map((s) => ev("foul", s, { kind: "personal" }, k[1])),
+  ]);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  await expect(page.getByTestId(`fouls-${k[1]}`)).toHaveText("5F", { timeout: 15_000 });
+  await page.getByTestId(`player-tile-${k[1]}`).click();
+  await expect(page.getByTestId("basketball-foul")).toBeDisabled();
+  await page.getByRole("button", { name: /^cancel$/i }).first().click();
+  // The long-press menu doesn't offer one either.
+  await page.getByTestId(`player-tile-${k[1]}`).click({ delay: 600 });
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByTestId("basketball-add-foul")).toHaveCount(0);
+});
