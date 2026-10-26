@@ -2948,7 +2948,7 @@ export function LiveGame({
           scorebug={gameHeader}
           scoringOff={
             !trackScoring
-              ? { settingsHref: auth.kind === "team" && isAdmin ? `/teams/${auth.teamId}/settings#section-game-day-extras` : null }
+              ? { teamId: auth.kind === "team" && isAdmin ? auth.teamId : null }
               : undefined
           }
           undoStrip={

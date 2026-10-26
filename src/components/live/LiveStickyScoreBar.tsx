@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { setTrackScoring } from "@/app/(app)/teams/[teamId]/games/actions";
 import { useStickyInset } from "@/components/ui/useStickyInset";
 
 // ─── LiveStickyScoreBar ──────────────────────────────────────
@@ -46,10 +47,10 @@ interface LiveStickyScoreBarProps {
   undoStrip?: ReactNode;
   /**
    * Scoring is off for this team: say so above the scorebug, so a
-   * score sitting at 0 or "—" isn't a puzzle. `settingsHref` links a
-   * coach to turn it on; null for runners, who can't.
+   * score sitting at 0 or "—" isn't a puzzle. `teamId` lets a coach
+   * turn it on right here; null for runners, who can't.
    */
-  scoringOff?: { settingsHref: string | null };
+  scoringOff?: { teamId: string | null };
 }
 
 export function LiveStickyScoreBar({
@@ -117,12 +118,10 @@ export function LiveStickyScoreBar({
           {scoringOff && (
             <p className="px-4 pb-0.5 text-center text-[11px] text-ink-mute">
               Scoring is off
-              {scoringOff.settingsHref && (
+              {scoringOff.teamId && (
                 <>
                   {" · "}
-                  <Link href={scoringOff.settingsHref} className="font-semibold text-brand-700 underline-offset-2 hover:underline">
-                    Turn it on
-                  </Link>
+                  <TurnScoringOn teamId={scoringOff.teamId} />
                 </>
               )}
             </p>
@@ -131,6 +130,36 @@ export function LiveStickyScoreBar({
           {undoStrip}
         </div>
       </div>
+    </>
+  );
+}
+
+// "Turn it on" switches scoring on in place. It was a link to team
+// settings, which took the coach out of the game with no way back
+// (usability pass, 26 Oct 2026). setTrackScoring also marks the game on
+// now as keeping score; the refresh brings the scoring buttons in.
+function TurnScoringOn({ teamId }: { teamId: string }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <>
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={() => {
+          setError(null);
+          startTransition(async () => {
+            const result = await setTrackScoring(teamId, true).catch(() => ({ success: false as const, error: "Couldn't turn it on — try again." }));
+            if (!result.success) setError(result.error || "Couldn't turn it on — try again.");
+            else router.refresh();
+          });
+        }}
+        className="inline-flex min-h-[24px] items-center font-semibold text-brand-700 underline-offset-2 hover:underline disabled:opacity-60"
+      >
+        {isPending ? "Turning it on…" : "Turn it on"}
+      </button>
+      {error && <span role="alert" className="block text-danger">{error}</span>}
     </>
   );
 }

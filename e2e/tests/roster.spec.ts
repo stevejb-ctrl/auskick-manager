@@ -208,3 +208,41 @@ for (const [sport, ageGroup, jerseys] of [
     );
   });
 }
+
+// Usability pass, 26 Oct 2026: switching a kid off moved their row to
+// Inactive as soon as it saved, so every row below slid up under the
+// coach's thumb. The row stays put, muted, until the coach leaves.
+test("a kid switched off stays in place until the coach leaves the page", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
+  const { data: kids, error } = await admin
+    .from("players")
+    .insert(
+      ["Ada", "Bo", "Cy", "Di"].map((name, i) => ({ team_id: team.id, full_name: `${name} Stay`, jersey_number: i + 1, is_active: true, created_by: ownerId })),
+    )
+    .select("id, full_name");
+  if (error) throw new Error(error.message);
+  const bo = kids!.find((k) => k.full_name === "Bo Stay")!;
+
+  await page.goto(`/teams/${team.id}/squad`);
+  await waitForHydration(page);
+  const row = page.getByTestId(`player-row-${bo.id}`);
+  const sw = row.getByRole("switch", { name: /^deactivate /i });
+  await waitForAdminHydration(sw);
+  const before = await row.boundingBox();
+  await sw.click();
+  await expect
+    .poll(async () => (await admin.from("players").select("is_active").eq("id", bo.id).single()).data?.is_active, { timeout: 10_000 })
+    .toBe(false);
+  // Saved, switched off, and still where it was.
+  await expect(row.getByRole("switch", { name: /^reactivate /i })).toBeVisible();
+  await page.waitForTimeout(1_000);
+  await expect(page.getByTestId("squad-active-list").getByTestId(`player-row-${bo.id}`)).toBeVisible();
+  expect((await row.boundingBox())?.y).toBe(before?.y);
+
+  // Next visit: under Inactive.
+  await page.reload();
+  await expect(page.getByTestId("squad-inactive-list").getByTestId(`player-row-${bo.id}`)).toBeVisible({ timeout: 15_000 });
+});

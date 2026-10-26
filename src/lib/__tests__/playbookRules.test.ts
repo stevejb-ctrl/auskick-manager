@@ -4,6 +4,7 @@ import {
   activeRules,
   lockedRules,
   newRule,
+  pairingConflict,
   ruleCatalogue,
   ruleSentence,
   ruleWords,
@@ -187,5 +188,25 @@ describe("local rule packs", () => {
       ["every-line-per-game", null, "pack:afl-club-development"],
       ["max-bench-in-row", 2, "pack:afl-club-development"],
     ]);
+  });
+});
+
+describe("pairing rules can't contradict each other", () => {
+  const rule = (kind: "keep-apart" | "keep-together", playerIds: string[], enabled = true) => ({
+    ...newRule(kind),
+    params: { playerIds },
+    enabled,
+  });
+
+  it("finds two kids kept apart and kept together", () => {
+    expect(pairingConflict([rule("keep-together", ["a", "b"]), rule("keep-apart", ["b", "a"])])).toEqual(["b", "a"]);
+    // A pair inside bigger groups counts too.
+    expect(pairingConflict([rule("keep-together", ["a", "b", "c"]), rule("keep-apart", ["d", "c", "a"])])).toEqual(["c", "a"]);
+  });
+
+  it("lets different pairs, and rules that are off or unfinished, be", () => {
+    expect(pairingConflict([rule("keep-together", ["a", "b"]), rule("keep-apart", ["a", "c"])])).toBeNull();
+    expect(pairingConflict([rule("keep-together", ["a", "b"], false), rule("keep-apart", ["a", "b"])])).toBeNull();
+    expect(pairingConflict([rule("keep-together", ["a"]), rule("keep-apart", ["a", "b"])])).toBeNull();
   });
 });

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { bucketFillIns, replayGame } from "@/lib/dashboard/eventReplay";
 import { FILL_IN_STATS_ID, type Player, type Sport } from "@/lib/types";
@@ -52,7 +53,44 @@ interface StatsPageProps {
   searchParams: { season?: string; balance?: string };
 }
 
-export default async function StatsPage({ params, searchParams }: StatsPageProps) {
+// A game that's on (or sitting at full time, not finished) isn't in the
+// stats until it's finished. Say so, with the way back to it: a coach
+// whose game never finished saw "0 completed games" and "No data yet"
+// with no hint why (usability pass, 26 Oct 2026).
+export default async function StatsPage(props: StatsPageProps) {
+  const supabase = createClient();
+  const { data: unfinished } = await supabase
+    .from("games")
+    .select("id, opponent")
+    .eq("team_id", props.params.teamId)
+    .eq("status", "in_progress")
+    .order("scheduled_at");
+  const games = (unfinished ?? []) as { id: string; opponent: string }[];
+  if (games.length === 0) return <StatsBody {...props} />;
+  return (
+    <div className="space-y-4">
+      <div role="status" data-testid="stats-unfinished-games" className="rounded-md border border-warn/30 bg-warn-soft px-4 py-3 text-sm text-warn">
+        <p>
+          {games.length === 1
+            ? "A game isn't finished yet, so it isn't in these stats. Finish it at full time to count its minutes."
+            : `${games.length} games aren't finished yet, so they aren't in these stats. Finish each at full time to count their minutes.`}
+        </p>
+        <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+          {games.map((g) => (
+            <li key={g.id}>
+              <Link href={`/teams/${props.params.teamId}/games/${g.id}/live`} className="font-semibold underline underline-offset-2">
+                Open the game against {g.opponent}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <StatsBody {...props} />
+    </div>
+  );
+}
+
+async function StatsBody({ params, searchParams }: StatsPageProps) {
   const supabase = createClient();
 
   // Verify team exists + user has access (layout already guards this, but be explicit)
