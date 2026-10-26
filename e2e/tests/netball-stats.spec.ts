@@ -254,6 +254,15 @@ test("player stats fit a phone, and a replacement stint counts at its position",
   await expect(card).toContainText("GS 33%");
   await expect(card).toContainText("WA 67%");
 
+  // Usability pass, 26 Oct 2026: rows rounded each third on its own and
+  // could total 99. Every kid who played adds up to 100.
+  for (const kid of await section.locator("[data-testid^='player-stats-']").all()) {
+    const text = (await kid.textContent()) ?? "";
+    const thirds = ["Att", "Cen", "Def"].map((t) => Number(new RegExp(`${t} (\\d+)%`).exec(text)?.[1] ?? 0));
+    const sum = thirds.reduce((a, b) => a + b, 0);
+    expect([0, 100]).toContain(sum);
+  }
+
   // Nothing in the section is wider than its box.
   const overflowing = await section.evaluate((root) =>
     [root, ...Array.from(root.querySelectorAll("*"))].filter((el) => el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== "visible").length,

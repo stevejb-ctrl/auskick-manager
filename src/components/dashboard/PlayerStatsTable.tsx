@@ -5,6 +5,7 @@ import type { PlayerSeasonStats } from "@/lib/dashboard/types";
 import { EmptyState } from "./EmptyState";
 import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
 import { buildChatText } from "@/lib/dashboard/playerStatsChat";
+import { wholePercents } from "@/lib/percentages";
 
 const MS_PER_MIN = 60_000;
 const fmt = (ms: number) => Math.round(ms / MS_PER_MIN);
@@ -91,19 +92,14 @@ export function PlayerStatsTable({ stats, hasData }: Props) {
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {sorted.map((p) => {
           // Zone split as a % of the player's own on-field time (sums to
-          // ~100%) — "where do they play", independent of how much they
-          // bench. Mirrors the netball third breakdown. Steve 2026-07-07.
-          const onFieldMs =
-            p.zoneMs.back +
-            p.zoneMs.hback +
-            p.zoneMs.mid +
-            p.zoneMs.hfwd +
-            p.zoneMs.fwd;
-          const zonePct = (ms: number) =>
-            onFieldMs > 0 ? Math.round((ms / onFieldMs) * 100) : 0;
-          const backPct = zonePct(p.zoneMs.back + p.zoneMs.hback);
-          const midPct = zonePct(p.zoneMs.mid);
-          const fwdPct = zonePct(p.zoneMs.fwd + p.zoneMs.hfwd);
+          // 100%, lib/percentages) — "where do they play", independent of
+          // how much they bench. Mirrors the netball third breakdown. Steve
+          // 2026-07-07.
+          const [fwdPct, midPct, backPct] = wholePercents([
+            p.zoneMs.fwd + p.zoneMs.hfwd,
+            p.zoneMs.mid,
+            p.zoneMs.back + p.zoneMs.hback,
+          ]);
           return (
             <div
               key={p.playerId}

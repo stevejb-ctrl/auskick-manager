@@ -14,6 +14,8 @@
 
 import { test, expect } from "@playwright/test";
 import { finishedGame, fullTime, playPeriod } from "../helpers/finished-game";
+import { createAdminClient } from "../fixtures/supabase";
+import { makeGame, makeTeam } from "../fixtures/factories";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -60,4 +62,27 @@ test("Oztag: the kids' points and the tries with no scorer add up to points for"
   await expect(cells(players[1].full_name).last()).toHaveText("1");
   await expect(cells("No scorer").nth(-2)).toHaveText("1");
   await expect(cells("No scorer").last()).toHaveText("2");
+});
+
+// Usability pass, 26 Oct 2026: a game left at full time (never
+// finished) isn't in the stats, and the page said only "0 completed
+// games" and "No data yet". It says why now, with the way back.
+test("a game that isn't finished is named on the stats page, with a link to it", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data } = await admin.auth.admin.listUsers();
+  const ownerId = data.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Unfinished Eagles" });
+  await page.goto(`/teams/${team.id}/stats`);
+  await expect(page.getByRole("heading", { name: /player statistics/i }).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("stats-unfinished-games")).toHaveCount(0);
+
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+  await page.reload();
+  const note = page.getByTestId("stats-unfinished-games");
+  await expect(note).toContainText("A game isn't finished yet, so it isn't in these stats.", { timeout: 15_000 });
+  await expect(note.getByRole("link", { name: "Open the game against Unfinished Eagles" })).toHaveAttribute(
+    "href",
+    `/teams/${team.id}/games/${game.id}/live`,
+  );
 });

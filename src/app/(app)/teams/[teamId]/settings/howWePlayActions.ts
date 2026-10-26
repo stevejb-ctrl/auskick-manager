@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { effectivePolicy, getSportPlaybook } from "@/lib/playbook";
 import { resolveTeamPlaybook, sanitizeOverrides } from "@/lib/playbook/team";
 import { normaliseRole, prefsFromRole, roleModelFor, type PlayerRole } from "@/lib/playbook/roles";
-import { rulesForSport, sanitizeRules, type RuleInstance } from "@/lib/playbook/rules";
+import { pairingConflict, rulesForSport, sanitizeRules, type RuleInstance } from "@/lib/playbook/rules";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { applyPackRules, rulePacksFor } from "@/lib/playbook/rulePacks";
 import { getAgeGroupConfig, teamSport } from "@/lib/sports";
@@ -315,6 +315,9 @@ export async function saveRules(teamId: string, rules: RuleInstance[]): Promise<
   // Only rules the team's own sport acts on: anything else is dropped.
   const { resolved } = await loadTeamPlaybook(supabase, teamId, teamSport(team.sport), team.age_group as string);
   const clean = rulesForSport(sanitizeRules(rules, (squad ?? []).map((p) => p.id as string)), resolved);
+  if (pairingConflict(clean)) {
+    return { success: false, error: "Two players can't be kept apart and kept together. Remove one of those rules first." };
+  }
   const { error: upsertError } = await supabase.from("team_playbooks").upsert(
     { team_id: teamId, rules: clean, updated_by: user.id, updated_at: new Date().toISOString() },
     { onConflict: "team_id" },

@@ -1,8 +1,9 @@
 // With scoring off, the live score bar says so (Stagehand usability
 // run: every game-day agent hunted for a way to record goals, because
-// the score just sat at 0 or "—"). Coaches get a link to turn it on;
-// runners on a share link just get the note. Netball's case is in
-// netball-live-flow.spec.ts (NETBALL-04).
+// the score just sat at 0 or "—"). Coaches can turn it on right there
+// (it was a link to team settings, which left the game: usability pass,
+// 26 Oct 2026); runners on a share link just get the note. Netball's
+// case is in netball-live-flow.spec.ts (NETBALL-04).
 
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
@@ -15,7 +16,7 @@ async function superAdminId(admin: ReturnType<typeof createAdminClient>) {
   return data.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
 }
 
-test("AFL: scoring off is said on the live score bar, with a way to turn it on", async ({ page }) => {
+test("AFL: scoring off is said on the live score bar, and turns on without leaving the game", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
   const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
@@ -37,16 +38,22 @@ test("AFL: scoring off is said on the live score bar, with a way to turn it on",
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await expect(page.getByText("Scoring is off")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole("link", { name: "Turn it on" })).toHaveAttribute(
-    "href",
-    `/teams/${team.id}/settings#section-game-day-extras`,
-  );
+  const live = page.url();
 
-  // A runner on the share link sees the note, not the link.
+  // A runner on the share link sees the note, not the button.
   const { data: g } = await admin.from("games").select("share_token").eq("id", game.id).single();
   await page.goto(`/run/${g!.share_token}`);
   await expect(page.getByText("Scoring is off")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole("link", { name: "Turn it on" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Turn it on" })).toHaveCount(0);
+
+  // The coach turns it on, and stays in the game.
+  await page.goto(live);
+  await page.getByRole("button", { name: "Turn it on" }).click({ timeout: 15_000 });
+  await expect(page.getByText("Scoring is off")).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^add goal, /i }).first()).toBeVisible();
+  expect(page.url()).toBe(live);
+  const { data: t } = await admin.from("teams").select("track_scoring").eq("id", team.id).single();
+  expect(t?.track_scoring).toBe(true);
 });
 
 test("league: scoring off is said on the live score bar", async ({ page }) => {
@@ -75,5 +82,5 @@ test("league: scoring off is said on the live score bar", async ({ page }) => {
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await expect(page.getByText("Scoring is off")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole("link", { name: "Turn it on" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Turn it on" })).toBeVisible();
 });
