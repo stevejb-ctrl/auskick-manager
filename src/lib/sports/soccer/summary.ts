@@ -55,8 +55,9 @@ export function buildSoccerSummary(input: SoccerSummaryInput): string {
         const p = byId.get(id);
         return `${first(p)}${p?.jersey_number != null ? ` (#${p.jersey_number})` : ""}${n > 1 ? ` ×${n}` : ""}`;
       });
-    const unnamed = us - Object.values(state.playerGoals).reduce((s, n) => s + n, 0);
+    const unnamed = us - Object.values(state.playerGoals).reduce((s, n) => s + n, 0) - state.ownGoals;
     if (unnamed > 0) scorers.push(`+${unnamed} ${unnamed === 1 ? "goal" : "goals"} (no scorer)`);
+    if (state.ownGoals > 0) scorers.push(`+${state.ownGoals} own ${state.ownGoals === 1 ? "goal" : "goals"}`);
     if (scorers.length > 0) lines.push(`\n${emoji} Goals: ${scorers.join(", ")}`);
   }
 

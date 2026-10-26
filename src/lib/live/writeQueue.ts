@@ -116,6 +116,7 @@ const GAME_LANE = new Set([
   "recordSoccerSwap",
   "recordSoccerMove",
   "recordSoccerGoal",
+  "recordSoccerOwnGoal",
   "recordSoccerOpponentGoal",
   "undoSoccerScore",
   // Basketball

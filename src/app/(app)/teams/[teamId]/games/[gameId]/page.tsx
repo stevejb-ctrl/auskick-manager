@@ -13,7 +13,7 @@ import {
 } from "@/components/sf";
 import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isBasketball, isSoccer, isTouch, periodLabels, teamSport } from "@/lib/sports";
 import { teamMixedRule } from "@/lib/sports/touch/mixed";
-import { scoresKept, scorersFromEvents, unnamedScoreFromEvents } from "@/lib/results";
+import { ownGoalsFromEvents, scoresKept, scorersFromEvents, unnamedScoreFromEvents } from "@/lib/results";
 import { getSeasonEvents } from "@/lib/season";
 import { gamePlanPlaybooks } from "@/lib/playbook/planInputs";
 import { gamePlanAnchor } from "@/lib/game-plan/anchor";
@@ -151,6 +151,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   // Scored with nobody named ("Not sure who"): its own row, so the card
   // adds up to the score (UX round 2, 24 Oct 2026).
   const unnamedScore = unnamedScoreFromEvents(sport, (scoringEvents ?? []) as GameEvent[]);
+  const ownGoals = ownGoalsFromEvents(sport, (scoringEvents ?? []) as GameEvent[]);
   const scorerWords = SCORER_WORDS[sport];
   // Two kids with the same name read "Ava Smith #3" / "#12" (lib/names).
   const scorerNames = distinctFullNames(Array.from(playerById.values()));
@@ -599,7 +600,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
 
       {/* ── Scorers, in each sport's words (AFL goals + behinds, netball
             goals, league tries + kicks); numbers where the sport has them ── */}
-      {(scorerRows.length > 0 || unnamedScore) && (
+      {(scorerRows.length > 0 || unnamedScore || ownGoals > 0) && (
         <SFCard>
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -650,6 +651,14 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
               <li data-testid="no-scorer-row" className="flex items-center justify-between py-3 text-sm">
                 <span className="font-medium text-ink-dim">No scorer</span>
                 <span className="font-mono font-bold tabular-nums text-ink">{unnamedScore.detail}</span>
+              </li>
+            )}
+            {ownGoals > 0 && (
+              <li data-testid="own-goal-row" className="flex items-center justify-between py-3 text-sm">
+                <span className="font-medium text-ink-dim">Own goals (theirs)</span>
+                <span className="font-mono font-bold tabular-nums text-ink">
+                  {ownGoals} {ownGoals === 1 ? "goal" : "goals"}
+                </span>
               </li>
             )}
           </ul>

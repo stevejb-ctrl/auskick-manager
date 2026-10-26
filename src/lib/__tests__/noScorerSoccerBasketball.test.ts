@@ -10,7 +10,7 @@ import { buildSoccerSummary } from "@/lib/sports/soccer/summary";
 import { replaySoccerGame } from "@/lib/sports/soccer/replay";
 import { buildBasketballSummary } from "@/lib/sports/basketball/summary";
 import { replayBasketballGame } from "@/lib/sports/basketball/replay";
-import { unnamedScoreFromEvents } from "@/lib/results";
+import { ownGoalsFromEvents, unnamedScoreFromEvents } from "@/lib/results";
 import type { Player } from "@/lib/types";
 import { SEVEN, game as soccerGame } from "@/lib/sports/soccer/__tests__/soccerGame";
 import { LINES, game as basketballGame } from "@/lib/sports/basketball/__tests__/basketballGame";
@@ -97,5 +97,48 @@ describe("the scorers card's No scorer row", () => {
     g.add("goal", { quarter: 1, elapsed_ms: 60_000 }, "a1");
     g.end(1, 20);
     expect(unnamedScoreFromEvents("hockey", g.events)).toBeNull();
+  });
+});
+
+// Usability pass, 26 Oct 2026: football, futsal and hockey had no way to
+// say a goal was theirs into their own net; "Not sure who" was all there
+// was. An own goal counts for us, credits nobody, and is listed apart.
+describe("own goals", () => {
+  function withOwnGoal() {
+    const g = futsalGame();
+    g.start(2);
+    g.add("goal", { quarter: 2, elapsed_ms: 30_000, own_goal: true });
+    g.end(2, 20);
+    return g;
+  }
+
+  it("count for us, and for no kid", () => {
+    const state = replaySoccerGame(withOwnGoal().events);
+    expect(state.teamScore.goals).toBe(3);
+    expect(state.ownGoals).toBe(1);
+    expect(state.playerGoals).toEqual({ a1: 1 });
+  });
+
+  it("are listed apart from goals nobody was named for", () => {
+    const events = withOwnGoal().events;
+    expect(ownGoalsFromEvents("futsal", events)).toBe(1);
+    expect(unnamedScoreFromEvents("futsal", events)).toEqual({ detail: "1 goal", points: 1 });
+    const text = buildSoccerSummary({
+      emoji: "⚽",
+      teamName: "Us",
+      opponentName: "Them",
+      trackScoring: true,
+      state: replaySoccerGame(events),
+      squad: [player("a1", "Harper Ng", 7)],
+      presentIds: [],
+    });
+    expect(text).toContain("⚽ Goals: Harper (#7), +1 goal (no scorer), +1 own goal");
+  });
+
+  it("come off with an undo", () => {
+    const g = withOwnGoal();
+    g.add("score_undo", {});
+    expect(replaySoccerGame(g.events).ownGoals).toBe(0);
+    expect(replaySoccerGame(g.events).teamScore.goals).toBe(2);
   });
 });
