@@ -100,7 +100,10 @@ export function LiveAdminUtilityRow({
   // a non-admin / no-late-arrivals render.
   if (!showLate && !isAdmin && !settings && !extra) return null;
   return (
-    <div className="flex items-center justify-center gap-3 border-t border-hairline pt-4">
+    // Wraps: with Fix scores beside late arrival, settings and Restart,
+    // one row ran past a phone at 200% text and widened the whole page
+    // (a11y-sheet-fits: the scorer sheet's Cancel fell off the screen).
+    <div className="flex flex-wrap items-center justify-center gap-3 border-t border-hairline pt-4">
       {showLate && (
         <LateArrivalMenu
           candidates={candidates}
