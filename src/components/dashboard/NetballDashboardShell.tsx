@@ -10,6 +10,7 @@
 // rotation, chemistry, head-to-head).
 
 import { Suspense } from "react";
+import { wholePercents } from "@/lib/percentages";
 import type {
   NetballChemistryPair,
   NetballHeadToHeadRecord,
@@ -193,11 +194,11 @@ function NetballPlayerStatsTable({
     // width of its metric row and clip at 320 px (UX round 3, e4).
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       {stats.map((s) => {
-        const onCourt = s.thirdMs.attack + s.thirdMs.centre + s.thirdMs.defence;
-        const pct = (ms: number) => (onCourt > 0 ? Math.round((ms / onCourt) * 100) : 0);
-        const bibs = NETBALL_ALL_POSITIONS.filter((p) => (s.positionMs[p] ?? 0) > 0).map(
-          (p) => `${netballPositionLabel(p)} ${pct(s.positionMs[p] ?? 0)}%`,
-        );
+        // Shares that add up to 100 (lib/percentages).
+        const [attPct, cenPct, defPct] = wholePercents([s.thirdMs.attack, s.thirdMs.centre, s.thirdMs.defence]);
+        const played = NETBALL_ALL_POSITIONS.filter((p) => (s.positionMs[p] ?? 0) > 0);
+        const bibPcts = wholePercents(played.map((p) => s.positionMs[p] ?? 0));
+        const bibs = played.map((p, i) => `${netballPositionLabel(p)} ${bibPcts[i]}%`);
         return (
           <div
             key={s.playerId}
@@ -221,9 +222,9 @@ function NetballPlayerStatsTable({
 
             {/* Thirds, attack → defence, in the court's colours. */}
             <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] font-medium">
-              <ZonePill abbr="Att" pct={pct(s.thirdMs.attack)} tone="f" />
-              <ZonePill abbr="Cen" pct={pct(s.thirdMs.centre)} tone="c" />
-              <ZonePill abbr="Def" pct={pct(s.thirdMs.defence)} tone="b" />
+              <ZonePill abbr="Att" pct={attPct} tone="f" />
+              <ZonePill abbr="Cen" pct={cenPct} tone="c" />
+              <ZonePill abbr="Def" pct={defPct} tone="b" />
             </div>
 
             {bibs.length > 0 && (
