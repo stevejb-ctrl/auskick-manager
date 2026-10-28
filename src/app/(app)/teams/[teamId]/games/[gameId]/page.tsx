@@ -32,6 +32,7 @@ import { isNotPlayed, playedInSiren } from "@/lib/games/notPlayed";
 import { NotPlayedActions } from "@/components/games/NotPlayedGames";
 import { finishedScoreLog, scoreKinds } from "@/lib/games/finishedScores";
 import type { FixScoresProps } from "@/components/games/FixScoresDialog";
+import { replayBasketballGame } from "@/lib/sports/basketball/replay";
 
 interface GameDetailPageProps {
   params: { teamId: string; gameId: string };
@@ -153,6 +154,19 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   const unnamedScore = unnamedScoreFromEvents(sport, (scoringEvents ?? []) as GameEvent[]);
   const ownGoals = ownGoalsFromEvents(sport, (scoringEvents ?? []) as GameEvent[]);
   const scorerWords = SCORER_WORDS[sport];
+  // Basketball: each kid's fouls, for the coach. The summary said only
+  // "fouled out", so nobody could see who finished on 4 (Stagehand
+  // round 7, 28 Oct 2026). Not in the share text: it goes to every parent.
+  const foulRows = isBasketball(sport)
+    ? (() => {
+        const replay = replayBasketballGame((scoringEvents ?? []) as GameEvent[]);
+        const out = new Set(replay.fouledOutIds);
+        return Object.entries(replay.fouls)
+          .filter(([id, n]) => n > 0 && playerById.has(id))
+          .sort((a, b) => b[1] - a[1])
+          .map(([id, n]) => ({ player: playerById.get(id)!, fouls: n, fouledOut: out.has(id) }));
+      })()
+    : [];
   // Two kids with the same name read "Ava Smith #3" / "#12" (lib/names).
   const scorerNames = distinctFullNames(Array.from(playerById.values()));
 
@@ -661,6 +675,26 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 </span>
               </li>
             )}
+          </ul>
+        </SFCard>
+      )}
+
+      {foulRows.length > 0 && (
+        <SFCard id="fouls">
+          <Eyebrow>Fouls</Eyebrow>
+          <h3 className="mt-1 text-lg font-bold tracking-tightest text-ink">Who picked up fouls</h3>
+          <ul className="mt-4 divide-y divide-hairline">
+            {foulRows.map((r) => (
+              <li key={r.player.id} className="flex items-center justify-between py-3 text-sm">
+                <span className="min-w-0 break-words font-semibold text-ink">
+                  {scorerNames.get(r.player.id) ?? r.player.full_name}
+                </span>
+                <span className="font-mono tabular-nums text-ink-dim">
+                  <span className="font-bold text-ink">{r.fouls}</span> {r.fouls === 1 ? "foul" : "fouls"}
+                  {r.fouledOut && <span className="ml-2 text-[10px] font-bold uppercase tracking-[0.1em] text-danger">Fouled out</span>}
+                </span>
+              </li>
+            ))}
           </ul>
         </SFCard>
       )}
