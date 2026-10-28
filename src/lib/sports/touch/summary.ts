@@ -8,6 +8,7 @@
 // list ("+1 try (no scorer)"), so it adds up to the score.
 
 import type { Player } from "@/lib/types";
+import { summaryStatusNote } from "@/lib/live/wentHome";
 import { shortName, shortNames } from "@/lib/names";
 import { DIDNT_GET_ON, didntGetOn } from "@/lib/live/presentPlayers";
 import { byJerseyThenName } from "@/lib/share/neutralOrder";
@@ -64,11 +65,13 @@ export function buildTouchSummary(input: TouchSummaryInput): string {
   const played = Object.keys(state.ms)
     .map((id) => ({ id, ms: touchGameMs(state, id) }))
     .filter((r) => r.ms >= 1000);
+  // A kid still off at full time says why: hurt, or gone home.
+  const status = { injured: new Set(state.injuredIds), wentHome: new Set(state.wentHomeIds) };
   const rows = played.map(({ id, ms }) => {
     const p = byId.get(id);
     const lanes = TOUCH_LANES.filter((l) => (state.ms[id]?.[l] ?? 0) >= 1000);
     const split = lanes.length > 1 ? ` (${lanes.map((l) => `${LANE_LETTER[l as keyof typeof LANE_LETTER]} ${fmtMs(state.ms[id]![l]!)}`).join(", ")})` : "";
-    return { id, text: `${jersey(p)}${first(p)} — ${fmtMs(ms)}${split}` };
+    return { id, text: `${jersey(p)}${first(p)} — ${fmtMs(ms)}${split}${summaryStatusNote(id, status)}` };
   });
   for (const id of didntGetOn(presentIds, played.map((r) => r.id))) {
     const p = byId.get(id);

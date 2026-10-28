@@ -45,9 +45,11 @@ interface Props {
   playerGoals?: Record<string, number>;
   /** Opens the kid's actions (a tap or a long-press). */
   onTileLongPress?: (playerId: string) => void;
+  /** Sidelined kids who went home: HOME, not INJ (lib/live/wentHome). */
+  wentHomeIds?: ReadonlySet<string>;
 }
 
-export function NetballBenchStrip({ entries, playerStats, playerGoals, onTileLongPress }: Props) {
+export function NetballBenchStrip({ entries, playerStats, playerGoals, onTileLongPress, wentHomeIds }: Props) {
   if (entries.length === 0) return null;
   return (
     <div role="group" aria-label="Bench" className="rounded-md border border-hairline bg-surface p-2 shadow-card">
@@ -74,6 +76,7 @@ export function NetballBenchStrip({ entries, playerStats, playerGoals, onTileLon
               totalMs={stats ? stats.attack + stats.centre + stats.defence : 0}
               lineMs={stats ? { ...stats } : undefined}
               injured={status === "injured"}
+              wentHome={status === "injured" && (wentHomeIds?.has(player.id) ?? false)}
               loaned={status === "loaned"}
               score={goals > 0 ? { text: String(goals), label: `${goals} goal${goals === 1 ? "" : "s"}` } : null}
             />

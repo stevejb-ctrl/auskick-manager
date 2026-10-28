@@ -25,6 +25,8 @@ interface BasketballBenchProps {
   totalMsByPlayer?: Record<string, number>;
   lineMsByPlayer?: Record<string, BasketballLineMs>;
   injuredIds?: string[];
+  /** Sidelined kids who went home: HOME, not INJ (lib/live/wentHome). */
+  wentHomeIds?: ReadonlySet<string>;
   loanedIds?: string[];
   fouledOutIds?: string[];
   /** Each kid's sit-out time left, in game ms. */
@@ -48,6 +50,7 @@ export function BasketballBench({
   totalMsByPlayer,
   lineMsByPlayer,
   injuredIds,
+  wentHomeIds,
   loanedIds,
   fouledOutIds,
   sitOutMsLeft,
@@ -90,6 +93,7 @@ export function BasketballBench({
                 totalMs={totalMsByPlayer?.[pid]}
                 lineMs={lineMsByPlayer?.[pid]}
                 injured={injuredSet.has(pid) && !fouledOutSet.has(pid)}
+                wentHome={wentHomeIds?.has(pid) ?? false}
                 loaned={loanedSet.has(pid)}
                 fouledOut={fouledOutSet.has(pid)}
                 sitOutMsLeft={sitOutMsLeft?.[pid] ?? null}

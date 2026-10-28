@@ -72,6 +72,8 @@ interface SoccerPlayerTileProps {
   /** This game's time in each line and in goal: the bar. */
   unitMs?: SoccerUnitMs;
   injured?: boolean;
+  /** Injured with reason "out": the kid went home (lib/live/wentHome). */
+  wentHome?: boolean;
   loaned?: boolean;
   /** "field" = Keep on or Keep in goal (never subbed); "zone" = kept in a line. */
   lockMode?: "field" | "zone" | null;
@@ -104,6 +106,7 @@ function SoccerPlayerTileImpl({
   totalMs,
   unitMs,
   injured,
+  wentHome = false,
   loaned,
   lockMode,
   goals,
@@ -244,8 +247,8 @@ function SoccerPlayerTileImpl({
               </span>
             )}
             {injured && (
-              <span className={`${CHIP} bg-danger tracking-micro text-white`} aria-label="Injured">
-                INJ
+              <span className={`${CHIP} ${wentHome ? "bg-ink-mute" : "bg-danger"} tracking-micro text-white`} aria-label={wentHome ? "Went home" : "Injured"}>
+                {wentHome ? "HOME" : "INJ"}
               </span>
             )}
             {loaned && !injured && (
@@ -338,6 +341,7 @@ function areEqual(a: SoccerPlayerTileProps, b: SoccerPlayerTileProps): boolean {
     a.selected !== b.selected ||
     a.dimmed !== b.dimmed ||
     a.injured !== b.injured ||
+    a.wentHome !== b.wentHome ||
     a.loaned !== b.loaned ||
     a.lockMode !== b.lockMode ||
     a.goals !== b.goals ||

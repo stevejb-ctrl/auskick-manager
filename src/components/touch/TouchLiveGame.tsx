@@ -35,6 +35,7 @@
 // counts as a girl or a boy is never drawn on a tile.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { WENT_HOME_REASON } from "@/lib/live/wentHome";
 import { SFButton } from "@/components/sf";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
@@ -189,7 +190,7 @@ export function TouchLiveGame({
   const [pickingScorer, setPickingScorer] = useState(false);
   const [actionPlayerId, setActionPlayerId] = useState<string | null>(null);
   const [fillLine, setFillLine] = useState<TouchLine | null>(null);
-  const [leaving, setLeaving] = useState<{ playerId: string; line: TouchLine } | null>(null);
+  const [leaving, setLeaving] = useState<{ playerId: string; line: TouchLine; wentHome?: boolean } | null>(null);
   const [subAckKey, setSubAckKey] = useState<string | null>(null);
   const liveRootRef = useRef<HTMLDivElement>(null);
   const periodMs = periodSeconds * 1000;
@@ -276,6 +277,7 @@ export function TouchLiveGame({
   );
   const absNowMs = state.completedPeriodMs + (isPeriodActive ? elapsedMs : 0);
   const injuredSet = useMemo(() => new Set(state.injuredIds), [state.injuredIds]);
+  const wentHomeSet = useMemo(() => new Set(state.wentHomeIds), [state.wentHomeIds]);
   const loanedSet = useMemo(() => new Set(state.loanedIds), [state.loanedIds]);
   const totalMsByPlayer = useMemo(
     () => Object.fromEntries(squad.map((p) => [p.id, touchGameMs(state, p.id)])),
@@ -634,25 +636,26 @@ export function TouchLiveGame({
     chrome.showToast(`${pids.map((id) => chrome.firstName(id)).join(" and ")} off — playing ${touchOnField(lineup).length}`);
   }
 
-  function markInjured(pid: string, injured: boolean) {
+  // A kid going home is an injury with reason "out" (lib/live/wentHome).
+  function markInjured(pid: string, injured: boolean, wentHome = false) {
     setError(null);
-    const input = { player_id: pid, injured, ...at() };
+    const input = { player_id: pid, injured, ...at(), ...(wentHome ? { reason: WENT_HOME_REASON } : {}) };
     write("markInjury", [auth, game.id, input], liveEvents.injury(input));
   }
   /** A kid leaves the field hurt: pick who comes on. */
-  function startLeaving(pid: string) {
+  function startLeaving(pid: string, wentHome = false) {
     const line = state.lineup ? touchLineOf(state.lineup, pid) : null;
     // Nobody who keeps the mixed rule can replace them: the field shrinks.
     if (isPeriodActive && line && swappableBench.some((id) => keepsRule(id, pid))) {
-      setLeaving({ playerId: pid, line });
+      setLeaving({ playerId: pid, line, wentHome });
       return;
     }
-    markInjured(pid, true);
+    markInjured(pid, true, wentHome);
   }
-  function leaveAndReplace(pid: string, replacementId: string, line: TouchLine) {
+  function leaveAndReplace(pid: string, replacementId: string, line: TouchLine, wentHome = false) {
     setLeaving(null);
     // In order, in the one game lane: the injury, then who comes on.
-    markInjured(pid, true);
+    markInjured(pid, true, wentHome);
     sub(pid, replacementId, line);
     chrome.swapped(pid, replacementId);
   }
@@ -984,6 +987,7 @@ export function TouchLiveGame({
             totalMsByPlayer={totalMsByPlayer}
             lineMsByPlayer={state.ms}
             injuredIds={state.injuredIds}
+            wentHomeIds={wentHomeSet}
             loanedIds={state.loanedIds}
             lockModes={lockModes}
             triesByPlayer={trackScoring ? playerTries : undefined}
@@ -1186,6 +1190,7 @@ export function TouchLiveGame({
           // lent minutes, as AFL's sheet has.
           currentLine={actionLine ? TOUCH_LINE_LABEL[actionLine] : null}
           isInjured={injuredSet.has(actionPlayer.id)}
+          wentHome={wentHomeSet.has(actionPlayer.id)}
           isLoaned={loanedSet.has(actionPlayer.id)}
           seasonLoanMins={chrome.loanMinutes(actionPlayer.id).seasonLoanMins}
           squadLoanMins={chrome.loanMinutes(actionPlayer.id).squadLoanMins}
@@ -1207,6 +1212,11 @@ export function TouchLiveGame({
             setActionPlayerId(null);
             if (injuredSet.has(pid)) markInjured(pid, false);
             else startLeaving(pid);
+          }}
+          onWentHome={() => {
+            const pid = actionPlayer.id;
+            setActionPlayerId(null);
+            startLeaving(pid, true);
           }}
           onToggleLoan={() => {
             const pid = actionPlayer.id;
@@ -1285,14 +1295,14 @@ export function TouchLiveGame({
           return (
             <InjuryReplacementModal
               injuredPlayer={who}
-              reason="injured"
+              reason={leaving.wentHome ? "went_home" : "injured"}
               spotLabel={leaving.line === "field" ? "their spot" : TOUCH_LINE_ONE[leaving.line]}
               candidates={candidates}
-              onPickReplacement={(rid) => leaveAndReplace(leaving.playerId, rid, leaving.line)}
+              onPickReplacement={(rid) => leaveAndReplace(leaving.playerId, rid, leaving.line, leaving.wentHome)}
               onSkipReplacement={() => {
-                const { playerId } = leaving;
+                const { playerId, wentHome } = leaving;
                 setLeaving(null);
-                markInjured(playerId, true);
+                markInjured(playerId, true, wentHome);
               }}
               onCancel={() => setLeaving(null)}
             />

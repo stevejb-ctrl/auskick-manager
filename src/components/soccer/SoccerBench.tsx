@@ -26,6 +26,8 @@ interface SoccerBenchProps {
   totalMsByPlayer?: Record<string, number>;
   unitMsByPlayer?: Record<string, SoccerUnitMs>;
   injuredIds?: string[];
+  /** Sidelined kids who went home: HOME, not INJ (lib/live/wentHome). */
+  wentHomeIds?: ReadonlySet<string>;
   loanedIds?: string[];
   lockModes?: Record<string, "field" | "zone">;
   goalsByPlayer?: Record<string, number>;
@@ -45,6 +47,7 @@ export function SoccerBench({
   totalMsByPlayer,
   unitMsByPlayer,
   injuredIds,
+  wentHomeIds,
   loanedIds,
   lockModes,
   goalsByPlayer,
@@ -83,6 +86,7 @@ export function SoccerBench({
                 totalMs={totalMsByPlayer?.[pid]}
                 unitMs={unitMsByPlayer?.[pid]}
                 injured={injuredSet.has(pid)}
+                wentHome={wentHomeIds?.has(pid) ?? false}
                 loaned={loanedSet.has(pid)}
                 lockMode={lockModes?.[pid] ?? null}
                 goals={goalsByPlayer?.[pid]}

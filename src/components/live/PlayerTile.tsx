@@ -34,6 +34,8 @@ interface PlayerTileProps {
   /** Zone-minute distribution for the current game — shown as a mini stacked bar at the tile bottom. */
   zoneMs?: ZoneMinutes;
   injured?: boolean;
+  /** Injured with reason "out": the kid went home (lib/live/wentHome). */
+  wentHome?: boolean;
   /** Currently lent to the opposition. Rendered like an unavailable player. */
   loaned?: boolean;
   /** "field" = never subbed; "zone" = can sub but only to their locked zone */
@@ -89,6 +91,7 @@ function PlayerTileImpl({
   totalMs,
   zoneMs,
   injured,
+  wentHome = false,
   loaned,
   lockMode,
   score,
@@ -294,8 +297,8 @@ function PlayerTileImpl({
             </span>
           )}
           {injured && (
-            <span className={`${CHIP} bg-danger tracking-micro text-white`} aria-label="Injured">
-              INJ
+            <span className={`${CHIP} ${wentHome ? "bg-ink-mute" : "bg-danger"} tracking-micro text-white`} aria-label={wentHome ? "Went home" : "Injured"}>
+              {wentHome ? "HOME" : "INJ"}
             </span>
           )}
           {loaned && !injured && (
@@ -424,6 +427,7 @@ function areEqual(a: PlayerTileProps, b: PlayerTileProps): boolean {
   if (a.selected !== b.selected) return false;
   if (a.dimmed !== b.dimmed) return false;
   if (a.injured !== b.injured) return false;
+  if (a.wentHome !== b.wentHome) return false;
   if (a.loaned !== b.loaned) return false;
   if (a.lockMode !== b.lockMode) return false;
   if (a.compact !== b.compact) return false;

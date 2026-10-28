@@ -28,6 +28,8 @@ interface LeagueBenchStripProps {
   conversionByPlayer?: Record<string, PlayerConversionStatus>;
   kickoffTakerIds?: Set<string>;
   injuredIds?: Set<string>;
+  /** Sidelined kids who went home: HOME, not INJ (lib/live/wentHome). */
+  wentHomeIds?: ReadonlySet<string>;
   loanedIds?: Set<string>;
   selectedPlayerId?: string | null;
   /**
@@ -60,6 +62,7 @@ export function LeagueBenchStrip({
   conversionByPlayer,
   kickoffTakerIds,
   injuredIds,
+  wentHomeIds,
   loanedIds,
   selectedPlayerId,
   swapOns,
@@ -90,6 +93,7 @@ export function LeagueBenchStrip({
               conversion={conversionByPlayer?.[p.id] ?? null}
               kickedOff={kickoffTakerIds?.has(p.id) ?? false}
               injured={injuredIds?.has(p.id) ?? false}
+              wentHome={wentHomeIds?.has(p.id) ?? false}
               loaned={loanedIds?.has(p.id) ?? false}
               keepOn={keepOnIds?.has(p.id) ?? false}
               selected={selectedPlayerId === p.id}

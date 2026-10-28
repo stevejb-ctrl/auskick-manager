@@ -147,6 +147,14 @@ interface LockModalProps {
    * isn't final (UX audit 23 Oct 2026, P1).
    */
   outForGameActions?: LockModalAction[];
+  /**
+   * The kid went home (an injury with reason "out"): the injured sheet
+   * says so, instead of "Injured". Stagehand round 7 (28 Oct 2026): a
+   * kid who left early read as hurt everywhere.
+   */
+  wentHome?: boolean;
+  /** "Went home": off the field and out of the rotation, not hurt. */
+  onWentHome?: () => void;
   onClose: () => void;
 }
 
@@ -207,6 +215,8 @@ export function LockModal({
   extraActions,
   outForGameNote,
   outForGameActions,
+  wentHome = false,
+  onWentHome,
   onClose,
 }: LockModalProps) {
   const firstName = useSquadNames().first(player);
@@ -299,8 +309,14 @@ export function LockModal({
           /* Currently injured — offer to mark recovered */
           <>
             <p className="mb-5 text-center text-sm text-ink-dim">
-              Injured — sitting on the bench and skipped by the sub
-              rotation until they&apos;re recovered.
+              {wentHome ? (
+                <>Went home — out of the sub rotation until you bring them back.</>
+              ) : (
+                <>
+                  Injured — sitting on the bench and skipped by the sub
+                  rotation until they&apos;re recovered.
+                </>
+              )}
             </p>
             <div className="flex flex-col gap-2">
               <button
@@ -543,6 +559,19 @@ export function LockModal({
                   </span>
                 </button>
                 )}
+              {onWentHome && (
+                <button
+                  type="button"
+                  onClick={onWentHome}
+                  data-testid="lock-modal-went-home"
+                  className="flex w-full flex-col items-center rounded-md border border-hairline px-4 py-3 text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+                >
+                  <span className="text-sm font-bold">Went home</span>
+                  <span className="mt-0.5 text-xs text-ink-dim">
+                    Leaving early: off the field for the rest of the game
+                  </span>
+                </button>
+              )}
               {onToggleLoan && (
                 <button
                   type="button"

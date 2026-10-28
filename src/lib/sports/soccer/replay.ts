@@ -53,6 +53,8 @@ export interface SoccerGameState {
   /** Each kid's current hold (Keep on, Keep in goal, Keep in a line). */
   locks: Record<string, PlayerLock>;
   injuredIds: string[];
+  /** Of the injured, the kids who went home (an injury with reason "out", lib/live/wentHome). */
+  wentHomeIds: string[];
   loanedIds: string[];
   /** Each kid's time this game, per unit. */
   ms: Record<string, SoccerUnitMs>;
@@ -113,6 +115,7 @@ export function replaySoccerGame(events: GameEvent[], opts: ReplaySoccerOptions 
     scoreByPeriod: {},
     locks: {},
     injuredIds: [],
+    wentHomeIds: [],
     loanedIds: [],
     ms: {},
     msByPeriod: {},
@@ -374,9 +377,13 @@ export function replaySoccerGame(events: GameEvent[], opts: ReplaySoccerOptions 
         const injured = (ev.metadata as { injured?: boolean }).injured ?? true;
         if (!injured) {
           state.injuredIds = state.injuredIds.filter((p) => p !== pid);
+          state.wentHomeIds = state.wentHomeIds.filter((p) => p !== pid);
           break;
         }
         if (!state.injuredIds.includes(pid)) state.injuredIds.push(pid);
+        // A kid going home is an injury with reason "out": say so (lib/live/wentHome).
+        state.wentHomeIds = state.wentHomeIds.filter((p) => p !== pid);
+        if ((ev.metadata as { reason?: string }).reason === "out") state.wentHomeIds.push(pid);
         if (state.lineup && soccerUnitOf(state.lineup, pid)) {
           closeStint(pid, elapsed);
           leaveField(state.lineup, pid);

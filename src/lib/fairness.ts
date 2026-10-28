@@ -1162,6 +1162,8 @@ export interface GameState {
    */
   pastQuarterZones: Record<string, Record<number, Zone>>;
   injuredIds: string[];
+  /** Of the injured, the kids who went home (an injury with reason "out", lib/live/wentHome). */
+  wentHomeIds: string[];
   loanedIds: string[];
   loanStartMs: Record<string, number>;
   basePlayedLoanMs: Record<string, number>;
@@ -1222,6 +1224,7 @@ export function replayGame(events: GameEvent[]): GameState {
     lastSubbedOffMs: {},
     completedQuarterMs: 0,
     injuredIds: [],
+    wentHomeIds: [],
     loanedIds: [],
     loanStartMs: {},
     basePlayedLoanMs: {},
@@ -1467,8 +1470,10 @@ export function replayGame(events: GameEvent[]): GameState {
     } else if (ev.type === "injury" && state.lineup && ev.player_id) {
       const pid = ev.player_id;
       const injured = (ev.metadata as { injured?: boolean }).injured ?? true;
+      state.wentHomeIds = state.wentHomeIds.filter((p) => p !== pid);
       if (injured) {
         if (!state.injuredIds.includes(pid)) state.injuredIds.push(pid);
+        if ((ev.metadata as { reason?: string }).reason === "out") state.wentHomeIds.push(pid);
         const z = zoneOf(state.lineup, pid);
         if (z) {
           closeStint(pid, z, elapsed);

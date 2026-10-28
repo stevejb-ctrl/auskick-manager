@@ -49,6 +49,7 @@ import {
 } from "@/lib/sports/soccer/types";
 import type { Game, LiveAuth, Player } from "@/lib/types";
 import { breakPlansWithKeeper, kitUpKey, preferAnnouncedKeeper, readKitUp, writeKitUp } from "./keeperKitUp";
+import { sidelinedLabel } from "@/lib/live/wentHome";
 
 const GROUPS = ["att", "mid", "def", "field", "gk"] as const;
 
@@ -336,9 +337,10 @@ export function SoccerBreak({
   );
   const sidelined = useMemo(() => {
     const out: Record<string, string> = {};
-    for (const id of sidelinedInGame) out[id] = injuredSet.has(id) ? "Injured" : "Lent";
+    const home = new Set(state.wentHomeIds);
+    for (const id of sidelinedInGame) out[id] = injuredSet.has(id) ? sidelinedLabel(id, home) : "Lent";
     return out;
-  }, [sidelinedInGame, injuredSet]);
+  }, [sidelinedInGame, injuredSet, state.wentHomeIds]);
   const withOut = (l: SoccerLineup): StagedLineup => {
     const s = stagedOf(l);
     const onBoard = new Set([...Object.values(s.groups).flat(), ...s.bench]);

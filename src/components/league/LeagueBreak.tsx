@@ -14,6 +14,7 @@
 // lives in PeriodBreak.
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { sidelinedLabel, wentHomeIds } from "@/lib/live/wentHome";
 import { useRouter } from "next/navigation";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { liveEvents } from "@/lib/live/optimisticEvents";
@@ -322,9 +323,10 @@ export function LeagueBreak({
   );
   const sidelined = useMemo(() => {
     const out: Record<string, string> = {};
-    for (const id of sidelinedInGame) out[id] = injured.has(id) ? "Injured" : "Lent";
+    const home = wentHomeIds(events);
+    for (const id of sidelinedInGame) out[id] = injured.has(id) ? sidelinedLabel(id, home) : "Lent";
     return out;
-  }, [sidelinedInGame, injured]);
+  }, [sidelinedInGame, injured, events]);
   const withOut = (l: Lineup): StagedLineup => {
     const s = stagedOf(l);
     const onBoard = new Set([...l.forwards, ...l.backs, ...l.bench]);

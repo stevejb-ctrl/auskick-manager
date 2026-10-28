@@ -87,6 +87,10 @@ interface Props {
   thisGameEvents: GameEvent[];
   seasonEvents: GameEvent[];
   injuredIds: Set<string>;
+  /** Of the injured, the kids who went home: "Went home" (lib/live/wentHome). */
+  wentHomeIds?: ReadonlySet<string>;
+  /** A kid marked out here: the live screen shows them as gone home at once. */
+  onWentHome?: (playerId: string) => void;
   loanedIds: Set<string>;
   /** Per-player goals scored this game — the score on each tile. */
   playerGoals: Record<string, number>;
@@ -144,6 +148,8 @@ export function NetballQuarterBreak({
   thisGameEvents,
   seasonEvents,
   injuredIds,
+  wentHomeIds,
+  onWentHome,
   loanedIds,
   playerGoals,
   playerStats,
@@ -544,6 +550,7 @@ export function NetballQuarterBreak({
       if (replacementId && positionId) next.positions[positionId] = [replacementId];
       return next;
     });
+    onWentHome?.(outId);
     enqueueLiveAction("markInjury", [
       auth,
       gameId,
@@ -611,7 +618,7 @@ export function NetballQuarterBreak({
       if (playersById.has(id)) out[id] = "Lent";
     });
     injuredIds.forEach((id) => {
-      if (playersById.has(id)) out[id] = "Injured";
+      if (playersById.has(id)) out[id] = wentHomeIds?.has(id) ? "Went home" : "Injured";
     });
     forcedBenchIds.forEach((id) => delete out[id]);
     return out;

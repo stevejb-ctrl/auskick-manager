@@ -13,6 +13,7 @@
 // as one lineup_set before the half. The layout lives in PeriodBreak.
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { sidelinedLabel } from "@/lib/live/wentHome";
 import { useRouter } from "next/navigation";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { liveEvents } from "@/lib/live/optimisticEvents";
@@ -125,12 +126,13 @@ export function TouchBreak({
   // Who can't start the next half, and why.
   const sidelined = useMemo(() => {
     const out: Record<string, string> = {};
+    const home = new Set(state.wentHomeIds);
     for (const id of inGame) {
-      if (injuredSet.has(id)) out[id] = "Injured";
+      if (injuredSet.has(id)) out[id] = sidelinedLabel(id, home);
       else if (loanedSet.has(id)) out[id] = "Lent";
     }
     return out;
-  }, [inGame, injuredSet, loanedSet]);
+  }, [inGame, injuredSet, loanedSet, state.wentHomeIds]);
   const sidelinedSet = useMemo(() => new Set(Object.keys(sidelined)), [sidelined]);
   const healthy = useMemo(() => inGame.filter((id) => touchCanPlay(state, id)), [inGame, state]);
   const sidelinedInGame = useMemo(() => inGame.filter((id) => sidelinedSet.has(id)), [inGame, sidelinedSet]);
