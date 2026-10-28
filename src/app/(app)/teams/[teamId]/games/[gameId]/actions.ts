@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { clearGameRollup } from "@/lib/playbook/rollupStore";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { gameBelongsToTeam } from "@/lib/auth/gameOwnership";
@@ -410,7 +411,42 @@ export async function loadScoreFix(teamId: string, gameId: string): Promise<Acti
   if (!membership || (membership.role !== "admin" && membership.role !== "game_manager")) {
     return { success: false, error: "Only the team's coaches can fix scores." };
   }
-  const supabase = createClient();
+  return readScoreFix(createClient(), teamId, gameId);
+}
+
+/**
+ * The game-day link's Fix scores, while the game is on. A runner could
+ * only undo the latest score, so a wrong scorer two goals back meant
+ * undoing a right one first (Stagehand round 7, 28 Oct 2026). The link
+ * already records and undoes this game's scores; it fixes only its own
+ * game, only while it's in progress (a finished game is the coach's).
+ */
+export async function loadScoreFixFromLink(token: string, gameId: string): Promise<ActionResult<FixScoresProps>> {
+  const game = await liveGameForLink(token, gameId);
+  if ("error" in game) return { success: false, error: game.error };
+  const res = await readScoreFix(createAdminClient(), game.teamId, gameId);
+  return res.success && res.data ? { success: true, data: { ...res.data, token } } : res;
+}
+
+export async function fixScoreFromLink(token: string, gameId: string, fix: ScoreFix): Promise<ActionResult> {
+  const game = await liveGameForLink(token, gameId);
+  if ("error" in game) return { success: false, error: game.error };
+  const res = await writeScoreFix(createAdminClient(), game.teamId, gameId, fix, null);
+  if (res.success) revalidatePath(`/run/${token}`, "layout");
+  return res;
+}
+
+/** The link's own game, while it's on: its team, or why not. */
+async function liveGameForLink(token: string, gameId: string): Promise<{ teamId: string } | { error: string }> {
+  const check = await authorizeManager({ kind: "token", token }, gameId);
+  if (!check.ok) return { error: check.error };
+  const { data: game } = await createAdminClient().from("games").select("team_id, status").eq("id", gameId).maybeSingle();
+  if (!game) return { error: "Game not found." };
+  if (game.status !== "in_progress") return { error: "Scores can be fixed here while the game is on. After it, the coach fixes them." };
+  return { teamId: game.team_id as string };
+}
+
+async function readScoreFix(supabase: SupabaseClient, teamId: string, gameId: string): Promise<ActionResult<FixScoresProps>> {
   const [{ data: game }, { data: team }, { data: events }, { data: players }, { data: fillIns }] = await Promise.all([
     supabase.from("games").select("opponent").eq("id", gameId).eq("team_id", teamId).maybeSingle(),
     supabase
@@ -454,8 +490,16 @@ export async function fixFinishedScore(teamId: string, gameId: string, fix: Scor
   if (!membership || (membership.role !== "admin" && membership.role !== "game_manager")) {
     return { success: false, error: "Only the team's coaches can fix scores." };
   }
+  return writeScoreFix(createClient(), teamId, gameId, fix, userId);
+}
 
-  const supabase = createClient();
+async function writeScoreFix(
+  supabase: SupabaseClient,
+  teamId: string,
+  gameId: string,
+  fix: ScoreFix,
+  userId: string | null,
+): Promise<ActionResult> {
   const [{ data: game }, { data: team }, { data: events }] = await Promise.all([
     supabase.from("games").select("status").eq("id", gameId).eq("team_id", teamId).maybeSingle(),
     supabase.from("teams").select("sport").eq("id", teamId).maybeSingle(),

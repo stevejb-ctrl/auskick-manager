@@ -12,7 +12,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { fixFinishedScore } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
+import { fixFinishedScore, fixScoreFromLink } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { InlineAlert } from "@/components/ui/InlineAlert";
@@ -30,6 +30,8 @@ export interface FixScoresProps {
   periodLetter: string;
   teamName: string;
   opponentName: string;
+  /** Opened from the game-day link: fixes go through it (fixScoreFromLink). */
+  token?: string;
 }
 
 const NOBODY = "";
@@ -37,6 +39,7 @@ const NOBODY = "";
 export function FixScoresDialog({
   teamId,
   gameId,
+  token,
   kinds,
   log,
   players,
@@ -73,7 +76,7 @@ export function FixScoresDialog({
   function run(fix: ScoreFix, done: () => void) {
     setError(null);
     startTransition(async () => {
-      const res = await fixFinishedScore(teamId, gameId, fix);
+      const res = token ? await fixScoreFromLink(token, gameId, fix) : await fixFinishedScore(teamId, gameId, fix);
       if (!res.success) {
         setError(res.error);
         return;

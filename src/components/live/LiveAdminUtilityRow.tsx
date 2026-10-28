@@ -74,7 +74,7 @@ interface LiveAdminUtilityRowProps {
    * runner link can't wipe a finished game.
    */
   finished?: boolean;
-  /** The game keeps score: coaches get Fix scores (LiveFixScoresButton). */
+  /** The game keeps score: coaches, and the game-day link, get Fix scores (LiveFixScoresButton). */
   trackScoring?: boolean;
 }
 
@@ -94,11 +94,15 @@ export function LiveAdminUtilityRow({
   const isAdmin = isAdminProp && !finished && auth.kind !== "token";
   const settings = finished ? null : settingsProp;
   const extra = finished ? null : extraProp;
+  // Fix scores while the game is on: the coach, or the game-day link
+  // (Stagehand round 7). A finished game's scores are the coach's, on
+  // the game page.
+  const canFix = trackScoring && !finished && (isAdmin || auth.kind === "token");
   // Row mounts whenever ANY slot has content — extra now joins
   // late-candidates and isAdmin in the "is there anything to show"
   // gate so the Game-settings button (AFL or RL) surfaces even on
   // a non-admin / no-late-arrivals render.
-  if (!showLate && !isAdmin && !settings && !extra) return null;
+  if (!showLate && !isAdmin && !settings && !extra && !canFix) return null;
   return (
     // Wraps: with Fix scores beside late arrival, settings and Restart,
     // one row ran past a phone at 200% text and widened the whole page
@@ -113,7 +117,7 @@ export function LiveAdminUtilityRow({
       )}
       {settings}
       {extra}
-      {isAdmin && trackScoring && auth.kind === "team" && <LiveFixScoresButton teamId={auth.teamId} gameId={gameId} />}
+      {canFix && <LiveFixScoresButton auth={auth} gameId={gameId} />}
       {isAdmin && <ResetGameButton auth={auth} gameId={gameId} />}
     </div>
   );
