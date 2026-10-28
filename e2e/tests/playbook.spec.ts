@@ -62,6 +62,8 @@ test("an AFL U12 coach picks a strategy and season balance on the Team tab", asy
   await expect.poll(async () => (await playbookRow(admin, team.id))?.season_balance).toBe("strong");
 
   await page.getByRole("button", { name: "Reset season balance" }).click();
+  // It says the history stays (Stagehand round 7: a coach wouldn't press it).
+  await expect(page.getByTestId("season-balance-reset-note")).toContainText("Past games and their stats stay");
   await page.getByRole("button", { name: "Reset", exact: true }).click();
   await expect(page.getByText(/Counting games since/)).toBeVisible();
   await expect
