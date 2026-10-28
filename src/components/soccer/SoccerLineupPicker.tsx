@@ -443,7 +443,7 @@ export function SoccerLineupPicker({
           to={lineup.keeper ? playerById.get(lineup.keeper) ?? null : null}
           candidates={players.filter((p) => !loanedIds.has(p.id))}
           suggestedId={suggestedKeeper}
-          strategyNote={soccerKeeperNote(keeperStrategy ?? ageGroup.keeper)}
+          strategyNote={soccerKeeperNote(keeperStrategy ?? ageGroup.keeper, keeperPrefs?.namedKeepers?.length ?? 0)}
           onPick={pickKeeper}
           pending={isPending}
         />
