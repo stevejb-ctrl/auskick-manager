@@ -1,6 +1,7 @@
 "use client";
 
 import { SFButton, SFIcon } from "@/components/sf";
+import { WENT_HOME_REASON } from "@/lib/live/wentHome";
 import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
@@ -494,7 +495,17 @@ export function LiveGame({
   const [injuryReplacementModal, setInjuryReplacementModal] = useState<{
     injuredId: string;
     zone: Zone;
+    /** Why they're coming off: hurt (the default), gone home, or lent. */
+    reason?: "went_home" | "lent";
   } | null>(null);
+  // Kids who went home (an injury with reason "out", lib/live/wentHome):
+  // the replay's, then this phone's taps until the server catches up.
+  const [wentHomeIds, setWentHomeIds] = useState<string[]>(initialState.wentHomeIds ?? []);
+  const serverWentHome = (initialState.wentHomeIds ?? []).join(",");
+  useEffect(() => {
+    setWentHomeIds(serverWentHome ? serverWentHome.split(",") : []);
+  }, [serverWentHome]);
+  const wentHomeSet = useMemo(() => new Set(wentHomeIds), [wentHomeIds]);
 
   // Undo-score state
   // Undo goes back through every standing score, one per tap, as every
@@ -1040,16 +1051,21 @@ export function LiveGame({
     recordPlayerScore(playerId, kind);
   }
 
-  function handleInjuryToggle(playerId: string, injured: boolean) {
+  function handleInjuryToggle(playerId: string, injured: boolean, wentHome = false) {
     setError(null);
     const quarter = Math.max(1, currentQuarter);
     const elapsed_ms = currentElapsedMs();
     setInjured(playerId, injured);
+    noteWentHome(playerId, injured && wentHome);
     enqueueLiveAction("markInjury", [
       auth,
       gameId,
-      { player_id: playerId, injured, quarter, elapsed_ms },
+      { player_id: playerId, injured, quarter, elapsed_ms, ...(injured && wentHome ? { reason: WENT_HOME_REASON } : {}) },
     ]);
+  }
+
+  function noteWentHome(playerId: string, home: boolean) {
+    setWentHomeIds((prev) => (home ? [...prev.filter((p) => p !== playerId), playerId] : prev.filter((p) => p !== playerId)));
   }
 
   // Combined injury + bench-replacement swap. Used when the coach picks a
@@ -1060,7 +1076,8 @@ export function LiveGame({
   function handleInjuryReplacement(
     injuredId: string,
     replacementId: string,
-    zone: Zone
+    zone: Zone,
+    wentHome = false,
   ) {
     setError(null);
     const quarter = Math.max(1, currentQuarter);
@@ -1070,6 +1087,7 @@ export function LiveGame({
     // timer keeps running toward the next scheduled rotation (the events
     // skip it too: lib/live/subAnchor matches it to its injury).
     applyInjurySwap(injuredId, replacementId);
+    noteWentHome(injuredId, wentHome);
     // Two queue ops, dispatched in order. The queue's FIFO contract
     // means the injury event lands before the swap on the server,
     // mirroring the prior Promise.all semantics where both fired
@@ -1082,6 +1100,7 @@ export function LiveGame({
         injured: true,
         quarter,
         elapsed_ms,
+        ...(wentHome ? { reason: WENT_HOME_REASON } : {}),
       },
     ]);
     enqueueLiveAction("recordSwap", [
@@ -1584,6 +1603,8 @@ export function LiveGame({
       <div className="ui-nonselect">
         {walkthroughOverlay}
         <QuarterBreak
+          wentHomeIds={wentHomeSet}
+          onWentHome={(pid) => noteWentHome(pid, true)}
           auth={auth}
           gameId={gameId}
           game={game}
@@ -1988,6 +2009,7 @@ export function LiveGame({
               totalMsByPlayer={totalMsByPlayer}
               zoneMsByPlayer={zoneMsByPlayer}
               injuredIds={injuredIds}
+              wentHomeIds={wentHomeSet}
               loanedIds={loanedIds}
               lockedIds={lockedIds}
               zoneLockedPlayers={zoneLockedPlayers}
@@ -2584,7 +2606,27 @@ export function LiveGame({
               handleInjuryToggle(lockModal.playerId, !isInjured);
               setLockModal(null);
             }}
+            wentHome={wentHomeSet.has(lockModal.playerId)}
+            onWentHome={() => {
+              // As an injury: an on-field kid asks who comes on.
+              const onFieldZone = ALL_ZONES.find((z) => lineup[z].includes(lockModal.playerId));
+              if (onFieldZone && lineup.bench.some((id) => !injuredIds.includes(id) && !loanedIds.includes(id))) {
+                setInjuryReplacementModal({ injuredId: lockModal.playerId, zone: onFieldZone, reason: "went_home" });
+                setLockModal(null);
+                return;
+              }
+              handleInjuryToggle(lockModal.playerId, true, true);
+              setLockModal(null);
+            }}
             onToggleLoan={() => {
+              // Lending a kid off the field asks who comes on, as an injury
+              // does; it left the spot empty with no word (Stagehand round 7).
+              const onFieldZone = !isLoaned && ALL_ZONES.find((z) => lineup[z].includes(lockModal.playerId));
+              if (onFieldZone && lineup.bench.some((id) => !injuredIds.includes(id) && !loanedIds.includes(id))) {
+                setInjuryReplacementModal({ injuredId: lockModal.playerId, zone: onFieldZone, reason: "lent" });
+                setLockModal(null);
+                return;
+              }
               handleLoanToggle(lockModal.playerId, !isLoaned);
               setLockModal(null);
             }}
@@ -2629,18 +2671,25 @@ export function LiveGame({
         return (
           <InjuryReplacementModal
             injuredPlayer={inj}
+            reason={injuryReplacementModal.reason ?? "injured"}
             spotLabel={ZONE_SHORT_LABELS[injuryReplacementModal.zone]}
             candidates={candidates}
             onPickReplacement={(rid) => {
-              handleInjuryReplacement(
-                injuryReplacementModal.injuredId,
-                rid,
-                injuryReplacementModal.zone
-              );
+              const { injuredId, zone, reason } = injuryReplacementModal;
+              if (reason === "lent") {
+                // Lent, then the pick fills the spot (as tapping it would).
+                handleLoanToggle(injuredId, true);
+                persistSwap("", rid, zone, false);
+                showSwapToast(`${shortName(rid)} on`);
+              } else {
+                handleInjuryReplacement(injuredId, rid, zone, reason === "went_home");
+              }
               setInjuryReplacementModal(null);
             }}
             onSkipReplacement={() => {
-              handleInjuryToggle(injuryReplacementModal.injuredId, true);
+              const { injuredId, reason } = injuryReplacementModal;
+              if (reason === "lent") handleLoanToggle(injuredId, true);
+              else handleInjuryToggle(injuredId, true, reason === "went_home");
               setInjuryReplacementModal(null);
             }}
             onCancel={() => setInjuryReplacementModal(null)}
@@ -2872,6 +2921,7 @@ export function LiveGame({
           place of the summary. */}
       {finalised && (
         <GameSummaryCard
+          wentHomeIds={wentHomeSet}
           teamName={teamName}
           opponentName={opponentName}
           trackScoring={trackScoring}
