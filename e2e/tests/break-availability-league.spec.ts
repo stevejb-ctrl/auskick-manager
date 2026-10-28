@@ -262,7 +262,8 @@ test("rugby league: at the break a coach can add an arrived player, mark a playe
   ).toBeVisible();
   await expect(
     page.getByRole("group", { name: "Bench", exact: true }).getByTestId(`player-tile-${outPlayer.id}`),
-  ).toContainText("Injured");
+    // Out reads as gone home, not hurt (Stagehand round 7).
+  ).toContainText("Went home");
   await openGameSettings(page);
 
   // ─── 3. MARK INJURED (regression guard) ────────────────────────
