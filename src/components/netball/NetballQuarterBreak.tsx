@@ -622,7 +622,7 @@ export function NetballQuarterBreak({
     });
     forcedBenchIds.forEach((id) => delete out[id]);
     return out;
-  }, [injuredIds, loanedIds, playersById, forcedBenchIds]);
+  }, [injuredIds, loanedIds, playersById, forcedBenchIds, wentHomeIds]);
   const sidelinedNow = useMemo(() => new Set(Object.keys(sidelined)), [sidelined]);
 
   // The board: the staged lineup, with sidelined kids at the end of the
