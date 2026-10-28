@@ -517,6 +517,44 @@ async function seedTeam(admin, email, name, origin) {
       late: 1,
       onField: 7,
     },
+    // Round 7 (28 Oct): the six newer sports, one game-day seed each.
+    "soccer-u12-gameday": {
+      team: { name: "Fitzroy Falcons", age_group: "U12", sport: "soccer" },
+      opponent: "Northcote Knights",
+      playbook: null,
+      squad: 13,
+    },
+    "futsal-u12-gameday": {
+      team: { name: "Footscray Flames", age_group: "U12", sport: "futsal" },
+      opponent: "Sunshine Strikers",
+      playbook: null,
+      squad: 9,
+    },
+    "hockey-u13-gameday": {
+      team: { name: "Camberwell Comets", age_group: "U13", sport: "hockey" },
+      opponent: "Box Hill Bats",
+      playbook: null,
+      squad: 15,
+    },
+    "basketball-u12-gameday": {
+      team: { name: "Dandenong Dingoes", age_group: "U12", sport: "basketball" },
+      opponent: "Frankston Flyers",
+      playbook: null,
+      squad: 9,
+    },
+    "touch-u11-mixed": {
+      team: { name: "Cronulla Crocs", age_group: "U11", sport: "touch", mixed_max_boys: 3, mixed_min_girls: 1, mixed_min_boys: 1 },
+      opponent: "Kogarah Kites",
+      playbook: null,
+      squad: 10,
+      mixed: true,
+    },
+    "oztag-u10-gameday": {
+      team: { name: "Penrith Possums", age_group: "U10", sport: "oztag" },
+      opponent: "Blacktown Bandits",
+      playbook: null,
+      squad: 12,
+    },
   };
   // Each age group's usual on-field size. Games have no size default
   // (migration 0063), so every seeded game takes its team's. Also
@@ -527,12 +565,15 @@ async function seedTeam(admin, email, name, origin) {
     afl: { U8: 6, U9: 9, U10: 12, U11: 12, U12: 12, U13: 15, U14: 15, U15: 15, U16: 18, U17: 18 },
     netball: { set: 5, go: 7, "11u": 7, "12u": 7, "13u": 7, open: 7 },
     rugby_league: { U6: 6, U7: 6, U8: 8, U9: 8, U10: 11, U11: 11, U12: 13, U13: 13, U14: 13, U15: 13, U16: 13, U17: 13 },
+    soccer: { U12: 9 }, futsal: { U12: 5 }, hockey: { U13: 11 }, basketball: { U12: 5 }, touch: { U11: 6 }, oztag: { U10: 8 },
     rugby_union: { U6: 7, U7: 7, U8: 7, U9: 10, U10: 12, U11: 12, U12: 15, U13: 15, U14: 15, U15: 15, U16: 15, U17: 15, U18: 15 },
     soccer: { U6: 4, U7: 4, U8: 7, U9: 7, U10: 9, U11: 9, U12: 9, U13: 9, U14: 11, U15: 11, U16: 11, U17: 11 },
   };
   const runner = /^runner-(afl|netball)-(.+)$/.exec(name);
   const onFieldFor = runner ? RUNNER_ON_FIELD[runner[1]][runner[2]] : undefined;
-  const s = SEEDS[name] ?? (onFieldFor
+  // <seed>-runner: any seed, started from its game's share link.
+  const viaRunner = /^(.+)-runner$/.exec(name);
+  const s = SEEDS[name] ?? (viaRunner && SEEDS[viaRunner[1]] ? { ...SEEDS[viaRunner[1]], start: "runner" } : undefined) ?? (onFieldFor
     ? {
         team: { name: runner[1] === "afl" ? "Coburg Cubs" : "Brunswick Bluebirds", age_group: runner[2], sport: runner[1] },
         playbook: null,
@@ -570,6 +611,7 @@ async function seedTeam(admin, email, name, origin) {
         jersey_number: i + 1,
         is_active: true,
         created_by: ownerId,
+        ...(s.mixed ? { mixed_group: i % 2 ? "boy" : "girl" } : {}),
       })),
     )
     .select("id, jersey_number")
