@@ -83,7 +83,9 @@ test("04: our score buttons are filled and theirs outlined", async ({ browser })
   await context.close();
 });
 
-test("02: at 200% text the live screen fits the phone's width", async ({ browser }) => {
+test("02: at 200% text the live screen fits the phone's width", async ({ browser, browserName }) => {
+  // The reader's font size is set over CDP, which only Chromium has.
+  test.skip(browserName !== "chromium", "CDP Page.setFontSizes is Chromium-only");
   const { game } = await aflInFirstQuarter();
   const { context, page } = await parentPhone(browser);
   // The reader's own text size (what a media query's em follows).
