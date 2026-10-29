@@ -128,3 +128,12 @@ test("#7 the game-day link says whose team it is and what sport", async ({ brows
   await expect(whose).toContainText("Netball");
   await context.close();
 });
+
+test("#9 netball's player sheet says subs happen at the break", async ({ browser }) => {
+  const { game } = await inFirstPeriod("netball");
+  const { context, page } = await parentPhone(browser);
+  await openLive(page, `/run/${game.share_token}`);
+  await page.getByRole("button", { name: /^Goal Shooter,/ }).click({ delay: 600 });
+  await expect(page.getByTestId("lock-modal-note")).toContainText("Netball subs happen at the break");
+  await context.close();
+});

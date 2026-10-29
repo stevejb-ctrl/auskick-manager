@@ -155,6 +155,12 @@ interface LockModalProps {
   wentHome?: boolean;
   /** "Went home": off the field and out of the rotation, not hurt. */
   onWentHome?: () => void;
+  /**
+   * A line under the intro for what the sheet can't do here, and why:
+   * netball's "subs happen at the break" (Stagehand round 8: parents
+   * looked for Switch mid-quarter and gave up).
+   */
+  note?: string;
   onClose: () => void;
 }
 
@@ -217,6 +223,7 @@ export function LockModal({
   outForGameActions,
   wentHome = false,
   onWentHome,
+  note,
   onClose,
 }: LockModalProps) {
   const firstName = useSquadNames().first(player);
@@ -398,6 +405,11 @@ export function LockModal({
           /* Unlocked, on the team — offer switch / lock / injure / loan */
           <>
             {intro && <p className="mb-4 text-center text-sm text-ink-dim">{intro}</p>}
+            {note && (
+              <p data-testid="lock-modal-note" className="mb-4 rounded-md bg-surface-alt px-3 py-2 text-center text-sm text-ink">
+                {note}
+              </p>
+            )}
             <div className="flex flex-col gap-2">
               {/* Switch — most common quick action, lives at the top.
                   Closes the modal and selects this player so the next
