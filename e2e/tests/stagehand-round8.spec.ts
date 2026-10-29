@@ -104,3 +104,17 @@ for (const sport of ["afl", "soccer"] as const) {
     await context.close();
   });
 }
+
+test("#5 Exit on a finished game's link leads back to the result", async ({ browser }) => {
+  const { admin, ownerId, game } = await inFirstPeriod("afl");
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 600_000 }, created_by: ownerId },
+    { game_id: game.id, type: "game_finalised", metadata: { quarter: 1 }, created_by: ownerId },
+  ]);
+  await admin.from("games").update({ status: "completed" }).eq("id", game.id);
+  const { context, page } = await parentPhone(browser);
+  await page.goto(`/run/${game.share_token}/left`);
+  await page.getByRole("link", { name: "See the result" }).click();
+  await expect(page).toHaveURL(new RegExp(`/run/${game.share_token}$`));
+  await context.close();
+});
