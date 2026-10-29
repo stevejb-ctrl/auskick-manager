@@ -143,3 +143,32 @@ test("#6 Ask parents who's in: the message has the game's time and venue", async
   await expect(sheet).toContainText("Kew Kestrels");
   await expect(sheet).toContainText(/7:30\s?pm at Brunswick Park/i);
 });
+
+// ─── #4 The laptop's last row clear of the hint and score bar ────
+
+test("#4 on a laptop, the live page's last row scrolls clear of the tap hint and the score bar", async ({ browser }) => {
+  const { team, game } = await inFirstPeriod("afl");
+  const context = await browser.newContext({ storageState: "playwright/.auth/super-admin.json", viewport: { width: 1366, height: 900 } });
+  const page = await context.newPage();
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+  await openLive(page, `/teams/${team.id}/games/${game.id}/live`);
+  const hint = page.getByText("Tap a player for actions");
+  await expect(hint).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.waitForTimeout(400);
+  const restart = page.getByRole("button", { name: /^restart game$/i });
+  const r = (await restart.boundingBox())!;
+  const h = (await hint.boundingBox())!;
+  const bar = (await page.getByRole("button", { name: /^clock — /i }).first().evaluate((el) => {
+    let n: HTMLElement | null = el as HTMLElement;
+    while (n && getComputedStyle(n).position !== "sticky" && getComputedStyle(n).position !== "fixed") n = n.parentElement;
+    return n!.getBoundingClientRect().top;
+  }));
+  expect(r.y + r.height).toBeLessThanOrEqual(h.y);
+  expect(r.y + r.height).toBeLessThanOrEqual(bar);
+  await context.close();
+});
