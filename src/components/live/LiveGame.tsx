@@ -887,29 +887,35 @@ export function LiveGame({
     }
     // Two different field players in different zones — swap their zones directly.
     if (selected.zone !== zone) {
-      const pidA = selected.playerId;
-      const zoneA = selected.zone;
-      const quarter = Math.max(1, currentQuarter);
-      const elapsed_ms = currentElapsedMs();
-      applyFieldZoneSwap(pidA, zoneA, playerId, zone);
-      showSwapToast(
-        `${shortName(pidA)} ⇄ ${shortName(playerId)} — zones swapped`
-      );
-      enqueueLiveAction("recordFieldZoneSwap", [
-        auth,
-        gameId,
-        {
-          player_a_id: pidA,
-          zone_a: zoneA,
-          player_b_id: playerId,
-          zone_b: zone,
-          quarter,
-          elapsed_ms,
-        },
-      ]);
+      swapZones(selected.playerId, selected.zone, playerId, zone, true);
       return;
     }
     selectField(playerId, zone);
+  }
+
+  // Two field kids trade zones at once (no confirm, as AFL always has),
+  // with Undo on the toast: two quick taps swapped kids by accident and
+  // only a manual swap back fixed it (Stagehand round 8, #14).
+  function swapZones(pidA: string, zoneA: Zone, pidB: string, zoneB: Zone, withUndo: boolean) {
+    const quarter = Math.max(1, currentQuarter);
+    const elapsed_ms = currentElapsedMs();
+    applyFieldZoneSwap(pidA, zoneA, pidB, zoneB);
+    showSwapToast(
+      `${shortName(pidA)} ⇄ ${shortName(pidB)} — zones swapped`,
+      withUndo ? () => swapZones(pidA, zoneB, pidB, zoneA, false) : undefined,
+    );
+    enqueueLiveAction("recordFieldZoneSwap", [
+      auth,
+      gameId,
+      {
+        player_a_id: pidA,
+        zone_a: zoneA,
+        player_b_id: pidB,
+        zone_b: zoneB,
+        quarter,
+        elapsed_ms,
+      },
+    ]);
   }
 
   function handleTapBench(playerId: string) {

@@ -222,3 +222,18 @@ test("#11 tapping a player says a second tap swaps, not just how to score", asyn
   await expect(page.getByTestId("dock-swap-hint")).toHaveText("Or tap a teammate to swap them.");
   await context.close();
 });
+
+test("#14 AFL: two quick taps that swap field kids can be undone from the toast", async ({ browser }) => {
+  const { admin, ids, game } = await inFirstPeriod("afl");
+  const { context, page } = await parentPhone(browser);
+  await openLive(page, `/run/${game.share_token}`);
+  // A back, then a forward: they trade zones at once.
+  await page.getByTestId(`player-tile-${ids[0]}`).click();
+  await page.getByTestId(`player-tile-${ids[8]}`).click();
+  await expect(page.getByText(/zones swapped/)).toBeVisible();
+  await page.getByRole("button", { name: /^undo$/i }).last().click();
+  await expect
+    .poll(async () => (await admin.from("game_events").select("id").eq("game_id", game.id).eq("type", "field_zone_swap")).data?.length ?? 0, { timeout: 10_000 })
+    .toBe(2);
+  await context.close();
+});
