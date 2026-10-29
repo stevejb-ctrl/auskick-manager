@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { QuarterScoresButton } from "@/components/live/QuarterScoresButton";
+import { ClockPillReadout } from "@/components/live/ClockPillReadout";
 import {
   clockElapsedMs,
   formatClock,
@@ -184,25 +185,16 @@ export function GameHeader({
             </span>
           </span>
         ) : (
-          <span
+          <ClockPillReadout
             key={`q-${quarter}`}
-            className={`flex flex-col items-center ${
-              quarterChanged ? "motion-safe:animate-rise-in motion-reduce:animate-xfade-in" : ""
-            }`}
-          >
-            <span className="flex items-center gap-1.5 font-mono text-nano font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
-              {live && <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-mint" />}
-              <span>{quarterLabel}</span>
-              {pausedIcon && <span>{pausedIcon}</span>}
-            </span>
-            <span
-              className={`nums mt-1 font-mono text-[28px] font-bold leading-7 tracking-[-0.03em] tabular-nums ${
-                overtime ? "text-warn" : "text-warm"
-              }`}
-            >
-              {formatClock(remaining)}
-            </span>
-          </span>
+            animateClassName={quarterChanged ? "motion-safe:animate-rise-in motion-reduce:animate-xfade-in" : ""}
+            periodTag={quarterLabel}
+            live={live}
+            pausedIcon={pausedIcon}
+            readout={formatClock(remaining)}
+            overtime={overtime}
+            finished={isFinished || quarter > periodCount}
+          />
         )}
       </button>
     </SirenPulseHalo>

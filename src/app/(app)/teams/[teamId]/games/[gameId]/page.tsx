@@ -13,7 +13,8 @@ import {
 } from "@/components/sf";
 import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isBasketball, isSoccer, isTouch, periodLabels, teamSport } from "@/lib/sports";
 import { teamMixedRule } from "@/lib/sports/touch/mixed";
-import { ownGoalsFromEvents, scoresKept, scorersFromEvents, unnamedScoreFromEvents } from "@/lib/results";
+import { outcomeOf, ownGoalsFromEvents, scoreFromEvents, scoresKept, scorersFromEvents, unnamedScoreFromEvents } from "@/lib/results";
+import { ResultChip } from "@/components/sf/ResultChip";
 import { getSeasonEvents } from "@/lib/season";
 import { gamePlanPlaybooks } from "@/lib/playbook/planInputs";
 import { gamePlanAnchor } from "@/lib/game-plan/anchor";
@@ -281,6 +282,9 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   // A game marked played (not run in Siren) has no events: no summary,
   // score or report, rather than a 0–0 draw with nobody on.
   const ranInSiren = summaryEvents !== null && playedInSiren(summaryEvents);
+  // The result leads a finished game's page (design review, Oct 2026: the
+  // hero said "GAME · FINAL" and the score was inside the chat text).
+  const finalScore = summaryEvents && ranInSiren && keptScore ? scoreFromEvents(sport, summaryEvents) : null;
   // A finished game's scores, fixable from More (round 3 edge testing:
   // "Open game screen: fix scores" opened a read-only summary).
   const teamAge = teamAgeGroup(
@@ -421,6 +425,19 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
               <div className="mt-0.5 text-3xl font-bold leading-[1.05] tracking-tightest text-ink sm:text-[40px]">
                 {g.opponent}
               </div>
+              {finalScore && (
+                <div data-testid="game-result" className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <ResultChip result={({ W: "win", L: "loss", D: "draw" } as const)[outcomeOf(finalScore)]} size={32} />
+                  <span className="font-mono text-4xl font-bold leading-none tabular-nums tracking-[-0.03em] text-ink">
+                    {finalScore.us}–{finalScore.them}
+                  </span>
+                  {finalScore.usDetail && (
+                    <span className="font-mono text-sm text-ink-mute">
+                      {finalScore.usDetail} – {finalScore.themDetail}
+                    </span>
+                  )}
+                </div>
+              )}
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-dim">
                 <span>
                   <FormattedDateTime iso={g.scheduled_at} mode="long" />

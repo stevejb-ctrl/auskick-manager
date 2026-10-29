@@ -1,5 +1,7 @@
 "use client";
 
+import { ClockPillReadout } from "@/components/live/ClockPillReadout";
+
 // ─── TouchScoreBug ───────────────────────────────────────────
 // The touch and Oztag scorebug, rendered inside the shared
 // LiveStickyScoreBar. Mirrors AFL's GameHeader and basketball's bug
@@ -115,16 +117,14 @@ export function TouchScoreBug({
             </span>
           </span>
         ) : (
-          <span key={`p-${currentPeriod}`} className="flex flex-col items-center">
-            <span className="flex items-center gap-1.5 font-mono text-nano font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
-              {live && <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-mint" />}
-              <span>{periodTag}</span>
-              {pausedIcon && <span>{pausedIcon}</span>}
-            </span>
-            <span className="nums mt-1 font-mono text-[28px] font-bold leading-7 tracking-[-0.03em] tabular-nums text-warm">
-              {clockReadout}
-            </span>
-          </span>
+          <ClockPillReadout
+            key={`p-${currentPeriod}`}
+            periodTag={periodTag}
+            live={live}
+            pausedIcon={pausedIcon}
+            readout={clockReadout}
+            finished={isFinished}
+          />
         )}
       </button>
     </SirenPulseHalo>

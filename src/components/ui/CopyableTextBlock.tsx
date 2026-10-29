@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useCopyToClipboard } from "./useCopyToClipboard";
 
 export interface CopyableTextBlockProps {
@@ -41,6 +41,12 @@ export function CopyableTextBlock({
 }: CopyableTextBlockProps) {
   const preRef = useRef<HTMLPreElement>(null);
   const { copied, copy } = useCopyToClipboard();
+  // A long message opens as a preview (design review, Oct 2026: a game's
+  // summary ran a whole screen of minutes per kid, and the result page
+  // read as a text dump). The button still copies all of it.
+  const long = text.split("\n").length > 8;
+  const [expanded, setExpanded] = useState(false);
+  const clipped = long && !expanded;
 
   return (
     <>
@@ -57,13 +63,31 @@ export function CopyableTextBlock({
           {copied ? copiedLabel : copyLabel}
         </button>
       </div>
-      <pre
-        id={textId}
-        ref={preRef}
-        className="select-all whitespace-pre-wrap break-words rounded-md bg-surface-alt [overflow-wrap:anywhere] px-3 py-2.5 font-sans text-sm leading-relaxed text-ink-dim"
-      >
-        {text}
-      </pre>
+      <div className="relative">
+        <pre
+          id={textId}
+          ref={preRef}
+          className={`select-all whitespace-pre-wrap break-words rounded-md bg-surface-alt [overflow-wrap:anywhere] px-3 py-2.5 font-sans text-sm leading-relaxed text-ink-dim ${
+            clipped ? "max-h-[11.5rem] overflow-hidden" : ""
+          }`}
+        >
+          {text}
+        </pre>
+        {clipped && (
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-12 rounded-b-md bg-gradient-to-t from-surface-alt to-transparent" />
+        )}
+      </div>
+      {long && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          aria-controls={textId}
+          className="mt-1 inline-flex min-h-[44px] items-center text-sm font-semibold text-brand-700 hover:underline"
+        >
+          {expanded ? "Show less" : "Show the whole message"}
+        </button>
+      )}
       {caption ? (
         <p className="mt-2 text-xs text-ink-mute">{caption}</p>
       ) : null}

@@ -12,7 +12,7 @@ import {
   StatusPill,
 } from "@/components/sf";
 import { getSeasonEvents } from "@/lib/season";
-import { outcomeOf, scoreFromEvents, scoresKept, seasonRecord, type GameScore } from "@/lib/results";
+import { finalScoresByGame, outcomeOf, seasonRecord, type GameScore } from "@/lib/results";
 import type { Game, GameEvent, Sport } from "@/lib/types";
 import { getSportConfig, teamSport, type SurfaceArt } from "@/lib/sports";
 import { SurfaceMotif } from "@/components/brand/SurfaceMotif";
@@ -120,20 +120,10 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
   // whole season — the same cache the lineup suggester uses), for the
   // games that kept score: each game's own record, not the switch today
   // (UX round 3, 24 Oct 2026: an unscored game read as a draw).
-  const scoresById = new Map<string, GameScore>();
-  if (finals.length > 0) {
-    const byGame = new Map<string, GameEvent[]>();
-    for (const ev of await getSeasonEvents(params.teamId)) {
-      const list = byGame.get(ev.game_id) ?? [];
-      list.push(ev);
-      byGame.set(ev.game_id, list);
-    }
-    for (const g of finals) {
-      // A game marked played (not run in Siren) has no score: not a 0–0.
-      const events = byGame.get(g.id) ?? [];
-      if (playedInSiren(events) && scoresKept(sport, g, trackScoring, events)) scoresById.set(g.id, scoreFromEvents(sport, events));
-    }
-  }
+  const scoresById: Map<string, GameScore> =
+    finals.length > 0
+      ? finalScoresByGame(sport, trackScoring, finals, await getSeasonEvents(params.teamId), playedInSiren)
+      : new Map();
   const lastFinal = finals[0] ?? null;
   const { data: notPlayedRaw } = await supabase
     .from("games")
