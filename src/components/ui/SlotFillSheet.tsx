@@ -285,6 +285,14 @@ export function SlotFillSheet({
         </div>
 
         <div className="shrink-0 border-t border-hairline px-5 py-3">
+          {/* A scorer sheet stays put on a tap outside (so the score
+              isn't lost by accident): say how to leave it (Stagehand
+              round 8, #14: "tapping outside didn't close it"). */}
+          {lostScore && !dismissOnBackdrop && (
+            <p data-testid="scorer-sheet-hint" className="mb-2 text-center text-xs text-ink-dim">
+              Nothing&apos;s saved until you pick. Tap Cancel if nobody scored.
+            </p>
+          )}
           <button
             type="button"
             onClick={onCancel}
