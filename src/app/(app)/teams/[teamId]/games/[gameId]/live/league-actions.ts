@@ -42,6 +42,8 @@ import { vestHistory } from "@/lib/sports/rugby_league/vests";
 import {
   conversionCycle,
   kickoffCycle,
+  OPPONENT_NO_TRY,
+  opponentTriesToConvert,
   unconvertedTryIds,
   RUGBY_SCORE_EVENT_TYPES,
 } from "@/lib/sports/rugby_league/kicks";
@@ -877,6 +879,18 @@ export async function recordOpponentConversion(
   elapsedMs: number,
   idempotencyKey?: string,
 ): Promise<ActionResult> {
+  // Their conversion follows one of their tries, as ours does (a
+  // usability pass logged one at 0–0).
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+  const { data: priorEvents } = await w.supabase
+    .from("game_events")
+    .select("*")
+    .eq("game_id", gameId)
+    .order("created_at", { ascending: true });
+  if (opponentTriesToConvert((priorEvents ?? []) as GameEvent[]) === 0) {
+    return { success: false, rejected: true, error: OPPONENT_NO_TRY };
+  }
   const result = await insertEvent(
     auth,
     gameId,

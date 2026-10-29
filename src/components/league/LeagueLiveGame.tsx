@@ -86,6 +86,8 @@ import {
   playerConversionStatusInCycle,
   kickoffTakers,
   kickoffRecordedForPeriod,
+  OPPONENT_NO_TRY,
+  opponentTriesToConvert,
   RUGBY_SCORE_EVENT_TYPES,
 } from "@/lib/sports/rugby_league/kicks";
 import {
@@ -1083,6 +1085,11 @@ export function LeagueLiveGame({
 
   function handleRecordOpponentConversion() {
     setError(null);
+    // Their conversion needs one of their tries (the server checks too).
+    if (opponentTriesToConvert(thisGameEvents) === 0) {
+      setError(OPPONENT_NO_TRY);
+      return;
+    }
     const key = write(
       "recordOpponentConversion",
       [auth, game.id, state.currentQuarter, elapsedRef.current],
@@ -2054,6 +2061,7 @@ export function LeagueLiveGame({
       )}
 
       <LiveAdminUtilityRow
+        trackScoring={trackScoring}
         candidates={lateArrivalCandidates}
         onLateArrival={handleAddLateArrival}
         lateArrivalPending={pending}

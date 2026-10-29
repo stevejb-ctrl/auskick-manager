@@ -57,6 +57,7 @@ import {
   recordSoccerSwap,
   recordSoccerMove,
   recordSoccerGoal,
+  recordSoccerOwnGoal,
   recordSoccerOpponentGoal,
   undoSoccerScore,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/soccer-actions";
@@ -168,6 +169,7 @@ const actions = {
   recordSoccerSwap,
   recordSoccerMove,
   recordSoccerGoal,
+  recordSoccerOwnGoal,
   recordSoccerOpponentGoal,
   undoSoccerScore,
 

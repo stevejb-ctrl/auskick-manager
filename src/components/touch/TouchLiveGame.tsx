@@ -1033,6 +1033,7 @@ export function TouchLiveGame({
       )}
 
       <LiveAdminUtilityRow
+        trackScoring={trackScoring}
         candidates={lateArrivalCandidates}
         onLateArrival={addLateArrival}
         lateArrivalPending={pending}

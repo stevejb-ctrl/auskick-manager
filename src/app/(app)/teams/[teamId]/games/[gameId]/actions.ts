@@ -10,8 +10,12 @@ import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { gameBelongsToTeam } from "@/lib/auth/gameOwnership";
 import { invalidateSeasonEvents } from "@/lib/season";
 import type { ActionResult, AvailabilityStatus, GameEvent, LiveAuth } from "@/lib/types";
-import { scoreFixRows, type ScoreFix } from "@/lib/games/finishedScores";
-import { teamSport } from "@/lib/sports";
+import { finishedScoreLog, periodInPlay, scoreFixRows, scoreKinds, type ScoreFix } from "@/lib/games/finishedScores";
+import { periodLabels, teamSport } from "@/lib/sports";
+import { teamAgeGroup } from "@/lib/sports/teamAgeGroup";
+import { teamMixedRule } from "@/lib/sports/touch/mixed";
+import { distinctFullNames } from "@/lib/names";
+import type { FixScoresProps } from "@/components/games/FixScoresDialog";
 
 interface FillInInput {
   full_name: string;
@@ -394,6 +398,56 @@ export async function deleteGame(
  * (lib/games/finishedScores), so the summary, scorers and Stats
  * recompute. Coaches and managers only, on a finished game.
  */
+/**
+ * The live screen's Fix scores: the game's scores so far and what the
+ * sheet needs to fix them, read when it opens (the screen's own score
+ * stores don't hold a log). Coaches only, as fixFinishedScore.
+ */
+export async function loadScoreFix(teamId: string, gameId: string): Promise<ActionResult<FixScoresProps>> {
+  const userId = readValidatedUserId();
+  if (!userId) return { success: false, error: "Unauthenticated." };
+  const membership = await getMembership(teamId, userId);
+  if (!membership || (membership.role !== "admin" && membership.role !== "game_manager")) {
+    return { success: false, error: "Only the team's coaches can fix scores." };
+  }
+  const supabase = createClient();
+  const [{ data: game }, { data: team }, { data: events }, { data: players }, { data: fillIns }] = await Promise.all([
+    supabase.from("games").select("opponent, status").eq("id", gameId).eq("team_id", teamId).maybeSingle(),
+    supabase
+      .from("teams")
+      .select("name, sport, age_group, period_count, mixed_max_boys, mixed_min_girls, mixed_min_boys")
+      .eq("id", teamId)
+      .maybeSingle(),
+    supabase.from("game_events").select("*").eq("game_id", gameId).order("created_at"),
+    supabase.from("players").select("id, full_name, jersey_number").eq("team_id", teamId),
+    supabase.from("game_fill_ins").select("id, full_name, jersey_number").eq("game_id", gameId),
+  ]);
+  if (!game || !team) return { success: false, error: "Game not found for this team." };
+  const sport = teamSport(team.sport as string);
+  const age = teamAgeGroup(sport, team.age_group as string | undefined, team.period_count as number | null | undefined);
+  type Kid = { id: string; full_name: string; jersey_number: number | null };
+  const squad = [...((players ?? []) as Kid[]), ...((fillIns ?? []) as Kid[])];
+  const names = distinctFullNames(squad);
+  return {
+    success: true,
+    data: {
+      teamId,
+      gameId,
+      kinds: scoreKinds(sport, {
+        goalsFromPlay: (age as { goalsFromPlay?: boolean }).goalsFromPlay ?? true,
+        girlsTry: sport === "oztag" && teamMixedRule(team) !== null,
+      }),
+      log: finishedScoreLog(sport, (events ?? []) as GameEvent[]),
+      players: squad.map((p) => ({ id: p.id, name: names.get(p.id) ?? p.full_name })),
+      periodCount: age.periodCount,
+      periodLetter: periodLabels(sport, age).label.charAt(0).toUpperCase(),
+      teamName: (team.name as string | null) ?? "Us",
+      opponentName: game.opponent as string,
+      ...(game.status === "in_progress" ? { currentPeriod: Math.max(1, periodInPlay((events ?? []) as GameEvent[])) } : {}),
+    },
+  };
+}
+
 export async function fixFinishedScore(teamId: string, gameId: string, fix: ScoreFix): Promise<ActionResult> {
   const userId = readValidatedUserId();
   if (!userId) return { success: false, error: "Unauthenticated." };
@@ -409,9 +463,13 @@ export async function fixFinishedScore(teamId: string, gameId: string, fix: Scor
     supabase.from("game_events").select("*").eq("game_id", gameId).order("created_at"),
   ]);
   if (!game || !team) return { success: false, error: "Game not found for this team." };
-  if (game.status !== "completed") return { success: false, error: "Scores are fixed here once the game is finished." };
+  // A game that's on, too: from the live screen's Fix scores (a usability
+  // pass, 26 Oct 2026: a wrong score stayed until the break).
+  if (game.status === "upcoming") return { success: false, error: "There are no scores to fix until the game starts." };
 
-  const rows = scoreFixRows(teamSport(team.sport as string), (events ?? []) as GameEvent[], fix);
+  const rows = scoreFixRows(teamSport(team.sport as string), (events ?? []) as GameEvent[], fix, {
+    finished: game.status === "completed",
+  });
   if ("error" in rows) return { success: false, error: rows.error };
 
   // A named scorer is one of the squad or the game's fill-ins.

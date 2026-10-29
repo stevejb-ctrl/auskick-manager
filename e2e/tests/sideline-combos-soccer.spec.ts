@@ -346,3 +346,36 @@ test("soccer: long-press knows an on-field kid's line and lent minutes; Game set
     .poll(async () => (await admin.from("games").select("sub_interval_seconds").eq("id", game.id).single()).data?.sub_interval_seconds)
     .toBe(300);
 });
+
+// Usability pass, 26 Oct 2026: the scorer sheet had only the kids and
+// "Not sure who". An own goal (theirs, into their own net) counts for
+// us, credits nobody, and the game page lists it apart.
+test("soccer: an own goal counts for us and credits nobody", async ({ page }) => {
+  const admin = createAdminClient();
+  const { team, game } = await soccerGame(admin, {
+    count: 8,
+    available: 8,
+    name: "SOC-OG",
+    scoring: true,
+    opponent: "Bondi Barnacles",
+  });
+  const teamName = await teamNameOf(admin, team.id);
+  await openLive(page, team.id, game.id);
+
+  await page.getByRole("button", { name: `Add goal, ${teamName}` }).click();
+  const sheet = page.getByRole("dialog", { name: "Who scored?" });
+  await sheet.getByRole("button", { name: /^Own goal \(theirs\)/ }).click();
+  await expect(page.getByTestId("undo-strip")).toContainText(`${teamName} goal (own goal)`);
+  await expect
+    .poll(async () =>
+      (await eventsOf(admin, game.id))
+        .filter((e) => e.type === "goal")
+        .map((e) => ({ player: e.player_id, own: (e.metadata as { own_goal?: boolean }).own_goal })),
+    )
+    .toEqual([{ player: null, own: true }]);
+
+  await page.goto(`/teams/${team.id}/games/${game.id}`);
+  await expect(page.getByTestId("own-goal-row")).toContainText("Own goals (theirs)", { timeout: 15_000 });
+  await expect(page.getByTestId("own-goal-row")).toContainText("1 goal");
+  await expect(page.getByTestId("no-scorer-row")).toHaveCount(0);
+});

@@ -71,6 +71,17 @@ export interface FinishedScoreRow {
   period: number;
 }
 
+/** The period a game is in: its latest start (0 before the first). */
+export function periodInPlay(events: GameEvent[]): number {
+  let period = 0;
+  for (const e of events) {
+    if (e.type !== "quarter_start") continue;
+    const q = (e.metadata as { quarter?: unknown } | null)?.quarter;
+    period = Math.max(period, typeof q === "number" ? q : period + 1);
+  }
+  return period;
+}
+
 /** The scores still standing, in order, each with the period it counts in. */
 export function finishedScoreLog(sport: Sport, events: GameEvent[]): FinishedScoreRow[] {
   const kinds = new Map(scoreKinds(sport, { goalsFromPlay: true, girlsTry: true }).map((k) => [k.type, k]));
@@ -113,16 +124,26 @@ export interface ScoreFixRow {
 const FIXED = { fixed_after_finish: true };
 
 /** The events a fix writes, or why it can't. */
-export function scoreFixRows(sport: Sport, events: GameEvent[], fix: ScoreFix): ScoreFixRow[] | { error: string } {
+export function scoreFixRows(
+  sport: Sport,
+  events: GameEvent[],
+  fix: ScoreFix,
+  // A fix made after full time says so (FIXED); one from the live screen doesn't.
+  { finished = true }: { finished?: boolean } = {},
+): ScoreFixRow[] | { error: string } {
+  const tag = finished ? FIXED : {};
   if (fix.op === "add") {
     const kind = scoreKinds(sport, { goalsFromPlay: true, girlsTry: true }).find((k) => k.type === fix.type);
     if (!kind) return { error: "That isn't a score in this sport." };
     if (!Number.isInteger(fix.period) || fix.period < 1 || fix.period > 4) return { error: "Pick the period it was scored in." };
+    // A game that's on: not a period still to come (a usability pass, 29
+    // Oct 2026: the live sheet offered H2 during H1).
+    if (!finished && fix.period > periodInPlay(events)) return { error: "That period hasn't started yet." };
     return [
       {
         type: kind.type,
         player_id: kind.side === "us" ? fix.playerId : null,
-        metadata: { ...kind.metadata, quarter: fix.period, intended_quarter: fix.period, retro: true, ...FIXED },
+        metadata: { ...kind.metadata, quarter: fix.period, intended_quarter: fix.period, retro: true, ...tag },
       },
     ];
   }
@@ -135,7 +156,7 @@ export function scoreFixRows(sport: Sport, events: GameEvent[], fix: ScoreFix): 
   const undo: ScoreFixRow = {
     type: "score_undo",
     player_id: target.playerId,
-    metadata: { target_event_id: target.id, original_type: target.type, quarter: target.period, ...FIXED },
+    metadata: { target_event_id: target.id, original_type: target.type, quarter: target.period, ...tag },
   };
   if (fix.op === "delete") return [undo];
   if (target.side !== "us") return { error: "Only our scores have a scorer." };
@@ -144,7 +165,7 @@ export function scoreFixRows(sport: Sport, events: GameEvent[], fix: ScoreFix): 
     {
       type: target.type,
       player_id: fix.playerId,
-      metadata: { ...target.kind.metadata, quarter: target.period, intended_quarter: target.period, retro: true, replaces: target.id, ...FIXED },
+      metadata: { ...target.kind.metadata, quarter: target.period, intended_quarter: target.period, retro: true, replaces: target.id, ...tag },
     },
   ];
 }
