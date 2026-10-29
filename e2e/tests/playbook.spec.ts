@@ -517,7 +517,7 @@ test("a coach adds rules and a local rule pack", async ({ page }) => {
   await picker.getByRole("checkbox", { name: mia.full_name }).click();
   await picker.getByRole("checkbox", { name: jack.full_name }).click();
   await page.getByRole("button", { name: "Done" }).click();
-  await expect(page.getByTestId("rule-keep-apart")).toContainText(`Keep ${mia.full_name} and ${jack.full_name} apart`);
+  await expect(page.getByTestId("rule-keep-apart")).toContainText(`Keep ${mia.full_name} and ${jack.full_name} in different lines`);
   await expect
     .poll(async () => (await rules()).find((r) => r.kind === "keep-apart")?.params.playerIds)
     .toEqual([mia.id, jack.id]);
