@@ -92,7 +92,7 @@ export function SoccerField({
         type="button"
         onClick={() => onTap("", unit)}
         aria-label={`Empty ${words[unit].label.toLowerCase()} spot`}
-        className={`w-full rounded-md border border-dashed py-3 text-center font-mono text-[10px] font-semibold uppercase tracking-micro transition-colors duration-fast ease-out-quart ${
+        className={`w-full rounded-md border border-dashed py-3 text-center font-mono text-nano font-semibold uppercase tracking-micro transition-colors duration-fast ease-out-quart ${
           primed
             ? "border-warn bg-warn/20 text-white"
             : "border-white/40 bg-white/5 text-white/60 hover:border-white/70 hover:bg-white/15"

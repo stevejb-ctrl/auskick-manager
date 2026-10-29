@@ -80,7 +80,7 @@ export function NetballFullTimeReview({
 
   return (
     <div className="rounded-md border border-hairline bg-surface p-4 shadow-card">
-      <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+      <p className="font-mono text-micro font-bold uppercase tracking-micro text-ink-mute">
         Full time
       </p>
       <p className="mt-0.5 text-base font-semibold text-ink">
@@ -90,7 +90,7 @@ export function NetballFullTimeReview({
       {trackScoring && (
         <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
           <div className="rounded-md border border-hairline bg-surface-alt p-3">
-            <p className="text-[10px] font-bold uppercase tracking-micro text-ink-mute">
+            <p className="text-nano font-bold uppercase tracking-micro text-ink-mute">
               Us
             </p>
             <p className="mt-1 text-2xl font-bold tabular-nums text-ink">
@@ -98,7 +98,7 @@ export function NetballFullTimeReview({
             </p>
           </div>
           <div className="rounded-md border border-hairline bg-surface-alt p-3">
-            <p className="text-[10px] font-bold uppercase tracking-micro text-ink-mute">
+            <p className="text-nano font-bold uppercase tracking-micro text-ink-mute">
               Them
             </p>
             <p className="mt-1 text-2xl font-bold tabular-nums text-ink">
@@ -148,7 +148,7 @@ export function NetballFullTimeReview({
         >
           Finish game
         </SFButton>
-        <p className="mt-2 text-center text-[11px] text-ink-mute">
+        <p className="mt-2 text-center text-micro text-ink-mute">
           Locks the score and shows the summary you can share.
         </p>
       </div>

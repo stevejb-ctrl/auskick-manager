@@ -40,7 +40,7 @@ export function PlayerVestBadge({ vest, dimmed = false }: PlayerVestBadgeProps) 
         vest === "fr" ? "First Receiver vest" : "Dummy Half vest"
       }
       className={[
-        "inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+        "inline-flex items-center justify-center rounded-full px-2 py-0.5 text-nano font-bold uppercase tracking-wider",
         styles[vest],
         dimmed ? "opacity-50" : "",
       ]

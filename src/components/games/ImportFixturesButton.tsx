@@ -212,7 +212,7 @@ export function ImportFixturesButton({
                 ) : (
                   <div className="max-h-96 overflow-y-auto rounded-md border border-hairline">
                     <table className="w-full text-sm">
-                      <thead className="sticky top-0 bg-surface-alt text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+                      <thead className="sticky top-0 bg-surface-alt text-micro font-bold uppercase tracking-micro text-ink-mute">
                         <tr>
                           <th className="px-3 py-2 text-left">
                             <input

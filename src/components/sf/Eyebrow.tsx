@@ -16,7 +16,7 @@ interface EyebrowProps {
 export function Eyebrow({ children, className = "" }: EyebrowProps) {
   return (
     <div
-      className={`font-mono text-[11px] font-semibold uppercase tracking-micro text-ink-dim ${className}`}
+      className={`font-mono text-micro font-semibold uppercase tracking-micro text-ink-dim ${className}`}
     >
       {children}
     </div>

@@ -55,7 +55,7 @@ export function SubDueHeading({
   return (
     <span className="min-w-0 flex-1">
       {due ? (
-        <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase leading-4 tracking-micro text-due-dark">
+        <span className="flex items-center gap-1.5 font-mono text-nano font-bold uppercase leading-4 tracking-micro text-due-dark">
           <span
             aria-hidden
             className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-due-dark shadow-[0_0_0_3px_rgba(242,166,90,0.25)]"
@@ -63,7 +63,7 @@ export function SubDueHeading({
           Sub due — {countLabel}
         </span>
       ) : (
-        <span className="block font-mono text-[10px] font-bold uppercase leading-4 tracking-micro text-warm/[0.64]">
+        <span className="block font-mono text-nano font-bold uppercase leading-4 tracking-micro text-warm/[0.64]">
           Suggested — {countLabel}
         </span>
       )}

@@ -36,7 +36,7 @@ export function FinalCTA({ copy, showAppStoreBadge }: FinalCTAProps) {
     >
       <div className="mx-auto max-w-3xl px-4 py-20 text-center sm:px-6 md:py-28">
         <RevealOnScroll>
-          <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-warm/55">
+          <p className="font-mono text-micro font-semibold uppercase tracking-micro text-warm/55">
             {copy.finalCtaEyebrow}
           </p>
           <h2 className="mt-4 text-3xl font-bold leading-[1.02] tracking-tightest text-warm [text-wrap:balance] sm:text-4xl md:text-5xl lg:text-6xl">

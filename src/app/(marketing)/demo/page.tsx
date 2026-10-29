@@ -42,7 +42,7 @@ export default function DemoPage() {
   return (
     <main className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20 lg:py-24">
       <div className="mx-auto max-w-2xl text-center">
-        <p className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-ink-mute">
+        <p className="font-mono text-micro font-bold uppercase tracking-[0.18em] text-ink-mute">
           Try Siren
         </p>
         <h1 className="mt-3 text-4xl font-bold leading-[1.05] tracking-tightest text-ink [text-wrap:balance] sm:text-5xl md:text-6xl">

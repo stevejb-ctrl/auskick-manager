@@ -47,7 +47,7 @@ export function FeatureSection({
         {/* Copy */}
         <div className={reverse ? "lg:order-2" : undefined}>
           <RevealOnScroll>
-            <p className="text-[11px] font-bold uppercase tracking-micro text-brand-700">
+            <p className="text-micro font-bold uppercase tracking-micro text-brand-700">
               {eyebrow}
             </p>
             <h2 className="mt-3 text-3xl font-bold tracking-tightest text-ink sm:text-4xl md:text-5xl">

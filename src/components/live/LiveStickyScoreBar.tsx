@@ -118,7 +118,7 @@ export function LiveStickyScoreBar({
       >
         <div ref={contentRef} className="mx-auto max-w-4xl">
           {scoringOff && (
-            <p className="px-4 pb-0.5 text-center text-[11px] text-ink-mute">
+            <p className="px-4 pb-0.5 text-center text-micro text-ink-mute">
               Scoring is off
               {scoringOff.teamId && (
                 <>

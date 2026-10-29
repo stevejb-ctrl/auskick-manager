@@ -100,7 +100,7 @@ export function BasketballScoreBug({
       >
         {atHooter ? (
           <span key="hooter" className="flex flex-col items-center motion-safe:animate-xfade-in motion-reduce:animate-xfade-in">
-            <span className="font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-white/[0.85]">
+            <span className="font-mono text-nano font-bold uppercase leading-3 tracking-micro text-white/[0.85]">
               End {periodTag}
             </span>
             <span className="mt-0.5 whitespace-nowrap text-xl font-bold leading-7 tracking-[-0.01em] text-white">
@@ -109,7 +109,7 @@ export function BasketballScoreBug({
           </span>
         ) : (
           <span key={`p-${currentPeriod}`} className="flex flex-col items-center">
-            <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
+            <span className="flex items-center gap-1.5 font-mono text-nano font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
               {live && <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-mint" />}
               <span>{periodTag}</span>
               {pausedIcon && <span>{pausedIcon}</span>}

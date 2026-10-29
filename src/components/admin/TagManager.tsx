@@ -101,7 +101,7 @@ export function TagManager({ initialTags }: TagManagerProps) {
         <h3 className="text-sm font-semibold text-ink">New tag</h3>
         <div className="mt-3 flex flex-wrap items-end gap-2">
           <div>
-            <label htmlFor="new-tag-name" className="block text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+            <label htmlFor="new-tag-name" className="block text-micro font-bold uppercase tracking-micro text-ink-mute">
               Name
             </label>
             <input
@@ -113,7 +113,7 @@ export function TagManager({ initialTags }: TagManagerProps) {
             />
           </div>
           <div>
-            <label htmlFor="new-tag-colour" className="block text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+            <label htmlFor="new-tag-colour" className="block text-micro font-bold uppercase tracking-micro text-ink-mute">
               Colour
             </label>
             <ColorSelect id="new-tag-colour" value={color} onChange={setColor} />

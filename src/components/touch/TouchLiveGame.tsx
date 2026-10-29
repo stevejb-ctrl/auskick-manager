@@ -866,7 +866,7 @@ export function TouchLiveGame({
                 data-testid="touch-mixed-breach"
                 className="mx-auto flex max-w-4xl items-center gap-3 border-t border-hairline bg-danger/10 px-3 py-1.5"
               >
-                <span className="shrink-0 rounded-xs bg-danger px-1.5 font-mono text-[10px] font-bold uppercase leading-4 tracking-micro text-white">
+                <span className="shrink-0 rounded-xs bg-danger px-1.5 font-mono text-nano font-bold uppercase leading-4 tracking-micro text-white">
                   Mixed rule
                 </span>
                 <p className="min-w-0 flex-1 text-sm text-ink">
@@ -937,13 +937,13 @@ export function TouchLiveGame({
         />
       )}
       {isPeriodActive && nextSubs.length > 0 && subDue.due && (
-        <p className="-mt-1 px-1 text-[11px] text-ink-dim">Make the change next time you have the ball, through the interchange.</p>
+        <p className="-mt-1 px-1 text-micro text-ink-dim">Make the change next time you have the ball, through the interchange.</p>
       )}
 
       {!isFinished && lentPlayers.length > 0 && (
         <div className="rounded-lg border border-warn/40 bg-warn-soft/60 px-3 py-2">
           <p className="text-xs font-semibold text-warn">Lent to the other team</p>
-          <p className="mt-0.5 text-[11px] text-warn/80">Tap &ldquo;Bring back&rdquo; to return a player to your bench.</p>
+          <p className="mt-0.5 text-micro text-warn/80">Tap &ldquo;Bring back&rdquo; to return a player to your bench.</p>
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             {lentPlayers.map((p) => (
               <button
@@ -955,7 +955,7 @@ export function TouchLiveGame({
                 className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-60 motion-safe:active:scale-[0.97]"
               >
                 <span>{p.full_name}</span>
-                <span className="ml-0.5 text-[11px] font-semibold text-warn/80">Bring back</span>
+                <span className="ml-0.5 text-micro font-semibold text-warn/80">Bring back</span>
               </button>
             ))}
           </div>

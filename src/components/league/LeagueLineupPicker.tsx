@@ -1059,7 +1059,7 @@ export function LeagueLineupPicker({
           aria-controls="lineup-game-settings"
         >
           <span className="flex flex-1 items-center gap-3 text-sm">
-            <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+            <span className="font-mono text-micro font-bold uppercase tracking-micro text-ink-mute">
               Game settings
             </span>
             <span className="text-xs text-ink-mute">{settingsSummary}</span>
@@ -1150,7 +1150,7 @@ export function LeagueLineupPicker({
                 onBlur={() => setSubMinInput(String(subMinutesFrom(subMinInput, suggestedSubMin)))}
                 className="w-32"
               />
-              <p className="text-[11px] text-ink-mute">
+              <p className="text-micro text-ink-mute">
                 Suggested: {formatMinutes(suggestedSubMin)} min
                 {requiredUnbroken > 0 ? (
                   <>
@@ -1164,7 +1164,7 @@ export function LeagueLineupPicker({
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Lend a player</Label>
-              <p className="text-[11px] text-ink-mute">
+              <p className="text-micro text-ink-mute">
                 Lent players sit out for the rest of the game until
                 you bring them back.
               </p>
@@ -1185,7 +1185,7 @@ export function LeagueLineupPicker({
                       onClick={() => handleLendToggle(p.id, false)}
                       disabled={loanPending}
                       aria-label={`Bring ${p.full_name} back`}
-                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60 motion-safe:active:scale-[0.97]"
+                      className="ml-0.5 rounded-full px-1 text-micro font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60 motion-safe:active:scale-[0.97]"
                     >
                       ×
                     </button>
@@ -1238,10 +1238,10 @@ export function LeagueLineupPicker({
             className="block h-5 w-1 rounded-sm bg-brand-600"
           />
           <div className="min-w-0 flex-1">
-            <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink">
+            <h3 className="font-mono text-micro font-bold uppercase tracking-micro text-ink">
               Starting field
             </h3>
-            <p className="mt-0.5 text-[11px] text-ink-mute">
+            <p className="mt-0.5 text-micro text-ink-mute">
               Tap two players to switch positions. Long-press a
               player for other actions.
             </p>
@@ -1319,10 +1319,10 @@ export function LeagueLineupPicker({
               className="block h-5 w-1 rounded-sm bg-warn"
             />
             <div className="min-w-0 flex-1">
-              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink">
+              <h3 className="font-mono text-micro font-bold uppercase tracking-micro text-ink">
                 Vest rotation plan
               </h3>
-              <p className="text-[11px] text-ink-mute">
+              <p className="text-micro text-ink-mute">
                 Auto-picked from fairness — tap any pick to swap.
                 Once a player wears a vest, they don&rsquo;t wear one
                 again this game.
@@ -1338,7 +1338,7 @@ export function LeagueLineupPicker({
               return (
                 <li key={periodIdx} className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <span className="w-12 flex-shrink-0 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
+                    <span className="w-12 flex-shrink-0 font-mono text-nano font-bold uppercase tracking-micro text-ink-dim">
                       {periodAbbrev}
                       {periodNum}
                     </span>

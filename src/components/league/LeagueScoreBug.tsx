@@ -162,7 +162,7 @@ export function LeagueScoreBug({
           : `${periodLabelLine}, ${clockReadout}`
       }
     >
-      <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
+      <span className="flex items-center gap-1.5 font-mono text-nano font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
         {live && <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-mint" />}
         <span>{quarterEnded ? `${periodTag} · over` : periodTag}</span>
         {onClockTap && !quarterEnded && !running && <span aria-hidden>▶</span>}

@@ -111,7 +111,7 @@ function TimerRing({
         />
       </svg>
       <span
-        className={`nums font-mono text-[9px] font-bold leading-none ${
+        className={`nums font-mono text-nano font-bold leading-none ${
           due ? "animate-pulse text-warn" : "text-warm"
         }`}
       >
@@ -236,14 +236,14 @@ export function NextSubCard({
                 className="flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-sm bg-white/5 px-2.5 py-2"
               >
                 <span
-                  className={`w-12 font-mono text-[9px] font-bold uppercase tracking-micro ${s.labelClass}`}
+                  className={`w-12 font-mono text-nano font-bold uppercase tracking-micro ${s.labelClass}`}
                 >
                   {s.label}
                 </span>
                 <span className="flex min-w-0 flex-auto items-center gap-1.5">
                   {off ? (
                     <>
-                      <span className="hidden h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-white/10 font-mono text-[8px] font-bold text-warm/70 sm:flex">
+                      <span className="hidden h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-white/10 font-mono text-nano font-bold text-warm/70 sm:flex">
                         {initials(off.full_name)}
                       </span>
                       <span className="truncate text-xs font-semibold text-warm/70">
@@ -254,7 +254,7 @@ export function NextSubCard({
                     <span className="truncate text-xs italic text-warm/50">Empty spot</span>
                   )}
                   <span className="text-warm/40">→</span>
-                  <span className="hidden h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-brand-600/40 font-mono text-[8px] font-bold text-brand-200 sm:flex">
+                  <span className="hidden h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-brand-600/40 font-mono text-nano font-bold text-brand-200 sm:flex">
                     {initials(on.full_name)}
                   </span>
                   <span className="truncate text-xs font-bold text-brand-300">
@@ -277,7 +277,7 @@ export function NextSubCard({
                     // every row read "Make swap"; UX round 3, e4). Null-safe
                     // for a fill into an empty spot (nobody off).
                     aria-label={swapPairLabel(off ? off.full_name : null, on.full_name)}
-                    className="ml-auto min-h-11 flex-shrink-0 rounded-sm bg-brand-600 px-3 font-mono text-[11px] font-bold text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
+                    className="ml-auto min-h-11 flex-shrink-0 rounded-sm bg-brand-600 px-3 font-mono text-micro font-bold text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
                   >
                     {pending ? "…" : off ? "Make swap" : "Put on"}
                   </button>

@@ -114,14 +114,14 @@ export function FixScoresDialog({
           if (rows.length === 0) return null;
           return (
             <div key={p}>
-              <p className="text-[10px] font-bold uppercase tracking-micro text-ink-mute">{periodName(p)}</p>
+              <p className="text-nano font-bold uppercase tracking-micro text-ink-mute">{periodName(p)}</p>
               <ul className="mt-1 divide-y divide-hairline rounded-md border border-hairline bg-surface-alt">
                 {rows.map((r) => (
                   <li key={r.id} className="px-3 py-2 text-xs" data-testid="fix-score-row">
                     <div className="flex items-center justify-between gap-2">
                       <span className="flex min-w-0 items-center gap-2">
                         <span
-                          className={`inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1 text-[10px] font-bold ${
+                          className={`inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1 text-nano font-bold ${
                             r.side === "us" ? "bg-brand-100 text-brand-700" : "bg-warn-soft text-warn"
                           }`}
                         >
@@ -136,7 +136,7 @@ export function FixScoresDialog({
                           <button
                             type="button"
                             onClick={() => setChanging({ id: r.id, playerId: r.playerId ?? NOBODY })}
-                            className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-ink-dim hover:bg-surface"
+                            className="rounded-full border border-hairline px-2 py-0.5 text-micro font-medium text-ink-dim hover:bg-surface"
                             aria-label={`Change who scored: ${who(r)}, ${r.kind.label} in ${periodName(p)}`}
                           >
                             Change
@@ -145,7 +145,7 @@ export function FixScoresDialog({
                         <button
                           type="button"
                           onClick={() => setDeleting(r)}
-                          className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-ink-mute hover:border-danger/30 hover:bg-danger/10 hover:text-danger"
+                          className="rounded-full border border-hairline px-2 py-0.5 text-micro font-medium text-ink-mute hover:border-danger/30 hover:bg-danger/10 hover:text-danger"
                           aria-label={`Take off ${who(r)}'s ${r.kind.label.toLowerCase()} in ${periodName(p)}`}
                         >
                           ×
@@ -154,7 +154,7 @@ export function FixScoresDialog({
                     </div>
                     {changing?.id === r.id && (
                       <div className="mt-2 flex flex-wrap items-end gap-2">
-                        <label className="min-w-0 flex-1 text-[11px] text-ink-mute">
+                        <label className="min-w-0 flex-1 text-micro text-ink-mute">
                           Who scored
                           <select
                             value={changing.playerId}
@@ -205,7 +205,7 @@ export function FixScoresDialog({
           <div className="rounded-md border border-hairline bg-surface p-3 shadow-card">
             <p className="text-xs font-semibold text-ink">Add a missed score</p>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <label className="text-[11px] text-ink-mute">
+              <label className="text-micro text-ink-mute">
                 Score
                 <select
                   value={addType}
@@ -225,7 +225,7 @@ export function FixScoresDialog({
                   ))}
                 </select>
               </label>
-              <label className="text-[11px] text-ink-mute">
+              <label className="text-micro text-ink-mute">
                 {periodCount === 1 ? "When" : "Period"}
                 <select
                   value={addPeriod}
@@ -241,7 +241,7 @@ export function FixScoresDialog({
               </label>
             </div>
             {addKind?.scorer && (
-              <label className="mt-2 block text-[11px] text-ink-mute">
+              <label className="mt-2 block text-micro text-ink-mute">
                 Who scored
                 <select
                   value={addPlayer}

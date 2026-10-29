@@ -49,11 +49,11 @@ export default async function HelpLayout({ children }: { children: React.ReactNo
       <div className="mx-auto max-w-5xl px-4 py-8">
         <div className="md:flex md:gap-10">
           <aside className="mb-6 md:mb-0 md:w-48 md:shrink-0">
-            <p className="mb-3 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute">
+            <p className="mb-3 font-mono text-nano font-bold uppercase tracking-micro text-ink-mute">
               Help
             </p>
             <HelpNav />
-            <p className="mb-2 mt-8 hidden font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute md:block">
+            <p className="mb-2 mt-8 hidden font-mono text-nano font-bold uppercase tracking-micro text-ink-mute md:block">
               Siren
             </p>
             <ul className="hidden md:block">

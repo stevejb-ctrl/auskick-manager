@@ -1884,7 +1884,7 @@ export function LiveGame({
       )}
 
       {finalised && (
-        <p className="text-center font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+        <p className="text-center font-mono text-micro font-bold uppercase tracking-micro text-ink-dim">
           Full time
         </p>
       )}
@@ -2066,7 +2066,7 @@ export function LiveGame({
                 <div className="flex items-center gap-2">
                   <span
                     data-testid="planned-next-period-badge"
-                    className="font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
+                    className="font-mono text-nano font-bold uppercase tracking-micro text-brand-700"
                   >
                     Next period ready
                   </span>
@@ -2074,7 +2074,7 @@ export function LiveGame({
                     type="button"
                     data-testid="plan-next-clear"
                     onClick={() => setPlannedRotation(consumePeriodPin(pinForThisGame, currentQuarter))}
-                    className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim transition-colors hover:text-ink"
+                    className="font-mono text-nano font-bold uppercase tracking-micro text-ink-dim transition-colors hover:text-ink"
                   >
                     Clear
                   </button>

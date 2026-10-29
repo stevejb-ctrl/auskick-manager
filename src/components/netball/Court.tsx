@@ -140,7 +140,7 @@ function ThirdRow({
     <div className="relative flex h-1/3 w-full flex-col items-stretch justify-around pb-1 pt-4">
       {/* White mono micro-caps (5.1:1 on the court). */}
       <span
-        className={`pointer-events-none absolute right-5 font-mono text-[10px] font-bold uppercase tracking-micro text-white ${
+        className={`pointer-events-none absolute right-5 font-mono text-nano font-bold uppercase tracking-micro text-white ${
           kind === "attack" ? "top-5" : "top-3"
         }`}
       >

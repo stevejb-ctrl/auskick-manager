@@ -96,7 +96,7 @@ export function LoginBrandPanel() {
 function BrandBullet({ n, children }: { n: string; children: React.ReactNode }) {
   return (
     <li className="flex items-start gap-3.5">
-      <span className="shrink-0 pt-0.5 font-mono text-[10px] font-bold tracking-[0.12em] text-alarm">
+      <span className="shrink-0 pt-0.5 font-mono text-nano font-bold tracking-[0.12em] text-alarm">
         {n}
       </span>
       <span className="leading-relaxed">{children}</span>

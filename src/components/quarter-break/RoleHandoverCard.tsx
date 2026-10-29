@@ -156,7 +156,7 @@ function HandoverRowView({ row, wrapNames = false }: { row: HandoverRow; wrapNam
                 {p.full_name}
               </span>
               {suggested && (
-                <span className="shrink-0 font-mono text-[10px] font-semibold uppercase tracking-micro text-brand-600">
+                <span className="shrink-0 font-mono text-nano font-semibold uppercase tracking-micro text-brand-600">
                   Pick
                 </span>
               )}

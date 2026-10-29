@@ -33,8 +33,8 @@ interface SegTabsProps {
 
 // Every size is a 44 pt target (UX plan Phase 6); size sets the type.
 const HEIGHT: Record<Size, string> = {
-  sm: "h-11 text-[12px]",
-  md: "h-11 text-[13px]",
+  sm: "h-11 text-xs",
+  md: "h-11 text-[0.8125rem]",
   lg: "h-11 text-sm",
 };
 
@@ -80,7 +80,7 @@ export function SegTabs({
             {opt.count != null && (
               <span
                 className={`
-                  ml-0.5 rounded-full font-mono text-[10px] font-bold
+                  ml-0.5 rounded-full font-mono text-nano font-bold
                   ${active
                     ? "bg-surface-alt px-1.5 py-px text-ink-dim"
                     : "text-ink-mute"

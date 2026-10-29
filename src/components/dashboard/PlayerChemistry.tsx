@@ -46,7 +46,7 @@ export function PlayerChemistry({ pairs, playerNames, hasData }: Props) {
                 {pair.netDiff}
               </span>
             </div>
-            <div className="mt-2 flex items-center gap-3 text-[11px] text-ink-dim">
+            <div className="mt-2 flex items-center gap-3 text-micro text-ink-dim">
               <span className="tabular-nums">
                 {Math.round(pair.durationMs / MS_PER_MIN)} min together
               </span>

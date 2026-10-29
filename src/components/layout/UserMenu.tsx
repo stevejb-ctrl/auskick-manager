@@ -77,7 +77,7 @@ export function UserMenu({ email }: UserMenuProps) {
           className="absolute right-0 top-full z-30 mt-2 w-56 overflow-hidden rounded-md border border-hairline bg-surface shadow-pop"
         >
           <div className="border-b border-hairline px-3 py-2">
-            <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-ink-mute">
+            <p className="font-mono text-micro font-semibold uppercase tracking-micro text-ink-mute">
               Signed in as
             </p>
             <p className="mt-0.5 truncate text-sm text-ink">{email}</p>

@@ -341,7 +341,7 @@ export function SoccerLineupPicker({
           aria-controls="soccer-game-settings"
         >
           <span className="flex flex-1 items-center gap-3 text-sm">
-            <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">Game settings</span>
+            <span className="font-mono text-micro font-bold uppercase tracking-micro text-ink-mute">Game settings</span>
             <span className="text-xs text-ink-mute">{settingsSummary}</span>
           </span>
           <span aria-hidden className="text-ink-mute">
@@ -423,7 +423,7 @@ export function SoccerLineupPicker({
                   onBlur={() => setSubMinInput(String(subMinutesFrom(subMinInput, defaultSubMinutes)))}
                   className="w-32"
                 />
-                <p className="text-[11px] text-ink-mute">{rules.rollingSubs.label}: {rules.rollingSubs.note}.</p>
+                <p className="text-micro text-ink-mute">{rules.rollingSubs.label}: {rules.rollingSubs.note}.</p>
               </div>
             ) : (
               <p className="text-xs text-ink-dim">{soccerSubModeNote(ageGroup.subMode, subIntervalSeconds, periodWord, rules.rollingSubs.label)}</p>
@@ -486,7 +486,7 @@ export function SoccerLineupPicker({
                 className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 motion-safe:active:scale-[0.97]"
               >
                 <span>{p.full_name}</span>
-                <span className="ml-0.5 text-[11px] font-semibold text-warn/80">Bring back</span>
+                <span className="ml-0.5 text-micro font-semibold text-warn/80">Bring back</span>
               </button>
             ))}
           </div>

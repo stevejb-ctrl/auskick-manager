@@ -94,7 +94,7 @@ function formatMinSec(ms: number): string {
   return `${m}:${r.toString().padStart(2, "0")}`;
 }
 
-const CHIP = "inline-flex h-4 shrink-0 items-center rounded-xs px-[5px] font-mono text-[10px] font-bold leading-4";
+const CHIP = "inline-flex h-4 shrink-0 items-center rounded-xs px-[5px] font-mono text-nano font-bold leading-4";
 const NO_LINE_STRIP = "border-brand-700 bg-brand-600 text-white";
 
 function LinePlayerTileImpl({
@@ -206,12 +206,12 @@ function LinePlayerTileImpl({
         {keepOn && !away && !score && <KeepOnMarker />}
         {isOn && (
           <div
-            className={`flex items-center justify-center gap-1 rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-micro ${
+            className={`flex items-center justify-center gap-1 rounded-t-[11px] border-b px-1 py-0.5 font-mono text-micro font-bold uppercase leading-none tracking-micro ${
               swapStyle?.stripClass ?? NO_LINE_STRIP
             }`}
             aria-label={`Going on${swapStyle?.short ? ` to ${swapStyle.label}` : ""}, pair ${swap.pair}`}
           >
-            {showPairNumber && <span className="rounded-xs bg-black/15 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}
+            {showPairNumber && <span className="rounded-xs bg-black/15 px-1 py-0.5 text-nano">#{swap.pair}</span>}
             <span>→ {swapLabel}</span>
           </div>
         )}
@@ -221,14 +221,14 @@ function LinePlayerTileImpl({
           <span className="flex h-4 items-center gap-1.5">
             {lineLabel && (
               <span
-                className={`font-mono text-[10px] font-bold uppercase leading-4 tracking-micro ${style?.textClass ?? "text-ink-dim"}`}
+                className={`font-mono text-nano font-bold uppercase leading-4 tracking-micro ${style?.textClass ?? "text-ink-dim"}`}
                 aria-label={positionLabel ? `Position ${positionLabel}` : undefined}
               >
                 {lineLabel}
               </span>
             )}
             {player.jersey_number != null && (
-              <span className="nums font-mono text-[10px] font-semibold leading-4 text-ink-dim">#{player.jersey_number}</span>
+              <span className="nums font-mono text-nano font-semibold leading-4 text-ink-dim">#{player.jersey_number}</span>
             )}
             <span className="flex-1" />
             {handover && !isOff && (
@@ -283,19 +283,19 @@ function LinePlayerTileImpl({
               <span
                 aria-hidden
                 style={{ animationDelay: "80ms" }}
-                className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-out-up motion-reduce:hidden"
+                className="block truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-out-up motion-reduce:hidden"
               >
                 {handover.from}
               </span>
               <span
                 style={{ animationDelay: "80ms" }}
-                className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-in-up motion-reduce:animate-xfade-in"
+                className="block truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-in-up motion-reduce:animate-xfade-in"
               >
                 {displayName}
               </span>
             </span>
           ) : (
-            <span className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink">{displayName}</span>
+            <span className="block truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-ink">{displayName}</span>
           )}
 
           {/* Row 3 · time in each line, then the time. */}

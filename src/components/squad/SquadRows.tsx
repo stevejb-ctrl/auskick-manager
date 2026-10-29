@@ -50,7 +50,7 @@ export function SquadRows({ players, teamId, takenJerseys, isAdmin, showJersey, 
       <SFCard pad={0}>
         <div className="flex items-center justify-between border-b border-hairline px-4 py-3 sm:px-5">
           <Eyebrow>On the squad</Eyebrow>
-          <span className="font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-ink-mute">
+          <span className="font-mono text-micro font-bold uppercase tracking-[0.1em] text-ink-mute">
             {activeCount} active
           </span>
         </div>
@@ -69,7 +69,7 @@ export function SquadRows({ players, teamId, takenJerseys, isAdmin, showJersey, 
         <SFCard pad={0}>
           <div className="flex items-center justify-between border-b border-hairline px-4 py-3 sm:px-5">
             <Eyebrow>Inactive</Eyebrow>
-            <span className="font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-ink-mute">
+            <span className="font-mono text-micro font-bold uppercase tracking-[0.1em] text-ink-mute">
               {inactiveCount}
             </span>
           </div>

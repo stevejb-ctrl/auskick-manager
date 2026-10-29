@@ -103,7 +103,7 @@ export default async function AccountPage() {
       <SFCard>
         <dl className="space-y-3 text-sm">
           <div>
-            <dt className="font-mono text-[11px] font-semibold uppercase tracking-micro text-ink-dim">
+            <dt className="font-mono text-micro font-semibold uppercase tracking-micro text-ink-dim">
               Email
             </dt>
             <dd className="mt-1 break-all text-ink">
@@ -111,7 +111,7 @@ export default async function AccountPage() {
             </dd>
           </div>
           <div>
-            <dt className="font-mono text-[11px] font-semibold uppercase tracking-micro text-ink-dim">
+            <dt className="font-mono text-micro font-semibold uppercase tracking-micro text-ink-dim">
               Name
             </dt>
             <dd>

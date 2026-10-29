@@ -20,7 +20,7 @@ export function LoginMobileBand() {
   return (
     <div className="flex items-center justify-between border-b border-hairline bg-surface px-5 py-4 md:hidden">
       <SirenWordmark size="sm" />
-      <span className="font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-ink-mute">
+      <span className="font-mono text-nano font-bold uppercase tracking-[0.14em] text-ink-mute">
         {brand.brand.audience} · Team management
       </span>
     </div>

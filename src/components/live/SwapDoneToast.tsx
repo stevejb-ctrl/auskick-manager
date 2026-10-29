@@ -57,7 +57,7 @@ export function SwapDoneToast({
           >
             <span
               aria-hidden
-              className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-[11px] font-bold leading-none text-warm"
+              className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-micro font-bold leading-none text-warm"
             >
               ✓
             </span>

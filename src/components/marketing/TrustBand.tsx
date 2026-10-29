@@ -38,7 +38,7 @@ export function TrustBand({ entries }: TrustBandProps) {
             <div className="text-2xl font-bold tracking-tightest text-ink sm:text-3xl">
               {item.stat}
             </div>
-            <div className="mt-1 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-ink-mute">
+            <div className="mt-1 font-mono text-nano font-bold uppercase tracking-[0.14em] text-ink-mute">
               {item.label}
             </div>
           </div>

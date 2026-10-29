@@ -79,7 +79,7 @@ export function TouchField({
         type="button"
         onClick={() => onTap("", line)}
         aria-label={`Empty ${line === "field" ? "spot" : `${TOUCH_LINE_ONE[line]} spot`}`}
-        className="w-full rounded-md border border-dashed border-white/40 bg-white/5 py-3 text-center font-mono text-[10px] font-semibold uppercase tracking-micro text-white/70 transition-colors duration-fast ease-out-quart hover:border-white/70 hover:bg-white/15"
+        className="w-full rounded-md border border-dashed border-white/40 bg-white/5 py-3 text-center font-mono text-nano font-semibold uppercase tracking-micro text-white/70 transition-colors duration-fast ease-out-quart hover:border-white/70 hover:bg-white/15"
       >
         {anySelected ? "Move here" : "Empty"}
       </button>

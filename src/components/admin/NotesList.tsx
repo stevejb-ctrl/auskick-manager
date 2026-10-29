@@ -72,7 +72,7 @@ export function NotesList({ profileId, notes }: NotesListProps) {
               key={n.id}
               className="rounded-md border border-hairline bg-surface p-3 shadow-card"
             >
-              <div className="mb-1 flex items-center justify-between gap-2 text-[11px] text-ink-mute">
+              <div className="mb-1 flex items-center justify-between gap-2 text-micro text-ink-mute">
                 <FormattedDateTime iso={n.created_at} mode="short" />
                 <button
                   type="button"

@@ -874,7 +874,7 @@ export function NetballLineupPicker({
           aria-controls="netball-lineup-game-settings"
         >
           <span className="flex flex-1 items-center gap-3 text-sm">
-            <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+            <span className="font-mono text-micro font-bold uppercase tracking-micro text-ink-mute">
               Game settings
             </span>
             <span className="text-xs text-ink-mute">
@@ -1093,7 +1093,7 @@ export function NetballLineupPicker({
                     type="button"
                     onClick={() => handleAllowChange(null)}
                     disabled={allowPending}
-                    className="mt-1 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink-dim disabled:opacity-60"
+                    className="mt-1 font-mono text-nano font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink-dim disabled:opacity-60"
                   >
                     Use team default
                   </button>
@@ -1131,7 +1131,7 @@ export function NetballLineupPicker({
                         onClick={() => handleLendToggle(p.id, false)}
                         disabled={loanPending}
                         aria-label={`Bring ${p.full_name} back`}
-                        className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60 motion-safe:active:scale-[0.97]"
+                        className="ml-0.5 rounded-full px-1 text-micro font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60 motion-safe:active:scale-[0.97]"
                       >
                         ×
                       </button>

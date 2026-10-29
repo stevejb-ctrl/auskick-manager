@@ -157,7 +157,7 @@ export function GameHeader({
   // all three columns — totals line up with the pill, buttons with
   // Q-BY-Q.
   const TOTAL = "text-[44px] font-bold leading-10 tracking-[-0.04em]";
-  const TALLY = "text-[13px] font-medium text-ink-dim";
+  const TALLY = "text-[0.8125rem] font-medium text-ink-dim";
 
   // The rows are the shared ScoreBugFrame's (UX round 3, e4): the same
   // in every sport, compact on a short screen, chips wrapping at 320 px
@@ -176,7 +176,7 @@ export function GameHeader({
         {atHooter ? (
           // Label crossfades to the break: END Q2 / Half time.
           <span key="hooter" className="flex flex-col items-center motion-safe:animate-xfade-in motion-reduce:animate-xfade-in">
-            <span className="font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-white/[0.85]">
+            <span className="font-mono text-nano font-bold uppercase leading-3 tracking-micro text-white/[0.85]">
               End {quarterLabel}
             </span>
             <span className="mt-0.5 whitespace-nowrap text-xl font-bold leading-7 tracking-[-0.01em] text-white">
@@ -190,7 +190,7 @@ export function GameHeader({
               quarterChanged ? "motion-safe:animate-rise-in motion-reduce:animate-xfade-in" : ""
             }`}
           >
-            <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
+            <span className="flex items-center gap-1.5 font-mono text-nano font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
               {live && <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-mint" />}
               <span>{quarterLabel}</span>
               {pausedIcon && <span>{pausedIcon}</span>}

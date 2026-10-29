@@ -623,7 +623,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 {scorerWords.heading}
               </h3>
             </div>
-            <span className="font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-ink-mute">
+            <span className="font-mono text-micro font-bold uppercase tracking-[0.1em] text-ink-mute">
               {scorerRows.length} scorer{scorerRows.length === 1 ? "" : "s"}
             </span>
           </div>
@@ -635,7 +635,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
               >
                 <span className="flex min-w-0 items-center gap-3">
                   <span
-                    className={`font-mono text-[11px] font-bold tracking-[0.06em] ${
+                    className={`font-mono text-micro font-bold tracking-[0.06em] ${
                       i === 0 ? "text-warn" : "text-ink-mute"
                     }`}
                   >
@@ -653,7 +653,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                   {r.showPoints && (
                     <>
                       <span className="ml-2 font-bold text-ink">{r.points}</span>
-                      <span className="ml-1 text-[10px] uppercase tracking-[0.1em] text-ink-mute">
+                      <span className="ml-1 text-nano uppercase tracking-[0.1em] text-ink-mute">
                         pts
                       </span>
                     </>
@@ -691,7 +691,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 </span>
                 <span className="font-mono tabular-nums text-ink-dim">
                   <span className="font-bold text-ink">{r.fouls}</span> {r.fouls === 1 ? "foul" : "fouls"}
-                  {r.fouledOut && <span className="ml-2 text-[10px] font-bold uppercase tracking-[0.1em] text-danger">Fouled out</span>}
+                  {r.fouledOut && <span className="ml-2 text-nano font-bold uppercase tracking-[0.1em] text-danger">Fouled out</span>}
                 </span>
               </li>
             ))}

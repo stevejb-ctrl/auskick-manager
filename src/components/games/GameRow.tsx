@@ -56,7 +56,7 @@ export function GameRow({ teamId, game, availableCount, totalActive }: GameRowPr
         )}
 
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5 text-base font-bold text-ink sm:text-[17px]">
+          <div className="flex items-center gap-1.5 text-base font-bold text-ink sm:text-[1.0625rem]">
             <span className="font-medium text-ink-mute">vs</span>
             <span className="truncate">{game.opponent}</span>
           </div>
@@ -83,7 +83,7 @@ export function GameRow({ teamId, game, availableCount, totalActive }: GameRowPr
               {availableCount}
               <span className="text-ink-mute">/{totalActive}</span>
             </div>
-            <div className="font-mono text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+            <div className="font-mono text-nano font-semibold uppercase tracking-micro text-ink-mute">
               available
             </div>
           </div>

@@ -65,7 +65,7 @@ export function SeasonBalanceGrid({ grid, periodWord, sinceLabel }: SeasonBalanc
       <div className="overflow-x-auto">
         <table className="w-full text-sm" aria-label="Season balance">
           <thead>
-            <tr className="text-left font-mono text-[10px] uppercase tracking-micro text-ink-mute">
+            <tr className="text-left font-mono text-nano uppercase tracking-micro text-ink-mute">
               <th className="py-1.5 pr-2 font-bold">Player</th>
               {grid.units.map((u) => (
                 <th key={u.key} className="px-1 py-1.5 text-center font-bold">

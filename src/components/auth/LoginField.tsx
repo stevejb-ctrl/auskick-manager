@@ -37,7 +37,7 @@ export function LoginField({
   const [focused, setFocused] = useState(false);
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="flex items-baseline justify-between font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-ink-mute">
+      <span className="flex items-baseline justify-between font-mono text-nano font-bold uppercase tracking-[0.12em] text-ink-mute">
         <span>{label}</span>
         {hint}
       </span>

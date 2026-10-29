@@ -129,7 +129,7 @@ export function LineupPickerFooter({
               </span>
               {savedAt && (
                 <span
-                  className="hidden text-[11px] text-ink-mute sm:inline"
+                  className="hidden text-micro text-ink-mute sm:inline"
                   title={`Plan saved ${new Date(savedAt).toLocaleString()}`}
                 >
                   · Plan saved

@@ -49,7 +49,7 @@ export default async function AdminGamesPage({ searchParams }: PageProps) {
       header: "Status",
       render: (r) => (
         <span
-          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+          className={`inline-flex items-center rounded-full px-2 py-0.5 text-micro font-medium ${
             r.status === "in_progress"
               ? "bg-warn-soft text-warn"
               : r.status === "completed"

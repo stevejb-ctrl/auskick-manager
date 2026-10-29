@@ -2306,7 +2306,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             <div className="flex items-center gap-2">
               <span
                 data-testid="planned-next-period-badge"
-                className="font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
+                className="font-mono text-nano font-bold uppercase tracking-micro text-brand-700"
               >
                 Next period ready
               </span>
@@ -2314,7 +2314,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                 type="button"
                 data-testid="plan-next-clear"
                 onClick={() => setPlannedRotation(consumePeriodPin(pinForThisGame, currentQuarter))}
-                className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim transition-colors hover:text-ink"
+                className="font-mono text-nano font-bold uppercase tracking-micro text-ink-dim transition-colors hover:text-ink"
               >
                 Clear
               </button>
@@ -2883,7 +2883,7 @@ function NetballScoreBug({
   // clock ticks on an interval that can land inside the hydration commit.
   const inner = (
     <>
-      <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
+      <span className="flex items-center gap-1.5 font-mono text-nano font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
         {/* Running: the mint live dot, as AFL's pill. Paused keeps
             its ▶ badge + ring below. */}
         {onClockTap && !paused && (
@@ -2914,7 +2914,7 @@ function NetballScoreBug({
     >
       {/* ▶ glyph top-left when paused — tap to resume. */}
       {paused && (
-        <span className="pointer-events-none absolute -left-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-brand-500 text-[8px] font-bold leading-none text-warm shadow-card">
+        <span className="pointer-events-none absolute -left-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-brand-500 text-nano font-bold leading-none text-warm shadow-card">
           ▶
         </span>
       )}

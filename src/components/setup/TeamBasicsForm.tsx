@@ -421,7 +421,7 @@ function SportPill({
       <div className="flex items-center gap-2 font-semibold">
         {title}
         {badge && (
-          <span className="rounded-xs bg-warn-soft px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-micro text-warn">
+          <span className="rounded-xs bg-warn-soft px-1.5 py-0.5 font-mono text-nano font-bold uppercase tracking-micro text-warn">
             {badge}
           </span>
         )}

@@ -164,7 +164,7 @@ function Section({
   return (
     <section className="space-y-2">
       <div className="flex items-center justify-between">
-        <h2 className="text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+        <h2 className="text-micro font-bold uppercase tracking-micro text-ink-dim">
           {title}
         </h2>
         {viewAllHref && (

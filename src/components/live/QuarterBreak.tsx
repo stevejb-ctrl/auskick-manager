@@ -846,7 +846,7 @@ export function QuarterBreak({
         hasPlannedSeed ? (
           <p
             data-testid="planned-seed-banner"
-            className="text-center font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
+            className="text-center font-mono text-nano font-bold uppercase tracking-micro text-brand-700"
           >
             Pre-filled from your planned Q{nextQuarter} lineup
           </p>
@@ -877,7 +877,7 @@ export function QuarterBreak({
                   <Guernsey num={ip.jersey_number ?? ""} size={32} />
                   <div className="min-w-0">
                     <h2 className="truncate text-base font-bold text-ink">{ip.full_name}</h2>
-                    <p className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute">{status}</p>
+                    <p className="font-mono text-nano font-bold uppercase tracking-micro text-ink-mute">{status}</p>
                   </div>
                 </div>
                 <button

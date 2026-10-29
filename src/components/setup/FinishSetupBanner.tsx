@@ -16,7 +16,7 @@ export function FinishSetupBanner({ teamId }: FinishSetupBannerProps) {
       className="flex items-center justify-between gap-3 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 shadow-card transition-colors hover:bg-brand-100"
     >
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-micro text-brand-700">
+        <p className="text-micro font-semibold uppercase tracking-micro text-brand-700">
           Finish setup
         </p>
         <p className="mt-0.5 text-sm text-ink">

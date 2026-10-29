@@ -89,7 +89,7 @@ export function QuarterScoreModal({
       <div className="flex min-h-0 flex-1 flex-col gap-4">
         {/* Header — fixed at top */}
         <div className="flex-shrink-0">
-          <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+          <p className="font-mono text-micro font-bold uppercase tracking-micro text-ink-mute">
             Quarter scores
           </p>
           <h2 className="text-lg font-bold text-ink">
@@ -112,7 +112,7 @@ export function QuarterScoreModal({
           totalQuarters={totalQuarters}
         />
 
-        <p className="px-1 text-[11px] text-ink-mute">
+        <p className="px-1 text-micro text-ink-mute">
           Numbers in (parentheses) are cumulative through that quarter.
           {sport === "afl"
             ? " Format: goals.behinds (points). 6 points per goal, 1 per behind."
@@ -130,7 +130,7 @@ export function QuarterScoreModal({
               <span>
                 {showFixScores ? "Hide fix scores" : "Fix scores"}
               </span>
-              <span className="font-mono text-[10px] uppercase tracking-micro text-ink-mute">
+              <span className="font-mono text-nano uppercase tracking-micro text-ink-mute">
                 {showFixScores ? "▾" : "▸"}
               </span>
             </button>

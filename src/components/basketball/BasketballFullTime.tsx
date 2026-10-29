@@ -79,7 +79,7 @@ export function BasketballFullTimeReview({
 
   return (
     <div className="rounded-md border border-hairline bg-surface p-4 shadow-card">
-      <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">Full time</p>
+      <p className="font-mono text-micro font-bold uppercase tracking-micro text-ink-mute">Full time</p>
       <p className="mt-0.5 text-base font-semibold text-ink">
         {trackScoring ? "Check the score with the table, then finish." : "That's the game. Finish it to see everyone's minutes."}
       </p>
@@ -88,11 +88,11 @@ export function BasketballFullTimeReview({
         <>
           <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
             <div className={box}>
-              <p className="truncate text-[10px] font-bold uppercase tracking-micro text-ink-mute">{teamName}</p>
+              <p className="truncate text-nano font-bold uppercase tracking-micro text-ink-mute">{teamName}</p>
               <p className="mt-1 text-2xl font-bold tabular-nums text-ink">{state.teamScore.points}</p>
             </div>
             <div className={box}>
-              <p className="truncate text-[10px] font-bold uppercase tracking-micro text-ink-mute">{opponentName}</p>
+              <p className="truncate text-nano font-bold uppercase tracking-micro text-ink-mute">{opponentName}</p>
               <p className="mt-1 text-2xl font-bold tabular-nums text-ink">{state.opponentScore.points}</p>
             </div>
           </div>
@@ -142,7 +142,7 @@ export function BasketballFullTimeReview({
         <SFButton full size="lg" onClick={handleFinalise} loading={pending} variant="accent">
           Finish game
         </SFButton>
-        <p className="mt-2 text-center text-[11px] text-ink-mute">Locks the game and shows the summary you can share.</p>
+        <p className="mt-2 text-center text-micro text-ink-mute">Locks the game and shows the summary you can share.</p>
       </div>
     </div>
   );

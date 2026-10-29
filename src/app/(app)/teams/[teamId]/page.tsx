@@ -271,7 +271,7 @@ function LiveHero({ teamId, game, canRun }: { teamId: string; game: Game; canRun
           </span>
         </div>
         <div className="mt-4 flex items-baseline gap-3">
-          <span className="text-[11px] font-semibold uppercase tracking-micro text-warm/60">
+          <span className="text-micro font-semibold uppercase tracking-micro text-warm/60">
             vs
           </span>
           <span className="text-2xl font-bold tracking-tightest text-warm sm:text-3xl">
@@ -446,9 +446,8 @@ function NextUpHero({
         />
 
         <div className="relative">
-          <Eyebrow className="!text-warm/70">
-            Next up{game.round_number != null && ` · Round ${game.round_number}`}
-          </Eyebrow>
+          {/* The numeral says the round; the eyebrow said it again. */}
+          <Eyebrow className="!text-warm/70">Next up</Eyebrow>
           <div className="mt-2.5 flex items-start gap-4">
             {game.round_number != null && (
               <div className="text-warm">
@@ -457,7 +456,9 @@ function NextUpHero({
             )}
             <div className="min-w-0 flex-1">
               <div className="text-xs font-medium text-warm/70">vs</div>
-              <div className="mt-0.5 text-2xl font-bold leading-tight tracking-tightest sm:text-3xl">
+              {/* Long names wrap, even mid-word, rather than clip (at 200%
+                  text "Sandringham" was cut to "Sandring"). */}
+              <div className="mt-0.5 break-words text-2xl font-bold leading-tight tracking-tightest [overflow-wrap:anywhere] sm:text-3xl">
                 {game.opponent}
               </div>
               <div className="mt-2 flex flex-col gap-1 text-sm text-warm/85">
@@ -589,7 +590,7 @@ function UpcomingRow({
         )}
 
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5 truncate text-base font-bold text-ink sm:text-[17px]">
+          <div className="flex items-center gap-1.5 truncate text-base font-bold text-ink sm:text-[1.0625rem]">
             <span className="text-ink-mute font-medium">vs</span>
             <span className="truncate">{game.opponent}</span>
           </div>
@@ -604,7 +605,7 @@ function UpcomingRow({
             {available}
             <span className="text-ink-mute">/{playerCount}</span>
           </div>
-          <div className="font-mono text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+          <div className="font-mono text-nano font-semibold uppercase tracking-micro text-ink-mute">
             available
           </div>
         </div>

@@ -797,7 +797,7 @@ export function NetballQuarterBreak({
         hasPlannedSeed ? (
           <p
             data-testid="planned-seed-banner"
-            className="text-center font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
+            className="text-center font-mono text-nano font-bold uppercase tracking-micro text-brand-700"
           >
             Pre-filled from your planned Q{nextQuarter} lineup
           </p>

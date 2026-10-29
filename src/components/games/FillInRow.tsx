@@ -105,7 +105,7 @@ export function FillInRow({
               </span>
             )}
             <span className="text-sm font-medium text-ink">{fullName}</span>
-            <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-micro text-warn">
+            <span className="rounded-full bg-warn-soft px-2 py-0.5 text-nano font-bold uppercase tracking-micro text-warn">
               Fill-in
             </span>
           </div>

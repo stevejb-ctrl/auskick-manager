@@ -109,7 +109,7 @@ export function PlayerStatsTable({ stats, hasData }: Props) {
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   {p.jerseyNumber != null && (
-                    <span className="text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+                    <span className="text-nano font-semibold uppercase tracking-micro text-ink-mute">
                       #{p.jerseyNumber}
                     </span>
                   )}
@@ -121,7 +121,7 @@ export function PlayerStatsTable({ stats, hasData }: Props) {
                   <p className="text-xl font-bold leading-none tabular-nums text-brand-600">
                     {fmt(p.totalMs)}
                   </p>
-                  <p className="mt-0.5 text-[10px] uppercase tracking-micro text-ink-mute">
+                  <p className="mt-0.5 text-nano uppercase tracking-micro text-ink-mute">
                     total min
                   </p>
                 </div>
@@ -141,7 +141,7 @@ export function PlayerStatsTable({ stats, hasData }: Props) {
 
               {/* Zone breakdown — Forward → Centre → Back to match the
                   in-game order + wording. */}
-              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] font-medium">
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-micro font-medium">
                 <ZonePill abbr="Fwd" pct={fwdPct} tone="f" />
                 <ZonePill abbr="Cen" pct={midPct} tone="c" />
                 <ZonePill abbr="Back" pct={backPct} tone="b" />
@@ -149,7 +149,7 @@ export function PlayerStatsTable({ stats, hasData }: Props) {
 
               {/* Footer: behinds + loaned, only if non-zero */}
               {(p.behinds > 0 || p.loanMs > 0) && (
-                <p className="mt-2 text-[11px] text-ink-mute">
+                <p className="mt-2 text-micro text-ink-mute">
                   {p.behinds > 0 && <>Behinds {p.behinds}</>}
                   {p.behinds > 0 && p.loanMs > 0 && <> · </>}
                   {p.loanMs > 0 && (
@@ -184,7 +184,7 @@ export function Metric({
       >
         {value}
       </p>
-      <p className="text-[10px] uppercase tracking-micro text-ink-mute">
+      <p className="text-nano uppercase tracking-micro text-ink-mute">
         {label}
       </p>
     </div>

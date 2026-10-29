@@ -45,7 +45,7 @@ export function WinningCombinations({
         if (combos.length === 0) return null;
         return (
           <div key={zone}>
-            <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-micro text-ink-mute">
+            <h4 className="mb-2 text-micro font-semibold uppercase tracking-micro text-ink-mute">
               {ZONE_LABEL[zone]}
             </h4>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -72,7 +72,7 @@ export function WinningCombinations({
                           {names}
                         </p>
                         {c.isLowConfidence && (
-                          <span className="mt-1 inline-block rounded bg-warn-soft px-1.5 py-0.5 text-[10px] font-semibold text-warn">
+                          <span className="mt-1 inline-block rounded bg-warn-soft px-1.5 py-0.5 text-nano font-semibold text-warn">
                             &lt;20 min
                           </span>
                         )}
@@ -84,7 +84,7 @@ export function WinningCombinations({
                         {c.netDiff}
                       </span>
                     </div>
-                    <div className="mt-2 flex items-center gap-3 text-[11px] text-ink-dim">
+                    <div className="mt-2 flex items-center gap-3 text-micro text-ink-dim">
                       <span className="tabular-nums">
                         {Math.round(c.durationMs / MS_PER_MIN)} min
                       </span>

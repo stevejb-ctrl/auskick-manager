@@ -27,7 +27,7 @@ export function Pill({ tone = "neutral", children, className = "" }: PillProps) 
     <span
       className={`
         inline-flex items-center rounded-full px-2.5 py-1
-        font-mono text-[11px] font-bold uppercase tracking-[0.1em]
+        font-mono text-micro font-bold uppercase tracking-[0.1em]
         ${TONE_CLASSES[tone]}
         ${className}
       `}

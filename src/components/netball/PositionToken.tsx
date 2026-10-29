@@ -232,7 +232,7 @@ export function PositionToken({
           top-right corner. Hidden at zero so new tokens stay clean. */}
       {goals > 0 && (
         <span
-          className="nums absolute -right-1.5 -top-1.5 z-10 h-[18px] min-w-[18px] rounded-full bg-ink px-[5px] text-center font-mono text-[10px] font-bold leading-[18px] text-warm shadow-[0_0_0_2px_#FFFFFF]"
+          className="nums absolute -right-1.5 -top-1.5 z-10 h-[18px] min-w-[18px] rounded-full bg-ink px-[5px] text-center font-mono text-nano font-bold leading-[18px] text-warm shadow-[0_0_0_2px_#FFFFFF]"
           aria-hidden
         >
           {goals}
@@ -244,7 +244,7 @@ export function PositionToken({
           flag first. */}
       {injured && (
         <span
-          className="absolute -left-1 -top-1.5 z-10 rounded-xs bg-danger px-1 font-mono text-[9px] font-bold uppercase leading-4 tracking-micro text-white"
+          className="absolute -left-1 -top-1.5 z-10 rounded-xs bg-danger px-1 font-mono text-nano font-bold uppercase leading-4 tracking-micro text-white"
           aria-label="Injured"
         >
           INJ
@@ -252,7 +252,7 @@ export function PositionToken({
       )}
       {loaned && !injured && (
         <span
-          className="absolute -left-1 -top-1.5 z-10 rounded-xs bg-warn px-1 font-mono text-[9px] font-bold uppercase leading-4 tracking-micro text-white"
+          className="absolute -left-1 -top-1.5 z-10 rounded-xs bg-warn px-1 font-mono text-nano font-bold uppercase leading-4 tracking-micro text-white"
           aria-label="Lent to opposition"
         >
           LENT
@@ -287,7 +287,7 @@ export function PositionToken({
         {/* Bib disc — white mono on the third's colour (5.2–6.7:1). */}
         <span
           aria-hidden
-          className={`flex h-[32px] w-[32px] flex-shrink-0 items-center justify-center rounded-full font-mono text-[11px] font-bold tracking-[0.04em] text-white ${
+          className={`flex h-[32px] w-[32px] flex-shrink-0 items-center justify-center rounded-full font-mono text-micro font-bold tracking-[0.04em] text-white ${
             third ? THIRD_DISC[third] : "bg-ink-dim"
           }`}
         >
@@ -318,7 +318,7 @@ export function PositionToken({
                     <span key={i} style={{ width: `${(s.ms / total) * 100}%` }} className={`h-full ${s.cls}`} />
                   ))}
                 </span>
-                <span className="nums font-mono text-[11px] font-semibold leading-none tabular-nums text-ink">
+                <span className="nums font-mono text-micro font-semibold leading-none tabular-nums text-ink">
                   {formatMinSec(totalMs)}
                 </span>
               </span>

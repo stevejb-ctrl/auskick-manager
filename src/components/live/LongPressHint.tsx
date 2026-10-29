@@ -174,7 +174,7 @@ export function LongPressHint({ enabled = true }: { enabled?: boolean }) {
             <button
               type="button"
               onClick={handleGotIt}
-              className="ml-1 rounded-full bg-warm/10 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-micro text-warm transition-colors duration-fast ease-out-quart hover:bg-warm/20 active:bg-warm/30"
+              className="ml-1 rounded-full bg-warm/10 px-2 py-0.5 font-mono text-nano font-bold uppercase tracking-micro text-warm transition-colors duration-fast ease-out-quart hover:bg-warm/20 active:bg-warm/30"
             >
               Got it
             </button>

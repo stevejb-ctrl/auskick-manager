@@ -20,7 +20,7 @@ interface PlayerInsightSummaryProps {
 }
 
 const SECTION_LABEL =
-  "font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute";
+  "font-mono text-nano font-bold uppercase tracking-micro text-ink-mute";
 
 export function PlayerInsightSummary({ input }: PlayerInsightSummaryProps) {
   const vm = buildPlayerInsight(input);

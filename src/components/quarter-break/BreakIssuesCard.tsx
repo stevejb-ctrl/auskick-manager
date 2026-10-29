@@ -46,7 +46,7 @@ export function BreakIssuesCard({ issues, onFix }: Props) {
             <button
               type="button"
               onClick={() => onFix(issue.id)}
-              className="h-9 shrink-0 rounded-[10px] bg-danger px-3.5 text-[13px] font-semibold text-white transition-transform duration-fast ease-out-quart active:scale-[0.97]"
+              className="h-9 shrink-0 rounded-[10px] bg-danger px-3.5 text-[0.8125rem] font-semibold text-white transition-transform duration-fast ease-out-quart active:scale-[0.97]"
             >
               Fix
             </button>
@@ -59,7 +59,7 @@ export function BreakIssuesCard({ issues, onFix }: Props) {
             type="button"
             onClick={() => setWarningsOpen((v) => !v)}
             aria-expanded={warningsOpen}
-            className="flex min-h-[44px] w-full items-center justify-between px-3 text-left text-[13px] font-medium text-ink"
+            className="flex min-h-[44px] w-full items-center justify-between px-3 text-left text-[0.8125rem] font-medium text-ink"
           >
             <span>
               {warnings.length} warning{warnings.length === 1 ? "" : "s"}
@@ -67,7 +67,7 @@ export function BreakIssuesCard({ issues, onFix }: Props) {
             <span className="text-xs text-ink-dim">{warningsOpen ? "Hide" : "Show"}</span>
           </button>
           {warningsOpen && (
-            <ul className="space-y-2 px-3 pb-3 text-[13px] text-ink">
+            <ul className="space-y-2 px-3 pb-3 text-[0.8125rem] text-ink">
               {warnings.map((w) => (
                 <li key={w}>{w}</li>
               ))}

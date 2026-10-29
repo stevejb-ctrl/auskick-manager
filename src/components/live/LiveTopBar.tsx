@@ -107,14 +107,14 @@ export function LiveTopBar({
           onClick={handleExit}
           disabled={exiting}
           aria-label="Exit live game"
-          className="inline-flex min-h-[44px] items-center rounded-md px-3 font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim transition-colors hover:bg-ink/5 hover:text-ink active:bg-ink/10 disabled:opacity-60"
+          className="inline-flex min-h-[44px] items-center rounded-md px-3 font-mono text-micro font-bold uppercase tracking-micro text-ink-dim transition-colors hover:bg-ink/5 hover:text-ink active:bg-ink/10 disabled:opacity-60"
         >
           {exiting ? "Exiting…" : "Exit"}
         </button>
         {title ? (
           <div className="flex min-w-0 flex-1 flex-col items-center justify-center py-1 text-center">
             {/* Focusable by script: the break moves focus here as it opens. */}
-            <h1 tabIndex={-1} className="max-w-full truncate text-[17px] font-bold leading-tight tracking-[-0.01em] text-ink outline-none">
+            <h1 tabIndex={-1} className="max-w-full truncate text-[1.0625rem] font-bold leading-tight tracking-[-0.01em] text-ink outline-none">
               {title}
             </h1>
             {subtitle && <p className="max-w-full truncate text-xs leading-4 text-ink-dim">{subtitle}</p>}

@@ -270,7 +270,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
           />
           {availablePlayers.length === 0 || wantsAvailability ? (
             <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
-              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+              <h3 className="font-mono text-micro font-bold uppercase tracking-micro text-ink-dim">
                 Who&apos;s here today?
               </h3>
               <AvailabilityList
@@ -423,7 +423,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
           />
           {availablePlayers.length === 0 || wantsAvailability ? (
             <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
-              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+              <h3 className="font-mono text-micro font-bold uppercase tracking-micro text-ink-dim">
                 Who&apos;s here today?
               </h3>
               <AvailabilityList
@@ -586,7 +586,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
           />
           {availablePlayers.length === 0 || wantsAvailability ? (
             <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
-              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+              <h3 className="font-mono text-micro font-bold uppercase tracking-micro text-ink-dim">
                 Who&apos;s here today?
               </h3>
               <AvailabilityList
@@ -833,7 +833,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
             // path is mostly for hand-crafted runner-token URLs
             // landing pre-availability.
             <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
-              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+              <h3 className="font-mono text-micro font-bold uppercase tracking-micro text-ink-dim">
                 Who&apos;s here today?
               </h3>
               <AvailabilityList
@@ -1059,7 +1059,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
         {(needsAvailabilityStep || (isPreKickoff && wantsAvailability)) && (
           <>
             <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
-              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+              <h3 className="font-mono text-micro font-bold uppercase tracking-micro text-ink-dim">
                 Who&apos;s here today?
               </h3>
               <AvailabilityList
@@ -1264,7 +1264,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
       )}
 
       <section className="space-y-3">
-        <h3 className="text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+        <h3 className="text-micro font-bold uppercase tracking-micro text-ink-dim">
           Who&apos;s here today?
         </h3>
         <AvailabilityList

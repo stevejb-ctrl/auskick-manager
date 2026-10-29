@@ -14,7 +14,13 @@ const config: Config = {
         // A short screen: a phone held sideways (844×390), or a short
         // browser window. The live bars and footers go compact (UX round
         // 3, e4: in landscape they took 205–232 of 390 px).
-        short: { raw: "(max-height: 500px)" },
+        //
+        // Or large text (design review, Oct 2026): at 200% the live
+        // chrome took the whole phone and the field was a sliver. A
+        // media query's em is the reader's own text size, so a 390 px
+        // phone is 24em at 100% and 12em at 200%; under 18em (about
+        // 135% and up on a phone) the same compact layout applies.
+        short: { raw: "(max-height: 500px), (max-width: 18em)" },
         // A desktop: wide AND a mouse. A phone held sideways is 844–932
         // px wide, so `md` alone drew the demo's phone frame inside the
         // phone (Stagehand round 8: a sideways phone got a 390 px app
@@ -406,6 +412,14 @@ const config: Config = {
         // and persistent — coach can't tap mid-slide if it lingers).
         "slide-in-bottom":      "slideInBottom 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
         "slide-in-bottom-fast": "slideInBottom 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
+      },
+      // The two small sizes, in rem so they grow with the reader's text
+      // size (design review, Oct 2026: ~380 text-[8–11px] classes stayed
+      // put at 200% while everything around them grew). 10 px is the
+      // floor: the 8 and 9 px labels moved up to nano.
+      fontSize: {
+        nano: "0.625rem",   // 10 px at 100%
+        micro: "0.6875rem", // 11 px at 100%
       },
       letterSpacing: {
         tightest: "-0.02em",

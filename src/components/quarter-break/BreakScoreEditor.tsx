@@ -93,7 +93,7 @@ export function BreakScoreEditor({
                   aria-label={c.label}
                 >
                   {c.text}
-                  {c.sub && <span className="mt-0.5 text-[9px] font-semibold uppercase tracking-micro text-ink-dim">{c.sub}</span>}
+                  {c.sub && <span className="mt-0.5 text-nano font-semibold uppercase tracking-micro text-ink-dim">{c.sub}</span>}
                 </button>
               ))}
             </span>

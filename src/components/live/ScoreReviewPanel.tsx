@@ -196,7 +196,7 @@ export function ScoreReviewPanel({
             if (entries.length === 0) return null;
             return (
               <div key={q}>
-                <p className="text-[10px] font-bold uppercase tracking-micro text-ink-mute">
+                <p className="text-nano font-bold uppercase tracking-micro text-ink-mute">
                   {`${periodLetter}${q}`}
                 </p>
                 <ul className="mt-1 divide-y divide-hairline rounded-md border border-hairline bg-surface-alt">
@@ -211,7 +211,7 @@ export function ScoreReviewPanel({
                       >
                         <span className="flex items-center gap-2">
                           <span
-                            className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
+                            className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-nano font-bold ${
                               isOurs
                                 ? "bg-brand-100 text-brand-700"
                                 : "bg-warn-soft text-warn"
@@ -221,7 +221,7 @@ export function ScoreReviewPanel({
                           </span>
                           <span className="font-medium text-ink">{who(e)}</span>
                           {e.retro && (
-                            <span className="rounded-full bg-ink-mute/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-micro text-ink-mute">
+                            <span className="rounded-full bg-ink-mute/10 px-1.5 py-0.5 text-nano font-bold uppercase tracking-micro text-ink-mute">
                               Added
                             </span>
                           )}
@@ -235,7 +235,7 @@ export function ScoreReviewPanel({
                           className="group -my-2 -mr-2 inline-flex h-11 w-11 shrink-0 items-center justify-center motion-safe:active:scale-[0.97]"
                           aria-label={`Delete ${includeBehinds && !isGoal ? "behind" : "goal"}${isOurs ? ` by ${who(e)}` : `, ${who(e)}`}`}
                         >
-                          <span className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-ink-mute transition-colors group-hover:border-danger/30 group-hover:bg-danger/10 group-hover:text-danger">
+                          <span className="rounded-full border border-hairline px-2 py-0.5 text-micro font-medium text-ink-mute transition-colors group-hover:border-danger/30 group-hover:bg-danger/10 group-hover:text-danger">
                             ×
                           </span>
                         </button>
@@ -268,7 +268,7 @@ export function ScoreReviewPanel({
           <div className="rounded-md border border-hairline bg-surface p-3 shadow-card">
             <p className="text-xs font-semibold text-ink">Add missed score</p>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <label className="text-[11px] text-ink-mute">
+              <label className="text-micro text-ink-mute">
                 Type
                 <select
                   value={addKind}
@@ -285,7 +285,7 @@ export function ScoreReviewPanel({
                   )}
                 </select>
               </label>
-              <label className="text-[11px] text-ink-mute">
+              <label className="text-micro text-ink-mute">
                 {periodWord}
                 <select
                   value={addQuarter}
@@ -301,7 +301,7 @@ export function ScoreReviewPanel({
               </label>
             </div>
             {(addKind === "goal" || addKind === "behind") && (
-              <label className="mt-2 block text-[11px] text-ink-mute">
+              <label className="mt-2 block text-micro text-ink-mute">
                 Player
                 <select
                   value={addPlayerId}

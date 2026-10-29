@@ -867,7 +867,7 @@ export function BasketballLiveGame({
         />
       )}
       {isPeriodActive && nextSubs.length > 0 && subDue.due && (
-        <p className="-mt-1 px-1 text-[11px] text-ink-dim">
+        <p className="-mt-1 px-1 text-micro text-ink-dim">
           {/* Plain words: "the table" and "the whistle" lost a parent who
               doesn't know basketball (Stagehand round 8, #14). */}
           Send the kids coming on to the scorer&apos;s table now. Tap Make swap when play stops and the ref waves them on.
@@ -877,7 +877,7 @@ export function BasketballLiveGame({
       {!isFinished && lentPlayers.length > 0 && (
         <div className="rounded-lg border border-warn/40 bg-warn-soft/60 px-3 py-2">
           <p className="text-xs font-semibold text-warn">Lent to the other team</p>
-          <p className="mt-0.5 text-[11px] text-warn/80">Tap &ldquo;Bring back&rdquo; to return a player to your bench.</p>
+          <p className="mt-0.5 text-micro text-warn/80">Tap &ldquo;Bring back&rdquo; to return a player to your bench.</p>
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             {lentPlayers.map((p) => (
               <button
@@ -889,7 +889,7 @@ export function BasketballLiveGame({
                 className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-60 motion-safe:active:scale-[0.97]"
               >
                 <span>{p.full_name}</span>
-                <span className="ml-0.5 text-[11px] font-semibold text-warn/80">Bring back</span>
+                <span className="ml-0.5 text-micro font-semibold text-warn/80">Bring back</span>
               </button>
             ))}
           </div>

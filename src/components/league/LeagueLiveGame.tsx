@@ -1790,7 +1790,7 @@ export function LeagueLiveGame({
         <div className="px-1">
           <div className="rounded-lg border border-warn/40 bg-warn-soft/60 px-3 py-2">
             <p className="text-xs font-semibold text-warn">Lent to the other team</p>
-            <p className="mt-0.5 text-[11px] text-warn/80">
+            <p className="mt-0.5 text-micro text-warn/80">
               Tap “Bring back” to return a player to your bench.
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -1808,7 +1808,7 @@ export function LeagueLiveGame({
                     <span className="tabular-nums font-semibold">{p.jersey_number}</span>
                   )}
                   <span>{p.full_name}</span>
-                  <span className="ml-0.5 text-[11px] font-semibold text-warn/80">
+                  <span className="ml-0.5 text-micro font-semibold text-warn/80">
                     Bring back
                   </span>
                 </button>
@@ -1963,7 +1963,7 @@ export function LeagueLiveGame({
             <div className="flex items-center gap-2">
               <span
                 data-testid="planned-next-period-badge"
-                className="font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
+                className="font-mono text-nano font-bold uppercase tracking-micro text-brand-700"
               >
                 Next period ready
               </span>
@@ -1971,7 +1971,7 @@ export function LeagueLiveGame({
                 type="button"
                 data-testid="plan-next-clear"
                 onClick={() => setPlannedRotation(consumePeriodPin(pinForThisGame, state.currentQuarter))}
-                className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink"
+                className="font-mono text-nano font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink"
               >
                 Clear
               </button>

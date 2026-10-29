@@ -22,7 +22,7 @@ interface SportChipsProps {
 export function SportChips({ label, except, className = "" }: SportChipsProps) {
   return (
     <nav aria-label={label} className={`flex flex-wrap items-center gap-2 ${className}`}>
-      <span className="mr-2 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-dim">
+      <span className="mr-2 font-mono text-micro font-semibold uppercase tracking-[0.16em] text-ink-dim">
         {label}
       </span>
       {MARKETING_SPORTS.filter((s) => s.id !== except).map((sport) => (
@@ -30,7 +30,7 @@ export function SportChips({ label, except, className = "" }: SportChipsProps) {
           key={sport.id}
           href={sportPagePath(sport)}
           data-testid={`sport-chip-${sport.id}`}
-          className="inline-flex h-11 items-center gap-2 rounded-full border border-hairline bg-surface pl-3.5 pr-4 text-[15px] font-semibold text-ink transition-colors duration-fast ease-out-quart hover:border-ink"
+          className="inline-flex h-11 items-center gap-2 rounded-full border border-hairline bg-surface pl-3.5 pr-4 text-[0.9375rem] font-semibold text-ink transition-colors duration-fast ease-out-quart hover:border-ink"
         >
           <span
             aria-hidden="true"
