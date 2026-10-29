@@ -21,7 +21,7 @@ const LONG_PRESS_EVENT = "siren:longpress";
 // anyone shouldn't see the chip every time they open the app, and
 // (2) the chip occupies bottom-of-viewport real estate that
 // competes with the sticky scorebug.
-const AUTO_DISMISS_MS = 12_000;
+const AUTO_DISMISS_MS = 8_000;
 
 /**
  * First-tap hint for the long-press affordance. P1.5-3 in
@@ -84,10 +84,20 @@ export function LongPressHint({ enabled = true }: { enabled?: boolean }) {
       }
       setShow(false);
     }
+    // Any tap on the page outside the chip clears it too (design review,
+    // Oct 2026: it sat over the last row of tiles and the bench's "→ ON"
+    // strip in every sport, hiding the thing it pointed at). The tap
+    // itself still goes through to whatever was under the finger.
+    function dismissOnTap(e: PointerEvent) {
+      if (chipRef.current?.contains(e.target as Node)) return;
+      dismiss();
+    }
     window.addEventListener(LONG_PRESS_EVENT, dismiss);
+    window.addEventListener("pointerdown", dismissOnTap, true);
     const t = window.setTimeout(dismiss, AUTO_DISMISS_MS);
     return () => {
       window.removeEventListener(LONG_PRESS_EVENT, dismiss);
+      window.removeEventListener("pointerdown", dismissOnTap, true);
       window.clearTimeout(t);
     };
   }, [show]);
