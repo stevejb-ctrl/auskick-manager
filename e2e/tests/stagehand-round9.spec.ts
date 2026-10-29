@@ -194,3 +194,23 @@ test("#7 the coach's own live screen doesn't say (you)", async ({ page }) => {
   await openLive(page, `/teams/${team.id}/games/${game.id}/live`);
   await expect(page.getByTestId("scorebug-yours")).toHaveCount(0);
 });
+
+// ─── #8 The other phone's score names who scored ────────────────
+
+test("#8 a goal from another phone names the kid who scored it", async ({ browser }) => {
+  const { admin, ownerId, game, players } = await inFirstPeriod("soccer");
+  const { context, page } = await parentPhone(browser);
+  await openLive(page, `/run/${game.share_token}`);
+  const scorer = players[4];
+  await admin.from("game_events").insert({
+    game_id: game.id,
+    type: "goal",
+    player_id: scorer.id,
+    metadata: { sport: "soccer" },
+    created_by: ownerId,
+    idempotency_key: crypto.randomUUID(),
+  });
+  const first = scorer.full_name.split(" ")[0];
+  await expect(page.getByText(new RegExp(`^Another phone added ${first}( \w+)?'s goal$`))).toBeVisible({ timeout: 20_000 });
+  await context.close();
+});

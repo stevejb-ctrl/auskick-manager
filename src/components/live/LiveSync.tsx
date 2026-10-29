@@ -105,7 +105,7 @@ function LiveNotice() {
   const clear = useLiveNotice((s) => s.clear);
   useEffect(() => {
     if (!notice) return;
-    const t = window.setTimeout(() => clear(notice.id), NOTICE_MS);
+    const t = window.setTimeout(() => clear(notice.id), notice.ms ?? NOTICE_MS);
     return () => window.clearTimeout(t);
   }, [notice, clear]);
   if (!notice) return null;

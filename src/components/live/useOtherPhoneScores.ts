@@ -7,16 +7,27 @@
 // the one that already says "Another phone already ended Q1".
 
 import { useEffect, useRef } from "react";
-import { describeScoreEvent, newOtherPhoneScores, otherPhoneNoticesQuiet } from "@/lib/live/otherPhone";
+import { newOtherPhoneScores, otherPhoneNoticesQuiet, otherPhoneScoreText } from "@/lib/live/otherPhone";
 import { useLiveNotice } from "@/lib/live/liveSync";
+import { useSquadNames } from "@/components/live/SquadNames";
 
-type ScoreEvent = { id: string; type: string; created_at: string; idempotency_key?: string | null };
+type ScoreEvent = {
+  id: string;
+  type: string;
+  created_at: string;
+  idempotency_key?: string | null;
+  player_id?: string | null;
+};
+
+/** Up twice as long as a sync notice: it's news, and easy to miss mid-play. */
+const OTHER_PHONE_NOTICE_MS = 12_000;
 
 export function useOtherPhoneScores(
   events: readonly ScoreEvent[],
   scoreTypes: ReadonlySet<string>,
   names: { teamName: string; opponentName: string },
 ): void {
+  const squad = useSquadNames();
   const seen = useRef<Set<string> | null>(null);
   const since = useRef(new Date().toISOString());
   useEffect(() => {
@@ -28,6 +39,7 @@ export function useOtherPhoneScores(
     const fresh = newOtherPhoneScores(events, scoreTypes, seen.current, since.current);
     if (fresh.length === 0 || otherPhoneNoticesQuiet()) return;
     const last = fresh[fresh.length - 1];
-    useLiveNotice.getState().show(`${describeScoreEvent(last.type, names.teamName, names.opponentName)} added on another phone`);
-  }, [events, scoreTypes, names.teamName, names.opponentName]);
+    const scorer = last.player_id ? squad.byId(last.player_id) : null;
+    useLiveNotice.getState().show(otherPhoneScoreText(last.type, names, scorer), OTHER_PHONE_NOTICE_MS);
+  }, [events, scoreTypes, names, squad]);
 }

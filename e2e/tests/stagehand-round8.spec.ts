@@ -187,10 +187,10 @@ test("#6 #13 a score from the other phone says so, and Undo names what it takes 
   await openLive(a.page, `/run/${game.share_token}`);
   await openLive(b.page, `/run/${game.share_token}`);
   await a.page.getByRole("button", { name: "Add goal, Sharks" }).click();
-  await expect(b.page.getByText("Sharks goal added on another phone")).toBeVisible({ timeout: 20_000 });
+  await expect(b.page.getByText("Another phone added a Sharks goal")).toBeVisible({ timeout: 20_000 });
   await expect(b.page.getByTestId("undo-strip")).toContainText("Undo takes back: Sharks goal");
   // The phone that scored isn't told it came from another phone.
-  await expect(a.page.getByText("added on another phone")).toHaveCount(0);
+  await expect(a.page.getByText(/another phone added/i)).toHaveCount(0);
   await a.context.close();
   await b.context.close();
 });

@@ -520,7 +520,13 @@ export function LiveGame({
   // A score from the other phone says so (Stagehand round 8, #6): AFL
   // holds its scores as the standing list.
   const standingAsEvents = useMemo(
-    () => standingScores.map((s) => ({ id: s.eventId ?? `optimistic-${s.key}`, type: s.type, idempotency_key: s.key, created_at: s.createdAt ?? "" })),
+    () => standingScores.map((s) => ({
+        id: s.eventId ?? `optimistic-${s.key}`,
+        type: s.type,
+        idempotency_key: s.key,
+        created_at: s.createdAt ?? "",
+        player_id: s.playerId,
+      })),
     [standingScores],
   );
   useOtherPhoneScores(standingAsEvents, AFL_SCORE_TYPES, { teamName, opponentName });
