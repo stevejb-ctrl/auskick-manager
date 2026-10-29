@@ -73,3 +73,20 @@ for (const sport of ["soccer", "afl"] as const) {
     await context.close();
   });
 }
+
+test("#2 a phone held sideways fills the screen: no desktop phone frame", async ({ browser }) => {
+  const { game } = await inFirstPeriod("soccer");
+  const context = await browser.newContext({
+    storageState: { cookies: [], origins: [] },
+    viewport: { width: 915, height: 412 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  const page = await context.newPage();
+  await openLive(page, `/run/${game.share_token}`);
+  const main = await page.locator("main").boundingBox();
+  expect(main!.width).toBeGreaterThan(800);
+  const theirs = await page.getByRole("button", { name: "Add goal, Sharks" }).boundingBox();
+  expect(theirs!.x + theirs!.width).toBeLessThanOrEqual(915);
+  await context.close();
+});

@@ -5,7 +5,8 @@ interface DeviceFrameProps {
 }
 
 /**
- * On desktop (≥ md): centres children inside a rounded phone-bezel mockup
+ * On a desktop (`desk`: ≥ md and a mouse; a phone held sideways is wide
+ * too, and got this frame inside it, Stagehand round 8): centres children inside a rounded phone-bezel mockup
  * on a neutral background. The bezel is ~390 px wide (iPhone 14 size) with
  * a scrollable inner viewport capped at 844 px / 90 vh.
  *
@@ -17,11 +18,11 @@ interface DeviceFrameProps {
  */
 export function DeviceFrame({ children }: DeviceFrameProps) {
   return (
-    <div className="md:flex md:min-h-[calc(100vh-49px)] md:items-start md:justify-center md:bg-warm md:py-8 md:px-4">
+    <div className="desk:flex desk:min-h-[calc(100vh-49px)] desk:items-start desk:justify-center desk:bg-warm desk:py-8 desk:px-4">
       {/* Bezel — ink-black ring, generous corner radius */}
-      <div className="md:rounded-[3rem] md:bg-ink md:p-[10px] md:shadow-2xl md:ring-1 md:ring-black/20">
+      <div className="desk:rounded-[3rem] desk:bg-ink desk:p-[10px] desk:shadow-2xl desk:ring-1 desk:ring-black/20">
         {/* Screen — scrollable at fixed device dimensions.
-            md:[transform:translateZ(0)] makes this the containing
+            desk:[transform:translateZ(0)] makes this the containing
             block for position:fixed descendants so modals/dialogs,
             sticky CTAs, and the live-game scorebug all stay inside
             the phone frame on desktop instead of escaping to the
@@ -45,7 +46,7 @@ export function DeviceFrame({ children }: DeviceFrameProps) {
             min() expression as the previous inline style, just
             scoped to md+. Steve 2026-05-20. */}
         <div
-          className="md:relative md:w-[390px] md:overflow-y-auto md:rounded-[2.5rem] md:bg-warm md:[transform:translateZ(0)] md:min-h-[min(844px,90vh)] md:max-h-[min(844px,90vh)]"
+          className="desk:relative desk:w-[390px] desk:overflow-y-auto desk:rounded-[2.5rem] desk:bg-warm desk:[transform:translateZ(0)] desk:min-h-[min(844px,90vh)] desk:max-h-[min(844px,90vh)]"
         >
           {children}
         </div>
