@@ -16,18 +16,32 @@
 //
 // Padding in px (UX round 3, e4): the label grows with large text, the
 // padding doesn't, so union's four chips a side still fit at 200%.
-export const SCORE_CHIP =
+const SCORE_CHIP_SHAPE =
   "inline-flex min-h-[44px] min-w-[44px] items-center justify-center " +
-  "rounded-md bg-well px-[12px] py-[8px] font-mono text-sm font-bold text-ink " +
+  "rounded-md px-[12px] py-[8px] font-mono text-sm font-bold " +
   "transition-[background-color,transform] duration-tap ease-out-quart " +
-  "hover:bg-hairline " +
-  "active:bg-hairline motion-safe:active:scale-[0.94] " +
+  "motion-safe:active:scale-[0.94] " +
   "disabled:pointer-events-none disabled:opacity-60";
 
+/** The neutral chip: the break's score editor, where both sides sit in one list. */
+export const SCORE_CHIP =
+  SCORE_CHIP_SHAPE + " bg-well text-ink hover:bg-hairline active:bg-hairline";
+
+// Ours and theirs look different (design review, Oct 2026): four
+// identical grey chips, told apart only by side, are the most-tapped
+// controls in the app, and round 8's cold-link parents weren't sure
+// which +G was theirs. Ours fill with the brand; theirs are outlined.
+// Grey well on white also read as inactive in sunlight.
+export const SCORE_CHIP_OURS =
+  SCORE_CHIP_SHAPE + " bg-brand-600 text-warm shadow-card hover:bg-brand-700 active:bg-brand-800";
+export const SCORE_CHIP_THEIRS =
+  SCORE_CHIP_SHAPE + " border border-ink/30 bg-surface text-ink hover:bg-surface-alt active:bg-hairline";
+
 // The team names above each scorebug total, in every sport. They wrap
-// to a second line rather than truncate: at 375 the canvas's 0.12em
-// tracking cut "BRUNSWICK MAGPIES" mid-word. The columns are
-// bottom-aligned, so a wrapped name grows upward and the totals keep
-// one baseline.
+// to a second line rather than truncate. The columns are bottom-aligned,
+// so a wrapped name grows upward and the totals keep one baseline.
+// Sans semibold in the team's own spelling, in rem so it grows with
+// large text (design review, Oct 2026: 10 px spaced mono capitals were
+// the slowest way to read "which side is mine").
 export const SCORE_TEAM_NAME =
-  "line-clamp-2 break-words font-mono text-[10px] font-semibold uppercase leading-4 tracking-[0.12em] text-ink-dim";
+  "line-clamp-2 break-words text-[0.8125rem] font-semibold leading-tight text-ink";

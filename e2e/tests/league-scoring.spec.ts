@@ -226,8 +226,9 @@ test("U13 records penalty and field goals for both sides, and Undo takes one bac
 
   const us = page.getByTestId("league-score-line-team");
   const them = page.getByTestId("league-score-line-opponent");
-  await expect(us).toHaveText("0T·0C·1PG·1FG");
-  await expect(them).toHaveText("0T·0C·1PG·1FG");
+  // Only what's been scored: no "0T·0C" (design review, Oct 2026).
+  await expect(us).toHaveText("1PG·1FG");
+  await expect(them).toHaveText("1PG·1FG");
   await expect(page.getByTestId("league-points-team")).toHaveText("3");
 
   // Undo takes back the latest score: their field goal.
@@ -236,7 +237,7 @@ test("U13 records penalty and field goals for both sides, and Undo takes one bac
   const [undo] = await eventsOfType(admin, game.id, "score_undo");
   const [theirFieldGoal] = await eventsOfType(admin, game.id, "opponent_field_goal");
   expect((undo.metadata as { target_event_id?: string }).target_event_id).toBe(theirFieldGoal.id);
-  await expect(them).toHaveText("0T·0C·1PG");
+  await expect(them).toHaveText("1PG");
   await expect(page.getByTestId("league-points-opponent")).toHaveText("2");
 
   // Full time: the review shows the goals and offers them as fixes too.

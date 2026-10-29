@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { SCORE_CHIP, SCORE_TEAM_NAME } from "@/components/live/scoreChip";
+import { SCORE_CHIP_OURS, SCORE_CHIP_THEIRS, SCORE_TEAM_NAME } from "@/components/live/scoreChip";
 import { announce } from "@/lib/a11y/announce";
 import { repeatTapGate } from "@/lib/live/repeatTap";
 
@@ -109,11 +109,11 @@ export function ScoreBugFrame({
             }}
             onPointerDown={onChipPointerDown}
             disabled={chipsDisabled}
-            className={`${SCORE_CHIP} min-w-[48px]${c.sub ? " flex-col !px-1 !py-1 leading-none" : ""}`}
+            className={`${side === "ours" ? SCORE_CHIP_OURS : SCORE_CHIP_THEIRS} min-w-[48px]${c.sub ? " flex-col !px-1 !py-1 leading-none" : ""}`}
             aria-label={c.label}
           >
             {c.text}
-            {c.sub && <span className="mt-0.5 text-[9px] font-semibold uppercase tracking-micro text-ink-dim">{c.sub}</span>}
+            {c.sub && <span className={`mt-0.5 text-[0.625rem] font-semibold uppercase tracking-micro ${side === "ours" ? "text-warm/80" : "text-ink-dim"}`}>{c.sub}</span>}
           </button>
         ))}
       </div>

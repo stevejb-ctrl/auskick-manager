@@ -66,11 +66,22 @@ interface LeagueScoreBugProps {
 
 /** "2T·1C·1PG" — penalty / field (drop) goals only once there are some. */
 function ScoreLine({ score, testId, words }: { score: LeagueScore; testId: string; words: RugbyScoreWords }) {
-  const parts = [`${score.tries}T`, `${score.conversions}C`];
+  // Only what's been scored (design review, Oct 2026: "0T·0C" at kick-off
+  // read as a code). Nothing at all until the first score.
+  const parts: string[] = [];
+  if (score.tries > 0) parts.push(`${score.tries}T`);
+  if (score.conversions > 0) parts.push(`${score.conversions}C`);
   if (score.penaltyGoals > 0) parts.push(`${score.penaltyGoals}${words.penaltyGoal.short}`);
   if (score.fieldGoals > 0) parts.push(`${score.fieldGoals}${words.fieldGoal.short}`);
+  if (parts.length === 0) return null;
+  const said = [
+    score.tries > 0 && `${score.tries} ${score.tries === 1 ? "try" : "tries"}`,
+    score.conversions > 0 && `${score.conversions} ${score.conversions === 1 ? "conversion" : "conversions"}`,
+    score.penaltyGoals > 0 && `${score.penaltyGoals} ${words.penaltyGoal.label.toLowerCase()}`,
+    score.fieldGoals > 0 && `${score.fieldGoals} ${words.fieldGoal.label.toLowerCase()}`,
+  ].filter(Boolean).join(", ");
   return (
-    <span className="text-[13px] font-medium text-ink-dim" data-testid={testId}>
+    <span className="text-[0.8125rem] font-medium text-ink-dim" data-testid={testId} title={said}>
       {parts.map((p, i) => (
         <span key={p}>
           {i > 0 && <span className="text-ink-mute">·</span>}
