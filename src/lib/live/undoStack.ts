@@ -26,6 +26,8 @@ export interface StackScore {
   type: string;
   playerId: string | null;
   quarter: number;
+  /** When it was saved (a tap still on its way has none). */
+  createdAt?: string;
 }
 
 /** The game's scores still standing (not taken back), oldest first. */
@@ -42,6 +44,7 @@ export function standingScores(events: readonly GameEvent[], scoreTypes: Readonl
     type: ev.type,
     playerId: ev.player_id ?? null,
     quarter: ((ev.metadata ?? {}) as { quarter?: number }).quarter ?? 0,
+    createdAt: ev.created_at,
   }));
 }
 

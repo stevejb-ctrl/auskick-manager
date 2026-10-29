@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { rememberOwnWrite } from "@/lib/live/otherPhone";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { liveGameStorage } from "./persistStorage";
 import { isNative } from "@/lib/platform";
@@ -339,6 +340,8 @@ export const useWriteQueue = create<WriteQueueState>()(
 
       enqueue: (kind, args, optimistic) => {
         const id = uuid();
+        // So a score that syncs back with this key isn't "another phone's".
+        rememberOwnWrite(id);
         const op: QueueOp = {
           id,
           kind,

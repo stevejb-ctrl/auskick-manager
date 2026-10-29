@@ -36,7 +36,9 @@ export function UndoStrip({ flashing, message, onUndo, disabled = false }: UndoS
       data-testid="undo-strip"
     >
       <span className={`text-xs ${flashing ? "text-warm/80" : "text-ink-dim"}`}>
-        {message || "Undo last score"}
+        {/* Says it's a score Undo takes back, and which: a parent who'd
+            just made a swap pressed Undo for it (Stagehand round 8, #13). */}
+        {message ? (flashing ? message : `Undo takes back: ${message}`) : "Undo last score"}
       </span>
       <button
         type="button"

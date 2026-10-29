@@ -65,7 +65,7 @@ export interface LiveChrome {
   /** The last score was taken back: the strip stops flashing. */
   undone(): void;
   /** The undo strip, for LiveStickyScoreBar (null when `show` is false). */
-  undoStrip(opts: { show: boolean; onUndo: () => void; disabled?: boolean }): ReactNode;
+  undoStrip(opts: { show: boolean; onUndo: () => void; disabled?: boolean; target?: string | null }): ReactNode;
   /** Ask before a tap-tap sub; on Confirm it runs and the toast shows. */
   confirmSwap(swap: PendingSwap): void;
   /**
@@ -165,9 +165,11 @@ export function useLiveChrome(opts: {
     scored,
     namedScoreKey,
     undone,
-    undoStrip: ({ show, onUndo, disabled }) =>
+    // Named after this phone's last score, else what Undo will take back
+    // (the other phone's, or the next one down after an undo).
+    undoStrip: ({ show, onUndo, disabled, target }) =>
       show ? (
-        <UndoStrip flashing={flashing && message !== null} message={message ?? ""} onUndo={onUndo} disabled={disabled} />
+        <UndoStrip flashing={flashing && message !== null} message={message ?? target ?? ""} onUndo={onUndo} disabled={disabled} />
       ) : null,
     confirmSwap: setPendingSwap,
     swapped,

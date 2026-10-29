@@ -1,6 +1,7 @@
 "use client";
 
 import { SFButton, SFIcon } from "@/components/sf";
+import { useOtherPhoneScores } from "@/components/live/useOtherPhoneScores";
 import { WENT_HOME_REASON } from "@/lib/live/wentHome";
 import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -136,7 +137,7 @@ import { LiveTopBar } from "@/components/live/LiveTopBar";
 
 import { assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
 import { UndoStrip } from "@/components/live/UndoStrip";
-import { stackIds, stackRef, undoStack, type StackScore } from "@/lib/live/undoStack";
+import { AFL_SCORE_TYPES, stackIds, stackRef, undoStack, type StackScore } from "@/lib/live/undoStack";
 import { requestLiveSync } from "@/lib/live/liveSync";
 // YT IFrame API + playSong logic lives in `@/lib/live/useHypeSong`
 // since 2026-05-16 (extracted for AFL/netball parity). The hook
@@ -516,6 +517,13 @@ export function LiveGame({
   // pass, 26 Oct 2026).
   const [localScores, setLocalScores] = useState<StackScore[]>([]);
   const [undoneScoreIds, setUndoneScoreIds] = useState<ReadonlySet<string>>(() => new Set());
+  // A score from the other phone says so (Stagehand round 8, #6): AFL
+  // holds its scores as the standing list.
+  const standingAsEvents = useMemo(
+    () => standingScores.map((s) => ({ id: s.eventId ?? `optimistic-${s.key}`, type: s.type, idempotency_key: s.key, created_at: s.createdAt ?? "" })),
+    [standingScores],
+  );
+  useOtherPhoneScores(standingAsEvents, AFL_SCORE_TYPES, { teamName, opponentName });
   const undoTop = undoStack(standingScores, localScores, undoneScoreIds).at(-1) ?? null;
   const [undoToastVisible, setUndoToastVisible] = useState(false);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

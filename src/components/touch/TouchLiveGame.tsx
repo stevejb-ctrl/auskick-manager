@@ -35,6 +35,7 @@
 // counts as a girl or a boy is never drawn on a tile.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useOtherPhoneScores } from "@/components/live/useOtherPhoneScores";
 import { WENT_HOME_REASON } from "@/lib/live/wentHome";
 import { SFButton } from "@/components/sf";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
@@ -58,7 +59,7 @@ import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
 import { liveEvents } from "@/lib/live/optimisticEvents";
-import { UNDO_GONE_MESSAGE, UNDO_MISSING_MESSAGE, undoTap } from "@/lib/live/undoTarget";
+import { undoTargetText, UNDO_GONE_MESSAGE, UNDO_MISSING_MESSAGE, undoTap } from "@/lib/live/undoTarget";
 import { announceLiveNotice } from "@/lib/live/liveSync";
 import { getSportConfig } from "@/lib/sports/registry";
 import { isGirlsTry, TOUCH_SCORE_EVENT_TYPES, touchTryEventType, touchTryWhat } from "@/lib/sports/touch/scoreEvents";
@@ -254,6 +255,8 @@ export function TouchLiveGame({
   const elapsedSecond = Math.floor(elapsedMs / 1000);
 
   // AFL's live chrome: the undo strip's flash, the swap confirm and toast.
+  // A score from the other phone says so (Stagehand round 8, #6).
+  useOtherPhoneScores(events, TOUCH_SCORE_EVENT_TYPES, { teamName: teamName, opponentName: game.opponent || "Opponent" });
   const chrome = useLiveChrome({
     teamName,
     opponentName,
@@ -1128,6 +1131,7 @@ export function TouchLiveGame({
           }
           // In play only: at full time the review's own Undo fixes a miscount.
           undoStrip={chrome.undoStrip({
+            target: undoTargetText(events, TOUCH_SCORE_EVENT_TYPES, chrome.namedScoreKey, { teamName, opponentName: game.opponent || "Opponent" }),
             show: isPeriodActive && (teamPoints > 0 || opponentPoints > 0),
             onUndo: undoScore,
             disabled: pending,

@@ -12,6 +12,7 @@
 // Score: +1 goal (our team) / +1 opponent goal. That's it.
 
 import { SFButton, SFIcon } from "@/components/sf";
+import { useOtherPhoneScores } from "@/components/live/useOtherPhoneScores";
 import { WENT_HOME_REASON, wentHomeIds } from "@/lib/live/wentHome";
 import { useRouter } from "next/navigation";
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -1095,6 +1096,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // break (usability pass, 26 Oct 2026).
   const [localScores, setLocalScores] = useState<StackScore[]>([]);
   const [undoneScoreIds, setUndoneScoreIds] = useState<ReadonlySet<string>>(() => new Set());
+  // A score from the other phone says so (Stagehand round 8, #6).
+  useOtherPhoneScores(serverEvents, NETBALL_SCORE_TYPES, { teamName: teamName, opponentName: game.opponent || "Opponent" });
   const serverStanding = useMemo(() => standingScores(serverEvents, NETBALL_SCORE_TYPES), [serverEvents]);
   const undoTop = undoStack(serverStanding, localScores, undoneScoreIds).at(-1) ?? null;
   const [undoToastVisible, setUndoToastVisible] = useState(false);
