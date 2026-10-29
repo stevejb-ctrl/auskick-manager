@@ -392,3 +392,36 @@ test("Fix scores takes off an earlier score mid-quarter", async ({ page }) => {
   ]);
   expect((undos?.[0].metadata as { fixed_after_finish?: boolean }).fixed_after_finish).toBeUndefined();
 });
+
+// Usability pass, 29 Oct 2026: during Q1 the live Fix scores' missed
+// score started on Q4, and offered quarters still to come.
+test("Fix scores mid-game adds a missed score to the quarter in play", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
+  await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await startGameInDb({
+    admin,
+    gameId: game.id,
+    playerIds: players.map((p) => p.id),
+    onFieldSize: game.on_field_size,
+    ageGroup: team.ageGroup,
+    createdBy: ownerId,
+  });
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await page.getByTestId("live-fix-scores").click({ timeout: 15_000 });
+  const dialog = page.getByRole("dialog", { name: "Fix scores" });
+  await dialog.getByRole("button", { name: "+ Add a missed score" }).click();
+  const period = dialog.getByRole("combobox", { name: "Period" });
+  await expect(period).toHaveValue("1");
+  await expect(period.locator("option")).toHaveText(["Q1"]);
+  await dialog.getByRole("combobox", { name: "Who scored" }).selectOption({ label: players[0].full_name });
+  await dialog.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(dialog.getByTestId("fix-scores-total")).toHaveText(/6 – 0/, { timeout: 15_000 });
+  const { data: added } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "goal");
+  expect((added ?? []).map((e) => (e.metadata as { quarter?: number }).quarter)).toEqual([1]);
+});

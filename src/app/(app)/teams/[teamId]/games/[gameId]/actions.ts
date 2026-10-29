@@ -11,7 +11,7 @@ import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { gameBelongsToTeam } from "@/lib/auth/gameOwnership";
 import { invalidateSeasonEvents } from "@/lib/season";
 import type { ActionResult, AvailabilityStatus, GameEvent, LiveAuth } from "@/lib/types";
-import { finishedScoreLog, scoreFixRows, scoreKinds, type ScoreFix } from "@/lib/games/finishedScores";
+import { finishedScoreLog, periodInPlay, scoreFixRows, scoreKinds, type ScoreFix } from "@/lib/games/finishedScores";
 import { periodLabels, teamSport } from "@/lib/sports";
 import { teamAgeGroup } from "@/lib/sports/teamAgeGroup";
 import { teamMixedRule } from "@/lib/sports/touch/mixed";
@@ -448,7 +448,7 @@ async function liveGameForLink(token: string, gameId: string): Promise<{ teamId:
 
 async function readScoreFix(supabase: SupabaseClient, teamId: string, gameId: string): Promise<ActionResult<FixScoresProps>> {
   const [{ data: game }, { data: team }, { data: events }, { data: players }, { data: fillIns }] = await Promise.all([
-    supabase.from("games").select("opponent").eq("id", gameId).eq("team_id", teamId).maybeSingle(),
+    supabase.from("games").select("opponent, status").eq("id", gameId).eq("team_id", teamId).maybeSingle(),
     supabase
       .from("teams")
       .select("name, sport, age_group, period_count, mixed_max_boys, mixed_min_girls, mixed_min_boys")
@@ -479,6 +479,7 @@ async function readScoreFix(supabase: SupabaseClient, teamId: string, gameId: st
       periodLetter: periodLabels(sport, age).label.charAt(0).toUpperCase(),
       teamName: (team.name as string | null) ?? "Us",
       opponentName: game.opponent as string,
+      ...(game.status === "in_progress" ? { currentPeriod: Math.max(1, periodInPlay((events ?? []) as GameEvent[])) } : {}),
     },
   };
 }
