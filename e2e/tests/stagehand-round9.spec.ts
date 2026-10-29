@@ -214,3 +214,14 @@ test("#8 a goal from another phone names the kid who scored it", async ({ browse
   await expect(page.getByText(new RegExp(`^Another phone added ${first}( \w+)?'s goal$`))).toBeVisible({ timeout: 20_000 });
   await context.close();
 });
+
+// ─── #10 Netball's sub note on a bench kid's sheet ───────────────
+
+test("#10 netball: a bench kid's sheet says subs happen at the break", async ({ browser }) => {
+  const { game, ids } = await inFirstPeriod("netball");
+  const { context, page } = await parentPhone(browser);
+  await openLive(page, `/run/${game.share_token}`);
+  await page.getByTestId(`player-tile-${ids[7]}`).click({ delay: 600 });
+  await expect(page.getByTestId("lock-modal-note")).toContainText("bench players go on in the next quarter's lineup");
+  await context.close();
+});
