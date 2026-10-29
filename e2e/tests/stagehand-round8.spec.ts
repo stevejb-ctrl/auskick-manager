@@ -6,6 +6,7 @@ import { test, expect, type Browser, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
+import { kidLabel } from "../../src/lib/availability/parentLink";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -135,5 +136,30 @@ test("#9 netball's player sheet says subs happen at the break", async ({ browser
   await openLive(page, `/run/${game.share_token}`);
   await page.getByRole("button", { name: /^Goal Shooter,/ }).click({ delay: 600 });
   await expect(page.getByTestId("lock-modal-note")).toContainText("Netball subs happen at the break");
+  await context.close();
+});
+
+test("#12 the availability link can clear a wrong answer", async ({ browser }) => {
+  const admin = createAdminClient();
+  const ownerId = await ownerOf(admin);
+  const team = await makeTeam(admin, { ownerId, sport: "afl", ageGroup: "U10", name: `R8 avail ${uniq()}` });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 3 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Kew" });
+  const { data } = await admin.from("games").select("availability_token").eq("id", game.id).single();
+  const { context, page } = await parentPhone(browser);
+  await page.goto(`/availability/${data!.availability_token}`);
+  await waitForHydration(page);
+  const kid = players[0];
+  const label = kidLabel(kid.full_name);
+  await page.getByRole("group", { name: `${label} availability` }).getByRole("button", { name: /^in$/i }).click();
+  const status = async () =>
+    (await admin.from("game_availability").select("status, replied_at").eq("game_id", game.id).eq("player_id", kid.id).maybeSingle()).data;
+  await expect.poll(async () => (await status())?.status, { timeout: 10_000 }).toBe("available");
+  await page.reload();
+  await page.getByRole("button", { name: `Clear the answer for ${label}` }).click();
+  await expect.poll(async () => {
+    const s = await status();
+    return s ? `${s.status}:${s.replied_at ? "replied" : "-"}` : null;
+  }, { timeout: 10_000 }).toBe("unknown:-");
   await context.close();
 });
