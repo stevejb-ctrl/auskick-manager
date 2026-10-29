@@ -8,7 +8,7 @@ import { test, expect, type Browser, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
-import { contrastOf } from "../helpers/a11y";
+import { contrastOf, skipHints } from "../helpers/a11y";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -95,4 +95,23 @@ test("#2 league: the next-sub card's position labels read at AA on the dark card
   await expect(label).toBeVisible({ timeout: 15_000 });
   expect(await contrastOf(label)).toBeGreaterThanOrEqual(4.5);
   await context.close();
+});
+
+// ─── #3 Escape closes info dialogs ───────────────────────────────
+
+test("#3 Escape closes the quarter-by-quarter scores and Game settings", async ({ page }) => {
+  const { team, game } = await inFirstPeriod("afl");
+  await skipHints(page);
+  await openLive(page, `/teams/${team.id}/games/${game.id}/live`);
+  const dialog = page.getByRole("dialog");
+
+  await page.getByRole("button", { name: "Show quarter-by-quarter scores" }).click();
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+
+  await page.getByRole("button", { name: /^game settings$/i }).click();
+  await expect(dialog.getByRole("heading", { name: "Game settings" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
 });

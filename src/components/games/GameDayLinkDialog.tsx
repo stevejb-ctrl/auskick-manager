@@ -66,7 +66,7 @@ export function GameDayLinkDialog({ token: initialToken, onClose, replace }: Gam
 
   if (confirming) {
     return (
-      <Modal>
+      <Modal onClose={() => setConfirming(false)}>
         <h2 className="text-lg font-bold text-ink">Get a new link?</h2>
         <p className="mt-1 text-sm text-ink-dim">
           The old link stops working straight away. Anyone running this game
@@ -90,7 +90,7 @@ export function GameDayLinkDialog({ token: initialToken, onClose, replace }: Gam
   }
 
   return (
-    <Modal>
+    <Modal onClose={onClose}>
       <h2 className="text-lg font-bold text-ink">Game-day link</h2>
       <p className="mt-1 text-sm text-ink-dim">
         Anyone with this link can run this game — no login needed. Share it
