@@ -6,6 +6,7 @@ import { useStickyInset } from "@/components/ui/useStickyInset";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import { FeedbackHeaderButton } from "@/components/feedback/FeedbackHeaderButton";
 import type { Game } from "@/lib/types";
+import { runWhoseLine, useRunWhose } from "@/components/live/RunWhose";
 
 interface LiveTopBarProps {
   /** Where the Exit link takes the user. */
@@ -85,6 +86,8 @@ export function LiveTopBar({
   // close" mid-game).
   const router = useRouter();
   const [exiting, startExitTransition] = useTransition();
+  // On the game-day link: whose game it is, under the opponent.
+  const whose = useRunWhose();
   // Focus scrolls clear of the bar (the page's scroll padding).
   const barRef = useRef<HTMLDivElement>(null);
   useStickyInset(barRef, "top");
@@ -117,26 +120,26 @@ export function LiveTopBar({
             {subtitle && <p className="max-w-full truncate text-xs leading-4 text-ink-dim">{subtitle}</p>}
           </div>
         ) : (
-        <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-center gap-x-2 text-xs text-ink-dim">
-          {isLive ? (
-            <span className="truncate text-[15px] font-semibold tracking-[-0.01em] text-ink">
-              vs {game.opponent}
-            </span>
-          ) : (
-            <>
-              {game.round_number != null && (
-                <span className="font-mono font-bold uppercase tracking-micro text-ink-dim">
-                  R{game.round_number}
-                </span>
-              )}
-              <span className="truncate">
-                <FormattedDateTime iso={game.scheduled_at} mode="long" />
-              </span>
-              {game.location && (
-                <span className="truncate">· {game.location}</span>
-              )}
-            </>
-          )}
+        // One header (design review, Oct 2026): the opponent always,
+        // with one quiet line under it. On the game-day link that line
+        // says whose game it is; on the coach's own screens before the
+        // start it's the round and kick-off (the lineup header used to
+        // show only the date, never who you were playing).
+        <div className="flex min-w-0 flex-1 flex-col items-center justify-center py-1 text-center">
+          <p className="max-w-full truncate text-[0.9375rem] font-semibold leading-tight tracking-[-0.01em] text-ink">
+            vs {game.opponent}
+          </p>
+          {whose ? (
+            <p data-testid="run-whose" className="max-w-full truncate text-xs leading-4 text-ink-dim">
+              {runWhoseLine(whose)}
+            </p>
+          ) : !isLive ? (
+            <p className="max-w-full truncate text-xs leading-4 text-ink-dim">
+              {game.round_number != null && <>R{game.round_number} · </>}
+              <FormattedDateTime iso={game.scheduled_at} mode="short" />
+              {game.location && <> · {game.location}</>}
+            </p>
+          ) : null}
         </div>
         )}
         {/* Right-edge utility cluster: feedback + walkthrough "?".

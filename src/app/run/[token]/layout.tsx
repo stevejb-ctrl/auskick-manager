@@ -1,14 +1,13 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { unstable_noStore as noStore } from "next/cache";
 import { runLinkTitle } from "@/lib/share/runLinkTitle";
 import { DeviceFrame } from "@/components/DeviceFrame";
-import { SirenWordmark } from "@/components/marketing/SirenWordmark";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SquadNamesProvider } from "@/components/live/SquadNames";
 import { loadSquadNames } from "@/lib/live/loadSquadNames";
 import type { NamedPlayer } from "@/lib/names";
 import { GameGoneWatcher } from "@/components/live/GameGoneWatcher";
+import { RunWhoseProvider, type RunWhose } from "@/components/live/RunWhose";
 import { getSportConfig, teamSport } from "@/lib/sports";
 import { teamAgeGroup } from "@/lib/sports/teamAgeGroup";
 
@@ -29,17 +28,8 @@ import { teamAgeGroup } from "@/lib/sports/teamAgeGroup";
 //
 // The same read finds the squad, so the runner's tiles and sheets tell
 // two kids with the same short name apart (SquadNamesProvider).
-/**
- * Whose game this is, said once at the top: a parent handed the link
- * cold guessed which team was theirs, and the sport was never named
- * (Stagehand round 8, #7: 9 of 10 cold-link parents).
- */
-interface Whose {
-  team: string;
-  opponent: string | null;
-  what: string;
-  finished: boolean;
-}
+// Whose game this is goes to the live top bar (RunWhose).
+type Whose = RunWhose;
 
 async function resolveBackTarget(
   token: string,
@@ -68,7 +58,7 @@ async function resolveBackTarget(
         return {
           team: teamRow.name ?? "your team",
           opponent: (row?.opponent as string | null) ?? null,
-          what: [age, getSportConfig(sport).name].filter(Boolean).join(" · "),
+          what: [age, getSportConfig(sport).shortName].filter(Boolean).join(" · "),
           finished: row?.status === "completed",
         };
       })()
@@ -99,57 +89,18 @@ export default async function RunLayout({
   noStore();
   const { backHref, players, gameId, whose } = await resolveBackTarget(params.token);
 
+  // No header of its own (design review, Oct 2026): every screen on the
+  // link opens with LiveTopBar, which says whose game it is (RunWhose)
+  // and owns the one way out, EXIT. The old banner above it took 16% of
+  // the phone, and its "‹ Siren" went to the homepage mid-game. The EXIT
+  // page (/left) links home, or back to the demo picker for demo games.
   return (
     <div>
-      {/* Non-sticky — scrolls with the page so it doesn't stack
-          with LiveTopBar (also sticky-top) once the runner reaches
-          the live game. The chevron+wordmark is still visible on
-          first paint of every route as a back-to-home affordance;
-          once the user scrolls / the live-game UI takes over,
-          LiveTopBar's "✕ Exit" carries the navigation duty.
-          Steve 2026-05-13 audit fix.
-
-          Link target is dynamic — `/demo` for demo games (so the
-          back arrow returns to the sport picker), `/` for real
-          run-tokens. See resolveBackTarget above. */}
-      <header className="border-b border-hairline bg-surface">
-        <div className="flex items-center px-3 py-2">
-          <Link
-            href={backHref}
-            className="flex items-center gap-1"
-            aria-label={backHref === "/demo" ? "Back to demo picker" : "Siren home"}
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              aria-hidden="true"
-              className="shrink-0 text-ink-dim"
-            >
-              <path
-                d="M15 18l-6-6 6-6"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <SirenWordmark size="sm" />
-          </Link>
-        </div>
-        {whose && (
-          <p data-testid="run-whose" className="px-4 pb-2 text-xs text-ink-dim">
-            {whose.finished ? "The result for " : "You're scoring for "}
-            <span className="font-semibold text-ink">{whose.team}</span>
-            {whose.opponent ? ` v ${whose.opponent}` : ""}
-            {whose.what ? <span className="block">{whose.what}</span> : null}
-          </p>
-        )}
-      </header>
       <DeviceFrame>
         <main>
-          <SquadNamesProvider players={players}>{children}</SquadNamesProvider>
+          <RunWhoseProvider whose={whose}>
+            <SquadNamesProvider players={players}>{children}</SquadNamesProvider>
+          </RunWhoseProvider>
           {/* The coach deleting the game (or replacing the link) shows here. */}
           {gameId && <GameGoneWatcher auth={{ kind: "token", token: params.token }} gameId={gameId} exitHref={backHref} />}
         </main>

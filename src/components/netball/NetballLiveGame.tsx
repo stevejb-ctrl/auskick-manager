@@ -16,7 +16,7 @@ import { QuarterScoresButton } from "@/components/live/QuarterScoresButton";
 import { useOtherPhoneScores } from "@/components/live/useOtherPhoneScores";
 import { WENT_HOME_REASON, wentHomeIds } from "@/lib/live/wentHome";
 import { useRouter } from "next/navigation";
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
@@ -137,6 +137,11 @@ import { ScoreBugFrame } from "@/components/live/ScoreBugFrame";
 
 interface NetballLiveGameProps {
   game: Game;
+  /**
+   * Under the top bar before the start: the game-day link's welcome
+   * line. It used to render above the bar (design review, Oct 2026).
+   */
+  intro?: ReactNode;
   auth: LiveAuth;
   /** Team's own name — drives the home-side label in the score bug. */
   teamName: string;
@@ -285,6 +290,7 @@ interface NetballLiveGameProps {
 
 export function NetballLiveGame(props: NetballLiveGameProps) {
   const {
+    intro,
     game,
     auth,
     teamName,
@@ -1775,7 +1781,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const exitHref =
     auth.kind === "team"
       ? `/teams/${auth.teamId}/games/${game.id}`
-      : `/run/${auth.token}`;
+      : // The exit page, as every other sport's link: EXIT to the page
+        // you were on did nothing (UX round 2).
+        `/run/${auth.token}/left`;
   const topUtilityRow = (
     <LiveTopBar
       exitHref={exitHref}
@@ -1799,6 +1807,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     return (
       <div className="flex flex-col gap-4 pb-4">
         {topUtilityRow}
+        {intro}
         {walkthroughOverlay}
         <NetballLineupPicker
           // Rebuild the suggestion when who's-here changes on game day.

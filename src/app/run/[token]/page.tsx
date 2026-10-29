@@ -29,6 +29,7 @@ import { touchAgeGroupForTeam } from "@/lib/sports/touch/family";
 import { touchHowWePlay } from "@/lib/sports/touch/familyPlaybook";
 import { girlsTryCountsDouble, teamMixedRule } from "@/lib/sports/touch/mixed";
 import { LiveGame } from "@/components/live/LiveGame";
+import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
 import { LeagueLiveGame } from "@/components/league/LeagueLiveGame";
 import { LeagueLineupPicker } from "@/components/league/LeagueLineupPicker";
@@ -257,6 +258,9 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
       }
       return (
         <div className="space-y-3 px-4 py-3">
+          {/* The same top bar as the live game: EXIT, the opponent, and
+              whose game it is (the layout's header went; design review). */}
+          <LiveTopBar exitHref={exitHref} game={g} />
           <RunnerWelcomeBanner
             teamName={teamName}
             opponent={g.opponent}
@@ -407,6 +411,9 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
       }
       return (
         <div className="space-y-3 px-4 py-3">
+          {/* The same top bar as the live game: EXIT, the opponent, and
+              whose game it is (the layout's header went; design review). */}
+          <LiveTopBar exitHref={exitHref} game={g} />
           <RunnerWelcomeBanner
             teamName={teamName}
             opponent={g.opponent}
@@ -567,6 +574,9 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
       }
       return (
         <div className="space-y-3 px-4 py-3">
+          {/* The same top bar as the live game: EXIT, the opponent, and
+              whose game it is (the layout's header went; design review). */}
+          <LiveTopBar exitHref={exitHref} game={g} />
           <RunnerWelcomeBanner
             teamName={teamName}
             opponent={g.opponent}
@@ -807,6 +817,9 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
 
       return (
         <div className="space-y-3 px-4 py-3">
+          {/* The same top bar as the live game: EXIT, the opponent, and
+              whose game it is (the layout's header went; design review). */}
+          <LiveTopBar exitHref={exitHref} game={g} />
           <RunnerWelcomeBanner
             teamName={teamName}
             opponent={g.opponent}
@@ -1016,6 +1029,16 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
     const needsAvailabilityStep =
       isPreKickoff && availableIds.length < ageCfgN.positions.length;
     void hasStarted;
+    const netballLineupShown = !(isPreKickoff && wantsAvailability && !needsAvailabilityStep);
+    const netballWelcome = (
+      <RunnerWelcomeBanner
+        teamName={teamName}
+        opponent={g.opponent}
+        trackScoring={trackScoring}
+        firstPeriod="Q1"
+        availability={needsAvailabilityStep || wantsAvailability ? "list" : "link"}
+      />
+    );
     return (
       <div className="space-y-3 px-4 py-3">
         {/* GameInfoHeader is now rendered INSIDE NetballLiveGame's
@@ -1028,15 +1051,11 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
             Steve 2026-05-13 usability test: without it Lisa
             (parent-volunteer persona) lands on a wordmark + a list of
             names with no role context. */}
-        {isPreKickoff && (
-          <RunnerWelcomeBanner
-            teamName={teamName}
-            opponent={g.opponent}
-            trackScoring={trackScoring}
-            firstPeriod="Q1"
-            availability={needsAvailabilityStep || wantsAvailability ? "list" : "link"}
-          />
-        )}
+        {/* With the lineup on screen the welcome line goes under
+            NetballLiveGame's own top bar (its intro); on the who's-here
+            list alone, this page draws the bar. */}
+        {isPreKickoff && !netballLineupShown && <LiveTopBar exitHref={exitHref} game={g} />}
+        {isPreKickoff && !netballLineupShown && netballWelcome}
         {(needsAvailabilityStep || (isPreKickoff && wantsAvailability)) && (
           <>
             <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
@@ -1062,6 +1081,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
         )}
         {!(isPreKickoff && wantsAvailability && !needsAvailabilityStep) && (
         <NetballLiveGame
+          intro={isPreKickoff && netballLineupShown ? netballWelcome : undefined}
           auth={auth}
           renderedAtMs={Date.now()}
           game={g}

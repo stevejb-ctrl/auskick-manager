@@ -129,8 +129,21 @@ test("#7 the game-day link says whose team it is and what sport", async ({ brows
   const { context, page } = await parentPhone(browser);
   await page.goto(`/run/${game.share_token}`);
   const whose = page.getByTestId("run-whose");
-  await expect(whose).toContainText(`You're scoring for ${team.name} v Sharks`);
+  // One header (design review, Oct 2026): the top bar names the
+  // opponent, and the line under it says whose game and what sport.
+  await expect(whose).toContainText(`Scoring for ${team.name}`);
   await expect(whose).toContainText("Netball");
+  await expect(page.getByText("vs Sharks").first()).toBeVisible();
+  await context.close();
+});
+
+test("design review 01: the game-day link has one header and no link to the homepage", async ({ browser }) => {
+  const { game } = await inFirstPeriod("afl");
+  const { context, page } = await parentPhone(browser);
+  await page.goto(`/run/${game.share_token}`);
+  await expect(page.getByTestId("run-whose")).toHaveCount(1);
+  await expect(page.getByRole("link", { name: "Siren home" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Exit live game" })).toBeVisible();
   await context.close();
 });
 
