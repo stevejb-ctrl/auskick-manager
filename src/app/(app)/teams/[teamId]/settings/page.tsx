@@ -193,7 +193,7 @@ export default async function SettingsPage({ params, searchParams }: SettingsPag
       )}
       {/* A way to jump, not ten screens of scrolling (design review,
           Oct 2026). Plain links to the sections' anchors. */}
-      <nav aria-label="Team settings sections" className="-mx-1 flex flex-wrap gap-2">
+      <nav aria-label="Team settings sections" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
         {[
           ["how-we-play", "How we play"],
           ["people", "People"],
@@ -203,7 +203,7 @@ export default async function SettingsPage({ params, searchParams }: SettingsPag
           <a
             key={id}
             href={`#${id}`}
-            className="inline-flex min-h-[44px] items-center rounded-full border border-hairline bg-surface px-4 text-sm font-semibold text-ink shadow-card transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+            className="inline-flex min-h-[44px] shrink-0 items-center whitespace-nowrap rounded-full border border-hairline bg-surface px-3.5 text-sm font-semibold text-ink shadow-card transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
           >
             {label}
           </a>

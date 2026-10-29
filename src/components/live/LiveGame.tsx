@@ -1883,12 +1883,6 @@ export function LiveGame({
         />
       )}
 
-      {finalised && (
-        <p className="text-center font-mono text-micro font-bold uppercase tracking-micro text-ink-dim">
-          Full time
-        </p>
-      )}
-
       {error && (
         <p className="rounded-sm bg-warn-soft px-3 py-2 text-sm text-warn" role="alert">
           {error}
@@ -2982,18 +2976,9 @@ export function LiveGame({
           </div>
         </div>
       )}
-      {finalised && auth.kind === "token" && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
-          <div className="mx-auto max-w-4xl text-center">
-            <p className="text-sm font-semibold text-ink">
-              All done — thanks for running today&apos;s game!
-            </p>
-            <p className="mt-0.5 text-xs text-ink-dim">
-              Everything&apos;s saved. You can close this tab.
-            </p>
-          </div>
-        </div>
-      )}
+      {/* The game-day link's "All done" is the page's shared
+          RunnerAllDone, as every other sport's; a second copy here sat
+          fixed under it (design review, Oct 2026). */}
 
       {/* Sticky-bottom scorebug + undo strip — chrome owned by
           the shared LiveStickyScoreBar (Phase 5d). Wrapper does
