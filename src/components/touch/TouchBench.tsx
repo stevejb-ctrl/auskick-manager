@@ -27,6 +27,8 @@ interface TouchBenchProps {
   totalMsByPlayer?: Record<string, number>;
   lineMsByPlayer?: Record<string, TouchLineMs>;
   injuredIds?: string[];
+  /** Sidelined kids who went home: HOME, not INJ (lib/live/wentHome). */
+  wentHomeIds?: ReadonlySet<string>;
   loanedIds?: string[];
   lockModes?: Record<string, "field" | "zone">;
   /** Tries each kid has scored; omitted when scoring is off. */
@@ -47,6 +49,7 @@ export function TouchBench({
   totalMsByPlayer,
   lineMsByPlayer,
   injuredIds,
+  wentHomeIds,
   loanedIds,
   lockModes,
   triesByPlayer,
@@ -86,6 +89,7 @@ export function TouchBench({
                 totalMs={totalMsByPlayer?.[pid]}
                 lineMs={lineMsByPlayer?.[pid]}
                 injured={injuredSet.has(pid)}
+                wentHome={wentHomeIds?.has(pid) ?? false}
                 loaned={loanedSet.has(pid)}
                 lockMode={lockModes?.[pid] ?? null}
                 score={triesByPlayer ? touchTryChip(triesByPlayer[pid]) : null}

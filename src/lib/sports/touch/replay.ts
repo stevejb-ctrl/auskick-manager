@@ -84,6 +84,8 @@ export interface TouchGameState {
   /** Each kid's current hold (Keep on, Keep in a lane). */
   locks: Record<string, PlayerLock>;
   injuredIds: string[];
+  /** Of the injured, the kids who went home (an injury with reason "out", lib/live/wentHome). */
+  wentHomeIds: string[];
   loanedIds: string[];
   /** Each kid's time this game, per lane. */
   ms: Record<string, TouchLineMs>;
@@ -178,6 +180,7 @@ export function replayTouchGame(events: GameEvent[], opts: ReplayTouchOptions = 
     scoreByPeriod: {},
     locks: {},
     injuredIds: [],
+    wentHomeIds: [],
     loanedIds: [],
     ms: {},
     msByPeriod: {},
@@ -423,9 +426,13 @@ export function replayTouchGame(events: GameEvent[], opts: ReplayTouchOptions = 
         const injured = (ev.metadata as { injured?: boolean }).injured ?? true;
         if (!injured) {
           state.injuredIds = state.injuredIds.filter((p) => p !== pid);
+          state.wentHomeIds = state.wentHomeIds.filter((p) => p !== pid);
           break;
         }
         if (!state.injuredIds.includes(pid)) state.injuredIds.push(pid);
+        // A kid going home is an injury with reason "out": say so (lib/live/wentHome).
+        state.wentHomeIds = state.wentHomeIds.filter((p) => p !== pid);
+        if ((ev.metadata as { reason?: string }).reason === "out") state.wentHomeIds.push(pid);
         sendOff(pid, elapsed);
         break;
       }

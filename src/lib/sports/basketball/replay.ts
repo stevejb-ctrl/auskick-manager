@@ -84,6 +84,8 @@ export interface BasketballGameState {
   locks: Record<string, PlayerLock>;
   /** Hurt, marked out, or fouled out: none of them play on. */
   injuredIds: string[];
+  /** Of the injured, the kids who went home (an injury with reason "out", lib/live/wentHome). */
+  wentHomeIds: string[];
   loanedIds: string[];
   /** Each kid's time this game, per line. */
   ms: Record<string, BasketballLineMs>;
@@ -167,6 +169,7 @@ export function replayBasketballGame(events: GameEvent[], opts: ReplayBasketball
     sittingOut: {},
     locks: {},
     injuredIds: [],
+    wentHomeIds: [],
     loanedIds: [],
     ms: {},
     posMs: {},
@@ -443,10 +446,14 @@ export function replayBasketballGame(events: GameEvent[], opts: ReplayBasketball
         if (!injured) {
           state.injuredIds = state.injuredIds.filter((p) => p !== pid);
           state.fouledOutIds = state.fouledOutIds.filter((p) => p !== pid);
+          state.wentHomeIds = state.wentHomeIds.filter((p) => p !== pid);
           break;
         }
         if (!state.injuredIds.includes(pid)) state.injuredIds.push(pid);
         if (m.reason === "fouled_out" && !state.fouledOutIds.includes(pid)) state.fouledOutIds.push(pid);
+        // A kid going home is an injury with reason "out": say so (lib/live/wentHome).
+        state.wentHomeIds = state.wentHomeIds.filter((p) => p !== pid);
+        if ((ev.metadata as { reason?: string }).reason === "out") state.wentHomeIds.push(pid);
         sendOff(pid, elapsed);
         break;
       }

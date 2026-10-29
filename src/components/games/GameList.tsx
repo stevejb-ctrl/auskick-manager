@@ -4,6 +4,7 @@ import { GameRow } from "@/components/games/GameRow";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { NotPlayedGames } from "@/components/games/NotPlayedGames";
 import { splitByNotPlayed } from "@/lib/games/notPlayed";
+import { availableCountsByGame } from "@/lib/games/availableCounts";
 
 interface GameListProps {
   teamId: string;
@@ -25,30 +26,31 @@ interface GameListProps {
 export async function GameList({ teamId, filter = "all", canEdit = false }: GameListProps) {
   const supabase = createClient();
 
-  const [{ data: games }, { count: activeCount }, { data: availability }] =
-    await Promise.all([
-      supabase
-        .from("games")
-        .select("*")
-        .eq("team_id", teamId)
-        .order("scheduled_at", { ascending: false }),
-      supabase
-        .from("players")
-        .select("*", { count: "exact", head: true })
-        .eq("team_id", teamId)
-        .eq("is_active", true),
-      supabase
-        .from("game_availability")
-        .select("game_id, status")
-        .eq("status", "available"),
-    ]);
+  const [{ data: games }, { data: activePlayers }] = await Promise.all([
+    supabase
+      .from("games")
+      .select("*")
+      .eq("team_id", teamId)
+      .order("scheduled_at", { ascending: false }),
+    supabase.from("players").select("id").eq("team_id", teamId).eq("is_active", true),
+  ]);
 
   const all = (games ?? []) as Game[];
-  const totalActive = activeCount ?? 0;
-  const availMap = new Map<string, number>();
-  for (const row of (availability ?? []) as Pick<GameAvailability, "game_id" | "status">[]) {
-    availMap.set(row.game_id, (availMap.get(row.game_id) ?? 0) + 1);
-  }
+  const activeIds = (activePlayers ?? []).map((p) => p.id as string);
+  const totalActive = activeIds.length;
+  // This team's games only, and only kids still in the squad: a kid
+  // switched off keeps their rows, which read "16/15".
+  const { data: availability } = all.length
+    ? await supabase
+        .from("game_availability")
+        .select("game_id, player_id, status")
+        .eq("status", "available")
+        .in("game_id", all.map((g) => g.id))
+    : { data: [] };
+  const availMap = availableCountsByGame(
+    (availability ?? []) as Pick<GameAvailability, "game_id" | "player_id" | "status">[],
+    activeIds,
+  );
 
   // A game well past its start that was never run moves out of Upcoming
   // to Not played, with the past (lib/games/notPlayed).

@@ -140,8 +140,11 @@ export function seasonBalanceGrid({
   periodMs: number;
 }): SeasonGrid {
   const units = columns.map((c) => c.key);
-  // Only kids who've played this season (or since the reset) count.
-  const playing = players.filter((p) => units.some((u) => (time[p.id]?.[u] ?? 0) > 0));
+  // Only kids who've played this season (or since the reset) count:
+  // anywhere, keeper time included, so a kid who only kept goal shows,
+  // with nothing yet in each line (Stagehand round 7, 28 Oct 2026: "12
+  // of 12" in a squad of 13, the keeper missing).
+  const playing = players.filter((p) => Object.values(time[p.id] ?? {}).some((ms) => ms > 0));
   const rows = playing.map((p) => {
     const owed = periodsOwed({ byUnit: time[p.id], units, periodMs });
     const cells = units.map((u) => ({ unit: u, ms: time[p.id]?.[u] ?? 0, owed: owed[u] ?? 0 }));

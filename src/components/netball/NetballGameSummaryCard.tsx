@@ -16,6 +16,7 @@
 //     only and the count is implicit in the four quarters.
 
 import type { Player } from "@/lib/types";
+import { summaryStatusNote, type SidelinedSets } from "@/lib/live/wentHome";
 import { type PlayerThirdMs, formatMinSec } from "@/lib/sports/netball/fairness";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
@@ -53,6 +54,8 @@ interface Props {
   trackScoring?: boolean;
   /** Everyone at the game (presentPlayerIds), so kids who never got on show at 0:00. */
   presentIds?: readonly string[];
+  /** Kids still off at full time, hurt or gone home: said after their time. */
+  sidelined?: SidelinedSets;
 }
 
 const THIRD_LABEL: Record<keyof PlayerThirdMs, string> = {
@@ -103,6 +106,7 @@ function buildSummary(
   squad: PlayerLike[],
   trackScoring: boolean,
   presentIds: readonly string[],
+  sidelined?: SidelinedSets,
 ): string {
   const lines: string[] = [];
   // Two Mias read "Mia C" and "Mia T" (SquadNames' rule).
@@ -172,7 +176,7 @@ function buildSummary(
     lines.push(`\n⏱ Game time`);
     const timeRows = rows.map((r) => {
       const thirdStr = r.thirds.map((t) => `${t.label} ${t.pct}%`).join(" · ");
-      return { id: r.id, text: `${r.name} — ${formatMinSec(r.totalMs)}${thirdStr ? `  (${thirdStr})` : ""}` };
+      return { id: r.id, text: `${r.name} — ${formatMinSec(r.totalMs)}${thirdStr ? `  (${thirdStr})` : ""}${summaryStatusNote(r.id, sidelined)}` };
     });
     for (const id of satOut) timeRows.push({ id, text: `${nameOf.get(id)} — ${DIDNT_GET_ON}` });
     // By name (netball has no numbers), never by minutes: this goes to
@@ -194,6 +198,7 @@ export function NetballGameSummaryCard({
   squad,
   trackScoring = false,
   presentIds = [],
+  sidelined,
 }: Props) {
   const summary = buildSummary(
     teamName,
@@ -205,6 +210,7 @@ export function NetballGameSummaryCard({
     squad,
     trackScoring,
     presentIds,
+    sidelined,
   );
 
   // The card only mounts at FT — wrapping it in SirenPulseHalo

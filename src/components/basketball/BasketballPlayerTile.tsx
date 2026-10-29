@@ -84,6 +84,8 @@ interface BasketballPlayerTileProps {
   /** This game's time at guard and forward: the bar. */
   lineMs?: BasketballLineMs;
   injured?: boolean;
+  /** Injured with reason "out": the kid went home (lib/live/wentHome). */
+  wentHome?: boolean;
   loaned?: boolean;
   /** Fouled out: out for the game. */
   fouledOut?: boolean;
@@ -122,6 +124,7 @@ function BasketballPlayerTileImpl({
   totalMs,
   lineMs,
   injured,
+  wentHome = false,
   loaned,
   fouledOut,
   fouls = null,
@@ -275,8 +278,8 @@ function BasketballPlayerTileImpl({
                   OUT
                 </span>
               ) : injured ? (
-                <span className={`${CHIP} bg-danger tracking-micro text-white`} aria-label="Injured">
-                  INJ
+                <span className={`${CHIP} ${wentHome ? "bg-ink-mute" : "bg-danger"} tracking-micro text-white`} aria-label={wentHome ? "Went home" : "Injured"}>
+                  {wentHome ? "HOME" : "INJ"}
                 </span>
               ) : null}
               {loaned && !injured && !fouledOut && (
@@ -390,6 +393,7 @@ function areEqual(a: BasketballPlayerTileProps, b: BasketballPlayerTileProps): b
     a.selected !== b.selected ||
     a.dimmed !== b.dimmed ||
     a.injured !== b.injured ||
+    a.wentHome !== b.wentHome ||
     a.loaned !== b.loaned ||
     a.fouledOut !== b.fouledOut ||
     a.fouls !== b.fouls ||

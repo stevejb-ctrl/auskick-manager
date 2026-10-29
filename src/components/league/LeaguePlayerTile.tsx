@@ -70,6 +70,8 @@ interface LeaguePlayerTileProps {
   /** True when the player has taken at least one kickoff this game. */
   kickedOff?: boolean;
   injured?: boolean;
+  /** Injured with reason "out": the kid went home (lib/live/wentHome). */
+  wentHome?: boolean;
   loaned?: boolean;
   /**
    * Suggested rotation: "off" on a field tile, "on" on a bench tile,
@@ -109,6 +111,7 @@ function LeaguePlayerTileImpl({
   conversion = null,
   kickedOff = false,
   injured = false,
+  wentHome = false,
   loaned = false,
   swap = null,
   swapDue = false,
@@ -144,6 +147,7 @@ function LeaguePlayerTileImpl({
       totalMs={totalMs}
       lineMs={zoneMs ? { forwards: zoneMs.forwards, centre: zoneMs.centre, backs: zoneMs.backs } : undefined}
       injured={injured}
+      wentHome={wentHome}
       loaned={loaned}
       score={tries > 0 ? { text: `${tries}T`, label: `${tries} ${tries === 1 ? "try" : "tries"}` } : null}
       extraChip={chips}

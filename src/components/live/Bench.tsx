@@ -13,6 +13,8 @@ interface BenchProps {
   totalMsByPlayer?: Record<string, number>;
   zoneMsByPlayer?: Record<string, ZoneMinutes>;
   injuredIds?: string[];
+  /** Sidelined kids who went home: HOME, not INJ (lib/live/wentHome). */
+  wentHomeIds?: ReadonlySet<string>;
   loanedIds?: string[];
   lockedIds?: string[];
   zoneLockedPlayers?: Record<string, Zone>;
@@ -37,6 +39,7 @@ export function Bench({
   totalMsByPlayer,
   zoneMsByPlayer,
   injuredIds,
+  wentHomeIds,
   loanedIds,
   lockedIds,
   zoneLockedPlayers,
@@ -103,6 +106,7 @@ export function Bench({
                 totalMs={totalMsByPlayer?.[pid]}
                 zoneMs={zoneMsByPlayer?.[pid]}
                 injured={injuredSet.has(pid)}
+                wentHome={wentHomeIds?.has(pid) ?? false}
                 loaned={loanedSet.has(pid)}
                 lockMode={lockedSet.has(pid) ? "field" : zoneLockedPlayers?.[pid] ? "zone" : null}
                 score={playerScores?.[pid]}

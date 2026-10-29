@@ -84,6 +84,7 @@ import {
   soccerUnitOf,
   type SoccerLineup,
 } from "@/lib/sports/soccer/lineup";
+import { WENT_HOME_REASON } from "@/lib/live/wentHome";
 import { replaySoccerGame, soccerGameMs, type SoccerGameState } from "@/lib/sports/soccer/replay";
 import { suggestSoccerHalfTime, suggestSoccerWindowBatch, type SoccerSeasonBalance } from "@/lib/sports/soccer/suggest";
 import { soccerSubDue } from "@/lib/sports/soccer/live";
@@ -208,7 +209,7 @@ export function SoccerLiveGame({
   const [actionPlayerId, setActionPlayerId] = useState<string | null>(null);
   const [keeperPickerOpen, setKeeperPickerOpen] = useState(false);
   const [fillUnit, setFillUnit] = useState<SoccerUnit | null>(null);
-  const [injury, setInjury] = useState<{ injuredId: string; unit: SoccerUnit } | null>(null);
+  const [injury, setInjury] = useState<{ injuredId: string; unit: SoccerUnit; wentHome?: boolean } | null>(null);
   const [subAckKey, setSubAckKey] = useState<string | null>(null);
   const liveRootRef = useRef<HTMLDivElement>(null);
   const periodMs = periodSeconds * 1000;
@@ -291,6 +292,7 @@ export function SoccerLiveGame({
   );
   const absNowMs = state.completedPeriodMs + (isPeriodActive ? elapsedMs : 0);
   const injuredSet = useMemo(() => new Set(state.injuredIds), [state.injuredIds]);
+  const wentHomeSet = useMemo(() => new Set(state.wentHomeIds), [state.wentHomeIds]);
   const loanedSet = useMemo(() => new Set(state.loanedIds), [state.loanedIds]);
   const totalMsByPlayer = useMemo(
     () => Object.fromEntries(squad.map((p) => [p.id, soccerGameMs(state, p.id)])),
@@ -622,20 +624,21 @@ export function SoccerLiveGame({
     return squad.filter((p) => !placed.has(p.id));
   }, [squad, state.lineup, isFinished]);
 
-  function markInjured(pid: string, injured: boolean) {
+  // A kid going home is an injury with reason "out" (lib/live/wentHome).
+  function markInjured(pid: string, injured: boolean, wentHome = false) {
     setError(null);
-    const input = { player_id: pid, injured, ...at() };
+    const input = { player_id: pid, injured, ...at(), ...(wentHome ? { reason: WENT_HOME_REASON } : {}) };
     write("markInjury", [auth, game.id, input], liveEvents.injury(input));
   }
-  function startInjury(pid: string) {
+  function startInjury(pid: string, wentHome = false) {
     const unit = state.lineup ? soccerUnitOf(state.lineup, pid) : null;
-    if (isPeriodActive && unit && swappableBench.length > 0) setInjury({ injuredId: pid, unit });
-    else markInjured(pid, true);
+    if (isPeriodActive && unit && swappableBench.length > 0) setInjury({ injuredId: pid, unit, wentHome });
+    else markInjured(pid, true, wentHome);
   }
-  function injuryReplace(injuredId: string, replacementId: string, unit: SoccerUnit) {
+  function injuryReplace(injuredId: string, replacementId: string, unit: SoccerUnit, wentHome = false) {
     setInjury(null);
     // In order, in the one game lane: the injury, then who comes on.
-    markInjured(injuredId, true);
+    markInjured(injuredId, true, wentHome);
     sub(injuredId, replacementId, unit);
     chrome.swapped(injuredId, replacementId);
   }
@@ -857,6 +860,7 @@ export function SoccerLiveGame({
             totalMsByPlayer={totalMsByPlayer}
             unitMsByPlayer={state.ms}
             injuredIds={state.injuredIds}
+            wentHomeIds={wentHomeSet}
             loanedIds={state.loanedIds}
             lockModes={lockModes}
             goalsByPlayer={state.playerGoals}
@@ -1104,6 +1108,7 @@ export function SoccerLiveGame({
           // lent minutes, as AFL's sheet has.
           currentLine={actionUnit ? words[actionUnit].label : null}
           isInjured={injuredSet.has(actionPlayer.id)}
+          wentHome={wentHomeSet.has(actionPlayer.id)}
           isLoaned={loanedSet.has(actionPlayer.id)}
           seasonLoanMins={chrome.loanMinutes(actionPlayer.id).seasonLoanMins}
           squadLoanMins={chrome.loanMinutes(actionPlayer.id).squadLoanMins}
@@ -1121,6 +1126,11 @@ export function SoccerLiveGame({
             setActionPlayerId(null);
             if (injuredSet.has(pid)) markInjured(pid, false);
             else startInjury(pid);
+          }}
+          onWentHome={() => {
+            const pid = actionPlayer.id;
+            setActionPlayerId(null);
+            startInjury(pid, true);
           }}
           onToggleLoan={() => {
             const pid = actionPlayer.id;
@@ -1210,10 +1220,11 @@ export function SoccerLiveGame({
               injuredPlayer={injured}
               spotLabel={words[injury.unit].label}
               candidates={candidates}
-              onPickReplacement={(rid) => injuryReplace(injury.injuredId, rid, injury.unit)}
+              reason={injury.wentHome ? "went_home" : "injured"}
+              onPickReplacement={(rid) => injuryReplace(injury.injuredId, rid, injury.unit, injury.wentHome)}
               onSkipReplacement={() => {
                 setInjury(null);
-                markInjured(injury.injuredId, true);
+                markInjured(injury.injuredId, true, injury.wentHome);
               }}
               onCancel={() => setInjury(null)}
             />

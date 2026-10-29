@@ -12,6 +12,7 @@
 // Score: +1 goal (our team) / +1 opponent goal. That's it.
 
 import { SFButton, SFIcon } from "@/components/sf";
+import { WENT_HOME_REASON, wentHomeIds } from "@/lib/live/wentHome";
 import { useRouter } from "next/navigation";
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
@@ -788,6 +789,16 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     }
     return set;
   }, [thisGameEvents, localInjuredOverride]);
+  // Of the injured, who went home: the events', then this phone's taps.
+  const [localWentHome, setLocalWentHome] = useState<Record<string, boolean>>({});
+  const wentHomeSet = useMemo(() => {
+    const set = wentHomeIds(thisGameEvents);
+    for (const [pid, val] of Object.entries(localWentHome)) {
+      if (val) set.add(pid);
+      else set.delete(pid);
+    }
+    return set;
+  }, [thisGameEvents, localWentHome]);
   const loanedIds = useMemo(() => {
     const latest = new Map<string, { ts: string; loaned: boolean }>();
     for (const ev of thisGameEvents) {
@@ -1057,7 +1068,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const [leaving, setLeaving] = useState<{
     playerId: string;
     positionId: string;
-    reason: "injured" | "lent" | "subbed";
+    reason: "injured" | "lent" | "subbed" | "went_home";
   } | null>(null);
   // An empty bib tapped mid-quarter (after going without a
   // replacement): the shared SlotFillSheet fills it.
@@ -1484,12 +1495,20 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // The injury / loan events. The badges come from the events; the
   // overrides show them instantly until the server agrees (Steve
   // 2026-05-17 audit fix).
-  const recordInjury = (playerId: string, injured: boolean) => {
+  // Going home is an injury with reason "out" (lib/live/wentHome).
+  const recordInjury = (playerId: string, injured: boolean, wentHome = false) => {
     setLocalInjuredOverride((prev) => ({ ...prev, [playerId]: injured }));
+    setLocalWentHome((prev) => ({ ...prev, [playerId]: injured && wentHome }));
     enqueueLiveAction("markInjury", [
       auth,
       game.id,
-      { player_id: playerId, injured, quarter: Math.max(1, currentQuarter), elapsed_ms: clockMs },
+      {
+        player_id: playerId,
+        injured,
+        quarter: Math.max(1, currentQuarter),
+        elapsed_ms: clockMs,
+        ...(injured && wentHome ? { reason: WENT_HOME_REASON } : {}),
+      },
     ]);
   };
   const recordLoan = (playerId: string, loaned: boolean) => {
@@ -1505,7 +1524,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // anyone can). A bench kid, or nobody to bring on, just records it.
   // The actions sheet closes first so a stale sheet can't trap the next
   // long-press.
-  const startLeaving = (playerId: string, positionId: string | null, reason: "injured" | "lent" | "subbed") => {
+  const startLeaving = (playerId: string, positionId: string | null, reason: "injured" | "lent" | "subbed" | "went_home") => {
     closeActions();
     if (positionId && benchCandidates.length > 0) {
       setLeaving({ playerId, positionId, reason });
@@ -1513,8 +1532,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     }
     leaveNow(playerId, positionId, reason);
   };
-  const leaveNow = (playerId: string, positionId: string | null, reason: "injured" | "lent" | "subbed") => {
+  const leaveNow = (playerId: string, positionId: string | null, reason: "injured" | "lent" | "subbed" | "went_home") => {
     if (reason === "injured") recordInjury(playerId, true);
+    else if (reason === "went_home") recordInjury(playerId, true, true);
     else if (reason === "lent") recordLoan(playerId, true);
     if (positionId) vacate(playerId, positionId);
   };
@@ -1522,6 +1542,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const handleMarkInjured = () => {
     if (!actionsTarget) return;
     startLeaving(actionsTarget.playerId, actionsTarget.positionId, "injured");
+  };
+
+  const handleWentHome = () => {
+    if (!actionsTarget) return;
+    startLeaving(actionsTarget.playerId, actionsTarget.positionId, "went_home");
   };
 
   const handleUnInjury = () => {
@@ -1903,6 +1928,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           squad={squad}
           trackScoring={trackScoring}
           presentIds={presentPlayerIds(thisGameEvents)}
+          sidelined={{ injured: injuredIds, wentHome: wentHomeSet }}
         />
         {/* Sticky-bottom "Done" CTA — locks to the viewport
             so the user has a big, unmissable exit. It said "Finish
@@ -2012,6 +2038,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           thisGameEvents={thisGameEvents}
           seasonEvents={seasonEvents}
           injuredIds={injuredIds}
+          wentHomeIds={wentHomeSet}
+          onWentHome={(pid) => setLocalWentHome((prev) => ({ ...prev, [pid]: true }))}
           loanedIds={loanedIds}
           playerGoals={playerGoals}
           playerStats={playerStats}
@@ -2239,6 +2267,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         playerStats={playerStats}
         playerGoals={effectivePlayerGoals}
         onTileLongPress={(pid) => handleTokenLongPress(null, pid)}
+        wentHomeIds={wentHomeSet}
       />
 
       {/* Plan-NEXT-period entry (F2 / ROTPLAN-02): in the final
@@ -2474,6 +2503,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             onLockZone={positionId ? handleLockForNextBreak : undefined}
             onUnlock={handleUnlock}
             onToggleInjury={isInjured ? handleUnInjury : handleMarkInjured}
+            wentHome={wentHomeSet.has(playerId)}
+            onWentHome={handleWentHome}
             onToggleLoan={isLoaned ? handleUnLoan : handleMarkLoaned}
             // Mid-quarter sub, only with the team's allow_mid_quarter_subs
             // on (Steve 2026-05-16: most netball comps ban them) and

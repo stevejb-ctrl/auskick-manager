@@ -68,6 +68,13 @@ export function SeasonBalanceControl({
       {showReset && value !== "off" && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-mute">
           <span>{sinceLabel ? `Counting games since ${sinceLabel}` : "Counting every game this season"}</span>
+          {/* Says the history stays: a coach wouldn't press it in case it
+              wiped the stats (Stagehand round 7, 28 Oct 2026). */}
+          {!disabled && confirming && (
+            <span data-testid="season-balance-reset-note" className="w-full text-ink-dim">
+              Balance counts from today. Past games and their stats stay as they are.
+            </span>
+          )}
           {!disabled &&
             (confirming ? (
               <span className="flex items-center gap-1">

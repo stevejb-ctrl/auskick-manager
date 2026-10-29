@@ -11,6 +11,7 @@
 // lives in PeriodBreak.
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { sidelinedLabel } from "@/lib/live/wentHome";
 import { useRouter } from "next/navigation";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { liveEvents } from "@/lib/live/optimisticEvents";
@@ -130,10 +131,11 @@ export function BasketballBreak({
     const injured = new Set(state.injuredIds);
     const loaned = new Set(state.loanedIds);
     const fouled = new Set(state.fouledOutIds);
+    const home = new Set(state.wentHomeIds);
     for (const id of inGame) {
       // A kid who fouls out is recorded as injured (reason "fouled_out").
       if (fouled.has(id)) out[id] = "Fouled out";
-      else if (injured.has(id)) out[id] = "Injured";
+      else if (injured.has(id)) out[id] = sidelinedLabel(id, home);
       else if (loaned.has(id)) out[id] = "Lent";
       else if (!basketballCanPlay(state, id, startMs)) out[id] = "Sitting out";
     }

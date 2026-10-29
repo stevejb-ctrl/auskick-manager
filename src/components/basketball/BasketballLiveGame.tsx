@@ -32,6 +32,7 @@
 // kid's line and lent minutes (UX audit 23 Oct 2026, "Drift from AFL").
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { WENT_HOME_REASON } from "@/lib/live/wentHome";
 import { SFButton } from "@/components/sf";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
@@ -231,7 +232,7 @@ export function BasketballLiveGame({
   const [leaving, setLeaving] = useState<{
     playerId: string;
     line: BasketballLine;
-    reason: "injured" | "fouled_out" | "sitting_out";
+    reason: "injured" | "fouled_out" | "sitting_out" | "went_home";
     /** Opened by the foul that reached the limit: Cancel takes it back. */
     fromFoul?: boolean;
   } | null>(null);
@@ -316,6 +317,7 @@ export function BasketballLiveGame({
   );
   const absNowMs = state.completedPeriodMs + (isPeriodActive ? elapsedMs : 0);
   const injuredSet = useMemo(() => new Set(state.injuredIds), [state.injuredIds]);
+  const wentHomeSet = useMemo(() => new Set(state.wentHomeIds), [state.wentHomeIds]);
   const loanedSet = useMemo(() => new Set(state.loanedIds), [state.loanedIds]);
   const fouledOutSet = useMemo(() => new Set(state.fouledOutIds), [state.fouledOutIds]);
   const totalMsByPlayer = useMemo(
@@ -578,13 +580,14 @@ export function BasketballLiveGame({
     return squad.filter((p) => !placed.has(p.id));
   }, [squad, state.lineup, isFinished]);
 
+  type Leaving = "injured" | "fouled_out" | "sitting_out" | "went_home";
   function markInjured(pid: string, injured: boolean, reason?: string) {
     setError(null);
     const input = { player_id: pid, injured, ...at(), ...(reason ? { reason } : {}) };
     write("markInjury", [auth, game.id, input], liveEvents.injury(input));
   }
   /** A kid leaves the court (hurt, fouled out, sat out): pick who comes on. */
-  function startLeaving(pid: string, reason: "injured" | "fouled_out" | "sitting_out", fromFoul = false) {
+  function startLeaving(pid: string, reason: Leaving, fromFoul = false) {
     const line = state.lineup ? basketballLineOf(state.lineup, pid) : null;
     if (isPeriodActive && line && swappableBench.length > 0) {
       setLeaving({ playerId: pid, line, reason, fromFoul });
@@ -592,16 +595,17 @@ export function BasketballLiveGame({
     }
     leaveNow(pid, reason);
   }
-  function leaveNow(pid: string, reason: "injured" | "fouled_out" | "sitting_out") {
+  function leaveNow(pid: string, reason: Leaving) {
     if (reason === "sitting_out") {
       setError(null);
       const input = { player_id: pid, duration_ms: SIT_OUT_MS, ...at() };
       write("recordBasketballSitOut", [auth, game.id, input], sitOutEvent(input));
     } else {
-      markInjured(pid, true, reason === "fouled_out" ? "fouled_out" : undefined);
+      // Going home is an injury with reason "out" (lib/live/wentHome).
+      markInjured(pid, true, reason === "fouled_out" ? "fouled_out" : reason === "went_home" ? WENT_HOME_REASON : undefined);
     }
   }
-  function leaveAndReplace(pid: string, replacementId: string, line: BasketballLine, reason: "injured" | "fouled_out" | "sitting_out") {
+  function leaveAndReplace(pid: string, replacementId: string, line: BasketballLine, reason: Leaving) {
     setLeaving(null);
     // In order, in the one game lane: the kid leaves, then who comes on.
     leaveNow(pid, reason);
@@ -920,6 +924,7 @@ export function BasketballLiveGame({
             totalMsByPlayer={totalMsByPlayer}
             lineMsByPlayer={state.ms}
             injuredIds={state.injuredIds}
+            wentHomeIds={wentHomeSet}
             loanedIds={state.loanedIds}
             fouledOutIds={state.fouledOutIds}
             sitOutMsLeft={sitOutMsLeft}
@@ -1161,6 +1166,7 @@ export function BasketballLiveGame({
           // minutes, as AFL's sheet has.
           currentLine={actionLine ? spotName(actionLine) : null}
           isInjured={injuredSet.has(actionPlayer.id)}
+          wentHome={wentHomeSet.has(actionPlayer.id)}
           isLoaned={loanedSet.has(actionPlayer.id)}
           seasonLoanMins={chrome.loanMinutes(actionPlayer.id).seasonLoanMins}
           squadLoanMins={chrome.loanMinutes(actionPlayer.id).squadLoanMins}
@@ -1220,6 +1226,11 @@ export function BasketballLiveGame({
             setActionPlayerId(null);
             if (injuredSet.has(pid)) markInjured(pid, false);
             else startLeaving(pid, "injured");
+          }}
+          onWentHome={() => {
+            const pid = actionPlayer.id;
+            setActionPlayerId(null);
+            startLeaving(pid, "went_home");
           }}
           onToggleLoan={() => {
             const pid = actionPlayer.id;

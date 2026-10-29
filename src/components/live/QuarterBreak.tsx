@@ -53,6 +53,10 @@ import { breakIssues } from "@/lib/live/break/issues";
 const RECENT_ARRIVAL_MS = 3 * 60 * 1000; // 3 minutes
 
 interface QuarterBreakProps {
+  /** Of the injured, the kids who went home: "Went home", not "Injured" (lib/live/wentHome). */
+  wentHomeIds?: ReadonlySet<string>;
+  /** A kid marked out here: the live screen keeps them as gone home. */
+  onWentHome?: (playerId: string) => void;
   auth: import("@/lib/types").LiveAuth;
   gameId: string;
   game: Game;
@@ -147,6 +151,8 @@ function lineupOf(s: StagedLineup): Lineup {
 }
 
 export function QuarterBreak({
+  wentHomeIds,
+  onWentHome,
   auth,
   gameId,
   game,
@@ -586,6 +592,7 @@ export function QuarterBreak({
   function handleOutDirect(playerId: string) {
     setLoanError(null);
     setInjured(playerId, true);
+    onWentHome?.(playerId);
     setDraft((prev) => benchPlayerInLineup(prev, playerId));
     startLoanTransition(async () => {
       const result = await markInjury(auth, gameId, {
@@ -607,6 +614,7 @@ export function QuarterBreak({
   function handleOutReplacement(outId: string, replacementId: string, zone: Zone) {
     setLoanError(null);
     setInjured(outId, true);
+    onWentHome?.(outId);
     setDraft((prev) => replaceInLineup(prev, outId, replacementId, zone));
     enqueueLiveAction("markInjury", [
       auth,
@@ -716,9 +724,9 @@ export function QuarterBreak({
   const sidelined = useMemo(() => {
     const out: Record<string, string> = {};
     for (const id of loanedIds) out[id] = "Lent";
-    for (const id of injuredIds) out[id] = "Injured";
+    for (const id of injuredIds) out[id] = wentHomeIds?.has(id) ? "Went home" : "Injured";
     return out;
-  }, [injuredIds, loanedIds]);
+  }, [injuredIds, loanedIds, wentHomeIds]);
 
   const breakPlayers = useMemo(() => new Map(players.map((p) => [p.id, asBreakPlayer(p)])), [players]);
 
@@ -861,7 +869,7 @@ export function QuarterBreak({
           if (!ip) return null;
           const isInjured = injuredSet.has(insightPlayerId);
           const isLoaned = loanedSet.has(insightPlayerId);
-          const status = isInjured ? "Injured" : isLoaned ? "Lent" : "Available";
+          const status = isInjured ? (wentHomeIds?.has(insightPlayerId) ? "Went home" : "Injured") : isLoaned ? "Lent" : "Available";
           return (
             <Modal>
               <div className="flex items-start justify-between gap-3">

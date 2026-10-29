@@ -1,5 +1,7 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { unstable_noStore as noStore } from "next/cache";
+import { runLinkTitle } from "@/lib/share/runLinkTitle";
 import { DeviceFrame } from "@/components/DeviceFrame";
 import { SirenWordmark } from "@/components/marketing/SirenWordmark";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -41,6 +43,19 @@ async function resolveBackTarget(
   const teamRow = row?.team as { is_demo: boolean | null } | undefined;
   const players = row ? await loadSquadNames(admin, row.team_id as string, row.id as string) : [];
   return { backHref: teamRow?.is_demo ? "/demo" : "/", players, gameId: (row?.id as string | undefined) ?? null };
+}
+
+// The tab, and the link preview in the group chat, name the game: the
+// site's title is the host's brand, so a basketball or hockey link read
+// "Siren Footy" (Stagehand round 7, 28 Oct 2026).
+export async function generateMetadata({ params }: { params: { token: string } }): Promise<Metadata> {
+  const { data } = await createAdminClient()
+    .from("games")
+    .select("opponent, team:teams!inner(name)")
+    .eq("share_token", params.token)
+    .maybeSingle();
+  const team = (data?.team as { name: string | null } | undefined)?.name;
+  return data && team ? { title: runLinkTitle(team, data.opponent as string | null) } : {};
 }
 
 export default async function RunLayout({

@@ -15,6 +15,7 @@
 // sheet (UX audit 23 Oct 2026, "Drift from AFL").
 
 import dynamic from "next/dynamic";
+import { WENT_HOME_REASON, wentHomeIds } from "@/lib/live/wentHome";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SFButton, SFIcon } from "@/components/sf";
@@ -286,6 +287,7 @@ export function LeagueLiveGame({
   const [injuryReplacementModal, setInjuryReplacementModal] = useState<{
     injuredId: string;
     zone: "forward" | "back";
+    wentHome?: boolean;
   } | null>(null);
 
 
@@ -422,6 +424,7 @@ export function LeagueLiveGame({
     };
   }, [thisGameEvents]);
   const injuredSet = useMemo(() => new Set(injuredIds), [injuredIds]);
+  const wentHomeSet = useMemo(() => wentHomeIds(thisGameEvents), [thisGameEvents]);
   const loanedSet = useMemo(() => new Set(loanedIds), [loanedIds]);
   // Lent players sourced from the WHOLE squad (not just the lineup), so a
   // player lent before kickoff — who was never placed and so has no field or
@@ -1388,13 +1391,14 @@ export function LeagueLiveGame({
     setActionSheetPlayerId(playerId);
   }
 
-  function markInjured(playerId: string, injured: boolean) {
+  // Going home is an injury with reason "out" (lib/live/wentHome).
+  function markInjured(playerId: string, injured: boolean, wentHome = false) {
     setError(null);
-    const input = { player_id: playerId, injured, ...at() };
+    const input = { player_id: playerId, injured, ...at(), ...(injured && wentHome ? { reason: WENT_HOME_REASON } : {}) };
     write("markInjury", [auth, game.id, input], liveEvents.injury(input));
   }
 
-  function handleToggleInjury(playerId: string, injured: boolean) {
+  function handleToggleInjury(playerId: string, injured: boolean, wentHome = false) {
     if (injured) setSelectedPlayerId((s) => (s === playerId ? null : s));
     // Marking a FIELD player injured: prompt for a replacement before
     // firing anything — mirrors AFL's InjuryReplacementModal flow.
@@ -1414,12 +1418,12 @@ export function LeagueLiveGame({
           : null;
       if (zone !== null && swappableBench.length > 0) {
         setActionSheetPlayerId(null);
-        setInjuryReplacementModal({ injuredId: playerId, zone });
+        setInjuryReplacementModal({ injuredId: playerId, zone, wentHome });
         return;
       }
     }
     // Direct path: recovery, bench-player injury, or no bench available.
-    markInjured(playerId, injured);
+    markInjured(playerId, injured, wentHome);
     setActionSheetPlayerId(null);
   }
 
@@ -1430,10 +1434,10 @@ export function LeagueLiveGame({
    *   2. swap (off=injured, on=replacement) — replacement takes the
    *      exact same slot; injured moves to bench with INJ badge.
    */
-  function handleInjuryReplacement(injuredId: string, replacementId: string) {
+  function handleInjuryReplacement(injuredId: string, replacementId: string, wentHome = false) {
     setInjuryReplacementModal(null);
     // In order, in the one game lane: the injury, then who comes on.
-    markInjured(injuredId, true);
+    markInjured(injuredId, true, wentHome);
     sub(injuredId, replacementId);
     chrome.swapped(injuredId, replacementId);
   }
@@ -1442,9 +1446,9 @@ export function LeagueLiveGame({
    * Coach tapped "Mark injured without replacement" — just flag the
    * player as injured, leave their field slot vacant.
    */
-  function handleInjuryMarkOnly(playerId: string) {
+  function handleInjuryMarkOnly(playerId: string, wentHome = false) {
     setInjuryReplacementModal(null);
-    markInjured(playerId, true);
+    markInjured(playerId, true, wentHome);
   }
 
   function handleToggleLoan(playerId: string, loaned: boolean) {
@@ -1905,6 +1909,7 @@ export function LeagueLiveGame({
             conversionByPlayer={conversionByPlayer}
             kickoffTakerIds={kickoffTakerIds}
             injuredIds={injuredSet}
+            wentHomeIds={wentHomeSet}
             loanedIds={loanedSet}
             selectedPlayerId={selectedPlayerId}
             swapOns={swapOns}
@@ -2443,6 +2448,8 @@ export function LeagueLiveGame({
           }
           onUnlock={() => setActionSheetPlayerId(null)}
           onToggleInjury={() => handleToggleInjury(actionSheetPlayer.id, !actionSheetInjured)}
+          wentHome={wentHomeSet.has(actionSheetPlayer.id)}
+          onWentHome={() => handleToggleInjury(actionSheetPlayer.id, true, true)}
           onToggleLoan={() => handleToggleLoan(actionSheetPlayer.id, !actionSheetLoaned)}
           onSwitch={() => {
             setActionSheetPlayerId(null);
@@ -2503,10 +2510,11 @@ export function LeagueLiveGame({
         return (
           <InjuryReplacementModal
             injuredPlayer={injPlayer}
+            reason={injuryReplacementModal.wentHome ? "went_home" : "injured"}
             spotLabel={LEAGUE_SPOT_LABEL[injuryReplacementModal.zone]}
             candidates={candidates}
-            onPickReplacement={(rid) => handleInjuryReplacement(injuryReplacementModal.injuredId, rid)}
-            onSkipReplacement={() => handleInjuryMarkOnly(injuryReplacementModal.injuredId)}
+            onPickReplacement={(rid) => handleInjuryReplacement(injuryReplacementModal.injuredId, rid, injuryReplacementModal.wentHome)}
+            onSkipReplacement={() => handleInjuryMarkOnly(injuryReplacementModal.injuredId, injuryReplacementModal.wentHome)}
             onCancel={() => setInjuryReplacementModal(null)}
           />
         );

@@ -11,6 +11,7 @@ import type { Player } from "@/lib/types";
 import { shortName, shortNames } from "@/lib/names";
 import { DIDNT_GET_ON, didntGetOn } from "@/lib/live/presentPlayers";
 import { byJerseyThenName } from "@/lib/share/neutralOrder";
+import { summaryStatusNote } from "@/lib/live/wentHome";
 import { soccerGameMs, type SoccerGameState } from "@/lib/sports/soccer/replay";
 
 function fmtMs(ms: number): string {
@@ -64,9 +65,14 @@ export function buildSoccerSummary(input: SoccerSummaryInput): string {
   const played = Object.keys(state.ms)
     .map((id) => ({ id, ms: soccerGameMs(state, id), gk: state.ms[id]?.gk ?? 0 }))
     .filter((r) => r.ms >= 1000);
+  // A kid still off at full time says why: hurt, or gone home.
+  const status = { injured: new Set(state.injuredIds), wentHome: new Set(state.wentHomeIds) };
   const rows = played.map(({ id, ms, gk }) => {
     const p = byId.get(id);
-    return { id, text: `${jersey(p)}${first(p)} — ${fmtMs(ms)}${gk >= 1000 ? ` (in goal ${fmtMs(gk)})` : ""}` };
+    return {
+      id,
+      text: `${jersey(p)}${first(p)} — ${fmtMs(ms)}${gk >= 1000 ? ` (in goal ${fmtMs(gk)})` : ""}${summaryStatusNote(id, status)}`,
+    };
   });
   for (const id of didntGetOn(presentIds, played.map((r) => r.id))) {
     const p = byId.get(id);

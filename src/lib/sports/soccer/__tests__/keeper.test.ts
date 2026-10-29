@@ -63,6 +63,17 @@ describe("pickSoccerKeeper: named keepers", () => {
     expect(keepers({ prefs: { namedKeepers: ["cal"] }, lastKeeper: "cal" })).toBe("cal");
   });
 
+  it("keeps the kid in goal there when nobody is named yet (Stagehand round 7)", () => {
+    // A new U13 hockey team: "Keepers", nobody marked. It moved on from
+    // last quarter's keeper at every break.
+    const none = (over: Partial<Parameters<typeof pickSoccerKeeper>[0]> = {}) =>
+      pickSoccerKeeper({ strategy: "keepers", candidates: KIDS, prefs: {}, ...over });
+    expect(none({ lastKeeper: "cal", keeperMs: { cal: 15 * MIN } })).toBe("cal");
+    // Not one marked "not in goal", nor one who's gone.
+    expect(none({ lastKeeper: "cal", prefs: { notInGoal: ["cal"] } })).not.toBe("cal");
+    expect(none({ lastKeeper: "zed" })).toBe("ava");
+  });
+
   it("skips a named keeper who isn't here, and gives everyone a turn when none is", () => {
     expect(keepers({ candidates: ["ava", "ben", "cal"] })).toBe("ben");
     expect(

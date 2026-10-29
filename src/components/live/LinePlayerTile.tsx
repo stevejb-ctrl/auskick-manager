@@ -61,6 +61,8 @@ export interface LinePlayerTileProps {
   /** This game's time in each line: the bar. */
   lineMs?: Partial<Record<string, number>>;
   injured?: boolean;
+  /** Injured with reason "out": the kid went home (lib/live/wentHome). */
+  wentHome?: boolean;
   loaned?: boolean;
   /** "field" = Keep on (never subbed); "zone" = kept in a line. */
   lockMode?: "field" | "zone" | null;
@@ -108,6 +110,7 @@ function LinePlayerTileImpl({
   totalMs,
   lineMs,
   injured,
+  wentHome = false,
   loaned,
   lockMode,
   score,
@@ -249,8 +252,8 @@ function LinePlayerTileImpl({
             )}
             {extraChip}
             {injured ? (
-              <span className={`${CHIP} bg-danger tracking-micro text-white`} aria-label="Injured">
-                INJ
+              <span className={`${CHIP} ${wentHome ? "bg-ink-mute" : "bg-danger"} tracking-micro text-white`} aria-label={wentHome ? "Went home" : "Injured"}>
+                {wentHome ? "HOME" : "INJ"}
               </span>
             ) : null}
             {loaned && !injured && (
@@ -355,6 +358,7 @@ function areEqual(a: LinePlayerTileProps, b: LinePlayerTileProps): boolean {
     a.selected !== b.selected ||
     a.dimmed !== b.dimmed ||
     a.injured !== b.injured ||
+    a.wentHome !== b.wentHome ||
     a.loaned !== b.loaned ||
     a.lockMode !== b.lockMode ||
     a.positionLabel !== b.positionLabel ||
