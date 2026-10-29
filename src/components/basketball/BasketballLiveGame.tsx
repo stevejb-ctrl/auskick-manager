@@ -867,7 +867,9 @@ export function BasketballLiveGame({
       )}
       {isPeriodActive && nextSubs.length > 0 && subDue.due && (
         <p className="-mt-1 px-1 text-[11px] text-ink-dim">
-          Send them to the table now, and tap them on when the whistle goes.
+          {/* Plain words: "the table" and "the whistle" lost a parent who
+              doesn't know basketball (Stagehand round 8, #14). */}
+          Send the kids coming on to the scorer&apos;s table now. Tap Make swap when play stops and the ref waves them on.
         </p>
       )}
 
