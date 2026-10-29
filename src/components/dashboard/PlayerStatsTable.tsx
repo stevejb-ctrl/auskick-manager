@@ -129,9 +129,9 @@ export function PlayerStatsTable({ stats, hasData }: Props) {
 
               {/* Stats grid */}
               <div className="mt-3 grid grid-cols-4 gap-2">
-                <Metric label="GP" value={p.gamesPlayed} />
-                <Metric label="Avg/G" value={`${fmt(p.avgMsPerGame)}m`} />
-                <Metric label="% Time" value={`${p.teamGameTimePct}%`} />
+                <Metric label="Games" value={p.gamesPlayed} />
+                <Metric label="A game" value={`${fmt(p.avgMsPerGame)}m`} />
+                <Metric label="Of game time" value={`${p.teamGameTimePct}%`} />
                 <Metric
                   label="Goals"
                   value={p.goals}

@@ -164,3 +164,14 @@ export function seasonBalanceGrid({
   );
   return { units: columns, rows, within, total };
 }
+
+/**
+ * The kids owed at least a period somewhere this season, most owed first:
+ * the one answer a coach opens Stats for (design review, Oct 2026).
+ */
+export function owedPlayers(grid: SeasonGrid): string[] {
+  return grid.rows
+    .filter((r) => r.biggestGap >= 1)
+    .sort((a, b) => b.biggestGap - a.biggestGap || a.name.localeCompare(b.name))
+    .map((r) => r.name);
+}

@@ -94,31 +94,37 @@ export function DashboardShell({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:gap-6">
+        {/* Season balance first: the answer (design review, Oct 2026). */}
+        {seasonBalance && <SeasonBalanceSection {...seasonBalance} />}
+
         {/* 1. Per-player stats */}
         <Section title="Player statistics">
           <PlayerStatsTable stats={playerStats} hasData={hasZoneData} />
         </Section>
 
-        {seasonBalance && <SeasonBalanceSection {...seasonBalance} />}
-
-        {/* Position fit */}
-        <Section title="Position fit">
-          <PositionFit
-            rows={positionFit}
-            playerNames={playerNames}
-            hasData={hasZoneData && hasScoringData}
-          />
-        </Section>
+        {/* Position fit — only once there's something to show; an empty
+            "No data yet" box was just more scrolling. */}
+        {hasZoneData && hasScoringData && (
+          <Section title="Position fit">
+            <PositionFit
+              rows={positionFit}
+              playerNames={playerNames}
+              hasData
+            />
+          </Section>
+        )}
 
         {/* 6. Head-to-head */}
         <Section title="Head-to-head by opponent">
           <HeadToHead records={headToHead} hasData={totalGames > 0} />
         </Section>
 
-        {/* 7. Quarter-by-quarter scoring */}
-        <Section title="Quarter-by-quarter scoring">
-          <QuarterScoring rows={quarterScoring} hasData={hasScoringData} />
-        </Section>
+        {/* 7. Quarter-by-quarter scoring — hidden until a score is kept. */}
+        {hasScoringData && (
+          <Section title="Quarter-by-quarter scoring">
+            <QuarterScoring rows={quarterScoring} hasData />
+          </Section>
+        )}
 
         {/* 8. Attendance */}
         <Section title="Attendance">

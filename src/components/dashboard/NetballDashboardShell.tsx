@@ -122,11 +122,8 @@ export function NetballDashboardShell(props: Props) {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:gap-6">
-        <Section title="Player statistics">
-          <NetballPlayerStatsTable stats={playerStats} hasData={hasPlayData} />
-        </Section>
-
-        {/* Season balance replaces "Game time" minutes equity (UX plan 4.4). */}
+        {/* Season balance replaces "Game time" minutes equity (UX plan 4.4),
+            and comes first: it's the answer (design review, Oct 2026). */}
         {props.seasonBalance ? (
           <SeasonBalanceSection {...props.seasonBalance} />
         ) : (
@@ -134,6 +131,10 @@ export function NetballDashboardShell(props: Props) {
             <MinutesEquity stats={minutesEquityRows} hasData={hasPlayData} />
           </Section>
         )}
+
+        <Section title="Player statistics">
+          <NetballPlayerStatsTable stats={playerStats} hasData={hasPlayData} />
+        </Section>
 
         <Section title="Player chemistry — top pairs">
           <NetballChemistry
