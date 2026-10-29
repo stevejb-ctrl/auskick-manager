@@ -21,6 +21,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { UndoStrip } from "@/components/live/UndoStrip";
 import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { SwapDoneToast } from "@/components/live/SwapDoneToast";
+import { WalkthroughModal, buildSharedWalkthroughSteps } from "@/components/live/WalkthroughModal";
 import { useSquadNames } from "@/components/live/SquadNames";
 import { hapticTap } from "@/lib/haptics";
 import {
@@ -79,6 +80,8 @@ export interface LiveChrome {
   toast: ReactNode;
   /** The swap confirm. */
   overlays: ReactNode;
+  /** Opens the walkthrough (the top bar's ?), these sports' first. */
+  openHelp(): void;
   /** A kid's first name, as the toasts and strip say it. */
   firstName(playerId: string): string;
   /** The long-press sheet's lent minutes for a kid. */
@@ -103,6 +106,7 @@ export function useLiveChrome(opts: {
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [toastText, setToastText] = useState<string | null>(null);
   const [toastUndo, setToastUndo] = useState<{ run: () => void } | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pendingSwap, setPendingSwap] = useState<PendingSwap | null>(null);
   const names = useSquadNames();
@@ -188,7 +192,10 @@ export function useLiveChrome(opts: {
         }
       />
     ) : null,
-    overlays: pendingSwap ? (
+    openHelp: () => setHelpOpen(true),
+    overlays: helpOpen ? (
+      <WalkthroughModal steps={buildSharedWalkthroughSteps()} onClose={() => setHelpOpen(false)} />
+    ) : pendingSwap ? (
       <SwapConfirmDialog
         off={pendingSwap.offId ?? ""}
         on={pendingSwap.onId}

@@ -729,6 +729,7 @@ export function SoccerLiveGame({
   return (
     <div ref={liveRootRef} className={`space-y-3 ${stickyPb}`.trim()}>
       <LiveTopBar
+        onHelp={chrome.openHelp}
         exitHref={exitHref}
         game={game}
         isLive={base.currentPeriod > 0}

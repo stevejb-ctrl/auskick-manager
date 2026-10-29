@@ -814,6 +814,7 @@ export function BasketballLiveGame({
     // scrolling").
     <div ref={liveRootRef} className="space-y-3">
       <LiveTopBar
+        onHelp={chrome.openHelp}
         exitHref={exitHref}
         game={game}
         isLive={base.currentPeriod > 0}

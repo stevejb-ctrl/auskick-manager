@@ -845,6 +845,7 @@ export function TouchLiveGame({
     // a measured in-flow spacer, and the player dock floats over the page.
     <div ref={liveRootRef} className="space-y-3">
       <LiveTopBar
+        onHelp={chrome.openHelp}
         exitHref={exitHref}
         game={game}
         isLive={base.currentPeriod > 0}

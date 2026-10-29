@@ -237,3 +237,17 @@ test("#14 AFL: two quick taps that swap field kids can be undone from the toast"
     .toBe(2);
   await context.close();
 });
+
+test("#14 football's live screen has a ? that ends on the words you'll see", async ({ browser }) => {
+  const { game } = await inFirstPeriod("soccer");
+  const { context, page } = await parentPhone(browser);
+  await openLive(page, `/run/${game.share_token}`);
+  await page.getByRole("button", { name: "Open walkthrough" }).click();
+  const dialog = page.getByRole("dialog");
+  for (let i = 0; i < 8 && !(await dialog.getByText("Words you'll see").isVisible()); i++) {
+    await dialog.getByRole("button", { name: "Next" }).click();
+  }
+  await expect(dialog.getByText("Words you'll see")).toBeVisible();
+  await expect(dialog).toContainText("Pair 1, OFF 1");
+  await context.close();
+});
