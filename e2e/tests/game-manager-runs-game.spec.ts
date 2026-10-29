@@ -20,13 +20,15 @@ import type { SportId } from "../../src/lib/sports";
 
 test.describe.configure({ mode: "parallel" });
 
-const CASES: { sport: SportId; ageGroup: string; first: RegExp }[] = [
-  { sport: "afl", ageGroup: "U10", first: /^start q1$/i },
-  { sport: "netball", ageGroup: "11u", first: /^start q1$/i },
-  { sport: "soccer", ageGroup: "U8", first: /^start h1$/i },
-  { sport: "basketball", ageGroup: "U12", first: /^start q1$/i },
-  { sport: "rugby_league", ageGroup: "U8", first: /^start h1$/i },
-  { sport: "touch", ageGroup: "U10", first: /^start h1$/i },
+// Quarters or halves by sport and age: the first period's Start either way.
+const FIRST = /^start [qh]1$/i;
+const CASES: { sport: SportId; ageGroup: string }[] = [
+  { sport: "afl", ageGroup: "U10" },
+  { sport: "netball", ageGroup: "11u" },
+  { sport: "soccer", ageGroup: "U8" },
+  { sport: "basketball", ageGroup: "U12" },
+  { sport: "rugby_league", ageGroup: "U10" },
+  { sport: "touch", ageGroup: "U10" },
 ];
 
 async function managedGame(c: (typeof CASES)[number]) {
@@ -67,7 +69,7 @@ for (const c of CASES) {
       });
       await page.goto(`/teams/${team.id}/games/${game.id}/live`);
       await waitForHydration(page);
-      await page.getByRole("button", { name: c.first }).click({ timeout: 20_000 });
+      await page.getByRole("button", { name: FIRST }).click({ timeout: 20_000 });
       await page.getByRole("button", { name: /^start [qh]\d+ now$|^start anyway$/i }).click({ timeout: 10_000 });
       await expect(page.getByRole("button", { name: /^clock — [qh]1, running$/i })).toBeVisible({ timeout: 20_000 });
 

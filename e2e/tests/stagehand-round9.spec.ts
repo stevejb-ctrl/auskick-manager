@@ -77,7 +77,7 @@ test("#2 a live game's badge and Back to live game button, and the stats notice,
 
   await page.goto(`/teams/${team.id}/games`);
   await waitForHydration(page);
-  const live = page.locator('span[aria-label="Live"]').first();
+  const live = page.locator('span[aria-label="Live"]').filter({ visible: true }).first();
   await expect(live).toBeVisible({ timeout: 15_000 });
   expect(await contrastOf(live)).toBeGreaterThanOrEqual(4.5);
 

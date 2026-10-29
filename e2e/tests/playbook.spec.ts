@@ -567,7 +567,7 @@ test("two kids can't be kept apart and kept together", async ({ page }) => {
   expect((await rules()).find((r) => r.kind === "keep-together")?.params.playerIds ?? []).toEqual([]);
 
   // Remove the apart rule, and together saves.
-  await page.getByRole("button", { name: /Remove rule: Keep .* apart/ }).click();
+  await page.getByRole("button", { name: /Remove rule: Keep .* in different lines/ }).click();
   await page.getByRole("button", { name: "Choose players" }).click();
   const picker = page.getByRole("group", { name: "Players" });
   await picker.getByRole("checkbox", { name: mia.full_name }).click();
