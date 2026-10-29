@@ -134,7 +134,7 @@
         "Lend a player to the opposition and track their time separately"
       ],
       "image": "/marketing/screenshots/rl-long-press.png",
-      "imageAlt": "Player actions sheet with keeper, injury and lend options"
+      "imageAlt": "Rugby league player actions: switch player, mark injured, went home, or lend to the opposition"
     },
     {
       "id": "share",
@@ -151,7 +151,7 @@
         "Coach stays focused on the field"
       ],
       "image": "/marketing/screenshots/share.png",
-      "imageAlt": "Public run-link view for parents"
+      "imageAlt": "A parent's phone on the game-day link: the live field, scoring for their team, no login"
     },
     {
       "id": "stats",

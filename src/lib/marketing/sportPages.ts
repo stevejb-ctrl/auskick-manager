@@ -78,7 +78,7 @@ export const SHARED_FEATURES: readonly SharedFeature[] = [
     body: "Late arrivals, injuries, a kid lent to the other side. Tap a player, then Player actions, and play on.",
     shownIn: "rugby_league",
     image: `${SHOTS}/rl-long-press.png`,
-    imageAlt: "Rugby league player actions: switch, mark injured or lend to the opposition",
+    imageAlt: "Rugby league player actions: switch player, mark injured, went home, or lend to the opposition",
     focus: "50% 50%",
   },
   {
@@ -86,7 +86,7 @@ export const SHARED_FEATURES: readonly SharedFeature[] = [
     body: "Send a link and a parent runs the game from the sideline. No app, no account.",
     shownIn: null,
     image: `${SHOTS}/share.png`,
-    imageAlt: "A game's share link: anyone with it can run the game, no login needed",
+    imageAlt: "A parent's phone on the game-day link: the live field, scoring for their team, no login",
     focus: "50% 50%",
   },
   {
@@ -94,7 +94,7 @@ export const SHARED_FEATURES: readonly SharedFeature[] = [
     body: "See who has played where across the season, and fix it before next week.",
     shownIn: "netball",
     image: `${SHOTS}/netball/stats.png`,
-    imageAlt: "Netball season stats: each player's share of attack, centre and defence",
+    imageAlt: "Netball season balance: everyone within a quarter of even, with minutes in attack, centre and defence",
     focus: "50% 4%",
   },
 ];
