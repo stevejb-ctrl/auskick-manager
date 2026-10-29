@@ -440,15 +440,16 @@ function NextUpHero({
           <Eyebrow className="!text-warm/70">Next up</Eyebrow>
           <div className="mt-2.5 flex items-start gap-4">
             {game.round_number != null && (
-              <div className="text-warm">
+              // Large text: the name needs the width more than the numeral.
+              <div className="text-warm bigtext:hidden">
                 <RoundNumeral n={game.round_number} size={56} />
               </div>
             )}
             <div className="min-w-0 flex-1">
               <div className="text-xs font-medium text-warm/70">vs</div>
-              {/* Long names wrap, even mid-word, rather than clip (at 200%
-                  text "Sandringham" was cut to "Sandring"). */}
-              <div className="mt-0.5 break-words text-2xl font-bold leading-tight tracking-tightest [overflow-wrap:anywhere] sm:text-3xl">
+              {/* Long names wrap (hyphenated if a word won't fit) rather
+                  than clip: at 200% text "Sandringham" was cut to "Sandring". */}
+              <div className="mt-0.5 hyphens-auto break-words text-2xl font-bold leading-tight tracking-tightest sm:text-3xl bigtext:text-xl">
                 {game.opponent}
               </div>
               <div className="mt-2 flex flex-col gap-1 text-sm text-warm/85">
