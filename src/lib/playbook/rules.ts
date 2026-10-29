@@ -313,3 +313,23 @@ export function activeRules(rules: RuleInstance[]): RuleInstance[] {
     return r.kind === "stays-home" ? n >= 1 : n >= 2;
   });
 }
+
+/**
+ * Two players a "keep apart" rule and a "keep together" rule both name:
+ * Siren can't do both (usability pass, 26 Oct 2026: a coach saved both
+ * for the same pair, and the live screen warned they were "split up").
+ * The first such pair, or null.
+ */
+export function pairingConflict(rules: RuleInstance[]): [string, string] | null {
+  const live = activeRules(rules);
+  const together = live.filter((r) => r.kind === "keep-together").map((r) => new Set(r.params.playerIds ?? []));
+  for (const apart of live.filter((r) => r.kind === "keep-apart")) {
+    const ids = apart.params.playerIds ?? [];
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        if (together.some((group) => group.has(ids[i]) && group.has(ids[j]))) return [ids[i], ids[j]];
+      }
+    }
+  }
+  return null;
+}

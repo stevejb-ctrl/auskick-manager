@@ -134,7 +134,8 @@ export function unnamedScoreFromEvents(sport: Sport, events: GameEvent[]): { det
   const sum = (byKid: Record<string, number>) => Object.values(byKid).reduce((s, n) => s + n, 0);
   if (isSoccer(sport)) {
     const r = replaySoccerGame(events);
-    const goals = r.teamScore.goals - sum(r.playerGoals);
+    // Own goals have their own row (ownGoalsFromEvents).
+    const goals = r.teamScore.goals - sum(r.playerGoals) - r.ownGoals;
     return goals > 0 ? { detail: `${goals} ${goals === 1 ? "goal" : "goals"}`, points: goals } : null;
   }
   if (isBasketball(sport)) {
@@ -148,6 +149,11 @@ export function unnamedScoreFromEvents(sport: Sport, events: GameEvent[]): { det
     return tries > 0 ? { detail: `${tries} ${tries === 1 ? "try" : "tries"}`, points: r.teamScore.points - sum(r.playerPoints) } : null;
   }
   return null;
+}
+
+/** Football, futsal and hockey: our goals they put in their own net. */
+export function ownGoalsFromEvents(sport: Sport, events: GameEvent[]): number {
+  return isSoccer(sport) ? replaySoccerGame(events).ownGoals : 0;
 }
 
 /**

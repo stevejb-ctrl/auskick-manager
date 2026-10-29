@@ -150,12 +150,14 @@ export function LongPressHint({ enabled = true }: { enabled?: boolean }) {
                 the gesture reads as a general menu trigger, with
                 a short examples list so the lock case still
                 surfaces. */}
-            {/* Tap reaches every action since UX plan 1.6 (Player
-                actions in the dock); the hint now sells the shortcut.
-                Every sport shows it, so it names only actions every
-                sport's sheet has: rugby has no "keep on" (ten-sport UX
-                audit, 23 Oct 2026). */}
-            <span>Shortcut: long-press a player for actions (switch, injured, lend…)</span>
+            {/* A tap reaches every action (UX plan 1.6: the dock's
+                Player actions button, or the sheet straight away in
+                netball), so the hint teaches the tap; the long-press
+                still works as a shortcut but isn't taught (Steve,
+                26 Oct 2026). Every sport shows it, so it names only
+                actions every sport's sheet has: rugby has no "keep on"
+                (ten-sport UX audit, 23 Oct 2026). */}
+            <span>Tap a player for actions (switch, injured, lend…)</span>
             <button
               type="button"
               onClick={handleGotIt}

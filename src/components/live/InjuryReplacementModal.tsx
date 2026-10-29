@@ -32,6 +32,12 @@ interface InjuryReplacementModalProps {
   /** Don't mark injured at all. */
   onCancel: () => void;
   /**
+   * The cancel button's words, when cancelling does more than close
+   * (basketball: the foul that opened the sheet comes off). "Cancel"
+   * when left out.
+   */
+  cancelLabel?: string;
+  /**
    * Why the kid is coming off, for the words: an injury (the default),
    * a foul-out or a sit-out (basketball), a loan or a mid-quarter
    * switch (netball). The flow is the same.
@@ -67,6 +73,7 @@ export function InjuryReplacementModal({
   onPickReplacement,
   onSkipReplacement,
   onCancel,
+  cancelLabel = "Cancel",
   reason = "injured",
 }: InjuryReplacementModalProps) {
   const names = useSquadNames();
@@ -147,7 +154,7 @@ export function InjuryReplacementModal({
             onClick={onCancel}
             className="w-full py-1.5 text-xs text-ink-mute transition-colors duration-fast ease-out-quart hover:text-ink"
           >
-            Cancel
+            {cancelLabel}
           </button>
         </div>
       </Modal>

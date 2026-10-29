@@ -270,3 +270,45 @@ test("tapping a player reaches Mark injured without a long-press", async ({ page
   await expect(sheet.getByRole("button", { name: /keep on field/i })).toBeVisible();
   await expect(sheet.getByRole("button", { name: /keep in back/i })).toBeVisible();
 });
+
+// Steve, 26 Oct 2026: the first-visit hint (and the walkthrough) still
+// taught a long-press, though a tap and the Player actions button are
+// how player actions work now. The hint teaches the tap, and following
+// it opens the sheet.
+test("the first-visit hint teaches the tap, not a long-press", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find(
+    (u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL
+  )!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  const onField = players.slice(0, game.on_field_size);
+  const third = Math.floor(game.on_field_size / 3);
+  const lineup = {
+    back: onField.slice(0, third).map((p) => p.id),
+    hback: [],
+    mid: onField.slice(third, third * 2).map((p) => p.id),
+    hfwd: [],
+    fwd: onField.slice(third * 2).map((p) => p.id),
+    bench: players.slice(game.on_field_size).map((p) => p.id),
+  };
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "lineup_set", metadata: { lineup }, created_by: ownerId },
+    { game_id: game.id, type: "quarter_start", metadata: { quarter: 1 }, created_by: ownerId },
+  ]);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+  await page.addInitScript(() => {
+    try { localStorage.setItem("gm-walkthrough-seen", "1"); } catch {}
+  });
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  const hint = page.getByRole("status").filter({ hasText: /got it/i });
+  await expect(hint).toContainText(/tap a player for actions/i, { timeout: 10_000 });
+  await expect(hint).not.toContainText(/long-press/i);
+
+  await page.getByTestId(`player-tile-${onField[0].id}`).click();
+  await page.getByRole("button", { name: /^player actions/i }).click();
+  await expect(page.getByRole("dialog").getByRole("button", { name: /mark injured/i })).toBeVisible();
+});

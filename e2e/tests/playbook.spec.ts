@@ -535,6 +535,45 @@ test("a coach adds rules and a local rule pack", async ({ page }) => {
   await expect.poll(async () => (await rules()).some((r) => r.kind === "keep-apart")).toBe(false);
 });
 
+// Usability pass, 26 Oct 2026: a coach saved "keep Player 3 and Player 4
+// apart" and "keep them together", and the live screen warned they were
+// split up. The second rule is refused now, with why.
+test("two kids can't be kept apart and kept together", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await superAdminId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U12", sport: "afl" });
+  const [mia, jack] = await makePlayers(admin, { teamId: team.id, ownerId, count: 4 });
+  const rules = async () =>
+    ((await playbookRow(admin, team.id)) as { rules?: { kind: string; params: { playerIds?: string[] } }[] } | null)?.rules ?? [];
+
+  await page.goto(`/teams/${team.id}/settings`);
+  const pick = async (title: string) => {
+    await page.getByRole("button", { name: "+ Add a rule" }).click({ timeout: 15_000 });
+    await page.getByRole("listitem").filter({ hasText: title }).click();
+    const picker = page.getByRole("group", { name: "Players" });
+    await picker.getByRole("checkbox", { name: mia.full_name }).click();
+    await picker.getByRole("checkbox", { name: jack.full_name }).click();
+    await page.getByRole("button", { name: "Done" }).click();
+  };
+  await pick("Keep players apart");
+  await expect.poll(async () => (await rules()).find((r) => r.kind === "keep-apart")?.params.playerIds).toEqual([mia.id, jack.id]);
+
+  await pick("Keep players together");
+  await expect(page.getByText(/already in a "keep together" rule and a "keep apart" rule/)).toBeVisible();
+  // Nothing saved keeps them together.
+  await page.waitForTimeout(1_000);
+  expect((await rules()).find((r) => r.kind === "keep-together")?.params.playerIds ?? []).toEqual([]);
+
+  // Remove the apart rule, and together saves.
+  await page.getByRole("button", { name: /Remove rule: Keep .* apart/ }).click();
+  await page.getByRole("button", { name: "Choose players" }).click();
+  const picker = page.getByRole("group", { name: "Players" });
+  await picker.getByRole("checkbox", { name: mia.full_name }).click();
+  await picker.getByRole("checkbox", { name: jack.full_name }).click();
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect.poll(async () => (await rules()).find((r) => r.kind === "keep-together")?.params.playerIds).toEqual([mia.id, jack.id]);
+});
+
 test("Must rules shape the game-day lineup", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);

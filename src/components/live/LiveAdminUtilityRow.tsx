@@ -32,6 +32,7 @@
 import type { ReactNode } from "react";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { ResetGameButton } from "@/components/games/ResetGameButton";
+import { LiveFixScoresButton } from "@/components/live/LiveFixScoresButton";
 import type { LiveAuth, Player } from "@/lib/types";
 
 interface LiveAdminUtilityRowProps {
@@ -73,6 +74,8 @@ interface LiveAdminUtilityRowProps {
    * runner link can't wipe a finished game.
    */
   finished?: boolean;
+  /** The game keeps score: coaches get Fix scores (LiveFixScoresButton). */
+  trackScoring?: boolean;
 }
 
 export function LiveAdminUtilityRow({
@@ -85,6 +88,7 @@ export function LiveAdminUtilityRow({
   settings: settingsProp,
   extra: extraProp,
   finished = false,
+  trackScoring = false,
 }: LiveAdminUtilityRowProps) {
   const showLate = candidates.length > 0 && !finished;
   const isAdmin = isAdminProp && !finished && auth.kind !== "token";
@@ -96,7 +100,10 @@ export function LiveAdminUtilityRow({
   // a non-admin / no-late-arrivals render.
   if (!showLate && !isAdmin && !settings && !extra) return null;
   return (
-    <div className="flex items-center justify-center gap-3 border-t border-hairline pt-4">
+    // Wraps: with Fix scores beside late arrival, settings and Restart,
+    // one row ran past a phone at 200% text and widened the whole page
+    // (a11y-sheet-fits: the scorer sheet's Cancel fell off the screen).
+    <div className="flex flex-wrap items-center justify-center gap-3 border-t border-hairline pt-4">
       {showLate && (
         <LateArrivalMenu
           candidates={candidates}
@@ -106,6 +113,7 @@ export function LiveAdminUtilityRow({
       )}
       {settings}
       {extra}
+      {isAdmin && trackScoring && auth.kind === "team" && <LiveFixScoresButton teamId={auth.teamId} gameId={gameId} />}
       {isAdmin && <ResetGameButton auth={auth} gameId={gameId} />}
     </div>
   );

@@ -569,6 +569,19 @@ export function SoccerLiveGame({
     void hapticTap("light");
     chrome.scored({ side: "us", what: "goal", scorerId, key });
   }
+  // An own goal: theirs into their own net, counts for us (recordSoccerOwnGoal).
+  function ownGoal() {
+    if (!trackScoring) return;
+    setSelectedId(null);
+    setError(null);
+    const key = write("recordSoccerOwnGoal", [auth, game.id, base.currentPeriod, elapsedRef.current], {
+      type: "goal",
+      player_id: null,
+      metadata: { own_goal: true, ...at() },
+    });
+    void hapticTap("light");
+    chrome.scored({ side: "us", what: "goal (own goal)", key });
+  }
   const opponentGoal = () => {
     setError(null);
     const key = write(
@@ -892,6 +905,7 @@ export function SoccerLiveGame({
       )}
 
       <LiveAdminUtilityRow
+        trackScoring={trackScoring}
         candidates={lateArrivalCandidates}
         onLateArrival={addLateArrival}
         lateArrivalPending={pending}
@@ -952,7 +966,7 @@ export function SoccerLiveGame({
         <LiveStickyScoreBar
           scoringOff={
             !trackScoring
-              ? { settingsHref: auth.kind === "team" && isAdmin ? `/teams/${auth.teamId}/settings#section-game-day-extras` : null }
+              ? { teamId: auth.kind === "team" && isAdmin ? auth.teamId : null }
               : undefined
           }
           scorebug={
@@ -1064,6 +1078,16 @@ export function SoccerLiveGame({
               teamGoal(null);
             },
           }}
+          extraOptions={[
+            {
+              label: "Own goal (theirs)",
+              subLabel: "One of theirs put it in their own net. Counts for us, credited to nobody",
+              onSelect: () => {
+                setScorerPickerOpen(false);
+                ownGoal();
+              },
+            },
+          ]}
           onPick={(pid) => {
             setScorerPickerOpen(false);
             teamGoal(pid);

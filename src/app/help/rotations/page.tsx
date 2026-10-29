@@ -153,7 +153,8 @@ export default function RotationsPage() {
         <p className="mt-2 text-sm text-ink-dim">
           Netball teams that prefer to sub mid-quarter can turn on{" "}
           <strong className="text-ink">Allow mid-quarter subs</strong> (Team ›
-          How we play). Then long-press a player on court and tap{" "}
+          How we play). Then tap a player on court (for GS or GA with
+          scoring on, then Player actions) and tap{" "}
           <strong className="text-ink">Switch player</strong> to bring someone
           on.
         </p>
@@ -188,8 +189,9 @@ export default function RotationsPage() {
         <h3 className="mt-5 font-semibold text-ink">The keeper</h3>
         <p className="mt-2 text-sm text-ink-dim">
           From Under 8 one kid keeps goal for the whole half. Rolling subs
-          never take the keeper off; to change keeper mid-half, long-press
-          the keeper and tap <strong className="text-ink">Replace keeper</strong>.
+          never take the keeper off; to change keeper mid-half, tap the
+          keeper, then Player actions, and tap{" "}
+          <strong className="text-ink">Replace keeper</strong>.
           At half-time Siren plans the next half, starting with who takes the
           keeper top. Choose how in <strong className="text-ink">How we play</strong>:
         </p>
@@ -229,7 +231,7 @@ export default function RotationsPage() {
         <p className="mt-2 text-sm text-ink-dim">
           One kid keeps goal for the half. Futsal&apos;s laws let a sub swap
           with the keeper at any time, so to change keeper mid-half,
-          long-press the keeper and tap{" "}
+          tap the keeper, then Player actions, and tap{" "}
           <strong className="text-ink">Replace keeper</strong>. At half-time
           Siren plans the next half, starting with who goes in goal.{" "}
           <strong className="text-ink">Everyone has a turn in goal</strong> is
@@ -260,7 +262,8 @@ export default function RotationsPage() {
           play. Two minutes before the break Siren names who&apos;s in goal
           next (&ldquo;Mia&apos;s in goal next half: start kitting
           up&rdquo;), and the break&apos;s plan starts with them. If the
-          keeper is hurt, long-press them and mark the injury, then pick who
+          keeper is hurt, tap them, then Player actions, and mark the
+          injury, then pick who
           goes in.{" "}
           <strong className="text-ink">Everyone has a turn in goal</strong> is
           the default from Under 9 to Under 12, and{" "}
@@ -327,7 +330,8 @@ export default function RotationsPage() {
           <strong className="text-ink">+ Foul</strong>. Each tile shows its
           count; Siren takes a kid one foul short of fouling out off first, and
           the fifth foul takes them out for the game. You pick who comes on. For
-          a technical or unsportsmanlike foul, long-press the kid and tap{" "}
+          a technical or unsportsmanlike foul, tap the kid, then Player
+          actions, and tap{" "}
           <strong className="text-ink">Sit out 5 min</strong>: they can&apos;t
           come back on until five minutes of playing time have run (timeouts
           don&apos;t count).
@@ -573,8 +577,8 @@ export default function RotationsPage() {
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Keeping a player on</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          Long-press a player (or tap them, then{" "}
-          <strong className="text-ink">Player actions</strong>) to open the
+          Tap a player, then{" "}
+          <strong className="text-ink">Player actions</strong>, to open the
           sheet:
         </p>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">

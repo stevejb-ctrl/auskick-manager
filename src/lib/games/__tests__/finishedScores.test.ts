@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GameEvent } from "@/lib/types";
-import { finishedScoreLog, scoreFixRows, scoreKinds, type ScoreFix } from "@/lib/games/finishedScores";
+import { finishedScoreLog, periodInPlay, scoreFixRows, scoreKinds, type ScoreFix } from "@/lib/games/finishedScores";
 import { scoreFromEvents, scorersFromEvents } from "@/lib/results";
 import { replayNetballGameForStats } from "@/lib/dashboard/netballAggregators";
 
@@ -153,5 +153,54 @@ describe("fixing a finished game's scores", () => {
     expect(scoreFixRows("afl", events, { op: "add", type: "try", playerId: null, period: 1 })).toEqual({
       error: "That isn't a score in this sport.",
     });
+  });
+});
+
+// Usability pass, 26 Oct 2026: a wrong score from earlier in the quarter
+// stayed until the break. The live screen's Fix scores writes the same
+// events, without the after-full-time tag.
+describe("fixing a game that's on", () => {
+  it("takes off an earlier score mid-quarter, untagged", () => {
+    const events = [
+      ev("lineup_set", null, {}),
+      ev("quarter_start", null, { quarter: 1 }),
+      ev("goal", "ava", { quarter: 1 }),
+      ev("goal", "ben", { quarter: 1 }),
+    ];
+    const rows = scoreFixRows("afl", events, { op: "delete", eventId: events[2].id }, { finished: false });
+    if ("error" in rows) throw new Error(rows.error);
+    expect(rows).toEqual([
+      { type: "score_undo", player_id: "ava", metadata: { target_event_id: events[2].id, original_type: "goal", quarter: 1 } },
+    ]);
+    const after = [...events, ...rows.map((r) => ev(r.type, r.player_id, r.metadata))];
+    expect(scoreFromEvents("afl", after)).toMatchObject({ us: 6 });
+    expect(scorersFromEvents("afl", after).map((s) => s.playerId)).toEqual(["ben"]);
+  });
+
+  it("still tags a fix after full time", () => {
+    const events = [ev("quarter_start", null, { quarter: 1 }), ev("goal", "ava", { quarter: 1 })];
+    const rows = scoreFixRows("afl", events, { op: "delete", eventId: events[1].id });
+    if ("error" in rows) throw new Error(rows.error);
+    expect(rows[0].metadata).toMatchObject({ fixed_after_finish: true });
+  });
+});
+
+// Usability pass, 29 Oct 2026: the live sheet's missed score defaulted to
+// H2 during H1, and nothing refused a period still to come.
+describe("adding a missed score while the game is on", () => {
+  const events = [ev("lineup_set", null, {}), ev("quarter_start", null, { quarter: 1 }), ev("goal", "ava", { quarter: 1 })];
+
+  it("knows the period in play", () => {
+    expect(periodInPlay([])).toBe(0);
+    expect(periodInPlay(events)).toBe(1);
+    expect(periodInPlay([...events, ev("quarter_end", null, { quarter: 1 }), ev("quarter_start", null, { quarter: 2 })])).toBe(2);
+  });
+
+  it("goes in a period that's started, never one to come", () => {
+    expect(scoreFixRows("afl", events, { op: "add", type: "behind", playerId: "ben", period: 2 }, { finished: false })).toEqual({
+      error: "That period hasn't started yet.",
+    });
+    const rows = scoreFixRows("afl", events, { op: "add", type: "behind", playerId: "ben", period: 1 }, { finished: false });
+    expect("error" in rows).toBe(false);
   });
 });

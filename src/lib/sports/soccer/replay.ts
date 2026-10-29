@@ -46,6 +46,8 @@ export interface SoccerGameState {
   teamScore: { goals: number };
   opponentScore: { goals: number };
   playerGoals: Record<string, number>;
+  /** Our goals they put in their own net (metadata.own_goal): no scorer of ours. */
+  ownGoals: number;
   /** Goals per period, for both sides. */
   scoreByPeriod: Record<number, { ours: number; theirs: number }>;
   /** Each kid's current hold (Keep on, Keep in goal, Keep in a line). */
@@ -107,6 +109,7 @@ export function replaySoccerGame(events: GameEvent[], opts: ReplaySoccerOptions 
     teamScore: { goals: 0 },
     opponentScore: { goals: 0 },
     playerGoals: {},
+    ownGoals: 0,
     scoreByPeriod: {},
     locks: {},
     injuredIds: [],
@@ -191,11 +194,11 @@ export function replaySoccerGame(events: GameEvent[], opts: ReplaySoccerOptions 
   };
 
   // Goals still standing, for score_undo (named target, else the latest).
-  const standing: { id: string; side: "ours" | "theirs"; player: string | null; period: number }[] = [];
+  const standing: { id: string; side: "ours" | "theirs"; player: string | null; period: number; own?: boolean }[] = [];
   const periodScore = (p: number) => (state.scoreByPeriod[p] ??= { ours: 0, theirs: 0 });
 
   for (const ev of sorted) {
-    const meta = (ev.metadata ?? {}) as { lineup?: unknown; quarter?: number; elapsed_ms?: number; intended_quarter?: number };
+    const meta = (ev.metadata ?? {}) as { lineup?: unknown; quarter?: number; elapsed_ms?: number; intended_quarter?: number; own_goal?: boolean };
     const elapsed = typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0;
     const absolute = state.completedPeriodMs + elapsed;
 
@@ -328,11 +331,18 @@ export function replaySoccerGame(events: GameEvent[], opts: ReplaySoccerOptions 
         if (side === "ours") {
           state.teamScore.goals++;
           if (ev.player_id) state.playerGoals[ev.player_id] = (state.playerGoals[ev.player_id] ?? 0) + 1;
+          if (meta.own_goal === true) state.ownGoals++;
         } else {
           state.opponentScore.goals++;
         }
         periodScore(period)[side]++;
-        standing.push({ id: ev.id, side, player: side === "ours" ? ev.player_id : null, period });
+        standing.push({
+          id: ev.id,
+          side,
+          player: side === "ours" ? ev.player_id : null,
+          period,
+          ...(side === "ours" && meta.own_goal === true ? { own: true } : {}),
+        });
         break;
       }
 
@@ -348,6 +358,7 @@ export function replaySoccerGame(events: GameEvent[], opts: ReplaySoccerOptions 
           if (undone.player && state.playerGoals[undone.player]) {
             state.playerGoals[undone.player] = Math.max(0, state.playerGoals[undone.player] - 1);
           }
+          if (undone.own) state.ownGoals = Math.max(0, state.ownGoals - 1);
         }
         break;
       }

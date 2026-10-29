@@ -527,6 +527,28 @@ export async function recordSoccerGoal(
   return revalidateAfterMutation(auth, gameId);
 }
 
+// An own goal: one of theirs put it in their own net. It counts for us
+// (a "goal" with no scorer, metadata.own_goal), and the summary lists it
+// apart from a goal nobody was named for (usability pass, 26 Oct 2026:
+// "Not sure who" was the only way to record one).
+export async function recordSoccerOwnGoal(
+  auth: LiveAuth,
+  gameId: string,
+  quarter: number,
+  elapsedMs: number,
+  idempotencyKey?: string,
+): Promise<ActionResult> {
+  const result = await insertEvent(
+    auth,
+    gameId,
+    "goal",
+    { player_id: null, metadata: { own_goal: true, quarter, elapsed_ms: elapsedMs } },
+    idempotencyKey,
+  );
+  if (!result.success) return result;
+  return revalidateAfterMutation(auth, gameId);
+}
+
 export async function recordSoccerOpponentGoal(
   auth: LiveAuth,
   gameId: string,

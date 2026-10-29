@@ -1,6 +1,6 @@
 // Steve 2026-10-22: "This 1/2/3 points part of the ui for basketball still
 // isn't working right. Looks terrible." On a phone the long-press hint
-// ("Shortcut: long-press a player for actions") sits a fixed 96 px above
+// ("Tap a player for actions") sits a fixed 96 px above
 // the bottom, which clears AFL's one-row scorebug but lands on basketball's
 // taller one: it covered the +1 / +2 row, so taps hit the hint and the
 // score stayed 0. And the chips wrapped 2 + 1 under each score.
@@ -59,11 +59,11 @@ test("basketball's +1 / +2 / +3 sit in one row, aren't covered, and score on a p
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
   await expect(page.getByRole("button", { name: /^clock — h1, running$/i })).toBeVisible({ timeout: 15_000 });
-  // First visit on this phone: the long-press hint is up.
-  await expect(page.getByText(/long-press a player/i)).toBeVisible({ timeout: 10_000 });
+  // First visit on this phone: the player-actions hint is up.
+  await expect(page.getByText(/tap a player for actions/i)).toBeVisible({ timeout: 10_000 });
   // The hint sits wholly above the score bar, on any phone.
   const overlap = await page.evaluate(() => {
-    const hint = Array.from(document.querySelectorAll("[role=status]")).find((e) => /long-press a player/i.test(e.textContent ?? ""))!;
+    const hint = Array.from(document.querySelectorAll("[role=status]")).find((e) => /tap a player for actions/i.test(e.textContent ?? ""))!;
     const bar = document.querySelector("[aria-label^='Clock']")!.closest(".fixed")!;
     return hint.getBoundingClientRect().bottom - bar.getBoundingClientRect().top;
   });

@@ -176,3 +176,44 @@ test("league U9 lineup with one kid in: Start H1 says the vests need two", async
   await expect(start).toBeDisabled();
   await expect(page.getByText("Need 2 on the field for the FR and DH vests")).toBeVisible();
 });
+
+// Usability pass, 26 Oct 2026: the opponent's +C went in at 0–0, an
+// impossible rugby scoreline. Their conversion needs one of their tries,
+// as ours does.
+test("league: the opponent can't convert a try they haven't scored", async ({ page }) => {
+  test.setTimeout(120_000);
+  const admin = createAdminClient();
+  const { team, game } = await leagueGame(admin, {
+    name: "RL-OPP-CONV",
+    ageGroup: "U10",
+    count: 12,
+    status: "in_progress",
+    events: (k) => [
+      { type: "lineup_set", metadata: { lineup: { forwards: k.slice(0, 5), backs: k.slice(5, 11), bench: [k[11]] } } },
+      vest(k[0], "fr", 1),
+      vest(k[1], "dh", 1),
+      { type: "quarter_start", metadata: { quarter: 1 } },
+    ],
+  });
+  await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+  const conversions = async () =>
+    ((await admin.from("game_events").select("id").eq("game_id", game.id).eq("type", "opponent_conversion")).data ?? []).length;
+
+  await skipWalkthroughs(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  await page.getByRole("button", { name: "Record opponent conversion" }).click({ timeout: 15_000 });
+  await expect(page.getByText("They have no try to convert. Record their try first.")).toBeVisible();
+  await page.waitForTimeout(1_000);
+  expect(await conversions()).toBe(0);
+
+  // Their try, then their conversion: both count.
+  await page.getByRole("button", { name: "Record opponent try" }).click();
+  await page.getByRole("button", { name: "Record opponent conversion" }).click();
+  await expect.poll(conversions, { timeout: 15_000 }).toBe(1);
+  // One try, one conversion: a second kick has nothing to convert.
+  await page.getByRole("button", { name: "Record opponent conversion" }).click();
+  await expect(page.getByText("They have no try to convert. Record their try first.")).toBeVisible();
+  await page.waitForTimeout(1_000);
+  expect(await conversions()).toBe(1);
+});

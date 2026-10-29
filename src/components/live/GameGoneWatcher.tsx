@@ -15,6 +15,7 @@ import { Modal } from "@/components/ui/Modal";
 import { SFButton } from "@/components/sf";
 import type { LiveAuth } from "@/lib/types";
 import { onLiveGameGone } from "@/lib/live/liveSync";
+import { deviceOffline } from "@/lib/live/useOnline";
 
 const CHECK_EVERY_MS = 10_000;
 
@@ -26,7 +27,7 @@ export function GameGoneWatcher({ auth, gameId, exitHref }: { auth: LiveAuth; ga
     let stopped = false;
     async function check() {
       if (checking.current || stopped || document.visibilityState === "hidden") return;
-      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+      if (deviceOffline()) return;
       checking.current = true;
       try {
         const url =

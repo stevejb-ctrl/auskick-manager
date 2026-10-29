@@ -7,6 +7,7 @@ import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { SFButton } from "@/components/sf";
 import {
   newRule,
+  pairingConflict,
   ruleDef,
   ruleSentence,
   ruleTitle,
@@ -65,6 +66,13 @@ export function RulesEditor({
   };
 
   function commit(next: RuleInstance[]) {
+    // Apart and together for the same two kids can't both hold: say so
+    // and keep the rules as they were (pairingConflict).
+    const clash = pairingConflict(next);
+    if (clash) {
+      setError(`${names(clash)} are already in a "keep together" rule and a "keep apart" rule. Remove one of them first.`);
+      return;
+    }
     const previous = rules;
     setRules(next);
     setError(null);

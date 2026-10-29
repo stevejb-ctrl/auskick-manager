@@ -3,7 +3,8 @@
 // ─── FixScoresDialog ─────────────────────────────────────────
 // A finished game's scores, fixable from the game page's More (round 3
 // edge testing, 24 Oct 2026: "Open game screen: fix scores" opened a
-// read-only summary, and the only edit was Restart). Every sport: take a
+// read-only summary, and the only edit was Restart), and a game's in
+// play from the live screen (LiveFixScoresButton). Every sport: take a
 // score off, change who scored, add a missed one. The list and its
 // delete confirm follow the live Fix-scores panel (ScoreReviewPanel),
 // which is tied to the live screen's store and AFL's actions; the writes
@@ -29,6 +30,12 @@ export interface FixScoresProps {
   periodLetter: string;
   teamName: string;
   opponentName: string;
+  /**
+   * A game that's on: the period in play. A missed score goes in it by
+   * default, and never in one still to come (the sheet offered H2 during
+   * H1: usability pass, 29 Oct 2026). Absent after full time.
+   */
+  currentPeriod?: number;
 }
 
 const NOBODY = "";
@@ -43,8 +50,14 @@ export function FixScoresDialog({
   periodLetter,
   teamName,
   opponentName,
+  currentPeriod,
   onClose,
-}: FixScoresProps & { onClose: () => void }) {
+  onFixed,
+}: FixScoresProps & {
+  onClose: () => void;
+  /** After each fix (the live screen reads the log again). */
+  onFixed?: () => void;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +65,7 @@ export function FixScoresDialog({
   const [changing, setChanging] = useState<{ id: string; playerId: string } | null>(null);
   const [adding, setAdding] = useState(false);
   const [addType, setAddType] = useState(kinds[0]?.type ?? "");
-  const [addPeriod, setAddPeriod] = useState(periodCount);
+  const [addPeriod, setAddPeriod] = useState(currentPeriod || periodCount);
   const [addPlayer, setAddPlayer] = useState(NOBODY);
 
   const nameOf = new Map(players.map((p) => [p.id, p.name]));
@@ -74,6 +87,7 @@ export function FixScoresDialog({
       }
       done();
       router.refresh();
+      onFixed?.();
     });
   }
 
@@ -212,7 +226,7 @@ export function FixScoresDialog({
                   onChange={(e) => setAddPeriod(parseInt(e.target.value, 10))}
                   className="mt-0.5 block w-full rounded-md border border-hairline bg-surface px-2 py-1 text-xs text-ink"
                 >
-                  {periods.map((p) => (
+                  {periods.filter((p) => !currentPeriod || p <= currentPeriod).map((p) => (
                     <option key={p} value={p}>
                       {periodName(p)}
                     </option>
