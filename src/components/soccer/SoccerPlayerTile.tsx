@@ -23,23 +23,25 @@ import { ZONE_STRIP } from "@/components/live/zoneStrip";
 
 // Lines take AFL's three zone colours by place on the field (attack is
 // AFL's forward, midfield its centre, defence its back), so the palette
-// reads the same in both sports. The keeper is ink: never a line colour.
+// reads the same in both sports. The keeper is the break screen's keeper
+// violet (zone-k), never a line colour: it was ink here and violet at the
+// break, so the same kid changed colour between screens (design review).
 const UNIT_TEXT: Record<SoccerUnit, string> = {
-  gk: "text-ink",
+  gk: "text-zone-k-text",
   def: "text-zone-b",
   mid: "text-zone-c",
   att: "text-zone-f",
   field: "text-ink-dim",
 };
 const UNIT_FILL: Record<SoccerUnit, string> = {
-  gk: "bg-ink",
+  gk: "bg-zone-k",
   def: "bg-zone-b-fill",
   mid: "bg-zone-c-fill",
   att: "bg-zone-f-fill",
   field: "bg-zone-c-fill",
 };
 const UNIT_STRIP: Record<SoccerUnit, string> = {
-  gk: "border-ink/30 bg-ink/10 text-ink",
+  gk: "border-zone-k/40 bg-zone-k/10 text-zone-k-text",
   def: ZONE_STRIP.b,
   mid: ZONE_STRIP.c,
   att: ZONE_STRIP.f,
