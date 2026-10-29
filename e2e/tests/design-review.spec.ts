@@ -143,7 +143,7 @@ test("quick wins: feedback floats on Today, not on Games, and is in the account 
   const team = await makeTeam(admin, { ownerId, sport: "afl", ageGroup: "U10", name: `DR fab ${uniq()}` });
   await page.goto(`/teams/${team.id}/games`);
   await waitForHydration(page);
-  await expect(page.getByRole("heading", { name: "Games" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("heading", { name: "Games", exact: true })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("feedback-fab-feedback")).toHaveCount(0);
   await page.getByTestId("user-menu-trigger").click();
   await page.getByRole("menuitem", { name: "Send feedback" }).click();
