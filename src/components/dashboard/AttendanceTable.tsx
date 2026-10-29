@@ -22,16 +22,16 @@ export function AttendanceTable({ rows, hasData }: Props) {
       <table className="w-full text-sm">
         <thead className="bg-surface-alt">
           <tr>
-            <th className="px-2 py-2 text-left text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+            <th className="px-2 py-2 text-left text-nano font-semibold uppercase tracking-micro text-ink-mute">
               #
             </th>
-            <th className="px-2 py-2 text-left text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+            <th className="px-2 py-2 text-left text-nano font-semibold uppercase tracking-micro text-ink-mute">
               Player
             </th>
-            <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+            <th className="px-2 py-2 text-right text-nano font-semibold uppercase tracking-micro text-ink-mute">
               Played
             </th>
-            <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+            <th className="px-2 py-2 text-right text-nano font-semibold uppercase tracking-micro text-ink-mute">
               %
             </th>
           </tr>

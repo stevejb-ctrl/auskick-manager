@@ -353,7 +353,7 @@ export function GamePlanModal({
               {positionsByPeriod[activePeriod]?.[pid] && (
                 <span
                   data-testid="game-plan-position"
-                  className="shrink-0 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim"
+                  className="shrink-0 font-mono text-nano font-bold uppercase tracking-micro text-ink-dim"
                 >
                   {positionsByPeriod[activePeriod][pid]}
                 </span>
@@ -365,7 +365,7 @@ export function GamePlanModal({
             {/* Game context (issue: plan the next period with break-level
                 info) — total minutes + per-zone breakdown this game. */}
             {stats && (
-              <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-ink-mute">
+              <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-micro text-ink-mute">
                 <span className="font-mono font-semibold tabular-nums text-ink-dim">
                   {fmtMs(stats.totalMs)}
                 </span>
@@ -384,7 +384,7 @@ export function GamePlanModal({
             )}
           </span>
           {isSelected ? (
-            <span className="self-start font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-alarm">
+            <span className="self-start font-mono text-nano font-bold uppercase tracking-[0.1em] text-alarm">
               Swapping…
             </span>
           ) : (
@@ -485,7 +485,7 @@ export function GamePlanModal({
             {(sport === "afl" ? [...period.groups].reverse() : period.groups).map((g) => (
               <SFCard key={g.groupId} pad={0} className="overflow-hidden">
                 <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-2.5">
-                  <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink">
+                  <h3 className="font-mono text-micro font-bold uppercase tracking-micro text-ink">
                     {g.groupLabel}
                   </h3>
                   <span className="font-mono text-xs font-semibold tabular-nums text-ink-mute">
@@ -506,11 +506,11 @@ export function GamePlanModal({
             <SFCard pad={0} className="overflow-hidden">
               <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-2.5">
                 <div className="min-w-0">
-                  <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink">
+                  <h3 className="font-mono text-micro font-bold uppercase tracking-micro text-ink">
                     {plan.rotatesWithinPeriod ? "Interchange" : "Bench"}
                   </h3>
                   {plan.rotatesWithinPeriod && period.bench.length > 0 && (
-                    <p className="mt-0.5 text-[10px] text-ink-mute">
+                    <p className="mt-0.5 text-nano text-ink-mute">
                       Rotates on in this order — first on top
                     </p>
                   )}

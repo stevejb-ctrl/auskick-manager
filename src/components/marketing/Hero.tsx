@@ -35,7 +35,7 @@ export function Hero() {
       <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-16 lg:py-28">
         <div>
           <RevealOnScroll>
-            <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-ink-dim">
+            <p className="font-mono text-micro font-semibold uppercase tracking-micro text-ink-dim">
               {copy.heroEyebrow}
             </p>
             <h1 className="mt-3 text-4xl font-bold leading-[1.02] tracking-tightest text-ink [text-wrap:balance] sm:text-5xl md:text-6xl lg:text-7xl">
@@ -56,7 +56,7 @@ export function Hero() {
               <MarketingAuthCTAs variant="hero" />
             </div>
 
-            <p className="mt-5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-mute">
+            <p className="mt-5 font-mono text-micro font-semibold uppercase tracking-[0.14em] text-ink-mute">
               {copy.heroTrust}
             </p>
           </RevealOnScroll>

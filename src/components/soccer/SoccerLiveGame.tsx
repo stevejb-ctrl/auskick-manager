@@ -47,7 +47,7 @@ import { ClockMenu } from "@/components/live/ClockMenu";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { SubDueBanner } from "@/components/live/SubDueBanner";
 import { subDueBannerShows } from "@/components/live/SubDue";
-import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
+import { DOCK_SWAP_HINT, ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { LockModal } from "@/components/live/LockModal";
 import { NextSubCard } from "@/components/live/NextSubCard";
@@ -809,7 +809,7 @@ export function SoccerLiveGame({
       {!isFinished && lentPlayers.length > 0 && (
         <div className="rounded-lg border border-warn/40 bg-warn-soft/60 px-3 py-2">
           <p className="text-xs font-semibold text-warn">Lent to the other team</p>
-          <p className="mt-0.5 text-[11px] text-warn/80">Tap &ldquo;Bring back&rdquo; to return a player to your bench.</p>
+          <p className="mt-0.5 text-micro text-warn/80">Tap &ldquo;Bring back&rdquo; to return a player to your bench.</p>
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             {lentPlayers.map((p) => (
               <button
@@ -821,7 +821,7 @@ export function SoccerLiveGame({
                 className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-60 motion-safe:active:scale-[0.97]"
               >
                 <span>{p.full_name}</span>
-                <span className="ml-0.5 text-[11px] font-semibold text-warn/80">Bring back</span>
+                <span className="ml-0.5 text-micro font-semibold text-warn/80">Bring back</span>
               </button>
             ))}
           </div>
@@ -931,16 +931,8 @@ export function SoccerLiveGame({
 
       {playerDockVisible && selectedPlayer && (
         <ScoreRecordingDock
-          swapHint="Or tap a teammate to swap them."
-          heading={
-            scoreDockVisible ? (
-              <>
-                Record a goal for <span className="text-brand-700">{selectedPlayer.full_name}</span>
-              </>
-            ) : (
-              <span className="text-brand-700">{selectedPlayer.full_name}</span>
-            )
-          }
+          swapHint={DOCK_SWAP_HINT}
+          heading={<span className="text-brand-700">{selectedPlayer.full_name}</span>}
           onCancel={() => setSelectedId(null)}
           onPlayerActions={() => {
             const id = selectedPlayer.id;
@@ -958,9 +950,6 @@ export function SoccerLiveGame({
                 >
                   + Goal
                 </button>
-                <p className="text-center text-[11px] text-ink-mute">
-                  Or tap a bench player to swap <strong>{selectedPlayer.full_name}</strong> off.
-                </p>
               </div>
             ) : (
               <p className="text-xs text-ink-dim">

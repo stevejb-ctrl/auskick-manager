@@ -75,7 +75,7 @@ export default async function WelcomePage({
           join an existing one. The two CTAs below split into those
           paths. */}
       <div className="space-y-3 text-center">
-        <p className="text-[11px] font-bold uppercase tracking-micro text-brand-700">
+        <p className="text-micro font-bold uppercase tracking-micro text-brand-700">
           Welcome to Siren
         </p>
         <h1 className="text-3xl font-bold tracking-tightest text-ink sm:text-4xl">

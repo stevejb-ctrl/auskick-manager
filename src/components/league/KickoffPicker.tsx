@@ -146,7 +146,7 @@ export function KickoffPicker({
                     first-game-of-season look). */}
                 {anyKickoffsRecorded && (
                   <span
-                    className={`font-mono text-[9px] uppercase tracking-micro ${
+                    className={`font-mono text-nano uppercase tracking-micro ${
                       kickoffCount > 0 ? "font-bold text-warn" : "text-ink-mute"
                     }`}
                     aria-label={`Kicked off ${kickoffCount} ${kickoffCount === 1 ? "time" : "times"} this season`}
@@ -156,7 +156,7 @@ export function KickoffPicker({
                 )}
               </span>
               {!canPick && (
-                <span className="text-[10px] uppercase tracking-wide">Done</span>
+                <span className="text-nano uppercase tracking-wide">Done</span>
               )}
             </button>
           );

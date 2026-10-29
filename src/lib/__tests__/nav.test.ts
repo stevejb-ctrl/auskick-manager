@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isFullScreenTeamPath, showsTeamBottomBar, teamIdFromPath } from "@/lib/nav";
+import { isFullScreenTeamPath, isHomeSurface, showsTeamBottomBar, teamIdFromPath } from "@/lib/nav";
 
 const ID = "3f1e2d4c-5b6a-4789-8abc-def012345678";
 
@@ -18,5 +18,17 @@ describe("team navigation routes", () => {
     expect(showsTeamBottomBar(`/teams/${ID}/games/${ID}/live`)).toBe(false);
     expect(showsTeamBottomBar(`/teams/${ID}/games/${ID}/availability`)).toBe(false);
     expect(showsTeamBottomBar(`/teams/${ID}/setup`)).toBe(false);
+  });
+});
+
+describe("isHomeSurface", () => {
+  it("is the team list and a team's Today tab", () => {
+    expect(isHomeSurface("/dashboard")).toBe(true);
+    expect(isHomeSurface(`/teams/${ID}`)).toBe(true);
+  });
+  it("is not the team's other tabs, a new team or a game", () => {
+    for (const p of [`/teams/${ID}/games`, `/teams/${ID}/squad`, `/teams/${ID}/stats`, `/teams/${ID}/settings`, "/teams/new", `/teams/${ID}/games/g1`, null]) {
+      expect(isHomeSurface(p)).toBe(false);
+    }
   });
 });

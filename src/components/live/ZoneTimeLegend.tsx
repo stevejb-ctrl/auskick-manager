@@ -44,7 +44,7 @@ export function ZoneTimeLegend({
             className={`h-2 w-2 shrink-0 rounded-[2px] ${it.swatchClassName}`}
           />
           <span
-            className={`font-mono text-[10px] font-bold uppercase tracking-micro ${it.textClassName}`}
+            className={`font-mono text-nano font-bold uppercase tracking-micro ${it.textClassName}`}
           >
             {it.label}
           </span>

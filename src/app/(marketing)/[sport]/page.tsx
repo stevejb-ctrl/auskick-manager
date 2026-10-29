@@ -91,7 +91,7 @@ export default function SportPage({ params }: SportPageProps) {
 
           <div className="mt-8 grid grid-cols-1 items-center gap-12 sm:mt-10 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
             <div>
-              <p className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-ink-dim">
+              <p className="flex items-center gap-2 font-mono text-micro font-bold uppercase tracking-[0.16em] text-ink-dim">
                 <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ backgroundColor: sport.accent }} />
                 {copy.eyebrow}
               </p>
@@ -134,7 +134,7 @@ export default function SportPage({ params }: SportPageProps) {
 
       <section aria-labelledby="knows-heading" className="py-16 sm:py-20">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-dim">
+          <p className="font-mono text-micro font-semibold uppercase tracking-[0.16em] text-ink-dim">
             What Siren knows
           </p>
           <h2
@@ -146,11 +146,11 @@ export default function SportPage({ params }: SportPageProps) {
           <ul className="mt-9 grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-5">
             {copy.knows.map((item) => (
               <li key={item.title} className="rounded-2xl border border-hairline bg-surface p-6">
-                <p className="font-mono text-[22px] font-bold" style={{ color: sport.accent }}>
+                <p className="font-mono text-[1.375rem] font-bold" style={{ color: sport.accent }}>
                   {item.stat}
                 </p>
                 <h3 className="mt-3 text-lg font-bold tracking-tight text-ink">{item.title}</h3>
-                <p className="mt-2 text-[15px] leading-relaxed text-ink-dim">{item.body}</p>
+                <p className="mt-2 text-[0.9375rem] leading-relaxed text-ink-dim">{item.body}</p>
               </li>
             ))}
           </ul>

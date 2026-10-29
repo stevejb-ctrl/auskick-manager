@@ -52,6 +52,12 @@ export default async function GamesPage({
   const team = teamResult.data;
   const sport = team ? teamSport((team as { sport?: string | null }).sport) : ((await teamSportById(params.teamId)) ?? notFound());
 
+  // With games in, "Add games" opens as one button.
+  const { count: gameCount } = await supabase
+    .from("games")
+    .select("id", { count: "exact", head: true })
+    .eq("team_id", params.teamId);
+
   let existingExternalIds: string[] = [];
   if (isAdmin) {
     const { data: imported } = await supabase
@@ -85,6 +91,7 @@ export default async function GamesPage({
           }
           playhqTenant={PLAYHQ_TENANT[sport]}
           teamName={(team as { name?: string } | null)?.name}
+          compact={(gameCount ?? 0) > 0}
         />
       )}
 

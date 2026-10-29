@@ -22,7 +22,7 @@ export function SeasonSelector({ seasons, selectedYear }: SeasonSelectorProps) {
     <div className="flex items-center gap-2">
       <label
         htmlFor="season-select"
-        className="text-[11px] font-semibold uppercase tracking-micro text-ink-mute"
+        className="text-micro font-semibold uppercase tracking-micro text-ink-mute"
       >
         Season
       </label>

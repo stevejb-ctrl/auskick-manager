@@ -143,7 +143,7 @@ function CardTextOverlay({
   return (
     <div className="absolute inset-0 flex flex-col justify-between p-4 sm:p-5">
       <p
-        className="font-mono text-[10px] font-bold uppercase tracking-[0.18em]"
+        className="font-mono text-nano font-bold uppercase tracking-[0.18em]"
         style={{ color: "rgba(255,255,255,0.75)" }}
       >
         {sport.code}

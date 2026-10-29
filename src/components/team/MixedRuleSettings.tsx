@@ -133,7 +133,7 @@ export function MixedRuleSettings({ teamId, sportName, preset, initialRule, maxO
               </SFButton>
             )}
           </div>
-          <p className="text-[11px] text-ink-mute">
+          <p className="text-micro text-ink-mute">
             Mark each kid Girl or Boy on the squad (or at the lineup). It&apos;s only used for this rule, and shows nowhere
             else.
           </p>

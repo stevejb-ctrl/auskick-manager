@@ -41,6 +41,9 @@ export function QuarterLengthInput({
   const initialMinutes =
     (initialOverrideSeconds ?? ageGroupDefaultSeconds) / 60;
   const [minutes, setMinutes] = useState<string>(String(initialMinutes));
+  // What's on the server, so Save shows only for a change.
+  const [savedMinutes, setSavedMinutes] = useState<string>(String(initialMinutes));
+  const [justSaved, setJustSaved] = useState(false);
   const [usingOverride, setUsingOverride] = useState<boolean>(
     initialOverrideSeconds !== null,
   );
@@ -62,7 +65,12 @@ export function QuarterLengthInput({
     startTransition(async () => {
       const r = await setQuarterLengthSeconds(teamId, overrideSeconds);
       if (!r.success) setError(r.error);
-      else setUsingOverride(overrideSeconds !== null);
+      else {
+        setUsingOverride(overrideSeconds !== null);
+        setSavedMinutes(String(next));
+        setMinutes(String(next));
+        setJustSaved(true);
+      }
     });
   }
 
@@ -70,6 +78,7 @@ export function QuarterLengthInput({
     if (!isAdmin) return;
     setError(null);
     setMinutes(String(ageGroupMinutes));
+    setSavedMinutes(String(ageGroupMinutes));
     startTransition(async () => {
       const r = await setQuarterLengthSeconds(teamId, null);
       if (!r.success) setError(r.error);
@@ -91,7 +100,10 @@ export function QuarterLengthInput({
             max={PERIOD_MINUTES_MAX}
             step={1}
             value={minutes}
-            onChange={(e) => setMinutes(e.target.value)}
+            onChange={(e) => {
+              setMinutes(e.target.value);
+              setJustSaved(false);
+            }}
             disabled={!isAdmin || isPending}
           />
           <p className="mt-1 text-xs text-ink-mute">
@@ -103,14 +115,17 @@ export function QuarterLengthInput({
         </div>
         {isAdmin && (
           <div className="flex gap-2">
-            <SFButton
-              type="button"
-              size="sm"
-              onClick={handleSave}
-              loading={isPending}
-            >
-              Save
-            </SFButton>
+            {/* Save appears with a change, not as a standing button. */}
+            {(minutes.trim() !== savedMinutes || isPending) && (
+              <SFButton
+                type="button"
+                size="sm"
+                onClick={handleSave}
+                loading={isPending}
+              >
+                Save
+              </SFButton>
+            )}
             {usingOverride && (
               <SFButton
                 type="button"
@@ -129,6 +144,12 @@ export function QuarterLengthInput({
         <InlineAlert className="mt-2">
           {error}
         </InlineAlert>
+      )}
+      {/* The same word the other cards say once a change has gone in. */}
+      {justSaved && !error && !isPending && (
+        <p className="mt-2 text-xs text-brand-700" role="status">
+          Saved.
+        </p>
       )}
     </div>
   );

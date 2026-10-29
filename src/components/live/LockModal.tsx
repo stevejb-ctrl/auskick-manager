@@ -258,7 +258,7 @@ export function LockModal({
     // basketball's long list pushed Cancel off the bottom with no way to
     // reach it (live-chrome contract, WebKit).
     <Modal size="xs" labelledBy="lock-modal-title" onClose={onClose} className="overflow-y-auto">
-        <p className="mb-1 text-center font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+        <p className="mb-1 text-center font-mono text-micro font-bold uppercase tracking-micro text-ink-mute">
           Player actions
         </p>
         <h2

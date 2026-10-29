@@ -5,6 +5,10 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { NotPlayedGames } from "@/components/games/NotPlayedGames";
 import { splitByNotPlayed } from "@/lib/games/notPlayed";
 import { availableCountsByGame } from "@/lib/games/availableCounts";
+import { finalScoresByGame } from "@/lib/results";
+import { getSeasonEvents } from "@/lib/season";
+import { playedInSiren } from "@/lib/games/notPlayed";
+import { teamSport } from "@/lib/sports";
 
 interface GameListProps {
   teamId: string;
@@ -26,13 +30,14 @@ interface GameListProps {
 export async function GameList({ teamId, filter = "all", canEdit = false }: GameListProps) {
   const supabase = createClient();
 
-  const [{ data: games }, { data: activePlayers }] = await Promise.all([
+  const [{ data: games }, { data: activePlayers }, { data: teamRow }] = await Promise.all([
     supabase
       .from("games")
       .select("*")
       .eq("team_id", teamId)
       .order("scheduled_at", { ascending: false }),
     supabase.from("players").select("id").eq("team_id", teamId).eq("is_active", true),
+    supabase.from("teams").select("sport, track_scoring").eq("id", teamId).maybeSingle(),
   ]);
 
   const all = (games ?? []) as Game[];
@@ -65,6 +70,19 @@ export async function GameList({ teamId, filter = "all", canEdit = false }: Game
         new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime(),
     );
 
+  // Each played game's result, as Today shows the last one (design
+  // review, Oct 2026: the list showed finished games with no score).
+  const scores =
+    completed.length > 0 && teamRow
+      ? finalScoresByGame(
+          teamSport((teamRow as { sport: string }).sport),
+          (teamRow as { track_scoring: boolean | null }).track_scoring === true,
+          completed,
+          await getSeasonEvents(teamId),
+          playedInSiren,
+        )
+      : new Map();
+
   if (all.length === 0) {
     return (
       <EmptyState title="No games yet" description="Create your first game above." />
@@ -78,7 +96,7 @@ export async function GameList({ teamId, filter = "all", canEdit = false }: Game
     <div className="space-y-6">
       {showActive && active.length > 0 && (
         <section className="space-y-2">
-          <h2 className="text-[11px] font-semibold uppercase tracking-micro text-ink-mute">
+          <h2 className="text-micro font-semibold uppercase tracking-micro text-ink-mute">
             Upcoming
           </h2>
           <div className="space-y-2">
@@ -101,8 +119,8 @@ export async function GameList({ teamId, filter = "all", canEdit = false }: Game
 
       {showCompleted && completed.length > 0 && (
         <section className="space-y-2">
-          <h2 className="text-[11px] font-semibold uppercase tracking-micro text-ink-mute">
-            Completed
+          <h2 className="text-micro font-semibold uppercase tracking-micro text-ink-mute">
+            Played
           </h2>
           <div className="space-y-2">
             {completed.map((game) => (
@@ -110,6 +128,7 @@ export async function GameList({ teamId, filter = "all", canEdit = false }: Game
                 key={game.id}
                 teamId={teamId}
                 game={game}
+                score={scores.get(game.id) ?? null}
                 availableCount={availMap.get(game.id) ?? 0}
                 totalActive={totalActive}
               />

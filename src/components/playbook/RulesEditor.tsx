@@ -99,7 +99,7 @@ export function RulesEditor({
             <span aria-hidden>🔒</span>
             <span className="min-w-0">
               {r.text}
-              <span className="block text-[11px] text-ink-mute">{r.source}</span>
+              <span className="block text-micro text-ink-mute">{r.source}</span>
             </span>
           </li>
         ))}
@@ -121,10 +121,10 @@ export function RulesEditor({
                 )}
               </div>
               {r.source?.startsWith("pack:") && (
-                <p className="text-[11px] text-ink-mute">Local rules (added by you)</p>
+                <p className="text-micro text-ink-mute">Local rules (added by you)</p>
               )}
               {r.source === "chips" && (
-                <p className="text-[11px] text-ink-mute">Carried over from your player chips</p>
+                <p className="text-micro text-ink-mute">Carried over from your player chips</p>
               )}
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 {def.countRange && (

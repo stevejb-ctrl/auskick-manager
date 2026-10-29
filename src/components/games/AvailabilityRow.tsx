@@ -187,9 +187,9 @@ export function AvailabilityRow({
         {jerseyNumber != null && <Guernsey num={jerseyNumber} size={32} />}
         <span className="min-w-0">
           <span className="block truncate text-sm font-medium text-ink">{playerName}</span>
-          {note && <span className="block text-[11px] font-medium text-ok">{note}</span>}
+          {note && <span className="block text-micro font-medium text-ok">{note}</span>}
           {writeError && (
-            <span className="block text-[11px] text-danger" role="alert">
+            <span className="block text-micro text-danger" role="alert">
               {writeError}
             </span>
           )}
@@ -243,7 +243,7 @@ export function AvailabilityRow({
         ) : (
           // Read-only viewers still see the state.
           <span
-            className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${
+            className={`rounded-full border px-3 py-1 text-micro font-semibold ${
               shownStatus === "available"
                 ? "border-ok/30 bg-ok/10 text-ok"
                 : "border-hairline bg-surface-alt text-ink-mute"

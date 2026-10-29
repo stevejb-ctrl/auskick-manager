@@ -1,5 +1,7 @@
 "use client";
 
+import { ClockPillReadout } from "@/components/live/ClockPillReadout";
+
 // ─── SoccerScoreBug ──────────────────────────────────────────
 // Football (soccer)'s scorebug, rendered inside the shared
 // LiveStickyScoreBar. Mirrors AFL's GameHeader (the reference) column
@@ -86,14 +88,14 @@ export function SoccerScoreBug({
         type="button"
         onClick={onClockTap}
         disabled={isPreGame || isFinished || !onClockTap}
-        className={`flex flex-col items-center justify-center rounded-md px-4 pb-2.5 pt-2 text-warm shadow-[0_6px_16px_rgba(26,30,26,0.18)] transition-[min-width,background-color] duration-move ease-out-quart disabled:opacity-80 ${
-          atHooter ? "min-w-[168px] bg-due" : "min-w-[104px] bg-ink hover:bg-ink/90"
+        className={`flex flex-col items-center justify-center rounded-md px-4 pb-2.5 pt-2 text-warm shadow-[0_6px_16px_rgba(26,30,26,0.18)] transition-[min-width,background-color] duration-move ease-out-quart ${isFinished ? "" : "disabled:opacity-80"} ${
+          atHooter ? "min-w-[168px] bg-due" : "min-w-[104px] bg-ink hover:bg-ink/90 bigtext:min-w-0 bigtext:px-2"
         }`}
         aria-label={`Clock — ${periodTag}, ${atHooter ? breakName : running ? "running" : "paused"}`}
       >
         {atHooter ? (
           <span key="hooter" className="flex flex-col items-center motion-safe:animate-xfade-in motion-reduce:animate-xfade-in">
-            <span className="font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-white/[0.85]">
+            <span className="font-mono text-nano font-bold uppercase leading-3 tracking-micro text-white/[0.85]">
               End {periodTag}
             </span>
             <span className="mt-0.5 whitespace-nowrap text-xl font-bold leading-7 tracking-[-0.01em] text-white">
@@ -101,16 +103,14 @@ export function SoccerScoreBug({
             </span>
           </span>
         ) : (
-          <span key={`p-${currentPeriod}`} className="flex flex-col items-center">
-            <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
-              {live && <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-mint" />}
-              <span>{periodTag}</span>
-              {pausedIcon && <span>{pausedIcon}</span>}
-            </span>
-            <span className="nums mt-1 font-mono text-[28px] font-bold leading-7 tracking-[-0.03em] tabular-nums text-warm">
-              {clockReadout}
-            </span>
-          </span>
+          <ClockPillReadout
+            key={`p-${currentPeriod}`}
+            periodTag={periodTag}
+            live={live}
+            pausedIcon={pausedIcon}
+            readout={clockReadout}
+            finished={isFinished}
+          />
         )}
       </button>
     </SirenPulseHalo>

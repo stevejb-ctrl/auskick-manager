@@ -21,7 +21,7 @@ const LONG_PRESS_EVENT = "siren:longpress";
 // anyone shouldn't see the chip every time they open the app, and
 // (2) the chip occupies bottom-of-viewport real estate that
 // competes with the sticky scorebug.
-const AUTO_DISMISS_MS = 12_000;
+const AUTO_DISMISS_MS = 8_000;
 
 /**
  * First-tap hint for the long-press affordance. P1.5-3 in
@@ -84,10 +84,23 @@ export function LongPressHint({ enabled = true }: { enabled?: boolean }) {
       }
       setShow(false);
     }
+    // Any tap on the page outside the chip clears it too (design review,
+    // Oct 2026: it sat over the last row of tiles and the bench's "→ ON"
+    // strip in every sport, hiding the thing it pointed at). The tap
+    // itself still goes through to whatever was under the finger. On
+    // click, not pointerdown: clearing the hint frees the room the page
+    // kept for it, and a layout shift between pointerdown and click sent
+    // the click to whatever moved under the finger.
+    function dismissOnTap(e: MouseEvent) {
+      if (chipRef.current?.contains(e.target as Node)) return;
+      dismiss();
+    }
     window.addEventListener(LONG_PRESS_EVENT, dismiss);
+    window.addEventListener("click", dismissOnTap);
     const t = window.setTimeout(dismiss, AUTO_DISMISS_MS);
     return () => {
       window.removeEventListener(LONG_PRESS_EVENT, dismiss);
+      window.removeEventListener("click", dismissOnTap);
       window.clearTimeout(t);
     };
   }, [show]);
@@ -164,7 +177,7 @@ export function LongPressHint({ enabled = true }: { enabled?: boolean }) {
             <button
               type="button"
               onClick={handleGotIt}
-              className="ml-1 rounded-full bg-warm/10 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-micro text-warm transition-colors duration-fast ease-out-quart hover:bg-warm/20 active:bg-warm/30"
+              className="ml-1 rounded-full bg-warm/10 px-2 py-0.5 font-mono text-nano font-bold uppercase tracking-micro text-warm transition-colors duration-fast ease-out-quart hover:bg-warm/20 active:bg-warm/30"
             >
               Got it
             </button>

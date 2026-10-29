@@ -84,7 +84,7 @@ export function QuarterEndModal({
       <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-start gap-2 rounded-md bg-surface-alt px-3 py-3">
         {/* Home team */}
         <div className="min-w-0">
-          <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
+          <p className="truncate font-mono text-nano font-bold uppercase tracking-micro text-ink-dim">
             {teamName}
           </p>
           <p className="nums mt-0.5 flex items-baseline gap-1.5 font-mono leading-none text-ink">
@@ -121,17 +121,17 @@ export function QuarterEndModal({
 
         {/* Center label: indicates the quarter just ended. */}
         <div className="flex flex-col items-center justify-center self-center px-1">
-          <span className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute">
+          <span className="font-mono text-nano font-bold uppercase tracking-micro text-ink-mute">
             on the
           </span>
-          <span className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink">
+          <span className="font-mono text-nano font-bold uppercase tracking-micro text-ink">
             {endCue}
           </span>
         </div>
 
         {/* Opponent — mirror of home */}
         <div className="min-w-0 text-right">
-          <p className="truncate font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
+          <p className="truncate font-mono text-nano font-bold uppercase tracking-micro text-ink-dim">
             {opponentName}
           </p>
           <p className="nums mt-0.5 flex items-baseline justify-end gap-1.5 font-mono leading-none text-ink">

@@ -40,7 +40,7 @@ export function DataTable<T>({
             {columns.map((col) => (
               <th
                 key={col.key}
-                className={`px-3 py-2 text-left text-[11px] font-bold uppercase tracking-micro text-ink-mute ${col.className ?? ""}`}
+                className={`px-3 py-2 text-left text-micro font-bold uppercase tracking-micro text-ink-mute ${col.className ?? ""}`}
               >
                 {col.header}
               </th>

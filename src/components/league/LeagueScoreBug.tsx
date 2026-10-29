@@ -66,11 +66,22 @@ interface LeagueScoreBugProps {
 
 /** "2T·1C·1PG" — penalty / field (drop) goals only once there are some. */
 function ScoreLine({ score, testId, words }: { score: LeagueScore; testId: string; words: RugbyScoreWords }) {
-  const parts = [`${score.tries}T`, `${score.conversions}C`];
+  // Only what's been scored (design review, Oct 2026: "0T·0C" at kick-off
+  // read as a code). Nothing at all until the first score.
+  const parts: string[] = [];
+  if (score.tries > 0) parts.push(`${score.tries}T`);
+  if (score.conversions > 0) parts.push(`${score.conversions}C`);
   if (score.penaltyGoals > 0) parts.push(`${score.penaltyGoals}${words.penaltyGoal.short}`);
   if (score.fieldGoals > 0) parts.push(`${score.fieldGoals}${words.fieldGoal.short}`);
+  if (parts.length === 0) return null;
+  const said = [
+    score.tries > 0 && `${score.tries} ${score.tries === 1 ? "try" : "tries"}`,
+    score.conversions > 0 && `${score.conversions} ${score.conversions === 1 ? "conversion" : "conversions"}`,
+    score.penaltyGoals > 0 && `${score.penaltyGoals} ${words.penaltyGoal.label.toLowerCase()}`,
+    score.fieldGoals > 0 && `${score.fieldGoals} ${words.fieldGoal.label.toLowerCase()}`,
+  ].filter(Boolean).join(", ");
   return (
-    <span className="text-[13px] font-medium text-ink-dim" data-testid={testId}>
+    <span className="text-[0.8125rem] font-medium text-ink-dim" data-testid={testId} title={said}>
       {parts.map((p, i) => (
         <span key={p}>
           {i > 0 && <span className="text-ink-mute">·</span>}
@@ -144,14 +155,14 @@ export function LeagueScoreBug({
       type="button"
       onClick={onClockTap}
       disabled={!onClockTap || quarterEnded}
-      className="flex min-w-[104px] flex-col items-center justify-center rounded-md bg-ink px-4 pb-2.5 pt-2 text-warm shadow-[0_6px_16px_rgba(26,30,26,0.18)] transition-colors duration-fast ease-out-quart hover:bg-ink/90 disabled:opacity-80"
+      className="flex min-w-[104px] bigtext:min-w-0 bigtext:!px-2 flex-col items-center justify-center rounded-md bg-ink px-4 pb-2.5 pt-2 text-warm shadow-[0_6px_16px_rgba(26,30,26,0.18)] transition-colors duration-fast ease-out-quart hover:bg-ink/90 disabled:opacity-80"
       aria-label={
         onClockTap
           ? `Clock — ${periodTag}, ${running ? "running" : "paused"}`
           : `${periodLabelLine}, ${clockReadout}`
       }
     >
-      <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
+      <span className="flex items-center gap-1.5 font-mono text-nano font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
         {live && <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-mint" />}
         <span>{quarterEnded ? `${periodTag} · over` : periodTag}</span>
         {onClockTap && !quarterEnded && !running && <span aria-hidden>▶</span>}

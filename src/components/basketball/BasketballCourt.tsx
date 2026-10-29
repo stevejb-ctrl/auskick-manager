@@ -10,6 +10,7 @@
 // Equal minutes has no lines: one group of five.
 
 import { Fragment } from "react";
+import { sportSurface } from "@/components/live/sportSurface";
 import type { Player } from "@/lib/types";
 import type { BasketballLineup } from "@/lib/sports/basketball/lineup";
 import type { BasketballLineMs } from "@/lib/sports/basketball/replay";
@@ -85,7 +86,7 @@ export function BasketballCourt({
         type="button"
         onClick={() => onTap("", line)}
         aria-label={`Empty ${line === "court" ? "spot" : `${BASKETBALL_LINE_LABEL[line].toLowerCase().replace(/s$/, "")} spot`}`}
-        className="w-full rounded-md border border-dashed border-white/40 bg-white/5 py-3 text-center font-mono text-[10px] font-semibold uppercase tracking-micro text-white/70 transition-colors duration-fast ease-out-quart hover:border-white/70 hover:bg-white/15"
+        className="w-full rounded-md border border-dashed border-white/40 bg-white/5 py-3 text-center font-mono text-nano font-semibold uppercase tracking-micro text-white/70 transition-colors duration-fast ease-out-quart hover:border-white/70 hover:bg-white/15"
       >
         {anySelected ? "Move here" : "Empty"}
       </button>
@@ -148,7 +149,7 @@ export function BasketballCourt({
     : [];
 
   return (
-    <div role="region" aria-label="On court" className="relative rounded-[18px] bg-court shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]">
+    <div role="region" aria-label="On court" className={`relative rounded-[18px] ${sportSurface("court")}`}>
       <div className="relative overflow-hidden rounded-[18px]">
         <CourtMarkings />
         <div className="relative space-y-2 px-5 pb-8 pt-10">

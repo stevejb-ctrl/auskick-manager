@@ -53,12 +53,11 @@ export function AgeGroupSettings({ teamId, current, options, isAdmin }: AgeGroup
             </option>
           ))}
         </select>
-        {isAdmin && (
+        {/* Save appears with a change, not as a greyed-out button. */}
+        {isAdmin && (value !== saved || isPending) && (
           <SFButton
-            variant="ghost"
             size="md"
             onClick={save}
-            disabled={value === saved}
             loading={isPending}
             aria-label="Save age group"
           >

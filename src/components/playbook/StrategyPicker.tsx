@@ -56,7 +56,7 @@ export function StrategyPicker({
               <span className="flex flex-wrap items-center gap-x-2">
                 <span className="text-sm font-semibold text-ink">{s.label}</span>
                 {s.id === recommendedId && (
-                  <span className="rounded-full bg-surface-alt px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
+                  <span className="rounded-full bg-surface-alt px-2 py-0.5 font-mono text-nano font-bold uppercase tracking-micro text-ink-dim">
                     ★ Suggested for {ageLabel}
                   </span>
                 )}

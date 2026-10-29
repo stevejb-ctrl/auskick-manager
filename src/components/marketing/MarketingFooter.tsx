@@ -14,7 +14,7 @@ const SIREN_LINKS = [
   { href: "/terms", label: "Terms" },
 ];
 
-const heading = "font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-ink-dim";
+const heading = "font-mono text-micro font-bold uppercase tracking-[0.16em] text-ink-dim";
 const link = "text-ink transition-colors duration-fast ease-out-quart hover:text-brand-700";
 
 export function MarketingFooter() {
@@ -28,7 +28,7 @@ export function MarketingFooter() {
         <div className="flex min-w-0 flex-[1_1_15rem] flex-col gap-2">
           <SirenWordmark size="sm" />
           <span className="text-sm text-ink-dim">{copy.tagline} Built in Australia.</span>
-          <span className="mt-4 font-mono text-[11px] tracking-[0.08em] text-ink-dim">
+          <span className="mt-4 font-mono text-micro tracking-[0.08em] text-ink-dim">
             © {year} {copy.productName}
           </span>
         </div>
@@ -36,7 +36,7 @@ export function MarketingFooter() {
         {/* Every sport's page, in popularity order: five down, then five. */}
         <nav aria-label="Sports" className="min-w-0 flex-[2_1_20rem]">
           <p className={heading}>Sports</p>
-          <ul className="mt-3.5 grid grid-flow-col grid-cols-2 grid-rows-5 gap-x-6 gap-y-2.5 text-[15px]">
+          <ul className="mt-3.5 grid grid-flow-col grid-cols-2 grid-rows-5 gap-x-6 gap-y-2.5 text-[0.9375rem]">
             {MARKETING_SPORTS.map((sport) => (
               <li key={sport.id}>
                 <Link href={sportPagePath(sport)} className={link}>
@@ -49,7 +49,7 @@ export function MarketingFooter() {
 
         <nav aria-label="Siren" className="min-w-0 flex-[1_1_10rem]">
           <p className={heading}>Siren</p>
-          <ul className="mt-3.5 flex flex-col gap-2.5 text-[15px]">
+          <ul className="mt-3.5 flex flex-col gap-2.5 text-[0.9375rem]">
             {SIREN_LINKS.map((l) => (
               <li key={l.href}>
                 <Link href={l.href} className={link}>

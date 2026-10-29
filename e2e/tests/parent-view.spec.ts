@@ -70,7 +70,8 @@ test("a parent follows the team read-only, watches the live score, and can leave
     // The live game is a read-only scoreboard.
     await page.getByRole("link", { name: /^watch live$/i }).click();
     await expect(page.getByText(/q1 in play/i)).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText("Watched Wallabies")).toBeVisible();
+    // The scoreboard names them (the top bar's "vs Watched Wallabies" too).
+    await expect(page.getByText("Watched Wallabies", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: /^clock/i })).toHaveCount(0);
 
     // Leave from the account page.

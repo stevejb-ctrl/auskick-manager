@@ -32,7 +32,7 @@ export function ZoneTimePercents({
   const pct = (v: number) => Math.round((v / total) * 100);
   return (
     <span
-      className={`flex items-center gap-2.5 font-mono text-[11px] font-semibold tabular-nums ${className}`}
+      className={`flex items-center gap-2.5 font-mono text-micro font-semibold tabular-nums ${className}`}
       aria-label={`Season time — Forward ${pct(fwd)}%, Centre ${pct(mid)}%, Back ${pct(back)}%`}
     >
       <span className="text-zone-f">Fwd {pct(fwd)}%</span>

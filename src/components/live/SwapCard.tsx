@@ -95,7 +95,7 @@ function TimerRing({ msUntilDue, subIntervalMs }: { msUntilDue: number; subInter
       </svg>
       <span
         className={`font-mono font-bold leading-none tabular-nums ${
-          due ? "text-[10px] tracking-[0.08em] text-due-dark" : "text-[11px] text-warm"
+          due ? "text-nano tracking-[0.08em] text-due-dark" : "text-micro text-warm"
         }`}
       >
         {due ? "NOW" : formatCountdown(msUntilDue)}
@@ -286,7 +286,7 @@ export function SwapCard({
         count={valid.length}
         summary={valid.map(({ off, on, index }, i) => (
           <span key={index} className={`flex min-w-0 items-center gap-1.5 ${i > 0 ? "ml-1.5" : ""}`}>
-            <span className={`${PAIR_CHIP} h-4 w-4 text-[10px] leading-4`}>{index + 1}</span>
+            <span className={`${PAIR_CHIP} h-4 w-4 text-nano leading-4`}>{index + 1}</span>
             <span className="truncate">{names.first(off)} → {names.first(on)}</span>
           </span>
         ))}
@@ -352,7 +352,7 @@ export function SwapCard({
           {pastHooterCarry && (
             <p
               data-testid="swapcard-carry-hint"
-              className="px-3 pb-2 font-mono text-[10px] font-semibold uppercase leading-4 tracking-micro text-due-dark"
+              className="px-3 pb-2 font-mono text-nano font-semibold uppercase leading-4 tracking-micro text-due-dark"
             >
               Quarter ending — apply now or it carries to the break
             </p>
@@ -394,11 +394,11 @@ export function SwapCard({
                   className="rounded-sm bg-white/[0.06]"
                 >
                   <div className="flex min-h-14 flex-wrap items-center gap-x-1.5 pl-2.5 pr-1">
-                    <span aria-hidden className={`${PAIR_CHIP} h-5 w-5 text-[11px] leading-5`}>
+                    <span aria-hidden className={`${PAIR_CHIP} h-5 w-5 text-micro leading-5`}>
                       {index + 1}
                     </span>
                     <span
-                      className={`w-8 flex-shrink-0 font-mono text-[10px] font-bold uppercase tracking-micro ${
+                      className={`w-8 flex-shrink-0 font-mono text-nano font-bold uppercase tracking-micro ${
                         ZONE_COLOR[s.zone] ?? "text-warm/70"
                       }`}
                     >
@@ -418,7 +418,7 @@ export function SwapCard({
                         );
                       }}
                       aria-label={`Change who comes off: ${off.full_name}`}
-                      className={`min-h-11 rounded-sm px-1 text-[15px] font-medium text-warm/80 ${
+                      className={`min-h-11 rounded-sm px-1 text-[0.9375rem] font-medium text-warm/80 ${
                         canOverride ? "underline decoration-warm/40 decoration-dashed underline-offset-[5px]" : ""
                       } ${editingThis("off") ? "bg-white/15" : canOverride ? "hover:bg-white/10" : ""}`}
                     >
@@ -440,7 +440,7 @@ export function SwapCard({
                         );
                       }}
                       aria-label={`Change who goes on: ${on.full_name}`}
-                      className={`min-h-11 rounded-sm px-1 text-[15px] font-semibold text-mint ${
+                      className={`min-h-11 rounded-sm px-1 text-[0.9375rem] font-semibold text-mint ${
                         canOverride ? "underline decoration-mint/50 decoration-dashed underline-offset-[5px]" : ""
                       } ${editingThis("on") ? "bg-white/15" : canOverride ? "hover:bg-white/10" : ""}`}
                     >
@@ -456,7 +456,7 @@ export function SwapCard({
                           revertPair(index);
                         }}
                         title="You set this — tap to revert to the auto pick"
-                        className="flex flex-shrink-0 items-center gap-0.5 rounded-full bg-mint/15 px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-micro text-mint transition-colors duration-fast ease-out-quart hover:bg-mint/25 motion-safe:active:scale-[0.97]"
+                        className="flex flex-shrink-0 items-center gap-0.5 rounded-full bg-mint/15 px-1.5 py-0.5 font-mono text-nano font-bold uppercase tracking-micro text-mint transition-colors duration-fast ease-out-quart hover:bg-mint/25 motion-safe:active:scale-[0.97]"
                       >
                         <svg width="8" height="8" viewBox="0 0 24 24" fill="none" aria-hidden>
                           <path
@@ -481,7 +481,7 @@ export function SwapCard({
                           onApplyOne(s);
                         }}
                         aria-label={swapPairLabel(off.full_name, on.full_name)}
-                        className="min-h-11 flex-shrink-0 whitespace-nowrap rounded-sm bg-white/10 px-3 font-mono text-[11px] font-bold text-warm transition-colors duration-fast ease-out-quart hover:bg-white/15 disabled:opacity-60"
+                        className="min-h-11 flex-shrink-0 whitespace-nowrap rounded-sm bg-white/10 px-3 font-mono text-micro font-bold text-warm transition-colors duration-fast ease-out-quart hover:bg-white/15 disabled:opacity-60"
                       >
                         {pending ? "…" : "Make swap"}
                       </button>
@@ -491,7 +491,7 @@ export function SwapCard({
                   {/* Inline override picker — opens under the tapped name. */}
                   {editing?.index === index && (
                     <div className="border-t border-white/10 px-2.5 py-2">
-                      <p className="mb-1.5 font-mono text-[10px] font-bold uppercase tracking-micro text-warm/[0.66]">
+                      <p className="mb-1.5 font-mono text-nano font-bold uppercase tracking-micro text-warm/[0.66]">
                         {editing.side === "on"
                           ? "Bring on instead"
                           : `Take off instead (${ZONE_LABELS[s.zone] ?? s.zone})`}
@@ -515,13 +515,13 @@ export function SwapCard({
                                   e.stopPropagation();
                                   commitOverride(index, editing.side, pid);
                                 }}
-                                className={`flex min-h-11 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold transition-colors duration-fast ease-out-quart ${
+                                className={`flex min-h-11 items-center gap-1.5 rounded-full px-3 text-[0.8125rem] font-semibold transition-colors duration-fast ease-out-quart ${
                                   selected
                                     ? "bg-brand-600 text-white"
                                     : "bg-white/10 text-warm/80 hover:bg-white/20"
                                 } motion-safe:active:scale-[0.97]`}
                               >
-                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black/20 font-mono text-[8px] font-bold">
+                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black/20 font-mono text-nano font-bold">
                                   {p ? initials(p.full_name) : "?"}
                                 </span>
                                 {p ? names.first(p) : pid}
@@ -542,7 +542,7 @@ export function SwapCard({
               onClick={applyAll}
               disabled={pending}
               data-testid="swapcard-apply-all"
-              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-sm bg-brand-600 text-[15px] font-bold text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-sm bg-brand-600 text-[0.9375rem] font-bold text-white transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
             >
               {pending ? (
                 <PulseDot size="sm" />

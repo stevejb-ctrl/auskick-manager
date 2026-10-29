@@ -23,6 +23,7 @@
 // Start, not after.
 
 import { useMemo, useRef, useState, useTransition } from "react";
+import { LINEUP_TAP_HINT } from "@/components/lineup/lineupHints";
 import { useKeptSetting } from "@/components/lineup/useKeptSetting";
 import { useRouter } from "next/navigation";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
@@ -306,7 +307,7 @@ export function TouchLineupPicker({
 
       <header className="space-y-1 px-1">
         <h1 className="text-xl font-bold text-ink">{ageGroup.label} starting side</h1>
-        <p className="text-xs text-ink-mute">Tap a player to select, tap a second to swap. Long-press for the bench or to lend a player.</p>
+        <p className="text-xs text-ink-mute">{LINEUP_TAP_HINT}</p>
       </header>
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
@@ -319,7 +320,7 @@ export function TouchLineupPicker({
           aria-label="Mixed rule: who counts as a girl or a boy"
         >
           <p className="text-sm font-semibold text-ink">For the mixed rule, counts as:</p>
-          <p className="mt-0.5 text-[11px] text-ink-dim">
+          <p className="mt-0.5 text-micro text-ink-dim">
             Siren needs this to keep the boys&rsquo; cap. It&rsquo;s only used for the rule, and shows nowhere else.
           </p>
           <ul className="mt-2 space-y-1.5">
@@ -360,7 +361,7 @@ export function TouchLineupPicker({
           aria-controls="touch-game-settings"
         >
           <span className="flex flex-1 items-center gap-3 text-sm">
-            <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">Game settings</span>
+            <span className="font-mono text-micro font-bold uppercase tracking-micro text-ink-mute">Game settings</span>
             <span className="text-xs text-ink-mute">{settingsSummary}</span>
           </span>
           <span aria-hidden className="text-ink-mute">
@@ -439,16 +440,16 @@ export function TouchLineupPicker({
                 onBlur={() => setSubMinInput(String(subMinutesFrom(subMinInput, defaultSubMinutes)))}
                 className="w-32"
               />
-              <p className="text-[11px] text-ink-mute">
+              <p className="text-micro text-ink-mute">
                 Subs roll on and off through the interchange. Siren lines up the next ones every interval; make the change when you
                 have the ball.
               </p>
             </div>
-            <p className="text-[11px] text-ink-dim">
+            <p className="text-micro text-ink-dim">
               Rotation: <strong>{touchStrategyLabel(strategy)}</strong> — change it in How we play.
             </p>
             {mixedRule && (
-              <p className="text-[11px] text-ink-dim">
+              <p className="text-micro text-ink-dim">
                 Mixed rule: <strong>{mixedRuleSummary(mixedRule)}</strong> {MIXED_FAIRNESS_NOTE}
               </p>
             )}
@@ -480,7 +481,7 @@ export function TouchLineupPicker({
         dimUnselected={false}
         loanedIds={Array.from(loanedIds)}
       />
-      {mixedRule && <p className="px-1 text-[11px] text-ink-mute">{MIXED_FAIRNESS_NOTE}</p>}
+      {mixedRule && <p className="px-1 text-micro text-ink-mute">{MIXED_FAIRNESS_NOTE}</p>}
 
       {lentPlayers.length > 0 && (
         <div className="rounded-lg border border-warn/40 bg-warn-soft/60 px-3 py-2">
@@ -495,7 +496,7 @@ export function TouchLineupPicker({
                 className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 motion-safe:active:scale-[0.97]"
               >
                 <span>{p.full_name}</span>
-                <span className="ml-0.5 text-[11px] font-semibold text-warn/80">Bring back</span>
+                <span className="ml-0.5 text-micro font-semibold text-warn/80">Bring back</span>
               </button>
             ))}
           </div>

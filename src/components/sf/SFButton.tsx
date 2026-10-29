@@ -47,9 +47,9 @@ const SIZE_CLASSES: Record<Size, string> = {
   // Touch target ≥44 px on md per the design accessibility spec. sm
   // looks 34 px but takes taps over 44: an invisible 5 px above and below
   // (UX round 3, e4: sheets' "Done" and the squad's Edit were 34 px).
-  sm: "relative h-[34px] px-3.5 text-[13px] gap-1.5 before:absolute before:inset-x-0 before:-inset-y-[5px] before:content-['']",
+  sm: "relative h-[34px] px-3.5 text-[0.8125rem] gap-1.5 before:absolute before:inset-x-0 before:-inset-y-[5px] before:content-['']",
   md: "h-11 px-[18px] text-sm gap-2",
-  lg: "h-[52px] px-[22px] text-[15px] gap-2.5",
+  lg: "h-[52px] px-[22px] text-[0.9375rem] gap-2.5",
 };
 
 // hover: handles pointer-on for desktop / iPad-trackpad.

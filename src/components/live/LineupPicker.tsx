@@ -789,7 +789,7 @@ export function LineupPicker({
       {lentPlayers.length > 0 && (
         <div className="rounded-lg border border-warn/40 bg-warn-soft/60 px-3 py-2">
           <p className="text-xs font-semibold text-warn">Lent to the other team</p>
-          <p className="mt-0.5 text-[11px] text-warn/80">
+          <p className="mt-0.5 text-micro text-warn/80">
             Tap “Bring back” to return a player to your bench.
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -807,7 +807,7 @@ export function LineupPicker({
                   <span className="tabular-nums font-semibold">{p.jersey_number}</span>
                 )}
                 <span>{p.full_name}</span>
-                <span className="ml-0.5 text-[11px] font-semibold text-warn/80">
+                <span className="ml-0.5 text-micro font-semibold text-warn/80">
                   Bring back
                 </span>
               </button>
@@ -840,7 +840,7 @@ export function LineupPicker({
           aria-controls="lineup-game-settings"
         >
           <span className="flex flex-1 items-center gap-3 text-sm">
-            <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+            <span className="font-mono text-micro font-bold uppercase tracking-micro text-ink-mute">
               Game settings
             </span>
             <span className="text-xs text-ink-mute">
@@ -1020,7 +1020,7 @@ export function LineupPicker({
                       onClick={() => handleLendToggle(p.id, false)}
                       disabled={loanPending}
                       aria-label={`Bring ${p.full_name} back`}
-                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60 motion-safe:active:scale-[0.97]"
+                      className="ml-0.5 rounded-full px-1 text-micro font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60 motion-safe:active:scale-[0.97]"
                     >
                       ×
                     </button>
@@ -1087,7 +1087,7 @@ export function LineupPicker({
           note instead (UX review #8, Steve 2026-07-08). */}
       {anySeasonHistory ? (
         <div className="flex items-center justify-between px-1">
-          <span className="text-[11px] font-medium text-ink-dim">
+          <span className="text-micro font-medium text-ink-dim">
             Season time in zone
           </span>
           <ZoneTimeLegend
@@ -1099,7 +1099,7 @@ export function LineupPicker({
           />
         </div>
       ) : (
-        <p className="rounded-md border border-dashed border-hairline bg-surface-alt px-3 py-2 text-[11px] text-ink-mute">
+        <p className="rounded-md border border-dashed border-hairline bg-surface-alt px-3 py-2 text-micro text-ink-mute">
           Zone history appears under each player after your first game.
         </p>
       )}

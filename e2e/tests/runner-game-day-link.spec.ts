@@ -64,9 +64,13 @@ test("touch: the runner's first screen names the game, and a no-show can be mark
   await runner.goto(`/run/${game.share_token}`);
 
   const welcome = runner.getByRole("region", { name: /welcome/i });
-  await expect(welcome).toContainText(`You're running today's game for ${team.name} vs ${OPPONENT}.`, { timeout: 15_000 });
-  // The steps describe this screen: the lineup's Update availability, and Start H1.
-  await expect(welcome).toContainText(/Tap "Update availability" above the lineup/);
+  // One line that says what to do (design review, Oct 2026); the top bar
+  // names the teams, and the steps sit behind "How this works".
+  await expect(welcome).toContainText("You're running today's game. Check who's here, then tap Start H1.", { timeout: 15_000 });
+  await expect(runner.getByTestId("run-whose")).toContainText(`Scoring for ${team.name}`);
+  await expect(runner.getByText(`vs ${OPPONENT}`).first()).toBeVisible();
+  await welcome.getByText("How this works").click();
+  await expect(welcome).toContainText(/Tap "Who's here" to\s+mark them out/);
   await expect(welcome).toContainText("just tap Start H1");
   await expect(runner.getByRole("button", { name: /^start h1$/i })).toBeVisible();
 
@@ -124,8 +128,11 @@ test("netball: the runner's first screen names the game", async ({ browser }) =>
   const { team, game } = await teamWithGame(admin, "netball", "go", 9);
   const runner = await runnerPhone(browser);
   await runner.goto(`/run/${game.share_token}`);
+  // The welcome sits under netball's own top bar, which names the game.
+  await expect(runner.getByTestId("run-whose")).toContainText(`Scoring for ${team.name}`, { timeout: 15_000 });
+  await expect(runner.getByText(`vs ${OPPONENT}`).first()).toBeVisible();
   await expect(runner.getByRole("region", { name: /welcome/i })).toContainText(
-    `You're running today's game for ${team.name} vs ${OPPONENT}.`,
+    "You're running today's game. Check who's here, then tap Start Q1.",
     { timeout: 15_000 },
   );
   await expect(runner.getByRole("button", { name: /^start q1$/i })).toBeVisible();

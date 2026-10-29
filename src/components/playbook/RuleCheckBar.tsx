@@ -107,7 +107,7 @@ export function RuleCheckBar({ items: ruleItems, why = [], emptySpots = 0, spotW
           </ul>
           {why.length > 0 && (
             <div>
-              <p className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute">Why</p>
+              <p className="font-mono text-nano font-bold uppercase tracking-micro text-ink-mute">Why</p>
               <ul className="mt-1 space-y-1" aria-label="Why these moves">
                 {shownWhy.map((w) => (
                   <li key={`${w.playerName}-${w.to}`} className="text-xs text-ink-dim">

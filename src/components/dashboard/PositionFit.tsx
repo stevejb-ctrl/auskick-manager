@@ -51,7 +51,7 @@ export function PositionFit({ rows, playerNames, hasData }: Props) {
             <p className="mb-2 text-sm font-semibold text-ink">{playerName}</p>
             <div className="space-y-1.5">
               {/* Column headers */}
-              <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+              <div className="flex items-center gap-2 text-nano font-semibold uppercase tracking-micro text-ink-mute">
                 <span className="w-14 shrink-0">Zone</span>
                 <span className="w-10 shrink-0 text-right">Min</span>
                 <span className="flex-1 text-right">For/90</span>

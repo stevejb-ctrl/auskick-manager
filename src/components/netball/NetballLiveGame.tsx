@@ -12,10 +12,11 @@
 // Score: +1 goal (our team) / +1 opponent goal. That's it.
 
 import { SFButton, SFIcon } from "@/components/sf";
+import { QuarterScoresButton } from "@/components/live/QuarterScoresButton";
 import { useOtherPhoneScores } from "@/components/live/useOtherPhoneScores";
 import { WENT_HOME_REASON, wentHomeIds } from "@/lib/live/wentHome";
 import { useRouter } from "next/navigation";
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
@@ -136,6 +137,11 @@ import { ScoreBugFrame } from "@/components/live/ScoreBugFrame";
 
 interface NetballLiveGameProps {
   game: Game;
+  /**
+   * Under the top bar before the start: the game-day link's welcome
+   * line. It used to render above the bar (design review, Oct 2026).
+   */
+  intro?: ReactNode;
   auth: LiveAuth;
   /** Team's own name — drives the home-side label in the score bug. */
   teamName: string;
@@ -284,6 +290,7 @@ interface NetballLiveGameProps {
 
 export function NetballLiveGame(props: NetballLiveGameProps) {
   const {
+    intro,
     game,
     auth,
     teamName,
@@ -1774,7 +1781,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const exitHref =
     auth.kind === "team"
       ? `/teams/${auth.teamId}/games/${game.id}`
-      : `/run/${auth.token}`;
+      : // The exit page, as every other sport's link: EXIT to the page
+        // you were on did nothing (UX round 2).
+        `/run/${auth.token}/left`;
   const topUtilityRow = (
     <LiveTopBar
       exitHref={exitHref}
@@ -1798,6 +1807,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     return (
       <div className="flex flex-col gap-4 pb-4">
         {topUtilityRow}
+        {intro}
         {walkthroughOverlay}
         <NetballLineupPicker
           // Rebuild the suggestion when who's-here changes on game day.
@@ -2296,7 +2306,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             <div className="flex items-center gap-2">
               <span
                 data-testid="planned-next-period-badge"
-                className="font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
+                className="font-mono text-nano font-bold uppercase tracking-micro text-brand-700"
               >
                 Next period ready
               </span>
@@ -2304,7 +2314,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                 type="button"
                 data-testid="plan-next-clear"
                 onClick={() => setPlannedRotation(consumePeriodPin(pinForThisGame, currentQuarter))}
-                className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim transition-colors hover:text-ink"
+                className="font-mono text-nano font-bold uppercase tracking-micro text-ink-dim transition-colors hover:text-ink"
               >
                 Clear
               </button>
@@ -2873,7 +2883,7 @@ function NetballScoreBug({
   // clock ticks on an interval that can land inside the hydration commit.
   const inner = (
     <>
-      <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
+      <span className="flex items-center gap-1.5 font-mono text-nano font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
         {/* Running: the mint live dot, as AFL's pill. Paused keeps
             its ▶ badge + ring below. */}
         {onClockTap && !paused && (
@@ -2904,7 +2914,7 @@ function NetballScoreBug({
     >
       {/* ▶ glyph top-left when paused — tap to resume. */}
       {paused && (
-        <span className="pointer-events-none absolute -left-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-brand-500 text-[8px] font-bold leading-none text-warm shadow-card">
+        <span className="pointer-events-none absolute -left-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-brand-500 text-nano font-bold leading-none text-warm shadow-card">
           ▶
         </span>
       )}
@@ -2955,14 +2965,7 @@ function NetballScoreBug({
       // 44pt text button (the old bordered 9px pill was ~20px).
       underClock={
         onShowQuarterScores && (
-          <button
-            type="button"
-            onClick={onShowQuarterScores}
-            className="min-h-[44px] px-3 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
-            aria-label="Show quarter-by-quarter scores"
-          >
-            Q-by-Q
-          </button>
+          <QuarterScoresButton onClick={onShowQuarterScores} />
         )
       }
       chipsDisabled={isPending}

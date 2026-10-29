@@ -23,23 +23,25 @@ import { ZONE_STRIP } from "@/components/live/zoneStrip";
 
 // Lines take AFL's three zone colours by place on the field (attack is
 // AFL's forward, midfield its centre, defence its back), so the palette
-// reads the same in both sports. The keeper is ink: never a line colour.
+// reads the same in both sports. The keeper is the break screen's keeper
+// violet (zone-k), never a line colour: it was ink here and violet at the
+// break, so the same kid changed colour between screens (design review).
 const UNIT_TEXT: Record<SoccerUnit, string> = {
-  gk: "text-ink",
+  gk: "text-zone-k-text",
   def: "text-zone-b",
   mid: "text-zone-c",
   att: "text-zone-f",
   field: "text-ink-dim",
 };
 const UNIT_FILL: Record<SoccerUnit, string> = {
-  gk: "bg-ink",
+  gk: "bg-zone-k",
   def: "bg-zone-b-fill",
   mid: "bg-zone-c-fill",
   att: "bg-zone-f-fill",
   field: "bg-zone-c-fill",
 };
 const UNIT_STRIP: Record<SoccerUnit, string> = {
-  gk: "border-ink/30 bg-ink/10 text-ink",
+  gk: "border-zone-k/40 bg-zone-k/10 text-zone-k-text",
   def: ZONE_STRIP.b,
   mid: ZONE_STRIP.c,
   att: ZONE_STRIP.f,
@@ -92,7 +94,7 @@ function formatMinSec(ms: number): string {
   return `${m}:${r.toString().padStart(2, "0")}`;
 }
 
-const CHIP = "inline-flex h-4 shrink-0 items-center rounded-xs px-[5px] font-mono text-[10px] font-bold leading-4";
+const CHIP = "inline-flex h-4 shrink-0 items-center rounded-xs px-[5px] font-mono text-nano font-bold leading-4";
 
 function SoccerPlayerTileImpl({
   player,
@@ -191,19 +193,19 @@ function SoccerPlayerTileImpl({
       >
         {isOn && swap?.unit && (
           <div
-            className={`flex items-center justify-center gap-1 rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-micro ${UNIT_STRIP[swap.unit]}`}
+            className={`flex items-center justify-center gap-1 rounded-t-[11px] border-b px-1 py-0.5 font-mono text-micro font-bold uppercase leading-none tracking-micro ${UNIT_STRIP[swap.unit]}`}
             aria-label={`Going on to ${words[swap.unit].label}, pair ${swap.pair}`}
           >
-            {showPairNumber && <span className="rounded-xs bg-black/15 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}
+            {showPairNumber && <span className="rounded-xs bg-black/15 px-1 py-0.5 text-nano">#{swap.pair}</span>}
             <span>→ {words[swap.unit].short || "ON"}</span>
           </div>
         )}
         {isOn && !swap?.unit && (
           <div
-            className="flex items-center justify-center gap-1 rounded-t-[11px] border-b border-brand-700 bg-brand-600 px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-micro text-white"
+            className="flex items-center justify-center gap-1 rounded-t-[11px] border-b border-brand-700 bg-brand-600 px-1 py-0.5 font-mono text-micro font-bold uppercase leading-none tracking-micro text-white"
             aria-label={`Going on, pair ${swap.pair}`}
           >
-            {showPairNumber && <span className="rounded-xs bg-white/25 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}
+            {showPairNumber && <span className="rounded-xs bg-white/25 px-1 py-0.5 text-nano">#{swap.pair}</span>}
             <span>→ ON</span>
           </div>
         )}
@@ -216,13 +218,13 @@ function SoccerPlayerTileImpl({
           <span className="flex h-4 items-center gap-1.5">
             {unitLabel && (
               <span
-                className={`font-mono text-[10px] font-bold uppercase leading-4 tracking-micro ${unit ? UNIT_TEXT[unit] : "text-ink-dim"}`}
+                className={`font-mono text-nano font-bold uppercase leading-4 tracking-micro ${unit ? UNIT_TEXT[unit] : "text-ink-dim"}`}
               >
                 {unitLabel}
               </span>
             )}
             {player.jersey_number != null && (
-              <span className="nums font-mono text-[10px] font-semibold leading-4 text-ink-dim">
+              <span className="nums font-mono text-nano font-semibold leading-4 text-ink-dim">
                 #{player.jersey_number}
               </span>
             )}
@@ -278,19 +280,19 @@ function SoccerPlayerTileImpl({
               <span
                 aria-hidden
                 style={{ animationDelay: "80ms" }}
-                className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-out-up motion-reduce:hidden"
+                className="block truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-out-up motion-reduce:hidden"
               >
                 {handover.from}
               </span>
               <span
                 style={{ animationDelay: "80ms" }}
-                className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-in-up motion-reduce:animate-xfade-in"
+                className="block truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-in-up motion-reduce:animate-xfade-in"
               >
                 {displayName}
               </span>
             </span>
           ) : (
-            <span className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink">
+            <span className="block truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-ink">
               {displayName}
             </span>
           )}

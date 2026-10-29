@@ -224,3 +224,31 @@ export function liveStatusFromEvents(events: GameEvent[]): LiveStatus {
   }
   return { period, periodEnded: period > 0 && endedPeriod >= period, finalised };
 }
+
+/**
+ * Each finished game's score, keyed by game id, for the games that
+ * kept score and were run in Siren (a game marked played has no score,
+ * not a 0–0). Today's last result and the Games list both read it, so a
+ * result says the same thing in both places (design review, Oct 2026:
+ * the list showed no result at all).
+ */
+export function finalScoresByGame(
+  sport: Sport,
+  teamTrackScoring: boolean,
+  finals: { id: string; playbook_snapshot?: unknown }[],
+  seasonEvents: GameEvent[],
+  playedInSiren: (events: GameEvent[]) => boolean,
+): Map<string, GameScore> {
+  const byGame = new Map<string, GameEvent[]>();
+  for (const ev of seasonEvents) {
+    const list = byGame.get(ev.game_id) ?? [];
+    list.push(ev);
+    byGame.set(ev.game_id, list);
+  }
+  const scores = new Map<string, GameScore>();
+  for (const g of finals) {
+    const events = byGame.get(g.id) ?? [];
+    if (playedInSiren(events) && scoresKept(sport, g, teamTrackScoring, events)) scores.set(g.id, scoreFromEvents(sport, events));
+  }
+  return scores;
+}

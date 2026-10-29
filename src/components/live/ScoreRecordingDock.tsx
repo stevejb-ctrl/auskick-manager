@@ -61,6 +61,13 @@ interface ScoreRecordingDockProps {
   swapHint?: string;
 }
 
+/**
+ * The dock's one line about swapping (design review, Oct 2026): it said
+ * "swap" three ways ("Or tap a teammate…", "Or tap a bench player to swap
+ * X off", and the heading named only scoring). Every sport passes this.
+ */
+export const DOCK_SWAP_HINT = "Tap anyone, on the field or the bench, to swap them.";
+
 export function ScoreRecordingDock({
   heading,
   actions,
@@ -84,7 +91,7 @@ export function ScoreRecordingDock({
             onClick={onCancel}
             // A 44 px target round the small word, without growing the
             // row (it was 50×17; UX round 3, e4).
-            className="-my-3 -mr-2 inline-flex min-h-[44px] min-w-[44px] flex-shrink-0 items-center justify-center px-2 font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim hover:text-ink"
+            className="-my-3 -mr-2 inline-flex min-h-[44px] min-w-[44px] flex-shrink-0 items-center justify-center px-2 font-mono text-micro font-bold uppercase tracking-micro text-ink-dim hover:text-ink"
           >
             {cancelLabel}
           </button>

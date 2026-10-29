@@ -32,7 +32,7 @@ export function GamesFilter() {
       options={[
         { id: "all", label: "All" },
         { id: "upcoming", label: "Upcoming" },
-        { id: "final", label: "Final" },
+        { id: "final", label: "Played" },
       ]}
       size="sm"
       full={false}

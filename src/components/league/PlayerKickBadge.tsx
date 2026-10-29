@@ -48,7 +48,7 @@ export function PlayerKickBadge({
               : `Made ${conversion.madeInCycle} of ${conversion.attemptsInCycle} conversions in this cycle`
           }
           className={[
-            "relative inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none ring-1",
+            "relative inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-nano font-bold leading-none ring-1",
             conversion.madeInCycle > 0
               ? "bg-brand-600/15 text-brand-600 ring-brand-600/40"
               : "bg-ink-mute/15 text-ink-mute ring-ink-mute/30",
@@ -66,7 +66,7 @@ export function PlayerKickBadge({
           {conversion.hasForceInCycle && (
             <span
               aria-hidden="true"
-              className="absolute -right-0.5 -top-0.5 inline-flex h-3 w-3 items-center justify-center rounded-full bg-warn text-[8px] font-bold text-warm"
+              className="absolute -right-0.5 -top-0.5 inline-flex h-3 w-3 items-center justify-center rounded-full bg-warn text-nano font-bold text-warm"
             >
               !
             </span>
@@ -77,7 +77,7 @@ export function PlayerKickBadge({
         <span
           aria-label="Has taken a kickoff this game"
           title="Has taken a kickoff this game"
-          className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-brand-50 text-[10px] font-bold text-brand-600 ring-1 ring-brand-600/30"
+          className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-brand-50 text-nano font-bold text-brand-600 ring-1 ring-brand-600/30"
         >
           K
         </span>

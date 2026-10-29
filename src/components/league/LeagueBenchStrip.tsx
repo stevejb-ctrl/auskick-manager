@@ -74,7 +74,7 @@ export function LeagueBenchStrip({
 }: LeagueBenchStripProps) {
   return (
     <div role="group" aria-label="Bench" className="rounded-md border border-hairline bg-surface p-2 shadow-card">
-      <p className="mb-1.5 px-1 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
+      <p className="mb-1.5 px-1 font-mono text-nano font-bold uppercase tracking-micro text-ink-dim">
         Bench ({players.length})
       </p>
       {players.length === 0 ? (

@@ -58,7 +58,7 @@ export function BreakPlayerTile({ tile, testId, selected, target, onTap, onLongP
         onClick={onTap}
         aria-pressed={selected}
         aria-label={`Empty ${tile.emptyLabel ?? ""} spot`.replace(/\s+/g, " ")}
-        className={`flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[12px] border-2 border-dashed px-2.5 py-2 text-[13px] font-semibold text-ink-dim transition-colors duration-fast ease-out-quart ${
+        className={`flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[12px] border-2 border-dashed px-2.5 py-2 text-[0.8125rem] font-semibold text-ink-dim transition-colors duration-fast ease-out-quart ${
           selected ? "border-brand-600 bg-brand-50" : target ? "border-brand-300" : "border-hairline"
         }`}
       >
@@ -93,12 +93,12 @@ export function BreakPlayerTile({ tile, testId, selected, target, onTap, onLongP
         )}
         <span className="min-w-0 flex-1 truncate whitespace-nowrap text-[0.9375rem] font-semibold">{tile.name}</span>
         {tile.tags?.map((t) => (
-          <span key={t} className="shrink-0 font-mono text-[10px] font-bold uppercase text-ink-dim">
+          <span key={t} className="shrink-0 font-mono text-nano font-bold uppercase text-ink-dim">
             {t}
           </span>
         ))}
         {tile.score && (
-          <span aria-label={tile.score.label} className="shrink-0 font-mono text-[11px] font-semibold text-ink">
+          <span aria-label={tile.score.label} className="shrink-0 font-mono text-micro font-semibold text-ink">
             {tile.score.text}
           </span>
         )}

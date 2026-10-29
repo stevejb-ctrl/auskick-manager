@@ -87,7 +87,7 @@ export default async function AppLayout({
           the `feedback` table (migration 0045) AND Telegram-ping us
           with team/sport/age/game context when the submitter is
           inside a team route. */}
-      <FeedbackFab kind="feedback" />
+      <FeedbackFab kind="feedback" homeOnly />
       {/* App-bar header.
 
           z-20: the netball court's PositionToken wrappers use z-10

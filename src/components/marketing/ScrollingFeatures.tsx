@@ -227,7 +227,7 @@ export function ScrollingFeatures({
                 }`}
               >
                 <p
-                  className="font-mono text-[12px] font-bold uppercase tracking-micro"
+                  className="font-mono text-xs font-bold uppercase tracking-micro"
                   style={accent ? { color: accent } : undefined}
                 >
                   <span className={accent ? "mr-3" : "mr-3 text-brand-500"}>
@@ -327,7 +327,7 @@ function Centerpiece({
           className={`block h-1.5 w-1.5 rounded-full ${dotClass}`}
           style={dotStyle}
         />
-        <span className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-ink-mute">
+        <span className="font-mono text-micro font-bold uppercase tracking-[0.18em] text-ink-mute">
           What Siren does
         </span>
         <span
@@ -378,23 +378,23 @@ function MobileOverlayCard({
       >
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span
-            className={`font-mono text-[9px] font-bold uppercase tracking-[0.18em] ${accent ? "" : "text-brand-500"}`}
+            className={`font-mono text-nano font-bold uppercase tracking-[0.18em] ${accent ? "" : "text-brand-500"}`}
             style={accent ? { color: accent } : undefined}
           >
             {PADDED(index + 1)}/{PADDED(total)}
           </span>
-          <span className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-warm/55">
+          <span className="font-mono text-nano font-bold uppercase tracking-[0.18em] text-warm/55">
             {feature.eyebrow}
           </span>
           {/* Expand/collapse affordance */}
           <span
             aria-hidden="true"
-            className="ml-auto inline-flex h-4 w-4 items-center justify-center rounded-full bg-warm/10 font-mono text-[11px] font-bold leading-none text-warm/70"
+            className="ml-auto inline-flex h-4 w-4 items-center justify-center rounded-full bg-warm/10 font-mono text-micro font-bold leading-none text-warm/70"
           >
             {expanded ? "−" : "+"}
           </span>
         </div>
-        <h3 className="mt-1 text-[13px] font-semibold leading-tight tracking-tightest text-warm [text-wrap:balance]">
+        <h3 className="mt-1 text-[0.8125rem] font-semibold leading-tight tracking-tightest text-warm [text-wrap:balance]">
           {/* Accent stays text-warm/90 on the dark card — sport
               accents (orange, green, purple) don't read on near-
               black backgrounds at this small size; cream is the
@@ -412,14 +412,14 @@ function MobileOverlayCard({
           }`}
         >
           <div className="overflow-hidden">
-            <p className="mt-2.5 text-[12px] leading-snug text-warm/75">
+            <p className="mt-2.5 text-xs leading-snug text-warm/75">
               {feature.body}
             </p>
             <ul className="mt-2 space-y-1.5">
               {feature.bullets.map((b) => (
                 <li
                   key={b}
-                  className="flex gap-2 text-[12px] leading-snug text-warm/85"
+                  className="flex gap-2 text-xs leading-snug text-warm/85"
                 >
                   <span
                     aria-hidden="true"

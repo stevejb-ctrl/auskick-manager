@@ -43,7 +43,7 @@ import { ClockMenu } from "@/components/live/ClockMenu";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { SubDueBanner } from "@/components/live/SubDueBanner";
 import { subDueBannerShows } from "@/components/live/SubDue";
-import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
+import { DOCK_SWAP_HINT, ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { LockModal } from "@/components/live/LockModal";
 import { NextSubCard } from "@/components/live/NextSubCard";
@@ -867,7 +867,7 @@ export function BasketballLiveGame({
         />
       )}
       {isPeriodActive && nextSubs.length > 0 && subDue.due && (
-        <p className="-mt-1 px-1 text-[11px] text-ink-dim">
+        <p className="-mt-1 px-1 text-micro text-ink-dim">
           {/* Plain words: "the table" and "the whistle" lost a parent who
               doesn't know basketball (Stagehand round 8, #14). */}
           Send the kids coming on to the scorer&apos;s table now. Tap Make swap when play stops and the ref waves them on.
@@ -877,7 +877,7 @@ export function BasketballLiveGame({
       {!isFinished && lentPlayers.length > 0 && (
         <div className="rounded-lg border border-warn/40 bg-warn-soft/60 px-3 py-2">
           <p className="text-xs font-semibold text-warn">Lent to the other team</p>
-          <p className="mt-0.5 text-[11px] text-warn/80">Tap &ldquo;Bring back&rdquo; to return a player to your bench.</p>
+          <p className="mt-0.5 text-micro text-warn/80">Tap &ldquo;Bring back&rdquo; to return a player to your bench.</p>
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             {lentPlayers.map((p) => (
               <button
@@ -889,7 +889,7 @@ export function BasketballLiveGame({
                 className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-60 motion-safe:active:scale-[0.97]"
               >
                 <span>{p.full_name}</span>
-                <span className="ml-0.5 text-[11px] font-semibold text-warn/80">Bring back</span>
+                <span className="ml-0.5 text-micro font-semibold text-warn/80">Bring back</span>
               </button>
             ))}
           </div>
@@ -1002,17 +1002,8 @@ export function BasketballLiveGame({
 
       {playerDockVisible && selectedPlayer && (
         <ScoreRecordingDock
-          swapHint="Or tap a teammate to swap them."
-          heading={
-            scoreDockVisible ? (
-              <>
-                {trackScoring ? "Points or a foul for " : "A foul for "}
-                <span className="text-brand-700">{selectedPlayer.full_name}</span>
-              </>
-            ) : (
-              <span className="text-brand-700">{selectedPlayer.full_name}</span>
-            )
-          }
+          swapHint={DOCK_SWAP_HINT}
+          heading={<span className="text-brand-700">{selectedPlayer.full_name}</span>}
           onCancel={() => setSelectedId(null)}
           onPlayerActions={() => {
             const id = selectedPlayer.id;
@@ -1050,24 +1041,34 @@ export function BasketballLiveGame({
                       }}
                       disabled={pending || (state.fouls[selectedPlayer.id] ?? 0) === 0}
                       aria-label={`Take back a foul from ${selectedPlayer.full_name}`}
-                      className="min-h-[44px] min-w-[44px] rounded-sm border border-due/50 bg-surface font-mono text-base font-bold text-due transition-colors duration-fast ease-out-quart hover:bg-due/10 disabled:opacity-40"
+                      className="min-h-[44px] min-w-[44px] rounded-sm border border-due/50 bg-surface px-3 text-sm font-semibold text-due transition-colors duration-fast ease-out-quart hover:bg-due/10 disabled:opacity-40"
                     >
-                      −
+                      {/* A word, not a lone "−" that read as a points stepper
+                          (design review, Oct 2026). */}
+                      Undo
                     </button>
                     <button
                       type="button"
                       data-testid="basketball-foul"
                       onClick={() => foul(selectedPlayer.id)}
                       disabled={pending || (state.fouls[selectedPlayer.id] ?? 0) >= ageGroup.foulOutAt}
-                      className="min-h-[44px] flex-1 rounded-sm border border-due/50 bg-due-tint py-2.5 font-mono text-sm font-bold uppercase tracking-micro text-due transition-colors duration-fast ease-out-quart hover:bg-due/10 disabled:opacity-60"
+                      aria-label={`Foul for ${selectedPlayer.full_name}, ${state.fouls[selectedPlayer.id] ?? 0} of ${ageGroup.foulOutAt}`}
+                      className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2.5 rounded-sm border border-due/50 bg-due-tint py-2.5 text-sm font-semibold text-due transition-colors duration-fast ease-out-quart hover:bg-due/10 disabled:opacity-60"
                     >
-                      + Foul ({state.fouls[selectedPlayer.id] ?? 0} of {ageGroup.foulOutAt})
+                      + Foul
+                      {/* A dot per foul allowed: how close to fouling out, at
+                          a glance (was "+ FOUL (0 OF 5)" in spaced capitals). */}
+                      <span aria-hidden="true" className="inline-flex gap-1">
+                        {Array.from({ length: ageGroup.foulOutAt }, (_, i) => (
+                          <span
+                            key={i}
+                            className={`h-2 w-2 rounded-full border border-due ${i < (state.fouls[selectedPlayer.id] ?? 0) ? "bg-due" : "bg-transparent"}`}
+                          />
+                        ))}
+                      </span>
                     </button>
                   </div>
                 )}
-                <p className="text-center text-[11px] text-ink-mute">
-                  Or tap a bench player to swap <strong>{selectedPlayer.full_name}</strong> off.
-                </p>
               </div>
             ) : (
               <p className="text-xs text-ink-dim">

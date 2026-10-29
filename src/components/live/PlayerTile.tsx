@@ -72,7 +72,7 @@ function formatMinSec(ms: number): string {
 }
 
 // Top-row chips share one shape: 16px tall mono caps.
-const CHIP = "inline-flex h-4 shrink-0 items-center rounded-xs px-[5px] font-mono text-[10px] font-bold leading-4";
+const CHIP = "inline-flex h-4 shrink-0 items-center rounded-xs px-[5px] font-mono text-nano font-bold leading-4";
 
 // In-game re-skin (design session 17 Oct 2026, canvas "Siren in-game
 // UI"): three left-aligned rows on the 4px grid — 8 + 16 + 20 + 16 + 8
@@ -237,19 +237,19 @@ function PlayerTileImpl({
       {/* Bench tile going on — target-zone strip (planning, not on the field). */}
       {isOn && swap?.zone && (
         <div
-          className={`flex items-center justify-center gap-1 rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-micro ${swapZoneAccent}`}
+          className={`flex items-center justify-center gap-1 rounded-t-[11px] border-b px-1 py-0.5 font-mono text-micro font-bold uppercase leading-none tracking-micro ${swapZoneAccent}`}
           aria-label={`Going on to ${ZONE_SHORT[swap.zone]}, pair ${swap.pair}`}
         >
-          {showPairNumber && <span className="rounded-xs bg-black/15 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}
+          {showPairNumber && <span className="rounded-xs bg-black/15 px-1 py-0.5 text-nano">#{swap.pair}</span>}
           <span>→ {ZONE_SHORT[swap.zone]}</span>
         </div>
       )}
       {isOn && !swap?.zone && (
         <div
-          className="flex items-center justify-center gap-1 rounded-t-[11px] border-b border-brand-700 bg-brand-600 px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-micro text-white"
+          className="flex items-center justify-center gap-1 rounded-t-[11px] border-b border-brand-700 bg-brand-600 px-1 py-0.5 font-mono text-micro font-bold uppercase leading-none tracking-micro text-white"
           aria-label={`Going on, pair ${swap.pair}`}
         >
-          {showPairNumber && <span className="rounded-xs bg-white/25 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}
+          {showPairNumber && <span className="rounded-xs bg-white/25 px-1 py-0.5 text-nano">#{swap.pair}</span>}
           <span>→ ON</span>
         </div>
       )}
@@ -261,12 +261,12 @@ function PlayerTileImpl({
         {/* Row 1 · labels left, status chip right. */}
         <span className="flex h-4 items-center gap-1.5">
           {zoneLabel && (
-            <span className={`font-mono text-[10px] font-bold uppercase leading-4 tracking-micro ${zoneAccent}`}>
+            <span className={`font-mono text-nano font-bold uppercase leading-4 tracking-micro ${zoneAccent}`}>
               {zoneLabel}
             </span>
           )}
           {player.jersey_number != null && (
-            <span className="nums font-mono text-[10px] font-semibold leading-4 text-ink-dim">
+            <span className="nums font-mono text-nano font-semibold leading-4 text-ink-dim">
               #{player.jersey_number}
             </span>
           )}
@@ -336,19 +336,19 @@ function PlayerTileImpl({
             <span
               aria-hidden
               style={{ animationDelay: "80ms" }}
-              className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-out-up motion-reduce:hidden"
+              className="block truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-out-up motion-reduce:hidden"
             >
               {handover.from}
             </span>
             <span
               style={{ animationDelay: "80ms" }}
-              className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-in-up motion-reduce:animate-xfade-in"
+              className="block truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-in-up motion-reduce:animate-xfade-in"
             >
               {displayName}
             </span>
           </span>
         ) : (
-          <span className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink">
+          <span className="block truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-ink">
             {displayName}
           </span>
         )}

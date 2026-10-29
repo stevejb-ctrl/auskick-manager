@@ -30,7 +30,7 @@ export function SharedFeatures({ eyebrow, heading, intro, accent }: SharedFeatur
     <section id="features" className="border-y border-hairline bg-surface py-16 sm:py-24">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="mx-auto max-w-3xl text-center">
-          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-dim">
+          <p className="font-mono text-micro font-semibold uppercase tracking-[0.16em] text-ink-dim">
             {eyebrow}
           </p>
           <h2 className="mt-3 text-[clamp(2rem,4vw,3.25rem)] font-bold leading-[1.05] tracking-tightest text-ink [text-wrap:balance]">
@@ -64,7 +64,7 @@ export function SharedFeatures({ eyebrow, heading, intro, accent }: SharedFeatur
                   </div>
                 </div>
                 <div className="min-w-0 sm:px-6 sm:pb-7 sm:pt-5">
-                  <p className="flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-ink-dim sm:text-[11px]">
+                  <p className="flex items-center gap-2 font-mono text-nano font-bold uppercase tracking-[0.14em] text-ink-dim sm:text-micro">
                     <span
                       aria-hidden="true"
                       className="h-[7px] w-[7px] rounded-full bg-ink"
@@ -73,7 +73,7 @@ export function SharedFeatures({ eyebrow, heading, intro, accent }: SharedFeatur
                     {feature.shownIn ? `Shown in ${sportName(feature.shownIn)}` : "Every sport"}
                   </p>
                   <h3 className="mt-2 text-lg font-bold tracking-tight text-ink sm:text-xl">{feature.title}</h3>
-                  <p className="mt-1.5 text-sm leading-relaxed text-ink-dim sm:text-[15px]">{feature.body}</p>
+                  <p className="mt-1.5 text-sm leading-relaxed text-ink-dim sm:text-[0.9375rem]">{feature.body}</p>
                 </div>
               </li>
             );

@@ -211,7 +211,7 @@ export function LoginForm({ join = null }: { join?: JoinStory | null }) {
             hint={
               <Link
                 href="/forgot-password"
-                className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
+                className="font-mono text-nano font-bold uppercase tracking-[0.12em] text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
               >
                 Forgot?
               </Link>
@@ -282,7 +282,7 @@ export function LoginForm({ join = null }: { join?: JoinStory | null }) {
 
 function Divider({ label }: { label: string }) {
   return (
-    <div className="my-4 flex items-center gap-3 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-ink-mute">
+    <div className="my-4 flex items-center gap-3 font-mono text-nano font-bold uppercase tracking-[0.16em] text-ink-mute">
       <span aria-hidden="true" className="h-px flex-1 bg-hairline" />
       {label}
       <span aria-hidden="true" className="h-px flex-1 bg-hairline" />

@@ -11,6 +11,7 @@
 // gap.
 
 import type { Player } from "@/lib/types";
+import { ON_SURFACE_CHIP, sportSurface } from "@/components/live/sportSurface";
 import type { VestType } from "@/lib/sports/rugby_league/vests";
 import type { PlayerConversionStatus } from "@/lib/sports/rugby_league/kicks";
 import { arrangeLeagueField, type FieldSlot } from "@/lib/sports/rugby_league/fieldFormation";
@@ -156,7 +157,7 @@ export function LeagueField({
   return (
     <section
       aria-label="On field"
-      className="relative flex w-full flex-col rounded-lg border border-emerald-800/60 bg-emerald-700 shadow-card"
+      className={`relative flex w-full flex-col rounded-lg ${sportSurface("field")}`}
     >
       {wakeUpKey !== null && (
         <span
@@ -263,7 +264,7 @@ export function LeagueField({
             return (
               <div key={line} data-line={line} className={gi > 0 ? "relative mt-4 pt-4" : "relative"}>
                 {gi > 0 && <div aria-hidden className="pointer-events-none absolute -left-3 -right-3 top-0 h-px bg-white/[0.28]" />}
-                <p className="relative mb-2 px-1 font-mono text-[10px] font-bold uppercase tracking-micro text-white/75">
+                <p className="relative mb-2 px-1 font-mono text-nano font-bold uppercase tracking-micro text-white/75">
                   {line === "forwards" ? "Forwards" : "Backs"}
                 </p>
                 <div role="group" aria-label={line === "forwards" ? "Forwards" : "Backs"} className="relative space-y-2">
@@ -288,8 +289,8 @@ export function LeagueField({
         {typeof onFieldSize === "number" ? (
           <span
             aria-hidden
-            className={`pointer-events-none absolute right-2.5 top-2.5 inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[10px] font-bold tabular-nums ${
-              players.length === onFieldSize ? "bg-emerald-900/70 text-white" : "bg-warn text-white"
+            className={`pointer-events-none absolute right-2.5 top-2.5 inline-flex items-center rounded-full px-2 py-0.5 font-mono text-nano font-bold tabular-nums ${
+              players.length === onFieldSize ? ON_SURFACE_CHIP : "bg-warn text-white"
             }`}
           >
             {players.length} / {onFieldSize}
@@ -297,7 +298,7 @@ export function LeagueField({
         ) : (
           <span
             aria-hidden
-            className="pointer-events-none absolute right-2.5 top-2.5 rounded-full bg-emerald-900/70 px-2 py-0.5 font-mono text-[10px] font-bold tabular-nums text-white"
+            className="pointer-events-none absolute right-2.5 top-2.5 rounded-full bg-black/25 px-2 py-0.5 font-mono text-nano font-bold tabular-nums text-white"
           >
             {players.length}
           </span>
@@ -334,7 +335,7 @@ function VacantSpot({
   disabled?: boolean;
 }) {
   const baseClasses
-    = "flex w-full items-center justify-center rounded-md border border-dashed px-1.5 py-3 text-center text-[11px] font-medium";
+    = "flex w-full items-center justify-center rounded-md border border-dashed px-1.5 py-3 text-center text-micro font-medium";
   const passiveTone = "border-white/70 bg-white/10 text-white/80";
   // When primed, swap the muted white-on-green look for a brand-
   // tinted dash so the empty slot reads as a tap target — same

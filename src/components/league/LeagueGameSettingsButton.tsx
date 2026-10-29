@@ -329,7 +329,7 @@ function LeagueGameSettingsModal({
         {unbrokenRule && (
           <div className="rounded-md border border-hairline bg-surface-alt px-3 py-2.5">
             <p className="text-xs font-semibold text-ink">Unbroken periods</p>
-            <p className="text-[11px] text-ink-mute">
+            <p className="text-micro text-ink-mute">
               §6: each player must play {unbrokenRule}. Siren keeps it: a
               kid who needs this one stays on.
             </p>
@@ -342,7 +342,7 @@ function LeagueGameSettingsModal({
             <p className="text-xs font-semibold text-ink">
               Track forward and back time
             </p>
-            <p className="text-[11px] text-ink-mute">
+            <p className="text-micro text-ink-mute">
               {centreVest
                 ? `Adds an F/C/B time bar to every player tile. Centre = time wearing ${centreVest}.`
                 : "Adds a forwards / backs time bar to every player tile."}

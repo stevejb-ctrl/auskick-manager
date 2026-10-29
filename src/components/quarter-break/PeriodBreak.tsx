@@ -306,7 +306,7 @@ export function PeriodBreak(props: PeriodBreakProps) {
         />
       ) : (
         <div className="px-1 py-2 text-center">
-          <h1 tabIndex={-1} className="text-[17px] font-bold text-ink outline-none">
+          <h1 tabIndex={-1} className="text-[1.0625rem] font-bold text-ink outline-none">
             {periodName} lineup
           </h1>
           <p className="text-xs text-ink-dim">
@@ -344,13 +344,13 @@ export function PeriodBreak(props: PeriodBreakProps) {
               aria-label={`Score ${props.score.line.main}. Review and update scores`}
               className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-[12px] border border-hairline bg-surface px-3 text-left disabled:cursor-default"
             >
-              <span className="whitespace-nowrap font-mono text-[15px] font-semibold tabular-nums text-ink">
+              <span className="whitespace-nowrap font-mono text-[0.9375rem] font-semibold tabular-nums text-ink">
                 {props.score.line.main}
               </span>
               {props.score.line.margin !== 0 && (
                 <span
                   // win green, not ok: ok is 4.05:1 on white (UX round 3, e4).
-                  className={`whitespace-nowrap text-[13px] font-semibold ${props.score.line.margin > 0 ? "text-win" : "text-danger"}`}
+                  className={`whitespace-nowrap text-[0.8125rem] font-semibold ${props.score.line.margin > 0 ? "text-win" : "text-danger"}`}
                 >
                   {props.score.line.margin > 0 ? `+${props.score.line.margin}` : props.score.line.margin}
                 </span>
@@ -380,7 +380,7 @@ export function PeriodBreak(props: PeriodBreakProps) {
               props.statusChip.attention ? "border-due/50 bg-due-tint" : "border-hairline bg-surface"
             }`}
           >
-            <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">{props.statusChip.title}</span>
+            <span className="font-mono text-micro font-bold uppercase tracking-micro text-ink-dim">{props.statusChip.title}</span>
             <span className={`min-w-0 flex-1 truncate font-medium ${props.statusChip.attention ? "text-due" : "text-ink"}`}>
               {props.statusChip.summary}
             </span>
@@ -470,7 +470,7 @@ export function PeriodBreak(props: PeriodBreakProps) {
         }
         prompt={
           selectedSlot ? (
-            <div className="flex items-center gap-2 text-[13px] text-ink" aria-live="polite">
+            <div className="flex items-center gap-2 text-[0.8125rem] text-ink" aria-live="polite">
               <span className="min-w-0 truncate">
                 {selectedName ? (
                   <>
@@ -485,7 +485,7 @@ export function PeriodBreak(props: PeriodBreakProps) {
               <button
                 type="button"
                 onClick={() => setSelected(null)}
-                className="ml-auto h-9 shrink-0 rounded-lg border border-hairline bg-surface px-3 text-[13px] font-medium text-ink"
+                className="ml-auto h-9 shrink-0 rounded-lg border border-hairline bg-surface px-3 text-[0.8125rem] font-medium text-ink"
               >
                 Cancel
               </button>

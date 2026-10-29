@@ -27,7 +27,7 @@ export function TagChip({ name, color, onRemove, className = "" }: TagChipProps)
         <button
           type="button"
           onClick={onRemove}
-          className="-mr-1 rounded-full px-1 text-[10px] leading-none opacity-70 hover:opacity-100 motion-safe:active:scale-[0.97]"
+          className="-mr-1 rounded-full px-1 text-nano leading-none opacity-70 hover:opacity-100 motion-safe:active:scale-[0.97]"
           aria-label={`Remove tag ${name}`}
         >
           ×

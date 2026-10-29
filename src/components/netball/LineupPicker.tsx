@@ -874,7 +874,7 @@ export function NetballLineupPicker({
           aria-controls="netball-lineup-game-settings"
         >
           <span className="flex flex-1 items-center gap-3 text-sm">
-            <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+            <span className="font-mono text-micro font-bold uppercase tracking-micro text-ink-mute">
               Game settings
             </span>
             <span className="text-xs text-ink-mute">
@@ -1093,7 +1093,7 @@ export function NetballLineupPicker({
                     type="button"
                     onClick={() => handleAllowChange(null)}
                     disabled={allowPending}
-                    className="mt-1 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink-dim disabled:opacity-60"
+                    className="mt-1 font-mono text-nano font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink-dim disabled:opacity-60"
                   >
                     Use team default
                   </button>
@@ -1131,7 +1131,7 @@ export function NetballLineupPicker({
                         onClick={() => handleLendToggle(p.id, false)}
                         disabled={loanPending}
                         aria-label={`Bring ${p.full_name} back`}
-                        className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60 motion-safe:active:scale-[0.97]"
+                        className="ml-0.5 rounded-full px-1 text-micro font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60 motion-safe:active:scale-[0.97]"
                       >
                         ×
                       </button>
@@ -1329,11 +1329,14 @@ function BenchStrip({
   const all = [...bench, ...unassigned];
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-hairline bg-surface p-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-ink-dim">Bench + unassigned</h3>
-        <span className="text-xs text-ink-mute">{bench.length} benched</span>
-      </div>
+    // The bench card every sport's lineup uses (design review, Oct 2026:
+    // netball's was a grey "Bench + unassigned" heading that read as
+    // disabled, over a row of small name chips): the mono "Bench (n)"
+    // label and a four-up grid of tiles.
+    <div className="flex flex-col gap-2 rounded-lg border border-hairline bg-surface p-3 shadow-card">
+      <h3 className="font-mono text-micro font-bold uppercase tracking-micro text-ink-dim">
+        Bench ({all.length})
+      </h3>
       {/* Why kids sit (usability run: "no stated reason"). Netball subs
           only at the breaks, so sitting out is a whole quarter; at
           kickoff nobody has played yet, so it's simply turns. */}
@@ -1343,9 +1346,9 @@ function BenchStrip({
           {availableIds.length - onCourtIds.length} sit out each quarter and everyone takes a turn.
         </p>
       )}
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-4 gap-2 bigtext:grid-cols-2">
         {all.length === 0 ? (
-          <span className="text-xs italic text-ink-mute">
+          <span className="col-span-4 text-xs text-ink-mute">
             Everyone available is placed.
           </span>
         ) : (
@@ -1393,12 +1396,12 @@ function BenchChip({
         if (lp.consumedLongPress()) return;
         onTap();
       }}
-      className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+      className={`relative min-h-[56px] rounded-md border px-2 py-2 text-left text-sm font-semibold leading-tight shadow-card transition-colors [overflow-wrap:anywhere] ${
         selected
           ? "border-brand-500 bg-brand-50 text-brand-800 ring-2 ring-brand-400"
           : lp.arming
             ? "border-brand-400 bg-surface-alt text-ink"
-            : "border-hairline bg-surface-alt text-ink hover:bg-hairline"
+            : "border-hairline bg-surface text-ink hover:bg-surface-alt"
       }`}
     >
       {player.full_name}

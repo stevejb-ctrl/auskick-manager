@@ -28,7 +28,7 @@ export function SquadHeader({ activeCount, maxPlayers }: SquadHeaderProps) {
           {activeCount}
         </span>
         <span className="font-mono text-lg text-ink-mute">/{maxPlayers}</span>
-        <p className="mt-0.5 font-mono text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+        <p className="mt-0.5 font-mono text-nano font-semibold uppercase tracking-micro text-ink-mute">
           Players
         </p>
       </div>

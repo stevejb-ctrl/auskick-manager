@@ -78,7 +78,7 @@ export function PositionsField({
           {sideLabels.map((label) => (
             <span
               key={label}
-              className="font-mono text-[9px] font-bold uppercase tracking-micro text-white/50"
+              className="font-mono text-nano font-bold uppercase tracking-micro text-white/50"
               style={{
                 writingMode: "vertical-rl",
                 transform: side === "left" ? "rotate(180deg)" : undefined,

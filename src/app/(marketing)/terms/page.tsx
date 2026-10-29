@@ -227,7 +227,7 @@ function Section({
   return (
     <section className="space-y-3">
       <h2 className="text-xl font-semibold text-ink">{title}</h2>
-      <div className="space-y-3 text-[15px] leading-relaxed [&_a]:text-brand-700 [&_a:hover]:underline [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-6 [&_strong]:text-ink [&_em]:italic">
+      <div className="space-y-3 text-[0.9375rem] leading-relaxed [&_a]:text-brand-700 [&_a:hover]:underline [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-6 [&_strong]:text-ink [&_em]:italic">
         {children}
       </div>
     </section>

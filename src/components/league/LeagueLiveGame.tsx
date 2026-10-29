@@ -47,7 +47,7 @@ import { subDueBannerShows } from "@/components/live/SubDue";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
 import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import { hapticTap } from "@/lib/haptics";
-import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
+import { DOCK_SWAP_HINT, ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { LockModal } from "@/components/live/LockModal";
@@ -1790,7 +1790,7 @@ export function LeagueLiveGame({
         <div className="px-1">
           <div className="rounded-lg border border-warn/40 bg-warn-soft/60 px-3 py-2">
             <p className="text-xs font-semibold text-warn">Lent to the other team</p>
-            <p className="mt-0.5 text-[11px] text-warn/80">
+            <p className="mt-0.5 text-micro text-warn/80">
               Tap “Bring back” to return a player to your bench.
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -1808,7 +1808,7 @@ export function LeagueLiveGame({
                     <span className="tabular-nums font-semibold">{p.jersey_number}</span>
                   )}
                   <span>{p.full_name}</span>
-                  <span className="ml-0.5 text-[11px] font-semibold text-warn/80">
+                  <span className="ml-0.5 text-micro font-semibold text-warn/80">
                     Bring back
                   </span>
                 </button>
@@ -1963,7 +1963,7 @@ export function LeagueLiveGame({
             <div className="flex items-center gap-2">
               <span
                 data-testid="planned-next-period-badge"
-                className="font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
+                className="font-mono text-nano font-bold uppercase tracking-micro text-brand-700"
               >
                 Next period ready
               </span>
@@ -1971,7 +1971,7 @@ export function LeagueLiveGame({
                 type="button"
                 data-testid="plan-next-clear"
                 onClick={() => setPlannedRotation(consumePeriodPin(pinForThisGame, state.currentQuarter))}
-                className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink"
+                className="font-mono text-nano font-bold uppercase tracking-micro text-ink-mute transition-colors hover:text-ink"
               >
                 Clear
               </button>
@@ -2113,19 +2113,8 @@ export function LeagueLiveGame({
           Player actions opens the same sheet as long-press. */}
       {playerDockVisible && selectedPlayer && (
         <ScoreRecordingDock
-          swapHint="Or tap a teammate to swap them."
-          heading={
-            scoreDockVisible ? (
-              <>
-                Record score for{" "}
-                <span className="text-brand-700">
-                  {selectedPlayer.full_name}
-                </span>
-              </>
-            ) : (
-              <span className="text-brand-700">{selectedPlayer.full_name}</span>
-            )
-          }
+          swapHint={DOCK_SWAP_HINT}
+          heading={<span className="text-brand-700">{selectedPlayer.full_name}</span>}
           onCancel={handleClearSelection}
           onPlayerActions={() => {
             const id = selectedPlayer.id;
@@ -2172,10 +2161,6 @@ export function LeagueLiveGame({
                   </button>
                 </div>
               )}
-              <p className="text-center text-[11px] text-ink-mute">
-                Or tap a bench player to swap{" "}
-                <strong>{selectedPlayer.full_name}</strong> off.
-              </p>
             </div>
             )
           }

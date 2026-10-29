@@ -41,7 +41,7 @@ export function HomeHero() {
       <div className="mx-auto max-w-6xl px-4 pb-12 pt-12 sm:px-6 sm:pt-16 lg:pb-14 lg:pt-20">
         <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
           <div>
-            <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-700">
+            <p className="font-mono text-micro font-semibold uppercase tracking-[0.16em] text-brand-700">
               {HOME_CONTENT.hero.eyebrow}
             </p>
             <h1 className="mt-4 text-[clamp(2.75rem,6vw,4.75rem)] font-bold leading-[1.0] tracking-tightest text-ink [text-wrap:balance]">
@@ -78,7 +78,7 @@ export function HomeHero() {
                     </div>
                     {/* The front phone covers the back ones' middles, so
                         their labels sit at their outer edges. */}
-                    <span className={`absolute -bottom-3.5 ${LABEL[place]} whitespace-nowrap rounded-full border border-hairline bg-surface px-3 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-ink`}>
+                    <span className={`absolute -bottom-3.5 ${LABEL[place]} whitespace-nowrap rounded-full border border-hairline bg-surface px-3 py-1 font-mono text-micro font-bold uppercase tracking-[0.12em] text-ink`}>
                       {sport.short}
                     </span>
                   </div>

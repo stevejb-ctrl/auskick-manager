@@ -20,7 +20,7 @@ export function StatusPill({ status, ariaLabel }: StatusPillProps) {
     return (
       <span
         aria-label={ariaLabel ?? "Live"}
-        className="inline-flex items-center gap-1.5 rounded-full bg-alarm-soft py-1 pl-2 pr-2.5 font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-alarm"
+        className="inline-flex items-center gap-1.5 rounded-full bg-alarm-soft py-1 pl-2 pr-2.5 font-mono text-micro font-bold uppercase tracking-[0.1em] text-alarm"
       >
         <span
           aria-hidden="true"
@@ -36,7 +36,7 @@ export function StatusPill({ status, ariaLabel }: StatusPillProps) {
     return (
       <span
         aria-label={ariaLabel ?? "Upcoming"}
-        className="inline-flex items-center rounded-full bg-surface-alt px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-ink"
+        className="inline-flex items-center rounded-full bg-surface-alt px-2.5 py-1 font-mono text-micro font-bold uppercase tracking-[0.1em] text-ink"
       >
         Upcoming
       </span>
@@ -46,7 +46,7 @@ export function StatusPill({ status, ariaLabel }: StatusPillProps) {
   return (
     <span
       aria-label={ariaLabel ?? "Final"}
-      className="inline-flex items-center rounded-full border border-hairline bg-transparent px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-ink-mute"
+      className="inline-flex items-center rounded-full border border-hairline bg-transparent px-2.5 py-1 font-mono text-micro font-bold uppercase tracking-[0.1em] text-ink-mute"
     >
       Final
     </span>

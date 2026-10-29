@@ -203,7 +203,7 @@ export function SlotFillSheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="shrink-0 border-b border-hairline px-5 py-4">
-          <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+          <p className="font-mono text-micro font-bold uppercase tracking-micro text-ink-mute">
             {eyebrow}
           </p>
           <h2
@@ -229,7 +229,7 @@ export function SlotFillSheet({
             >
               <span
                 aria-hidden="true"
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-hairline bg-surface font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-hairline bg-surface font-mono text-micro font-bold uppercase tracking-micro text-ink-mute"
               >
                 —
               </span>
@@ -238,7 +238,7 @@ export function SlotFillSheet({
                   {option.label}
                 </span>
                 {option.subLabel && (
-                  <span className="block truncate text-[11px] text-ink-mute">
+                  <span className="block truncate text-micro text-ink-mute">
                     {option.subLabel}
                   </span>
                 )}
@@ -262,7 +262,7 @@ export function SlotFillSheet({
                     {c.jerseyNumber != null && c.jerseyNumber !== "" && (
                       <span
                         aria-hidden="true"
-                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-hairline bg-surface-alt font-mono text-[11px] font-bold tabular-nums text-ink"
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-hairline bg-surface-alt font-mono text-micro font-bold tabular-nums text-ink"
                       >
                         {c.jerseyNumber}
                       </span>
@@ -272,7 +272,7 @@ export function SlotFillSheet({
                         {label(c)}
                       </span>
                       {c.subLabel && (
-                        <span className="block truncate text-[11px] text-ink-mute">
+                        <span className="block truncate text-micro text-ink-mute">
                           {c.subLabel}
                         </span>
                       )}

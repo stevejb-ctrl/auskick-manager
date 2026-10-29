@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { QuarterScoresButton } from "@/components/live/QuarterScoresButton";
+import { ClockPillReadout } from "@/components/live/ClockPillReadout";
 import {
   clockElapsedMs,
   formatClock,
@@ -156,7 +158,7 @@ export function GameHeader({
   // all three columns — totals line up with the pill, buttons with
   // Q-BY-Q.
   const TOTAL = "text-[44px] font-bold leading-10 tracking-[-0.04em]";
-  const TALLY = "text-[13px] font-medium text-ink-dim";
+  const TALLY = "text-[0.8125rem] font-medium text-ink-dim";
 
   // The rows are the shared ScoreBugFrame's (UX round 3, e4): the same
   // in every sport, compact on a short screen, chips wrapping at 320 px
@@ -167,15 +169,15 @@ export function GameHeader({
         type="button"
         onClick={onClockTap}
         disabled={isPreGame || isFinished || !onClockTap}
-        className={`flex flex-col items-center justify-center rounded-md px-4 pb-2.5 pt-2 text-warm shadow-[0_6px_16px_rgba(26,30,26,0.18)] transition-[min-width,background-color] duration-move ease-out-quart disabled:opacity-80 ${
-          atHooter ? "min-w-[168px] bg-due" : "min-w-[104px] bg-ink hover:bg-ink/90"
+        className={`flex flex-col items-center justify-center rounded-md px-4 pb-2.5 pt-2 text-warm shadow-[0_6px_16px_rgba(26,30,26,0.18)] transition-[min-width,background-color] duration-move ease-out-quart ${isFinished ? "" : "disabled:opacity-80"} ${
+          atHooter ? "min-w-[168px] bg-due" : "min-w-[104px] bg-ink hover:bg-ink/90 bigtext:min-w-0 bigtext:px-2"
         }`}
         aria-label={`Clock — ${quarterLabel}, ${atHooter ? breakName(quarter, periodCount) : running ? "running" : "paused"}`}
       >
         {atHooter ? (
           // Label crossfades to the break: END Q2 / Half time.
           <span key="hooter" className="flex flex-col items-center motion-safe:animate-xfade-in motion-reduce:animate-xfade-in">
-            <span className="font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-white/[0.85]">
+            <span className="font-mono text-nano font-bold uppercase leading-3 tracking-micro text-white/[0.85]">
               End {quarterLabel}
             </span>
             <span className="mt-0.5 whitespace-nowrap text-xl font-bold leading-7 tracking-[-0.01em] text-white">
@@ -183,25 +185,16 @@ export function GameHeader({
             </span>
           </span>
         ) : (
-          <span
+          <ClockPillReadout
             key={`q-${quarter}`}
-            className={`flex flex-col items-center ${
-              quarterChanged ? "motion-safe:animate-rise-in motion-reduce:animate-xfade-in" : ""
-            }`}
-          >
-            <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
-              {live && <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-mint" />}
-              <span>{quarterLabel}</span>
-              {pausedIcon && <span>{pausedIcon}</span>}
-            </span>
-            <span
-              className={`nums mt-1 font-mono text-[28px] font-bold leading-7 tracking-[-0.03em] tabular-nums ${
-                overtime ? "text-warn" : "text-warm"
-              }`}
-            >
-              {formatClock(remaining)}
-            </span>
-          </span>
+            animateClassName={quarterChanged ? "motion-safe:animate-rise-in motion-reduce:animate-xfade-in" : ""}
+            periodTag={quarterLabel}
+            live={live}
+            pausedIcon={pausedIcon}
+            readout={formatClock(remaining)}
+            overtime={overtime}
+            finished={isFinished || quarter > periodCount}
+          />
         )}
       </button>
     </SirenPulseHalo>
@@ -245,14 +238,7 @@ export function GameHeader({
       // 9px bordered pill was a ~20px target). Tap → QuarterScoreModal.
       underClock={
         onShowQuarterScores && (
-          <button
-            type="button"
-            onClick={onShowQuarterScores}
-            className="min-h-[44px] px-3 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
-            aria-label="Show quarter-by-quarter scores"
-          >
-            Q-by-Q
-          </button>
+          <QuarterScoresButton onClick={onShowQuarterScores} />
         )
       }
       chipsDisabled={isPending}

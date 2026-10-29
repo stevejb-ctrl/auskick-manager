@@ -27,7 +27,7 @@ import { SwapCard } from "@/components/live/SwapCard";
 import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { LiveGameSettingsButton } from "@/components/live/LiveGameSettingsButton";
-import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
+import { DOCK_SWAP_HINT, ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
 import { QuarterBreak } from "@/components/live/QuarterBreak";
 import { buildWalkthroughSteps } from "@/components/live/WalkthroughModal";
@@ -1883,12 +1883,6 @@ export function LiveGame({
         />
       )}
 
-      {finalised && (
-        <p className="text-center font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
-          Full time
-        </p>
-      )}
-
       {error && (
         <p className="rounded-sm bg-warn-soft px-3 py-2 text-sm text-warn" role="alert">
           {error}
@@ -2066,7 +2060,7 @@ export function LiveGame({
                 <div className="flex items-center gap-2">
                   <span
                     data-testid="planned-next-period-badge"
-                    className="font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
+                    className="font-mono text-nano font-bold uppercase tracking-micro text-brand-700"
                   >
                     Next period ready
                   </span>
@@ -2074,7 +2068,7 @@ export function LiveGame({
                     type="button"
                     data-testid="plan-next-clear"
                     onClick={() => setPlannedRotation(consumePeriodPin(pinForThisGame, currentQuarter))}
-                    className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim transition-colors hover:text-ink"
+                    className="font-mono text-nano font-bold uppercase tracking-micro text-ink-dim transition-colors hover:text-ink"
                   >
                     Clear
                   </button>
@@ -2141,16 +2135,8 @@ export function LiveGame({
         // affordance when a field player is selected).
         return (
           <ScoreRecordingDock
-            swapHint="Or tap a teammate to swap them."
-            heading={
-              canScore ? (
-                <>
-                  Record score for <span className="text-brand-700">{name}</span>
-                </>
-              ) : (
-                <span className="text-brand-700">{name}</span>
-              )
-            }
+            swapHint={DOCK_SWAP_HINT}
+            heading={<span className="text-brand-700">{name}</span>}
             onCancel={() => clearSelection()}
             onPlayerActions={() => {
               clearSelection();
@@ -2990,18 +2976,9 @@ export function LiveGame({
           </div>
         </div>
       )}
-      {finalised && auth.kind === "token" && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4">
-          <div className="mx-auto max-w-4xl text-center">
-            <p className="text-sm font-semibold text-ink">
-              All done — thanks for running today&apos;s game!
-            </p>
-            <p className="mt-0.5 text-xs text-ink-dim">
-              Everything&apos;s saved. You can close this tab.
-            </p>
-          </div>
-        </div>
-      )}
+      {/* The game-day link's "All done" is the page's shared
+          RunnerAllDone, as every other sport's; a second copy here sat
+          fixed under it (design review, Oct 2026). */}
 
       {/* Sticky-bottom scorebug + undo strip — chrome owned by
           the shared LiveStickyScoreBar (Phase 5d). Wrapper does

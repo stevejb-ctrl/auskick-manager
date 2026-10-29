@@ -41,7 +41,7 @@ function firstName(p: Player): string {
 /** The keeper badge: a small ink "GK" chip (the keeper is ink everywhere). */
 function KeeperBadge() {
   return (
-    <span className="inline-flex h-5 items-center rounded-xs bg-ink px-1.5 font-mono text-[10px] font-bold uppercase tracking-micro text-warm">
+    <span className="inline-flex h-5 items-center rounded-xs bg-ink px-1.5 font-mono text-nano font-bold uppercase tracking-micro text-warm">
       GK
     </span>
   );

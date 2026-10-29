@@ -40,7 +40,7 @@ export function HeadToHead({ records, hasData }: Props) {
               <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
                 {r.opponent}
               </p>
-              <p className="shrink-0 text-[11px] text-ink-mute">
+              <p className="shrink-0 text-micro text-ink-mute">
                 {r.gamesPlayed} {r.gamesPlayed === 1 ? "game" : "games"}
               </p>
             </div>
@@ -59,7 +59,7 @@ export function HeadToHead({ records, hasData }: Props) {
             </div>
             <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
               <div>
-                <p className="text-[10px] uppercase tracking-micro text-ink-mute">
+                <p className="text-nano uppercase tracking-micro text-ink-mute">
                   For
                 </p>
                 <p className="font-medium tabular-nums text-ink">
@@ -68,7 +68,7 @@ export function HeadToHead({ records, hasData }: Props) {
                 </p>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-micro text-ink-mute">
+                <p className="text-nano uppercase tracking-micro text-ink-mute">
                   Against
                 </p>
                 <p className="font-medium tabular-nums text-ink">

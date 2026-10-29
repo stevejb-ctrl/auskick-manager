@@ -17,7 +17,7 @@ export function SportDirectory() {
     <section id="sports" aria-labelledby="sports-heading" className="py-16 sm:py-24">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="max-w-2xl">
-          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-dim">
+          <p className="font-mono text-micro font-semibold uppercase tracking-[0.16em] text-ink-dim">
             The sports
           </p>
           <h2
@@ -50,12 +50,12 @@ export function SportDirectory() {
                       className="hidden h-2 w-2 rounded-full sm:block"
                       style={{ backgroundColor: sport.accent }}
                     />
-                    <span className="text-[17px] font-bold tracking-tight text-ink sm:text-[19px]">
+                    <span className="text-[1.0625rem] font-bold tracking-tight text-ink sm:text-[1.1875rem]">
                       {sport.short}
                     </span>
                     <ArrowRight className="ml-auto hidden h-4 w-4 text-ink transition-transform duration-fast group-hover:translate-x-0.5 sm:block" />
                   </span>
-                  <span className="text-[13.5px] leading-snug text-ink-dim sm:text-sm">
+                  <span className="text-[0.84375rem] leading-snug text-ink-dim sm:text-sm">
                     {sportPageCopy(sport.sport).tileLine}
                   </span>
                 </span>
@@ -67,13 +67,13 @@ export function SportDirectory() {
           <li className="sm:col-span-2">
             <div className="flex h-full flex-col gap-6 rounded-2xl bg-ink p-6 text-warm sm:flex-row sm:flex-wrap sm:items-center sm:p-8">
               <div className="min-w-0 flex-1 basis-56">
-                <p className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-mint">
+                <p className="font-mono text-micro font-bold uppercase tracking-[0.16em] text-mint">
                   One account
                 </p>
                 <h3 className="mt-2 text-2xl font-bold leading-tight tracking-tight">
                   Coach more than one team?
                 </h3>
-                <p className="mt-3 text-[15px] leading-relaxed text-warm/75">
+                <p className="mt-3 text-[0.9375rem] leading-relaxed text-warm/75">
                   Every team sits in one account, whatever the sport, and every sport works the same
                   way: the same sub card, the same breaks, the same link for parents.
                 </p>
@@ -92,8 +92,8 @@ export function SportDirectory() {
                       className="h-2 w-2 shrink-0 rounded-full"
                       style={{ backgroundColor: team.accent }}
                     />
-                    <span className="flex-1 truncate text-[15px] font-semibold">{team.name}</span>
-                    <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-warm/70">
+                    <span className="flex-1 truncate text-[0.9375rem] font-semibold">{team.name}</span>
+                    <span className="font-mono text-nano font-semibold uppercase tracking-[0.08em] text-warm/70">
                       {team.sport}
                     </span>
                   </li>
@@ -103,7 +103,7 @@ export function SportDirectory() {
           </li>
         </ul>
 
-        <p className="mt-7 text-[15px] text-ink-dim">
+        <p className="mt-7 text-[0.9375rem] text-ink-dim">
           Coaching a sport that isn&apos;t here yet?{" "}
           <Link href="/contact" className="font-semibold text-ink underline underline-offset-4 hover:text-brand-700">
             Tell us what you coach

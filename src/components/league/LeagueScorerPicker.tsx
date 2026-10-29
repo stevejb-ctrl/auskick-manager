@@ -61,7 +61,10 @@ export function LeagueScorerPicker({ sport, onFieldPlayers, onPick, onCancel, on
             ? "Pick who scored, or count the try without a name."
             : "Pick the player who scored the try."
       }
-      candidates={onFieldPlayers.map((p) => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number }))}
+      // Jersey order: a parent looks for a number or a name, not field order.
+      candidates={onFieldPlayers
+        .map((p) => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number }))
+        .sort((a, b) => (a.jerseyNumber ?? 999) - (b.jerseyNumber ?? 999))}
       emptyMessage="No players on the field."
       extraOptions={noScorer ? [{ label: "Not sure who", subLabel: "Counts the try without a scorer", onSelect: noScorer }] : []}
       onPick={onPick}

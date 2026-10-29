@@ -84,7 +84,7 @@ export function InjuryReplacementModal({
   return (
     <Modal labelledBy="injury-replacement-title" padding="p-0" className="max-h-[85vh]">
         <div className="px-5 pt-5">
-          <p className="mb-1 text-center font-mono text-[11px] font-bold uppercase tracking-micro text-danger">
+          <p className="mb-1 text-center font-mono text-micro font-bold uppercase tracking-micro text-danger">
             {words.eyebrow(firstName)}
           </p>
           <h2
@@ -122,12 +122,12 @@ export function InjuryReplacementModal({
                           {c.player.jersey_number != null ? ` #${c.player.jersey_number}` : ""}
                         </span>
                         {isSuggested && (
-                          <span className="rounded-full bg-brand-600 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-micro text-warm">
+                          <span className="rounded-full bg-brand-600 px-1.5 py-0.5 font-mono text-nano font-bold uppercase tracking-micro text-warm">
                             Suggested
                           </span>
                         )}
                       </span>
-                      <span className="text-[11px] text-ink-dim">
+                      <span className="text-micro text-ink-dim">
                         Played {formatMinSec(c.totalMs)} this game
                       </span>
                     </span>

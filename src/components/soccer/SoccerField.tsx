@@ -11,6 +11,7 @@
 // mouth. An age with no keeper has no lines: one group of kids.
 
 import { Fragment } from "react";
+import { sportSurface } from "@/components/live/sportSurface";
 import type { Player } from "@/lib/types";
 import type { SoccerLineup } from "@/lib/sports/soccer/lineup";
 import type { SoccerUnitMs } from "@/lib/sports/soccer/replay";
@@ -92,7 +93,7 @@ export function SoccerField({
         type="button"
         onClick={() => onTap("", unit)}
         aria-label={`Empty ${words[unit].label.toLowerCase()} spot`}
-        className={`w-full rounded-md border border-dashed py-3 text-center font-mono text-[10px] font-semibold uppercase tracking-micro transition-colors duration-fast ease-out-quart ${
+        className={`w-full rounded-md border border-dashed py-3 text-center font-mono text-nano font-semibold uppercase tracking-micro transition-colors duration-fast ease-out-quart ${
           primed
             ? "border-warn bg-warn/20 text-white"
             : "border-white/40 bg-white/5 text-white/60 hover:border-white/70 hover:bg-white/15"
@@ -161,7 +162,7 @@ export function SoccerField({
       role="region"
       aria-label={surface === "court" ? "On court" : "On field"}
       data-surface={surface}
-      className={`relative rounded-[18px] ${surface === "court" ? "bg-court" : "bg-field"} shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]`}
+      className={`relative rounded-[18px] ${sportSurface(surface === "court" ? "court" : "field")}`}
     >
       {wakeUpKey !== null && (
         <span

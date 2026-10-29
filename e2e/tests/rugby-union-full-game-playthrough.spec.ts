@@ -145,7 +145,7 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
   await expect(page.getByTestId("league-points-team")).toHaveText("13");
   await expect(page.getByTestId("league-points-opponent")).toHaveText("3");
   await expect(page.getByTestId("league-score-line-team")).toHaveText("1T·1C·1PG·1DG");
-  await expect(page.getByTestId("league-score-line-opponent")).toHaveText("0T·0C·1DG");
+  await expect(page.getByTestId("league-score-line-opponent")).toHaveText("1DG");
 
   // ─── 5. End H1, H2, finish ────────────────────────────────────
   await page.getByRole("button", { name: /^clock — h1, running$/i }).click();

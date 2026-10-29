@@ -108,16 +108,16 @@ export function QuarterScoreTable({
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-hairline bg-surface-alt">
-            <th className="px-3 py-2 text-left font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
+            <th className="px-3 py-2 text-left font-mono text-nano font-bold uppercase tracking-micro text-ink-dim">
               {periodWord}
             </th>
-            <th className="px-3 py-2 text-right font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
+            <th className="px-3 py-2 text-right font-mono text-nano font-bold uppercase tracking-micro text-ink-dim">
               {teamName}
             </th>
-            <th className="px-3 py-2 text-right font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
+            <th className="px-3 py-2 text-right font-mono text-nano font-bold uppercase tracking-micro text-ink-dim">
               {opponentName}
             </th>
-            <th className="px-3 py-2 text-right font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
+            <th className="px-3 py-2 text-right font-mono text-nano font-bold uppercase tracking-micro text-ink-dim">
               Margin
             </th>
           </tr>
@@ -137,7 +137,7 @@ export function QuarterScoreTable({
               >
                 {r.label}
                 {r.state === "current" && (
-                  <span className="ml-1 text-[9px] font-bold uppercase tracking-micro text-brand-700">
+                  <span className="ml-1 text-nano font-bold uppercase tracking-micro text-brand-700">
                     in play
                   </span>
                 )}
@@ -145,7 +145,7 @@ export function QuarterScoreTable({
               <td className="nums px-3 py-2 text-right font-mono tabular-nums text-ink">
                 {r.ours}
                 {r.state !== "future" && r.cumOurs && (
-                  <span className="ml-1 text-[10px] font-normal text-ink-mute">
+                  <span className="ml-1 text-nano font-normal text-ink-mute">
                     ({r.cumOurs})
                   </span>
                 )}
@@ -153,7 +153,7 @@ export function QuarterScoreTable({
               <td className="nums px-3 py-2 text-right font-mono tabular-nums text-ink">
                 {r.theirs}
                 {r.state !== "future" && r.cumTheirs && (
-                  <span className="ml-1 text-[10px] font-normal text-ink-mute">
+                  <span className="ml-1 text-nano font-normal text-ink-mute">
                     ({r.cumTheirs})
                   </span>
                 )}
@@ -171,7 +171,7 @@ export function QuarterScoreTable({
               >
                 {r.margin || "—"}
                 {r.state !== "future" && r.cumMargin && (
-                  <span className="ml-1 text-[10px] font-normal text-ink-mute">
+                  <span className="ml-1 text-nano font-normal text-ink-mute">
                     ({r.cumMargin})
                   </span>
                 )}
