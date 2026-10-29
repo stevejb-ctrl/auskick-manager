@@ -118,3 +118,13 @@ test("#5 Exit on a finished game's link leads back to the result", async ({ brow
   await expect(page).toHaveURL(new RegExp(`/run/${game.share_token}$`));
   await context.close();
 });
+
+test("#7 the game-day link says whose team it is and what sport", async ({ browser }) => {
+  const { team, game } = await inFirstPeriod("netball");
+  const { context, page } = await parentPhone(browser);
+  await page.goto(`/run/${game.share_token}`);
+  const whose = page.getByTestId("run-whose");
+  await expect(whose).toContainText(`You're scoring for ${team.name} v Sharks`);
+  await expect(whose).toContainText("Netball");
+  await context.close();
+});
