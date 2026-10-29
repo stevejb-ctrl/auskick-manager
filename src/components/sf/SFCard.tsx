@@ -40,7 +40,10 @@ export function SFCard({
       id={id}
       onClick={onClick}
       className={`rounded-lg border border-hairline bg-surface shadow-card ${interactiveClasses} ${className}`}
-      style={{ padding: pad, ...style }}
+      // pad={0} leaves padding to the className: an inline 0 overrode the
+      // px-4 / py-3 that the Games rows asked for, so their text sat on
+      // the card's edge (design review, Oct 2026).
+      style={pad === 0 ? style : { padding: pad, ...style }}
     >
       {children}
     </div>

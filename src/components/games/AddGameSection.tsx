@@ -16,6 +16,12 @@ interface Props {
   afterCreate?: "open-game" | "stay";
   /** The team's name, for the same-name opponent warning. */
   teamName?: string;
+  /**
+   * The season already has games: open as one "+ Add games" button
+   * rather than the big card (design review, Oct 2026: it sat above the
+   * season, with a green primary button, after every fixture was in).
+   */
+  compact?: boolean;
 }
 
 export function AddGameSection({
@@ -25,8 +31,23 @@ export function AddGameSection({
   playhqTenant,
   afterCreate = "open-game",
   teamName,
+  compact = false,
 }: Props) {
   const [showManual, setShowManual] = useState(false);
+  const [open, setOpen] = useState(!compact);
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-expanded={false}
+        className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-hairline bg-surface px-4 text-sm font-semibold text-ink shadow-card transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+      >
+        <span aria-hidden="true">+</span> Add games
+      </button>
+    );
+  }
 
   return (
     <div className="rounded-lg border border-hairline bg-surface p-4 shadow-card sm:p-5">
