@@ -2135,6 +2135,7 @@ export function LiveGame({
         // affordance when a field player is selected).
         return (
           <ScoreRecordingDock
+            swapHint="Or tap a teammate to swap them."
             heading={
               canScore ? (
                 <>

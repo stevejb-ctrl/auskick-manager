@@ -213,3 +213,12 @@ test("#10 at 200% text a netball court name isn't cut to a letter, and the hint 
   }
   await context.close();
 });
+
+test("#11 tapping a player says a second tap swaps, not just how to score", async ({ browser }) => {
+  const { ids, game } = await inFirstPeriod("soccer");
+  const { context, page } = await parentPhone(browser);
+  await openLive(page, `/run/${game.share_token}`);
+  await page.getByTestId(`player-tile-${ids[4]}`).click();
+  await expect(page.getByTestId("dock-swap-hint")).toHaveText("Or tap a teammate to swap them.");
+  await context.close();
+});

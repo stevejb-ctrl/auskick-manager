@@ -999,6 +999,7 @@ export function BasketballLiveGame({
 
       {playerDockVisible && selectedPlayer && (
         <ScoreRecordingDock
+          swapHint="Or tap a teammate to swap them."
           heading={
             scoreDockVisible ? (
               <>
