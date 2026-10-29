@@ -761,6 +761,7 @@ export function TouchLiveGame({
       slotLabel="try"
       eyebrow={girlsTryDouble ? "Try · a girl's counts 2" : "Try"}
       title="Who scored?"
+      lostScore="try"
       subtitle="Pick who scored, or count the try without a name."
       candidates={(state.lineup ? touchOnField(state.lineup) : [])
         .map((id) => playerById.get(id))

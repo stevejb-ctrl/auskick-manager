@@ -2624,6 +2624,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           <SlotFillSheet
             slotLabel="goal"
             titleVerb="Record"
+            lostScore="goal"
             subtitle="Pick the scorer. Only GS and GA can score a netball goal."
             emptyMessage="No GS or GA on court right now."
             candidates={candidates}

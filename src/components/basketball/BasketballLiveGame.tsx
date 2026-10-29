@@ -718,6 +718,7 @@ export function BasketballLiveGame({
         slotLabel="basket"
         eyebrow={scorerEyebrow(scorerPoints)}
         title="Who scored?"
+        lostScore="basket"
         subtitle="Pick who scored, or count the points without a name."
         candidates={scorerCandidates}
         emptyMessage="Nobody is on court."

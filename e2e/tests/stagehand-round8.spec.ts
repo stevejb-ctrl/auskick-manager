@@ -90,3 +90,17 @@ test("#2 a phone held sideways fills the screen: no desktop phone frame", async 
   expect(theirs!.x + theirs!.width).toBeLessThanOrEqual(915);
   await context.close();
 });
+
+for (const sport of ["afl", "soccer"] as const) {
+  test(`#3 ${sport}: a goal being picked when the other phone ends the period says it wasn't saved`, async ({ browser }) => {
+    const { admin, ownerId, game } = await inFirstPeriod(sport);
+    const { context, page } = await parentPhone(browser);
+    await openLive(page, `/run/${game.share_token}`);
+    await page.getByRole("button", { name: /^Add goal, R8/ }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    // The other phone ends the first period.
+    await admin.from("game_events").insert({ game_id: game.id, type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 60_000, sport }, created_by: ownerId });
+    await expect(page.getByTestId("lost-score-notice")).toContainText("wasn't saved", { timeout: 20_000 });
+    await context.close();
+  });
+}

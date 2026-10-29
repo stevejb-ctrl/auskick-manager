@@ -1057,6 +1057,7 @@ export function SoccerLiveGame({
           slotLabel="goal"
           eyebrow="Goal"
           title="Who scored?"
+          lostScore="goal"
           subtitle="Pick who scored, or count it without a name."
           // The likeliest scorers first: attack, then back to the keeper,
           // then the bench (a kid just subbed off may have scored), as

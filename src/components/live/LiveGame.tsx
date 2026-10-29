@@ -2740,6 +2740,7 @@ export function LiveGame({
             slotLabel={slotLabel}
             candidates={candidates}
             titleVerb="Who scored the"
+            lostScore={slotLabel.toLowerCase()}
             subtitle={`Pick the player who scored the ${slotLabel.toLowerCase()}.`}
             emptyMessage="No eligible players — every available player is sidelined."
             // Backdrop tap is a no-op here — the coach must either pick
