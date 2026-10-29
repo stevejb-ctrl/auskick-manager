@@ -51,5 +51,5 @@ test("union: 15 minutes in the sub box becomes the 10 the game uses", async ({ p
   await box.fill("15");
   await box.blur();
   await expect(box).toHaveValue("10");
-  await expect(page.getByText(/10\.0 min subs/)).toBeVisible();
+  await expect(page.getByText(/\b10 min subs/)).toBeVisible();
 });

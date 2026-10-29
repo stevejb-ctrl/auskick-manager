@@ -34,6 +34,7 @@
 // the squad page.
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { LEAGUE_LINEUP_TAP_HINT } from "@/components/lineup/lineupHints";
 import { useKeptSetting } from "@/components/lineup/useKeptSetting";
 import { useRouter } from "next/navigation";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
@@ -1008,7 +1009,7 @@ export function LeagueLineupPicker({
       lineupMode === "suggested" ? "Suggested lineup" : "Manual lineup",
     );
     if (onFieldSize !== defaultOnFieldSize) bits.push(`${onFieldSize} on field`);
-    bits.push(`${(subIntervalSeconds / 60).toFixed(1)} min subs`);
+    bits.push(`${formatMinutes(subIntervalSeconds / 60)} min subs`);
     if (lentPlayers.length > 0) bits.push(`${lentPlayers.length} lent`);
     return bits.join(" · ");
   })();
@@ -1042,8 +1043,7 @@ export function LeagueLineupPicker({
           {ageGroup.label} starting lineup
         </h1>
         <p className="text-xs text-ink-mute">
-          Tap a player to select, tap a second to swap. Long-press for
-          FR / DH / position / bench.
+          {LEAGUE_LINEUP_TAP_HINT}
         </p>
       </header>
 
@@ -1151,7 +1151,7 @@ export function LeagueLineupPicker({
                 className="w-32"
               />
               <p className="text-[11px] text-ink-mute">
-                Suggested: {suggestedSubMin.toFixed(1)} min
+                Suggested: {formatMinutes(suggestedSubMin)} min
                 {requiredUnbroken > 0 ? (
                   <>
                     {" "}(keeps {requiredUnbroken} unbroken{" "}
@@ -1550,4 +1550,9 @@ export function LeagueLineupPicker({
       )}
     </div>
   );
+}
+
+// "10 min", not "10.0 min"; a half minute keeps its decimal ("7.5 min").
+function formatMinutes(min: number): string {
+  return Number.isInteger(min) ? String(min) : min.toFixed(1);
 }

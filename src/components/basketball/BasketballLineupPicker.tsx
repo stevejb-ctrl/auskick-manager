@@ -15,6 +15,7 @@
 // or the shape suggests again.
 
 import { useMemo, useRef, useState, useTransition } from "react";
+import { LINEUP_TAP_HINT } from "@/components/lineup/lineupHints";
 import { useKeptSetting } from "@/components/lineup/useKeptSetting";
 import { useRouter } from "next/navigation";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
@@ -271,7 +272,7 @@ export function BasketballLineupPicker({
       <header className="space-y-1 px-1">
         <h1 className="text-xl font-bold text-ink">{ageGroup.label} starting five</h1>
         <p className="text-xs text-ink-mute">
-          Tap a player to select, tap a second to swap. Long-press for the bench or to lend a player.
+          {LINEUP_TAP_HINT}
         </p>
       </header>
 
