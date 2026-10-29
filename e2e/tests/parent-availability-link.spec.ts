@@ -52,12 +52,12 @@ test("a coach shares a game's availability link; a parent marks their child Out 
   await waitForHydration(parentPage);
   await expect(parentPage.getByRole("heading", { level: 1 })).toContainText(`${team.name} v Kew Kestrels`);
   const kid = players[2].full_name;
-  const kidRow = parentPage.getByRole("group", { name: `${kid} availability` });
+  const kidRow = parentPage.getByRole("radiogroup", { name: `${kid} availability` });
   // Nobody's answered for this kid: neither In nor Out.
-  await expect(kidRow.getByRole("button", { name: /^out$/i })).toHaveAttribute("aria-pressed", "false");
-  await expect(kidRow.getByRole("button", { name: /^in$/i })).toHaveAttribute("aria-pressed", "false");
-  await kidRow.getByRole("button", { name: /^out$/i }).click();
-  await expect(kidRow.getByRole("button", { name: /^out$/i })).toHaveAttribute("aria-pressed", "true");
+  await expect(kidRow.getByRole("radio", { name: /^out$/i })).toHaveAttribute("aria-checked", "false");
+  await expect(kidRow.getByRole("radio", { name: /^in$/i })).toHaveAttribute("aria-checked", "false");
+  await kidRow.getByRole("radio", { name: /^out$/i }).click();
+  await expect(kidRow.getByRole("radio", { name: /^out$/i })).toHaveAttribute("aria-checked", "true");
   // No coach tools on the parent's page.
   await expect(parentPage.getByRole("button", { name: /mark all in/i })).toHaveCount(0);
   await expect(parentPage.getByText(/add a fill-in|fill-in/i)).toHaveCount(0);
@@ -75,9 +75,9 @@ test("a coach shares a game's availability link; a parent marks their child Out 
     .toBe("unavailable:replied");
 
   // Confirming the In a new game starts with is an answer too.
-  const seeded = parentPage.getByRole("group", { name: `${players[0].full_name} availability` });
-  await expect(seeded.getByRole("button", { name: /^in$/i })).toHaveAttribute("aria-pressed", "true");
-  await seeded.getByRole("button", { name: /^in$/i }).click();
+  const seeded = parentPage.getByRole("radiogroup", { name: `${players[0].full_name} availability` });
+  await expect(seeded.getByRole("radio", { name: /^in$/i })).toHaveAttribute("aria-checked", "true");
+  await seeded.getByRole("radio", { name: /^in$/i }).click();
   await expect
     .poll(async () => {
       const { data } = await admin
@@ -93,14 +93,14 @@ test("a coach shares a game's availability link; a parent marks their child Out 
   // Still Out after a reload: it's saved, not just shown.
   await parentPage.reload();
   await expect(
-    parentPage.getByRole("group", { name: `${kid} availability` }).getByRole("button", { name: /^out$/i }),
-  ).toHaveAttribute("aria-pressed", "true");
+    parentPage.getByRole("radiogroup", { name: `${kid} availability` }).getByRole("radio", { name: /^out$/i }),
+  ).toHaveAttribute("aria-checked", "true");
   await parentContext.close();
 
   // The coach's availability list shows the answer and who replied.
   await gotoStable(coachPage, `/teams/${team.id}/games/${game.id}/availability`);
   const coachRow = coachPage.getByRole("listitem").filter({ hasText: kid });
-  await expect(coachRow.getByRole("button", { name: /^out$/i })).toHaveAttribute("aria-pressed", "true");
+  await expect(coachRow.getByRole("radio", { name: /^out$/i })).toHaveAttribute("aria-checked", "true");
   await expect(coachRow).toContainText(/replied/i);
   await expect(coachPage.getByText(/2 of 8 replied/i)).toBeVisible();
   await coachContext.close();
@@ -118,7 +118,7 @@ test("the link closes at kickoff, and a link that isn't a game's says so", async
   const { context, page } = await anonPhone(browser);
   await gotoStable(page, `/availability/${row!.availability_token}`);
   await expect(page.getByText(/this game has started/i)).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByRole("button", { name: /^out$/i })).toHaveCount(0);
+  await expect(page.getByRole("radio", { name: /^out$/i })).toHaveCount(0);
 
   await gotoStable(page, `/availability/${crypto.randomUUID()}`);
   await expect(page.getByText(/this link isn.t valid/i)).toBeVisible();
@@ -143,8 +143,8 @@ test("a parent member marks availability from the game page, without Mark all in
     await expect(page.getByRole("button", { name: /mark all in/i })).toHaveCount(0);
     // A parent doesn't get the coach's share tools either.
     await expect(page.getByRole("button", { name: /ask parents who.s in/i })).toHaveCount(0);
-    const kidRow = page.getByRole("group", { name: `${players[0].full_name} availability` });
-    await kidRow.getByRole("button", { name: /^out$/i }).click();
+    const kidRow = page.getByRole("radiogroup", { name: `${players[0].full_name} availability` });
+    await kidRow.getByRole("radio", { name: /^out$/i }).click();
     await expect
       .poll(async () => {
         const { data } = await admin

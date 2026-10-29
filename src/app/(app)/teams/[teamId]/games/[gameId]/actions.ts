@@ -16,6 +16,7 @@ import { teamAgeGroup } from "@/lib/sports/teamAgeGroup";
 import { teamMixedRule } from "@/lib/sports/touch/mixed";
 import { distinctFullNames } from "@/lib/names";
 import type { FixScoresProps } from "@/components/games/FixScoresDialog";
+import { parsePlayedScore, type PlayedScore } from "@/lib/games/playedScore";
 
 interface FillInInput {
   full_name: string;
@@ -507,10 +508,12 @@ export async function fixFinishedScore(teamId: string, gameId: string, fix: Scor
 /**
  * A game the coach never ran in Siren, played without the app (round 3
  * edge testing, 24 Oct 2026: a past game stayed "Next up" forever). It
- * moves to Completed with no events, so it has no score or minutes, and
- * isn't a 0–0 draw in the record (lib/games/notPlayed playedInSiren).
+ * moves to Completed with no events, so it has no minutes. With `score`
+ * (our score and theirs; AFL's in goals and behinds) it's a played game
+ * with that result (lib/games/playedScore, migration 0076); without one
+ * it has no result, and isn't a 0–0 draw in the record.
  */
-export async function markGamePlayed(teamId: string, gameId: string): Promise<ActionResult> {
+export async function markGamePlayed(teamId: string, gameId: string, score?: unknown): Promise<ActionResult> {
   const userId = readValidatedUserId();
   if (!userId) return { success: false, error: "Unauthenticated." };
   const membership = await getMembership(teamId, userId);
@@ -533,9 +536,17 @@ export async function markGamePlayed(teamId: string, gameId: string): Promise<Ac
     .eq("game_id", gameId);
   if ((count ?? 0) > 0) return { success: false, error: "That game was started in Siren." };
 
+  let playedScore: PlayedScore | null = null;
+  if (score !== undefined && score !== null) {
+    const { data: team } = await supabase.from("teams").select("sport").eq("id", teamId).maybeSingle();
+    const parsed = parsePlayedScore(teamSport(team?.sport as string), score);
+    if ("error" in parsed) return { success: false, error: parsed.error };
+    playedScore = parsed.score;
+  }
+
   const { error: updateError } = await supabase
     .from("games")
-    .update({ status: "completed" })
+    .update({ status: "completed", played_score: playedScore })
     .eq("id", gameId)
     .eq("team_id", teamId);
   if (updateError) return { success: false, error: updateError.message };
@@ -543,6 +554,7 @@ export async function markGamePlayed(teamId: string, gameId: string): Promise<Ac
   revalidatePath(`/teams/${teamId}`);
   revalidatePath(`/teams/${teamId}/games`);
   revalidatePath(`/teams/${teamId}/games/${gameId}`);
+  revalidatePath(`/teams/${teamId}/stats`);
   revalidatePath("/dashboard");
   return { success: true };
 }

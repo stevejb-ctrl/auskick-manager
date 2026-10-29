@@ -15,7 +15,8 @@
 // trailing onClick is suppressed via a ref so the same gesture doesn't
 // double-fire. Mirrors the AFL PlayerTile implementation.
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
+import { tileName } from "@/components/live/tileName";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import { formatMinSec, type PlayerThirdMs } from "@/lib/sports/netball/fairness";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
@@ -168,14 +169,14 @@ export function PositionToken({
   // rings so every state keeps the same box. The old GS/GA "shooter"
   // outline is gone; tapping a shooter still records a goal.
   const baseBg = selected
-    ? "bg-white ring-2 ring-brand-500 shadow-pop"
+    ? "bg-surface ring-2 ring-brand-500 shadow-pop"
     : injured
-    ? "bg-white shadow-lift-court ring-1 ring-inset ring-danger/40"
+    ? "bg-surface shadow-lift-court ring-1 ring-inset ring-danger/40"
     : loaned
-    ? "bg-white shadow-lift-court ring-1 ring-inset ring-warn/40"
+    ? "bg-surface shadow-lift-court ring-1 ring-inset ring-warn/40"
     : ineligible
     ? "bg-surface-alt shadow-lift-court"
-    : "bg-white shadow-lift-court";
+    : "bg-surface shadow-lift-court";
 
   const third = (() => {
     const t = primaryThirdFor(positionId);
@@ -186,6 +187,12 @@ export function PositionToken({
   })();
 
   const goals = goalCount ?? 0;
+  // The time in each third: the token's description, not its name.
+  const splitId = useId();
+  const thirdSplit =
+    playerName && stats && totalMs !== undefined && totalMs > 0
+      ? `Attack ${formatMinSec(stats.attack)}, Centre ${formatMinSec(stats.centre)}, Defence ${formatMinSec(stats.defence)}`
+      : null;
 
   // The button is what visually IS the tile. SirenPulseHalo wraps
   // it so a brand halo can fire when this position takes a sub
@@ -222,9 +229,23 @@ export function PositionToken({
           ? "ring-2 ring-brand-300 ring-offset-1"
           : "",
       ].join(" ")}
-      aria-label={`${pos?.label ?? positionId}${playerName ? `, ${playerName}` : ", empty"}${
-        goals > 0 ? `, ${goals} goal${goals === 1 ? "" : "s"}` : ""
-      }`}
+      // The kid first, as every tile reads (tileName); an empty bib is "Goal Shooter, empty".
+      aria-label={
+        playerName
+          ? tileName({
+              name: playerName,
+              place: pos?.label ?? positionId,
+              time: totalMs !== undefined && totalMs > 0 ? formatMinSec(totalMs) : null,
+              states: [
+                goals > 0 && `${goals} goal${goals === 1 ? "" : "s"}`,
+                injured && "Injured",
+                loaned && !injured && "Lent to opposition",
+                locked && !injured && !loaned && "Locked at this position for the next quarter break",
+              ],
+            })
+          : `${pos?.label ?? positionId}, empty`
+      }
+      aria-describedby={thirdSplit ? splitId : undefined}
     >
       {keepOn && !injured && !loaned && goals === 0 && <KeepOnMarker />}
 
@@ -324,6 +345,11 @@ export function PositionToken({
         </span>
       </div>
     </button>
+    {thirdSplit && (
+      <span id={splitId} hidden>
+        {thirdSplit}
+      </span>
+    )}
     </SirenPulseHalo>
   );
 }

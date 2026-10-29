@@ -17,7 +17,7 @@ test("soccer: the wizard makes a U9 team with MiniRoos rules, and every team pag
 
   await gotoStable(page, "/teams/new");
   await waitForHydration(page);
-  const pill = page.getByRole("button", { name: "Junior Football (soccer)" });
+  const pill = page.getByRole("radio", { name: "Junior Football (soccer)" });
   // Every sport left beta with the ten-sport homepage.
   await expect(pill).not.toContainText("Beta");
   await pill.click();

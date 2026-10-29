@@ -18,7 +18,7 @@ test("basketball: the wizard makes a U12 team, every page opens, quarters and th
 
   await gotoStable(page, "/teams/new");
   await waitForHydration(page);
-  const pill = page.getByRole("button", { name: "Junior Basketball" });
+  const pill = page.getByRole("radio", { name: "Junior Basketball" });
   // Every sport left beta with the ten-sport homepage.
   await expect(pill).not.toContainText("Beta");
   await pill.click();

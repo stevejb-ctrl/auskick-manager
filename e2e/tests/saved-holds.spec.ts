@@ -114,7 +114,7 @@ test("netball: Keep in GS is saved and shows on another phone", async ({ page })
 
   const shooter = players[0];
   const gsToken = () =>
-    page.getByRole("button", { name: new RegExp(`^Goal Shooter,\\s*${shooter.full_name}`, "i") });
+    page.getByRole("button", { name: new RegExp(`^${shooter.full_name}, Goal Shooter`, "i") });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await gsToken().click({ delay: 600, timeout: 15_000 });
   await page.getByRole("button", { name: /keep in .* next break/i }).click();

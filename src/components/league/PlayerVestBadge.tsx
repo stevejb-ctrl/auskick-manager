@@ -33,12 +33,15 @@ const labels: Record<VestType, string> = {
   dh: "DH",
 };
 
+/** What the badge says to a screen reader (the tile's name reads it too). */
+export function vestLabel(vest: VestType): string {
+  return vest === "fr" ? "First Receiver vest" : "Dummy Half vest";
+}
+
 export function PlayerVestBadge({ vest, dimmed = false }: PlayerVestBadgeProps) {
   return (
     <span
-      aria-label={
-        vest === "fr" ? "First Receiver vest" : "Dummy Half vest"
-      }
+      aria-label={vestLabel(vest)}
       className={[
         "inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
         styles[vest],

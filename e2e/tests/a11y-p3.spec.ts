@@ -6,8 +6,10 @@
 //     just "Made" and "Missed": 30 a screen reader couldn't tell apart.
 //   - No dark theme and no color-scheme, so Chrome's auto-dark and
 //     Samsung Internet inverted the page and the dark sub card and
-//     clock pill lost their emphasis. Siren opts out: it's a light app
-//     (a real dark theme is a design job of its own).
+//     clock pill lost their emphasis. R6 opted out (`only light`);
+//     since the dark theme (25 Oct 2026) Siren declares `light dark`
+//     and paints its own dark palette, so forced dark modes still leave
+//     it alone (dark-theme.spec.ts covers the screens).
 
 import { test, expect } from "@playwright/test";
 import { contrast, openLive, skipHints, unionGame } from "../helpers/a11y";
@@ -63,16 +65,19 @@ test("after a try, each kicker's Made and Missed say whose kick it is", async ({
   expect(new Set(names).size).toBe(names.length);
 });
 
-test("Siren declares itself light-only, so forced dark modes leave it alone", async ({ page }) => {
-  await page.emulateMedia({ colorScheme: "dark" });
+test("Siren declares light and dark, so forced dark modes leave it to its own dark theme", async ({ page }) => {
   const { team, game } = await unionGame({ name: "A11Y-P3-DARK" });
   await skipHints(page);
   await openLive(page, team.id, game.id);
-  await expect(page.locator('meta[name="color-scheme"]')).toHaveAttribute("content", "only light");
-  // Chromium serialises it "light only".
-  const scheme = await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme);
-  expect(scheme.split(" ").sort()).toEqual(["light", "only"]);
-  // Still the light page under a dark system setting.
-  const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-  expect(bg).toBe("rgb(247, 245, 241)");
+  await expect(page.locator('meta[name="color-scheme"]')).toHaveAttribute("content", "light dark");
+  // A light phone: the light page, as before.
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe("light dark");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(247, 245, 241)");
+  // A dark phone: Siren's own dark page, not an inverted light one, and
+  // the clock pill stays the dark chrome a step above it.
+  await page.emulateMedia({ colorScheme: "dark" });
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe("dark");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(15, 19, 17)");
+  // (The pill has transition-colors, so wait out the 120 ms.)
+  await expect(page.getByRole("button", { name: /^clock — /i }).first()).toHaveCSS("background-color", "rgb(36, 42, 38)");
 });

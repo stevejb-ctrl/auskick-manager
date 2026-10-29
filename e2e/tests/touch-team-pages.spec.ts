@@ -26,10 +26,10 @@ test("touch: the wizard makes a mixed U11 team, every page opens, one period and
 
   await gotoStable(page, "/teams/new");
   await waitForHydration(page);
-  const pill = page.getByRole("button", { name: "Junior Touch football" });
+  const pill = page.getByRole("radio", { name: "Junior Touch football" });
   // Every sport left beta with the ten-sport homepage.
   await expect(pill).not.toContainText("Beta");
-  await expect(page.getByRole("button", { name: "Junior Oztag" })).not.toContainText("Beta");
+  await expect(page.getByRole("radio", { name: "Junior Oztag" })).not.toContainText("Beta");
   await pill.click();
   const teamName = `TCH-WIZ-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   await page.getByLabel(/team name/i).fill(teamName);
@@ -171,7 +171,7 @@ test("oztag: the wizard makes a mixed U12 team, every page opens, and the girl's
 
   await gotoStable(page, "/teams/new");
   await waitForHydration(page);
-  await page.getByRole("button", { name: "Junior Oztag" }).click();
+  await page.getByRole("radio", { name: "Junior Oztag" }).click();
   const teamName = `OZT-WIZ-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   await page.getByLabel(/team name/i).fill(teamName);
   await page.getByLabel(/age group/i).selectOption("U12");

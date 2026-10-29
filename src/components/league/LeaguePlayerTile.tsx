@@ -21,8 +21,8 @@ import type { VestType } from "@/lib/sports/rugby_league/vests";
 import type { PlayerConversionStatus } from "@/lib/sports/rugby_league/kicks";
 import type { LeagueZoneMs } from "@/lib/sports/rugby_league/fairness";
 import { LinePlayerTile, type TileLineStyle } from "@/components/live/LinePlayerTile";
-import { PlayerVestBadge } from "./PlayerVestBadge";
-import { PlayerKickBadge } from "./PlayerKickBadge";
+import { PlayerVestBadge, vestLabel } from "./PlayerVestBadge";
+import { PlayerKickBadge, kickBadgeLabel } from "./PlayerKickBadge";
 import { ZONE_STRIP } from "@/components/live/zoneStrip";
 
 /** Rugby's lines on a tile, and the vest as the bar's centre share. */
@@ -147,6 +147,7 @@ function LeaguePlayerTileImpl({
       loaned={loaned}
       score={tries > 0 ? { text: `${tries}T`, label: `${tries} ${tries === 1 ? "try" : "tries"}` } : null}
       extraChip={chips}
+      extraChipLabel={[vest ? vestLabel(vest) : null, kickBadgeLabel(conversion, kickedOff)].filter(Boolean).join(", ") || null}
       positionLabel={positionLabel}
       keepOn={keepOn}
     />

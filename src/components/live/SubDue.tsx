@@ -19,7 +19,7 @@ import type { ReactNode } from "react";
 export { subDueBannerShows } from "@/lib/live/subDueBanner";
 
 /** The card's ring: amber while due, a lift shadow otherwise. */
-export const SUB_DUE_RING = "shadow-[0_0_0_2px_#A8590F,0_8px_24px_rgba(26,30,26,0.18)]";
+export const SUB_DUE_RING = "shadow-[0_0_0_2px_rgb(var(--l-due)),0_8px_24px_rgba(26,30,26,0.18)]";
 export const SUB_IDLE_SHADOW = "shadow-[0_4px_12px_rgba(26,30,26,0.12)]";
 
 /** The card root: the screen-reader alert while due, a plain box otherwise. */

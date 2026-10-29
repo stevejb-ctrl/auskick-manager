@@ -29,6 +29,7 @@ import { teamAgeGroup } from "@/lib/sports/teamAgeGroup";
 import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
 import { distinctFullNames } from "@/lib/names";
 import { isNotPlayed, playedInSiren } from "@/lib/games/notPlayed";
+import { playedScoreOf, playedScoreText } from "@/lib/games/playedScore";
 import { NotPlayedActions } from "@/components/games/NotPlayedGames";
 import { finishedScoreLog, scoreKinds } from "@/lib/games/finishedScores";
 import type { FixScoresProps } from "@/components/games/FixScoresDialog";
@@ -267,6 +268,8 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   // A game marked played (not run in Siren) has no events: no summary,
   // score or report, rather than a 0–0 draw with nobody on.
   const ranInSiren = summaryEvents !== null && playedInSiren(summaryEvents);
+  // Marked played with its final score (migration 0076).
+  const playedScore = isFinal && !ranInSiren ? playedScoreOf(g) : null;
   // A finished game's scores, fixable from More (round 3 edge testing:
   // "Open game screen: fix scores" opened a read-only summary).
   const teamAge = teamAgeGroup(
@@ -436,7 +439,15 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
               {/* Well past its start and never run (lib/games/notPlayed). */}
               {isUp && isNotPlayed(g) && (
                 <div className="mt-4 rounded-md bg-surface-alt p-3" data-testid="not-played">
-                  <NotPlayedActions teamId={params.teamId} gameId={g.id} canEdit={role === "admin"} afterDelete="games" />
+                  <NotPlayedActions
+                    teamId={params.teamId}
+                    gameId={g.id}
+                    sport={sport}
+                    teamName={teamName}
+                    opponent={g.opponent}
+                    canEdit={role === "admin"}
+                    afterDelete="games"
+                  />
                 </div>
               )}
             </div>
@@ -672,9 +683,24 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
           dashboard's "Last result" links straight to it. */}
       {isFinal && !ranInSiren && (
         <SFCard id="summary">
-          <p className="text-sm text-ink-dim">
-            Marked as played. It wasn&apos;t run in Siren, so there&apos;s no score or game time for it.
-          </p>
+          {playedScore ? (
+            // Marked played with its final score (lib/games/playedScore):
+            // a result like any other, with no game time.
+            <div data-testid="played-score">
+              <Eyebrow>Final score</Eyebrow>
+              <p className="mt-1 text-lg font-bold tracking-tightest text-ink">
+                {teamName} {playedScoreText(sport, playedScore)} {g.opponent}
+              </p>
+              <p className="mt-1 text-sm text-ink-dim">
+                {playedScore.us > playedScore.them ? "Won" : playedScore.us < playedScore.them ? "Lost" : "Drawn"}.
+                Marked as played: it wasn&apos;t run in Siren, so there&apos;s no game time for it.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-ink-dim">
+              Marked as played. It wasn&apos;t run in Siren, so there&apos;s no score or game time for it.
+            </p>
+          )}
         </SFCard>
       )}
 

@@ -11,7 +11,8 @@
 // because AFL's tile is typed to AFL's zones; only the words and the
 // bar's units differ.
 
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useId, useRef, useState } from "react";
+import { tileName } from "@/components/live/tileName";
 import type { Player } from "@/lib/types";
 import type { SoccerUnit, SoccerUnitWords } from "@/lib/sports/soccer/types";
 import type { SoccerUnitMs } from "@/lib/sports/soccer/replay";
@@ -128,8 +129,8 @@ function SoccerPlayerTileImpl({
     ? "bg-brand-50 ring-2 ring-brand-500 shadow-pop"
     : isOff
       ? swapDue
-        ? "bg-due-tint shadow-[inset_0_0_0_2px_#A8590F,0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
-        : "bg-surface shadow-[inset_0_0_0_1.5px_#A8590F,0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
+        ? "bg-due-tint shadow-[inset_0_0_0_2px_rgb(var(--l-due)),0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
+        : "bg-surface shadow-[inset_0_0_0_1.5px_rgb(var(--l-due)),0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
       : isOn
         ? "bg-brand-50 shadow-lift-field ring-1 ring-inset ring-brand-500"
         : injured
@@ -146,6 +147,30 @@ function SoccerPlayerTileImpl({
   const displayName = useSquadNames().tile(player);
 
   const unitLabel = positionLabel ?? (unit ? words[unit].short || null : null);
+
+  // One accessible name, read once: kid, line or position, number,
+  // time, chips (tileName). The time in each line is the description.
+  const splitId = useId();
+  const unitSplit =
+    totalMs !== undefined && unitMs
+      ? BAR_ORDER.filter((u) => (unitMs[u] ?? 0) > 0)
+          .map((u) => `${words[u].label} ${formatMinSec(unitMs[u] ?? 0)}`)
+          .join(", ") || null
+      : null;
+  const spokenName = tileName({
+    name: player.full_name,
+    place: positionLabel ?? (unit && words[unit].short ? words[unit].label : null),
+    number: player.jersey_number,
+    time: totalMs !== undefined ? formatMinSec(totalMs) : null,
+    states: [
+      isOn && (swap?.unit ? `Going on to ${words[swap.unit].label}, pair ${swap.pair}` : `Going on, pair ${swap?.pair}`),
+      isOff && `Coming off next, pair ${swap?.pair}`,
+      hasGoals && `${goals} ${goals === 1 ? "goal" : "goals"}`,
+      injured && "Injured",
+      loaned && !injured && "Lent to opposition",
+      !!lockMode && !injured && !loaned && (lockMode === "field" ? "Field locked" : "Line locked"),
+    ],
+  });
 
   // The swap handover, as AFL's tile: a tile marked OFF that receives
   // the kid coming on pops a green ✓ and rolls the names.
@@ -173,6 +198,8 @@ function SoccerPlayerTileImpl({
       <button
         type="button"
         data-testid={`player-tile-${player.id}`}
+        aria-label={spokenName}
+        aria-describedby={unitSplit ? splitId : undefined}
         onClick={handleClick}
         {...longPressHandlers}
         disabled={!onClick && !onLongPress}
@@ -319,6 +346,12 @@ function SoccerPlayerTileImpl({
           )}
         </div>
       </button>
+      {/* The time in each line, outside the tile so it isn't the tile's text. */}
+      {unitSplit && (
+        <span id={splitId} hidden>
+          {unitSplit}
+        </span>
+      )}
     </SirenPulseHalo>
   );
 }

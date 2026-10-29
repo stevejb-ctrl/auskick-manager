@@ -111,7 +111,7 @@ export function Modal({
           inherits this behaviour from the Modal primitive — no
           per-modal change needed. */}
       <div
-        className="absolute inset-0 z-0 bg-ink/40 motion-safe:animate-fade-in"
+        className="absolute inset-0 z-0 bg-scrim/40 motion-safe:animate-fade-in"
         onClick={onClose}
         aria-hidden
       />

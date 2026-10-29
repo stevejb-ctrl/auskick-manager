@@ -47,7 +47,15 @@ import {
   unconvertedTryIds,
   RUGBY_SCORE_EVENT_TYPES,
 } from "@/lib/sports/rugby_league/kicks";
-import { checkPeriodWrite, periodWordOf, revalidateLivePage, scoreRowsOf, staleRefusal } from "@/lib/live/liveWriteGuard";
+import {
+  checkPeriodWrite,
+  kickoffRaceRefusal,
+  periodWordOf,
+  raceVerdictOf,
+  revalidateLivePage,
+  scoreRowsOf,
+  staleRefusal,
+} from "@/lib/live/liveWriteGuard";
 import { lineupWrite, type PeriodWrite } from "@/lib/live/periodGuard";
 import { resolveUndoTarget, undoArgs, type UndoTargetRef } from "@/lib/live/undoTarget";
 import { replayRugbyGame, rugbyPoints, rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
@@ -160,6 +168,10 @@ async function insertEvent(
     idempotency_key: idempotencyKey ?? null,
   });
   if (error) {
+    // The other phone's start or Finish landed after the guard looked.
+    const race = await raceVerdictOf(w.supabase, gameId, error, { type, guard }, await periodWordFor(w.teamId), idempotencyKey);
+    if (race?.kind === "stale") return staleRefusal(auth, w.teamId, gameId, race.message);
+    if (race?.kind === "duplicate") return { success: true };
     // Unique-violation on the idempotency_key partial index means
     // this op already landed (write queue retry). Treat as success.
     if (error.code === "23505" && idempotencyKey) {
@@ -314,7 +326,10 @@ export async function startLeagueGame(
   }
 
   const { sport } = await rugbyTeamOf(w);
+  // Its id, so a kickoff that loses the race can take it back out.
+  const lineupEventId = crypto.randomUUID();
   const { error: insertError } = await w.supabase.from("game_events").insert({
+    id: lineupEventId,
     game_id: gameId,
     type: "lineup_set",
     metadata: { lineup, sport },
@@ -331,7 +346,11 @@ export async function startLeagueGame(
         metadata: { quarter: 1, sport },
         created_by: w.userId,
       });
-    if (qStartError) return { success: false, error: qStartError.message };
+    if (qStartError) {
+      const raced = await kickoffRaceRefusal(gameId, [lineupEventId], qStartError, await periodWordFor(w.teamId));
+      if (raced) return staleRefusal(auth, w.teamId, gameId, raced);
+      return { success: false, error: qStartError.message };
+    }
   }
 
   // Atomic vest writes for EVERY planned period. One row per

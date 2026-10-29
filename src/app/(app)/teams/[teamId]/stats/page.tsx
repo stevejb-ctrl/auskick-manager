@@ -42,6 +42,13 @@ import type { GameEvent } from "@/lib/types";
 import { distinctFullNames } from "@/lib/names";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { scoresKept } from "@/lib/results";
+import {
+  playedScoreOf,
+  withPlayedHeadToHead,
+  withPlayedNetballHeadToHead,
+  withPlayedTotals,
+  type PlayedResult,
+} from "@/lib/games/playedScore";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { loadRollup } from "@/lib/playbook/rollupStore";
 import { seasonFromRollup } from "@/lib/playbook/rollup";
@@ -184,6 +191,21 @@ async function StatsBody({ params, searchParams }: StatsPageProps) {
     if (ev.type === "game_finalised") finalisedGameIds.add(ev.game_id);
   }
   const seasonGames = candidateGames.filter((g) => finalisedGameIds.has(g.id));
+  // Games marked played with their final score (no events, so no replay):
+  // they count as played games and results, never as minutes or scorers
+  // (lib/games/playedScore, migration 0076).
+  const gamesWithEvents = new Set(eventsArr.map((ev) => ev.game_id));
+  const playedResults: PlayedResult[] = candidateGames.flatMap((g) => {
+    const score = gamesWithEvents.has(g.id) ? null : playedScoreOf(g);
+    return score ? [{ opponent: g.opponent as string, score }] : [];
+  });
+  const playedScores = playedResults.map((p) => p.score);
+  const totalGames = seasonGames.length + playedResults.length;
+  const withPlayedAggregate = <A extends { totals: { games: number; wins: number; draws: number; losses: number } }>(
+    aggregate: A,
+    forKey: Extract<keyof A["totals"], string>,
+    againstKey: Extract<keyof A["totals"], string>,
+  ): A => ({ ...aggregate, totals: withPlayedTotals(aggregate.totals, forKey, againstKey, playedScores) });
   const eventsByGame = new Map<string, GameEvent[]>();
   for (const ev of eventsArr) {
     if (!finalisedGameIds.has(ev.game_id)) continue;
@@ -267,9 +289,9 @@ async function StatsBody({ params, searchParams }: StatsPageProps) {
         seasons={seasons}
         selectedYear={selectedYear}
         playerNames={Object.fromEntries(players.map((p) => [p.id, p.full_name]))}
-        aggregate={aggregateSoccerSeason(seasonGames, eventsByGame, keptScore)}
-        totalGames={seasonGames.length}
-        trackScoring={keptIds.size > 0}
+        aggregate={withPlayedAggregate(aggregateSoccerSeason(seasonGames, eventsByGame, keptScore), "goalsFor", "goalsAgainst")}
+        totalGames={totalGames}
+        trackScoring={keptIds.size > 0 || playedResults.length > 0}
         withKeeper={soccerFamilyAgeGroupForTeam(sport, team.age_group, teamPeriodCount).keeper !== "none"}
         seasonBalance={playbook.strategy.balanceUnit ? seasonBalance : undefined}
       />
@@ -286,9 +308,9 @@ async function StatsBody({ params, searchParams }: StatsPageProps) {
         seasons={seasons}
         selectedYear={selectedYear}
         playerNames={Object.fromEntries(players.map((p) => [p.id, p.full_name]))}
-        aggregate={aggregateBasketballSeason(seasonGames, eventsByGame, keptScore)}
-        totalGames={seasonGames.length}
-        trackScoring={keptIds.size > 0}
+        aggregate={withPlayedAggregate(aggregateBasketballSeason(seasonGames, eventsByGame, keptScore), "pointsFor", "pointsAgainst")}
+        totalGames={totalGames}
+        trackScoring={keptIds.size > 0 || playedResults.length > 0}
         trackFouls={(team as { track_fouls?: boolean | null }).track_fouls ?? ageB.tracksFoulsDefault}
         withLines={playbook.strategy.id !== "minutes"}
         seasonBalance={playbook.strategy.balanceUnit ? seasonBalance : undefined}
@@ -306,9 +328,9 @@ async function StatsBody({ params, searchParams }: StatsPageProps) {
         seasons={seasons}
         selectedYear={selectedYear}
         playerNames={Object.fromEntries(players.map((p) => [p.id, p.full_name]))}
-        aggregate={aggregateTouchSeason(seasonGames, eventsByGame, keptScore)}
-        totalGames={seasonGames.length}
-        trackScoring={keptIds.size > 0}
+        aggregate={withPlayedAggregate(aggregateTouchSeason(seasonGames, eventsByGame, keptScore), "pointsFor", "pointsAgainst")}
+        totalGames={totalGames}
+        trackScoring={keptIds.size > 0 || playedResults.length > 0}
         withLanes={playbook.strategy.id !== "minutes"}
         mixed={teamMixedRule(team as { mixed_max_boys?: number | null; mixed_min_girls?: number | null; mixed_min_boys?: number | null }) !== null}
         seasonBalance={playbook.strategy.balanceUnit ? seasonBalance : undefined}
@@ -342,8 +364,17 @@ async function StatsBody({ params, searchParams }: StatsPageProps) {
         seasons={seasons}
         selectedYear={selectedYear}
         playerNames={playerNames}
-        aggregate={aggregate}
-        totalGames={seasonGames.length}
+        aggregate={{
+          ...aggregate,
+          // Played games: a game and its points; their tries weren't kept.
+          totals: {
+            ...aggregate.totals,
+            games: aggregate.totals.games + playedResults.length,
+            points: aggregate.totals.points + playedScores.reduce((s, p) => s + p.us, 0),
+            opponentPoints: aggregate.totals.opponentPoints + playedScores.reduce((s, p) => s + p.them, 0),
+          },
+        }}
+        totalGames={totalGames}
         seasonBalance={seasonBalance}
         columns={leagueStatsColumns(balanceAgeCfg)}
         words={rugbyScoreWords(sport)}
@@ -375,7 +406,7 @@ async function StatsBody({ params, searchParams }: StatsPageProps) {
     }
     const playerStats = computeNetballPlayerStats(players, snapshots);
     const chemistry = computeNetballChemistry(snapshots);
-    const headToHead = computeNetballHeadToHead(seasonGames, snapshots, keptScore);
+    const headToHead = withPlayedNetballHeadToHead(computeNetballHeadToHead(seasonGames, snapshots, keptScore), playedResults);
     const attendanceRows = computeNetballAttendance(
       players,
       seasonGames,
@@ -403,9 +434,10 @@ async function StatsBody({ params, searchParams }: StatsPageProps) {
         chemistry={chemistry}
         headToHead={headToHead}
         attendance={attendanceRows}
-        totalGames={seasonGames.length}
+        totalGames={totalGames}
         hasPlayData={hasPlayData}
-        hasScoringData={hasScoringData}
+        // Netball's only use of it: whether Head-to-head has results.
+        hasScoringData={hasScoringData || playedResults.length > 0}
         hasAvailabilityData={hasAvailabilityData || hasPlayData}
         seasonBalance={seasonBalance}
       />
@@ -477,7 +509,7 @@ async function StatsBody({ params, searchParams }: StatsPageProps) {
   // Compute all sections
   const playerStats = computePlayerStats(playersWithFillIn, snapshots, seasonGames);
   const positionFit = computePositionFit(snapshots);
-  const headToHead = computeHeadToHead(seasonGames, snapshots, keptScore);
+  const headToHead = withPlayedHeadToHead(computeHeadToHead(seasonGames, snapshots, keptScore), playedResults);
   const quarterScoring = computeQuarterScoring(snapshots.filter((s) => keptScore(s.gameId)));
   const attendanceRows = computeAttendance(
     players,
@@ -496,7 +528,7 @@ async function StatsBody({ params, searchParams }: StatsPageProps) {
       headToHead={headToHead}
       quarterScoring={quarterScoring}
       attendance={attendanceRows}
-      totalGames={seasonGames.length}
+      totalGames={totalGames}
       hasZoneData={hasZoneData}
       hasScoringData={hasScoringData}
       seasonBalance={seasonBalance}
