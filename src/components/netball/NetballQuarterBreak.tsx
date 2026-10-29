@@ -18,7 +18,7 @@ import { setNetballOnFieldSize } from "@/app/(app)/teams/[teamId]/games/[gameId]
 import { type InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
 import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
-import { netballSport, pickNetballPositionsToFill, primaryThirdFor } from "@/lib/sports/netball";
+import { netballShortCourtNote, netballSport, pickNetballPositionsToFill, primaryThirdFor } from "@/lib/sports/netball";
 import {
   type GenericLineup,
   type PlayerThirdMs,
@@ -675,11 +675,16 @@ export function NetballQuarterBreak({
         board: (l) => buildBoard(config.zones, withSidelined(l), sidelinedNow),
         swap: (l, a, b) => lineupOf(swapInStaged(stagedOf(l), a, b)),
         sidelined: sidelinedNow,
-        // An empty bib is already a broken rule here.
+        // An empty bib is already a broken rule here, unless the court
+        // is played short: then the check aims at the smaller court.
         emptySpots: false,
+        extraWarnings:
+          effectiveOnFieldSize < ageGroup.positions.length
+            ? [netballShortCourtNote(draft.positions, ageGroup.positions)].filter((n): n is string => !!n)
+            : [],
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [draft, ruleCheck, config.zones, sidelined, sidelinedNow],
+    [draft, ruleCheck, config.zones, sidelined, sidelinedNow, ageGroup.positions, effectiveOnFieldSize],
   );
 
   const asBreakPlayer = (p: Player): BreakPlayer => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number });

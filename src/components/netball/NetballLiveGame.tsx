@@ -12,6 +12,7 @@
 // Score: +1 goal (our team) / +1 opponent goal. That's it.
 
 import { SFButton, SFIcon } from "@/components/sf";
+import { useOtherPhoneScores } from "@/components/live/useOtherPhoneScores";
 import { WENT_HOME_REASON, wentHomeIds } from "@/lib/live/wentHome";
 import { useRouter } from "next/navigation";
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -1095,6 +1096,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // break (usability pass, 26 Oct 2026).
   const [localScores, setLocalScores] = useState<StackScore[]>([]);
   const [undoneScoreIds, setUndoneScoreIds] = useState<ReadonlySet<string>>(() => new Set());
+  // A score from the other phone says so (Stagehand round 8, #6).
+  useOtherPhoneScores(serverEvents, NETBALL_SCORE_TYPES, { teamName: teamName, opponentName: game.opponent || "Opponent" });
   const serverStanding = useMemo(() => standingScores(serverEvents, NETBALL_SCORE_TYPES), [serverEvents]);
   const undoTop = undoStack(serverStanding, localScores, undoneScoreIds).at(-1) ?? null;
   const [undoToastVisible, setUndoToastVisible] = useState(false);
@@ -2506,6 +2509,12 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             wentHome={wentHomeSet.has(playerId)}
             onWentHome={handleWentHome}
             onToggleLoan={isLoaned ? handleUnLoan : handleMarkLoaned}
+            // No Switch mid-quarter where the team's comp bans it: say so.
+            note={
+              !allowMidQuarterSubs && positionId && !isInjured && !isLoaned
+                ? "Netball subs happen at the break. If they can't play on, mark them injured."
+                : undefined
+            }
             // Mid-quarter sub, only with the team's allow_mid_quarter_subs
             // on (Steve 2026-05-16: most netball comps ban them) and
             // someone on the bench to bring on.
@@ -2624,6 +2633,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           <SlotFillSheet
             slotLabel="goal"
             titleVerb="Record"
+            lostScore="goal"
             subtitle="Pick the scorer. Only GS and GA can score a netball goal."
             emptyMessage="No GS or GA on court right now."
             candidates={candidates}

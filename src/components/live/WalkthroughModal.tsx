@@ -9,6 +9,55 @@ export interface WalkthroughStep {
   body: string;
 }
 
+/**
+ * The words on the live and break screens, in one place, last in every
+ * sport's walkthrough. Parents who don't know the sport stopped at each
+ * of these (Stagehand round 8, #14).
+ */
+export const GLOSSARY_STEP: WalkthroughStep = {
+  emoji: "📖",
+  title: "Words you'll see",
+  body:
+    "Pair 1, OFF 1: who swaps with whom in the suggested subs. Stays: keeps their spot. From Bench, From C: where a kid is coming from. " +
+    "Suggested, Rotate, Repeat, Manual: how the next lineup is picked (Siren's pick, everyone moves round, the same as last time, or you choose). " +
+    "+G, +B, +T, +C, +2: add a goal, behind, try, conversion or basket for the team it sits under. Undo takes back the latest score; Fix scores changes an earlier one.",
+};
+
+/** A walkthrough ends on the words, once. */
+export function withGlossary(steps: WalkthroughStep[]): WalkthroughStep[] {
+  return steps.some((s) => s.title === GLOSSARY_STEP.title) ? steps : [...steps, GLOSSARY_STEP];
+}
+
+/**
+ * The walkthrough for the sports on the shared live chrome (football,
+ * futsal, hockey, basketball, touch, Oztag), which had no "?" at all: a
+ * parent "found only a feedback form" (Stagehand round 8).
+ */
+export function buildSharedWalkthroughSteps(): WalkthroughStep[] {
+  return withGlossary([
+    {
+      emoji: "⏱️",
+      title: "Starting",
+      body: "Check the lineup, then tap Start. The clock runs on its own: tap it to pause, or to end the period early.",
+    },
+    {
+      emoji: "🔄",
+      title: "Subs",
+      body: "When subs are due, the card shows who swaps: tap Make all swaps. Or tap a kid, then a bench kid, to swap just them.",
+    },
+    {
+      emoji: "➕",
+      title: "Scores",
+      body: "Tap the + under a team's name to add a score. Ours asks who scored. Undo on the strip takes back the latest.",
+    },
+    {
+      emoji: "🏁",
+      title: "The break",
+      body: "When a period ends, the break shows the next lineup. Change anything you like, then tap Start.",
+    },
+  ]);
+}
+
 export function buildWalkthroughSteps(trackScoring: boolean): WalkthroughStep[] {
   const steps: WalkthroughStep[] = [
     {
@@ -79,7 +128,9 @@ interface WalkthroughModalProps {
 // interstitial is gone: the tour is offered on the lineup screen before
 // kickoff (WalkthroughOffer) or opened from the "?" button, and both of
 // those already ask the question (UX plan H1).
-export function WalkthroughModal({ steps, onClose }: WalkthroughModalProps) {
+export function WalkthroughModal({ steps: stepsProp, onClose }: WalkthroughModalProps) {
+  // Every walkthrough ends on the words (GLOSSARY_STEP).
+  const steps = withGlossary(stepsProp);
   const [idx, setIdx] = useState(0);
 
   // Direction tracking for step-content slide animations. The

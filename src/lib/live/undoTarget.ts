@@ -11,6 +11,7 @@
 // ask this which one to take back.
 
 import { isOptimisticEventId, type OptimisticEventInput } from "@/lib/live/optimisticEvents";
+import { describeScoreEvent } from "@/lib/live/otherPhone";
 import { takeUndoTarget } from "@/lib/live/scoreUndo";
 import type { GameEvent } from "@/lib/types";
 
@@ -127,6 +128,19 @@ export type UndoTap =
  * same one. A named score that isn't on screen never saved: nothing to
  * do (it used to fall back to the latest, an earlier saved score).
  */
+/** What Undo would take back, in plain words ("Sharks goal"), or null. */
+export function undoTargetText(
+  events: readonly GameEvent[],
+  scoreTypes: ReadonlySet<string>,
+  namedKey: string | null,
+  names: { teamName: string; opponentName: string },
+): string | null {
+  const tap = undoTap(events, scoreTypes, namedKey);
+  if (tap.kind !== "undo") return null;
+  const type = (tap.optimistic.metadata as { original_type?: string }).original_type;
+  return type ? describeScoreEvent(type, names.teamName, names.opponentName) : null;
+}
+
 export function undoTap(events: readonly GameEvent[], scoreTypes: ReadonlySet<string>, namedKey: string | null): UndoTap {
   const sorted = [...events].sort((a, b) => a.created_at.localeCompare(b.created_at));
   const standing: GameEvent[] = [];

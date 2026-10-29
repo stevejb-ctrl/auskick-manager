@@ -53,6 +53,12 @@ interface ScoreRecordingDockProps {
    * plain tap (UX plan H5). Rendered as the dock's last row.
    */
   onPlayerActions?: () => void;
+  /**
+   * Under the heading: that a second tap swaps. Parents tapped a kid to
+   * swap them, met "Record a goal" and nearly scored (Stagehand round
+   * 8, #11). Where tap-to-swap works; netball's mid-quarter has none.
+   */
+  swapHint?: string;
 }
 
 export function ScoreRecordingDock({
@@ -61,6 +67,7 @@ export function ScoreRecordingDock({
   onCancel,
   cancelLabel = "Cancel",
   onPlayerActions,
+  swapHint,
 }: ScoreRecordingDockProps) {
   return (
     <div
@@ -82,6 +89,11 @@ export function ScoreRecordingDock({
             {cancelLabel}
           </button>
         </div>
+        {swapHint && (
+          <p data-testid="dock-swap-hint" className="-mt-1 mb-2 text-xs text-ink-dim">
+            {swapHint}
+          </p>
+        )}
         {actions}
         {/* The label keeps the system's name ("Player actions" is
             also the sheet's title and what the help pages teach)

@@ -53,6 +53,7 @@ export function LeagueScorerPicker({ sport, onFieldPlayers, onPick, onCancel, on
       slotLabel={what}
       eyebrow={scoreEyebrow(sport, score)}
       title="Who scored?"
+      lostScore={what}
       subtitle={
         score !== "try"
           ? `Pick the player who kicked the ${what}.`

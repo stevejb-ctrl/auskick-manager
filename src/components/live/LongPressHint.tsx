@@ -157,7 +157,10 @@ export function LongPressHint({ enabled = true }: { enabled?: boolean }) {
                 26 Oct 2026). Every sport shows it, so it names only
                 actions every sport's sheet has: rugby has no "keep on"
                 (ten-sport UX audit, 23 Oct 2026). */}
-            <span>Tap a player for actions (switch, injured, lend…)</span>
+            {/* Short, on one line: at 200% text the long version wrapped
+                to three lines over half the court (Stagehand round 8, #10).
+                The sheet itself lists the actions. */}
+            <span className="whitespace-nowrap">Tap a player for actions</span>
             <button
               type="button"
               onClick={handleGotIt}

@@ -35,11 +35,11 @@ export default async function RunnerLeftPage({ params }: { params: { token: stri
           ? "Everything's saved. Thanks for running today's game!"
           : "Everything's saved. To come back, open the same link, or tap below."}
       </p>
-      {!finished && (
-        <SFButton href={`/run/${params.token}`} variant="primary" size="lg" full>
-          Back to the game
-        </SFButton>
-      )}
+      {/* A finished game's link is its result: a parent who came for it
+          and tapped Exit had no way back (Stagehand round 8, #5). */}
+      <SFButton href={`/run/${params.token}`} variant="primary" size="lg" full>
+        {finished ? "See the result" : "Back to the game"}
+      </SFButton>
       <p className="text-xs text-ink-dim">You can close this tab.</p>
     </div>
   );

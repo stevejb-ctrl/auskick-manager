@@ -16,6 +16,7 @@ import { fixFinishedScore, fixScoreFromLink } from "@/app/(app)/teams/[teamId]/g
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { quietOtherPhoneNotices } from "@/lib/live/otherPhone";
 import type { FinishedScoreRow, ScoreFix, ScoreKind } from "@/lib/games/finishedScores";
 
 export interface FixScoresProps {
@@ -82,6 +83,8 @@ export function FixScoresDialog({
 
   function run(fix: ScoreFix, done: () => void) {
     setError(null);
+    // Its scores are this phone's: not "added on another phone".
+    quietOtherPhoneNotices();
     startTransition(async () => {
       const res = token ? await fixScoreFromLink(token, gameId, fix) : await fixFinishedScore(teamId, gameId, fix);
       if (!res.success) {

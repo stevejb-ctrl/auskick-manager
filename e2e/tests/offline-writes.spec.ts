@@ -162,6 +162,9 @@ test("Soccer: goals, a sub, the half-time hooter and the second half with no sig
 
   await page.context().setOffline(true);
   await page.getByRole("button", { name: "Add goal, Rovers" }).click();
+  // Two goals, not a double tap: the chip drops a repeat within 0.9 s
+  // (lib/live/repeatTap, Stagehand round 8).
+  await page.waitForTimeout(1100);
   await page.getByRole("button", { name: "Add goal, Rovers" }).click();
   await page.getByTestId(`player-tile-${ids[3]}`).click();
   await page.getByTestId(`player-tile-${ids[7]}`).click();
@@ -190,6 +193,9 @@ test("Netball: goals, the quarter's hooter and Start Q2 with no signal all save 
 
   await page.context().setOffline(true);
   await page.getByRole("button", { name: "Add goal, Rovers" }).click();
+  // Two goals, not a double tap: the chip drops a repeat within 0.9 s
+  // (lib/live/repeatTap, Stagehand round 8).
+  await page.waitForTimeout(1100);
   await page.getByRole("button", { name: "Add goal, Rovers" }).click();
 
   // The hooter with no signal: the break opens here (it used to freeze

@@ -1,6 +1,7 @@
 "use client";
 
 import { SFButton, SFIcon } from "@/components/sf";
+import { useOtherPhoneScores } from "@/components/live/useOtherPhoneScores";
 import { WENT_HOME_REASON } from "@/lib/live/wentHome";
 import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -136,7 +137,7 @@ import { LiveTopBar } from "@/components/live/LiveTopBar";
 
 import { assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
 import { UndoStrip } from "@/components/live/UndoStrip";
-import { stackIds, stackRef, undoStack, type StackScore } from "@/lib/live/undoStack";
+import { AFL_SCORE_TYPES, stackIds, stackRef, undoStack, type StackScore } from "@/lib/live/undoStack";
 import { requestLiveSync } from "@/lib/live/liveSync";
 // YT IFrame API + playSong logic lives in `@/lib/live/useHypeSong`
 // since 2026-05-16 (extracted for AFL/netball parity). The hook
@@ -516,6 +517,13 @@ export function LiveGame({
   // pass, 26 Oct 2026).
   const [localScores, setLocalScores] = useState<StackScore[]>([]);
   const [undoneScoreIds, setUndoneScoreIds] = useState<ReadonlySet<string>>(() => new Set());
+  // A score from the other phone says so (Stagehand round 8, #6): AFL
+  // holds its scores as the standing list.
+  const standingAsEvents = useMemo(
+    () => standingScores.map((s) => ({ id: s.eventId ?? `optimistic-${s.key}`, type: s.type, idempotency_key: s.key, created_at: s.createdAt ?? "" })),
+    [standingScores],
+  );
+  useOtherPhoneScores(standingAsEvents, AFL_SCORE_TYPES, { teamName, opponentName });
   const undoTop = undoStack(standingScores, localScores, undoneScoreIds).at(-1) ?? null;
   const [undoToastVisible, setUndoToastVisible] = useState(false);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -879,29 +887,35 @@ export function LiveGame({
     }
     // Two different field players in different zones — swap their zones directly.
     if (selected.zone !== zone) {
-      const pidA = selected.playerId;
-      const zoneA = selected.zone;
-      const quarter = Math.max(1, currentQuarter);
-      const elapsed_ms = currentElapsedMs();
-      applyFieldZoneSwap(pidA, zoneA, playerId, zone);
-      showSwapToast(
-        `${shortName(pidA)} ⇄ ${shortName(playerId)} — zones swapped`
-      );
-      enqueueLiveAction("recordFieldZoneSwap", [
-        auth,
-        gameId,
-        {
-          player_a_id: pidA,
-          zone_a: zoneA,
-          player_b_id: playerId,
-          zone_b: zone,
-          quarter,
-          elapsed_ms,
-        },
-      ]);
+      swapZones(selected.playerId, selected.zone, playerId, zone, true);
       return;
     }
     selectField(playerId, zone);
+  }
+
+  // Two field kids trade zones at once (no confirm, as AFL always has),
+  // with Undo on the toast: two quick taps swapped kids by accident and
+  // only a manual swap back fixed it (Stagehand round 8, #14).
+  function swapZones(pidA: string, zoneA: Zone, pidB: string, zoneB: Zone, withUndo: boolean) {
+    const quarter = Math.max(1, currentQuarter);
+    const elapsed_ms = currentElapsedMs();
+    applyFieldZoneSwap(pidA, zoneA, pidB, zoneB);
+    showSwapToast(
+      `${shortName(pidA)} ⇄ ${shortName(pidB)} — zones swapped`,
+      withUndo ? () => swapZones(pidA, zoneB, pidB, zoneA, false) : undefined,
+    );
+    enqueueLiveAction("recordFieldZoneSwap", [
+      auth,
+      gameId,
+      {
+        player_a_id: pidA,
+        zone_a: zoneA,
+        player_b_id: pidB,
+        zone_b: zoneB,
+        quarter,
+        elapsed_ms,
+      },
+    ]);
   }
 
   function handleTapBench(playerId: string) {
@@ -2127,6 +2141,7 @@ export function LiveGame({
         // affordance when a field player is selected).
         return (
           <ScoreRecordingDock
+            swapHint="Or tap a teammate to swap them."
             heading={
               canScore ? (
                 <>
@@ -2740,6 +2755,7 @@ export function LiveGame({
             slotLabel={slotLabel}
             candidates={candidates}
             titleVerb="Who scored the"
+            lostScore={slotLabel.toLowerCase()}
             subtitle={`Pick the player who scored the ${slotLabel.toLowerCase()}.`}
             emptyMessage="No eligible players — every available player is sidelined."
             // Backdrop tap is a no-op here — the coach must either pick

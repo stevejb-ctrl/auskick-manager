@@ -15,6 +15,7 @@
 // sheet (UX audit 23 Oct 2026, "Drift from AFL").
 
 import dynamic from "next/dynamic";
+import { useOtherPhoneScores } from "@/components/live/useOtherPhoneScores";
 import { WENT_HOME_REASON, wentHomeIds } from "@/lib/live/wentHome";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -59,7 +60,7 @@ import { InlineAlert } from "@/components/ui/InlineAlert";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
 import { liveEvents } from "@/lib/live/optimisticEvents";
-import { UNDO_GONE_MESSAGE, UNDO_MISSING_MESSAGE, undoTap } from "@/lib/live/undoTarget";
+import { undoTargetText, UNDO_GONE_MESSAGE, UNDO_MISSING_MESSAGE, undoTap } from "@/lib/live/undoTarget";
 import { announceLiveNotice } from "@/lib/live/liveSync";
 import { useLiveChrome } from "@/components/live/useLiveChrome";
 import { undoSwaps } from "@/lib/live/liveChrome";
@@ -344,6 +345,8 @@ export function LeagueLiveGame({
   // toast, and the season's lent minutes on the long-press sheet.
   const playerById = useMemo(() => new Map(squad.map((p) => [p.id, p])), [squad]);
   const seasonLoanMins = useMemo(() => seasonLoanMinutes(seasonEvents), [seasonEvents]);
+  // A score from the other phone says so (Stagehand round 8, #6).
+  useOtherPhoneScores(thisGameEvents, RUGBY_SCORE_EVENT_TYPES, { teamName: teamName, opponentName: game.opponent || "Opponent" });
   const chrome = useLiveChrome({
     teamName,
     opponentName: game.opponent || "Opponent",
@@ -1671,6 +1674,7 @@ export function LeagueLiveGame({
                   running={running}
                 />
                 {chrome.undoStrip({
+            target: undoTargetText(thisGameEvents, RUGBY_SCORE_EVENT_TYPES, chrome.namedScoreKey, { teamName, opponentName: game.opponent || "Opponent" }),
                   show: state.teamScore.points > 0 || state.opponentScore.points > 0,
                   onUndo: handleUndoScore,
                   disabled: pending,
@@ -2109,6 +2113,7 @@ export function LeagueLiveGame({
           Player actions opens the same sheet as long-press. */}
       {playerDockVisible && selectedPlayer && (
         <ScoreRecordingDock
+          swapHint="Or tap a teammate to swap them."
           heading={
             scoreDockVisible ? (
               <>
@@ -2219,6 +2224,7 @@ export function LeagueLiveGame({
           // Same strip as AFL's, flashing what was recorded; in play only
           // (at full time the review's own Undo fixes a miscount).
           undoStrip={chrome.undoStrip({
+            target: undoTargetText(thisGameEvents, RUGBY_SCORE_EVENT_TYPES, chrome.namedScoreKey, { teamName, opponentName: game.opponent || "Opponent" }),
             show: isPeriodActive && (state.teamScore.points > 0 || state.opponentScore.points > 0),
             onUndo: handleUndoScore,
             disabled: pending,

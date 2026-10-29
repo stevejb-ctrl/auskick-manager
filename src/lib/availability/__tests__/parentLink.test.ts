@@ -35,8 +35,9 @@ describe("parentAnswerError", () => {
     expect(parentAnswerError({ ...ok, player: null })).not.toBeNull();
   });
 
-  it("only takes In or Out", () => {
-    expect(parentAnswerError({ ...ok, status: "unknown" })).not.toBeNull();
+  it("takes In, Out or a clear, nothing else", () => {
+    // Clearing a wrong answer (Stagehand round 8, #12).
+    expect(parentAnswerError({ ...ok, status: "unknown" })).toBeNull();
     expect(parentAnswerError({ ...ok, status: "maybe" })).not.toBeNull();
   });
 });

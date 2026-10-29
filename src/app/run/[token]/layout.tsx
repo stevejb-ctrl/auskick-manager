@@ -9,6 +9,8 @@ import { SquadNamesProvider } from "@/components/live/SquadNames";
 import { loadSquadNames } from "@/lib/live/loadSquadNames";
 import type { NamedPlayer } from "@/lib/names";
 import { GameGoneWatcher } from "@/components/live/GameGoneWatcher";
+import { getSportConfig, teamSport } from "@/lib/sports";
+import { teamAgeGroup } from "@/lib/sports/teamAgeGroup";
 
 // Back-target resolution. /run/{token} is reached by two distinct
 // audiences:
@@ -27,22 +29,51 @@ import { GameGoneWatcher } from "@/components/live/GameGoneWatcher";
 //
 // The same read finds the squad, so the runner's tiles and sheets tell
 // two kids with the same short name apart (SquadNamesProvider).
+/**
+ * Whose game this is, said once at the top: a parent handed the link
+ * cold guessed which team was theirs, and the sport was never named
+ * (Stagehand round 8, #7: 9 of 10 cold-link parents).
+ */
+interface Whose {
+  team: string;
+  opponent: string | null;
+  what: string;
+  finished: boolean;
+}
+
 async function resolveBackTarget(
   token: string,
-): Promise<{ backHref: string; players: NamedPlayer[]; gameId: string | null }> {
+): Promise<{ backHref: string; players: NamedPlayer[]; gameId: string | null; whose: Whose | null }> {
   const admin = createAdminClient();
   const { data: row } = await admin
     .from("games")
-    .select("id, team_id, team:teams!inner(is_demo)")
+    .select("id, team_id, opponent, status, team:teams!inner(is_demo, name, sport, age_group, period_count)")
     .eq("share_token", token)
     .maybeSingle();
 
   // Defensive default: invalid tokens, lookup failures, or any
   // non-demo team fall through to the homepage. Only confirmed
   // demo games get the /demo back-target.
-  const teamRow = row?.team as { is_demo: boolean | null } | undefined;
+  const teamRow = row?.team as
+    | { is_demo: boolean | null; name: string | null; sport: string; age_group: string | null; period_count: number | null }
+    | undefined;
   const players = row ? await loadSquadNames(admin, row.team_id as string, row.id as string) : [];
-  return { backHref: teamRow?.is_demo ? "/demo" : "/", players, gameId: (row?.id as string | undefined) ?? null };
+  const whose: Whose | null = teamRow
+    ? (() => {
+        const sport = teamSport(teamRow.sport);
+        let age: string | null = null;
+        try {
+          age = teamAgeGroup(sport, teamRow.age_group, teamRow.period_count).label;
+        } catch {}
+        return {
+          team: teamRow.name ?? "your team",
+          opponent: (row?.opponent as string | null) ?? null,
+          what: [age, getSportConfig(sport).name].filter(Boolean).join(" · "),
+          finished: row?.status === "completed",
+        };
+      })()
+    : null;
+  return { backHref: teamRow?.is_demo ? "/demo" : "/", players, gameId: (row?.id as string | undefined) ?? null, whose };
 }
 
 // The tab, and the link preview in the group chat, name the game: the
@@ -66,7 +97,7 @@ export default async function RunLayout({
   params: { token: string };
 }) {
   noStore();
-  const { backHref, players, gameId } = await resolveBackTarget(params.token);
+  const { backHref, players, gameId, whose } = await resolveBackTarget(params.token);
 
   return (
     <div>
@@ -107,6 +138,14 @@ export default async function RunLayout({
             <SirenWordmark size="sm" />
           </Link>
         </div>
+        {whose && (
+          <p data-testid="run-whose" className="px-4 pb-2 text-xs text-ink-dim">
+            {whose.finished ? "The result for " : "You're scoring for "}
+            <span className="font-semibold text-ink">{whose.team}</span>
+            {whose.opponent ? ` v ${whose.opponent}` : ""}
+            {whose.what ? <span className="block">{whose.what}</span> : null}
+          </p>
+        )}
       </header>
       <DeviceFrame>
         <main>

@@ -15,6 +15,11 @@ const config: Config = {
         // browser window. The live bars and footers go compact (UX round
         // 3, e4: in landscape they took 205–232 of 390 px).
         short: { raw: "(max-height: 500px)" },
+        // A desktop: wide AND a mouse. A phone held sideways is 844–932
+        // px wide, so `md` alone drew the demo's phone frame inside the
+        // phone (Stagehand round 8: a sideways phone got a 390 px app
+        // and the other team's +T off the edge).
+        desk: { raw: "(min-width: 768px) and (hover: hover) and (pointer: fine)" },
       },
       colors: {
         // Surfaces & neutral ink

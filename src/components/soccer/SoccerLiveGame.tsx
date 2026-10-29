@@ -36,6 +36,7 @@
 // (UX audit 23 Oct 2026, "Drift from AFL").
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useOtherPhoneScores } from "@/components/live/useOtherPhoneScores";
 import { SFButton } from "@/components/sf";
 import { shortName } from "@/lib/names";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
@@ -61,7 +62,7 @@ import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
 import { liveEvents } from "@/lib/live/optimisticEvents";
-import { UNDO_GONE_MESSAGE, UNDO_MISSING_MESSAGE, undoTap } from "@/lib/live/undoTarget";
+import { undoTargetText, UNDO_GONE_MESSAGE, UNDO_MISSING_MESSAGE, undoTap } from "@/lib/live/undoTarget";
 import { announceLiveNotice } from "@/lib/live/liveSync";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
 import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
@@ -275,6 +276,8 @@ export function SoccerLiveGame({
   const elapsedSecond = Math.floor(elapsedMs / 1000);
 
   // AFL's live chrome: the undo strip's flash, the swap confirm and toast.
+  // A score from the other phone says so (Stagehand round 8, #6).
+  useOtherPhoneScores(events, SOCCER_SCORE_TYPES, { teamName: teamName, opponentName: opponentName });
   const chrome = useLiveChrome({
     teamName,
     opponentName,
@@ -726,6 +729,7 @@ export function SoccerLiveGame({
   return (
     <div ref={liveRootRef} className={`space-y-3 ${stickyPb}`.trim()}>
       <LiveTopBar
+        onHelp={chrome.openHelp}
         exitHref={exitHref}
         game={game}
         isLive={base.currentPeriod > 0}
@@ -927,6 +931,7 @@ export function SoccerLiveGame({
 
       {playerDockVisible && selectedPlayer && (
         <ScoreRecordingDock
+          swapHint="Or tap a teammate to swap them."
           heading={
             scoreDockVisible ? (
               <>
@@ -999,6 +1004,7 @@ export function SoccerLiveGame({
           }
           // In play only: at full time the review's own Undo fixes a miscount.
           undoStrip={chrome.undoStrip({
+            target: undoTargetText(events, SOCCER_SCORE_TYPES, chrome.namedScoreKey, { teamName, opponentName: opponentName }),
             show: isPeriodActive && (state.teamScore.goals > 0 || state.opponentScore.goals > 0),
             onUndo: undoGoal,
             disabled: pending,
@@ -1057,6 +1063,7 @@ export function SoccerLiveGame({
           slotLabel="goal"
           eyebrow="Goal"
           title="Who scored?"
+          lostScore="goal"
           subtitle="Pick who scored, or count it without a name."
           // The likeliest scorers first: attack, then back to the keeper,
           // then the bench (a kid just subbed off may have scored), as

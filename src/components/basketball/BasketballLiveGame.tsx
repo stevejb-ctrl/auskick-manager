@@ -32,6 +32,7 @@
 // kid's line and lent minutes (UX audit 23 Oct 2026, "Drift from AFL").
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useOtherPhoneScores } from "@/components/live/useOtherPhoneScores";
 import { WENT_HOME_REASON } from "@/lib/live/wentHome";
 import { SFButton } from "@/components/sf";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
@@ -57,7 +58,7 @@ import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
 import { liveEvents, type OptimisticEventInput } from "@/lib/live/optimisticEvents";
-import { UNDO_GONE_MESSAGE, UNDO_MISSING_MESSAGE, undoTap } from "@/lib/live/undoTarget";
+import { undoTargetText, UNDO_GONE_MESSAGE, UNDO_MISSING_MESSAGE, undoTap } from "@/lib/live/undoTarget";
 import { announceLiveNotice } from "@/lib/live/liveSync";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
 import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
@@ -300,6 +301,8 @@ export function BasketballLiveGame({
   const elapsedSecond = Math.floor(elapsedMs / 1000);
 
   // AFL's live chrome: the undo strip's flash, the swap confirm and toast.
+  // A score from the other phone says so (Stagehand round 8, #6).
+  useOtherPhoneScores(events, BASKETBALL_SCORE_EVENT_TYPES, { teamName: teamName, opponentName: game.opponent || "Opponent" });
   const chrome = useLiveChrome({
     teamName,
     opponentName,
@@ -718,6 +721,7 @@ export function BasketballLiveGame({
         slotLabel="basket"
         eyebrow={scorerEyebrow(scorerPoints)}
         title="Who scored?"
+        lostScore="basket"
         subtitle="Pick who scored, or count the points without a name."
         candidates={scorerCandidates}
         emptyMessage="Nobody is on court."
@@ -810,6 +814,7 @@ export function BasketballLiveGame({
     // scrolling").
     <div ref={liveRootRef} className="space-y-3">
       <LiveTopBar
+        onHelp={chrome.openHelp}
         exitHref={exitHref}
         game={game}
         isLive={base.currentPeriod > 0}
@@ -863,7 +868,9 @@ export function BasketballLiveGame({
       )}
       {isPeriodActive && nextSubs.length > 0 && subDue.due && (
         <p className="-mt-1 px-1 text-[11px] text-ink-dim">
-          Send them to the table now, and tap them on when the whistle goes.
+          {/* Plain words: "the table" and "the whistle" lost a parent who
+              doesn't know basketball (Stagehand round 8, #14). */}
+          Send the kids coming on to the scorer&apos;s table now. Tap Make swap when play stops and the ref waves them on.
         </p>
       )}
 
@@ -995,6 +1002,7 @@ export function BasketballLiveGame({
 
       {playerDockVisible && selectedPlayer && (
         <ScoreRecordingDock
+          swapHint="Or tap a teammate to swap them."
           heading={
             scoreDockVisible ? (
               <>
@@ -1103,6 +1111,7 @@ export function BasketballLiveGame({
           }
           // In play only: at full time the review's own Undo fixes a miscount.
           undoStrip={chrome.undoStrip({
+            target: undoTargetText(events, BASKETBALL_SCORE_EVENT_TYPES, chrome.namedScoreKey, { teamName, opponentName: game.opponent || "Opponent" }),
             show: isPeriodActive && (teamPoints > 0 || opponentPoints > 0),
             onUndo: undoScore,
             disabled: pending,

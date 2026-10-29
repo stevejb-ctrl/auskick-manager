@@ -280,18 +280,21 @@ export function PositionToken({
       )}
 
 
-      <div className="flex min-h-[52px] items-center gap-2 py-2 pl-1.5 pr-2">
+      {/* At large text the name drops under the bib rather than
+          shrinking to a letter ("A", "L": Stagehand round 8, #10). The
+          disc stays 32 px, so it doesn't grow into the name's room. */}
+      <div className="flex min-h-[52px] flex-wrap items-center gap-x-2 gap-y-1 py-2 pl-1.5 pr-2">
         {/* Bib disc — white mono on the third's colour (5.2–6.7:1). */}
         <span
           aria-hidden
-          className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full font-mono text-[11px] font-bold tracking-[0.04em] text-white ${
+          className={`flex h-[32px] w-[32px] flex-shrink-0 items-center justify-center rounded-full font-mono text-[11px] font-bold tracking-[0.04em] text-white ${
             third ? THIRD_DISC[third] : "bg-ink-dim"
           }`}
         >
           {short}
         </span>
 
-        <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="flex min-w-[4rem] flex-1 flex-col gap-1">
           {/* Player name — first + last initial, ellipsis. */}
           <span className="truncate text-sm font-semibold leading-[18px] tracking-[-0.01em] text-ink">
             {display}

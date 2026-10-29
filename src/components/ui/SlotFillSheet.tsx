@@ -1,6 +1,7 @@
 "use client";
 
-import { useId, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
+import { markLostScore } from "@/lib/live/lostScore";
 import { useDialogFocus } from "@/components/ui/useDialogFocus";
 import { useSquadNames } from "@/components/live/SquadNames";
 
@@ -96,22 +97,48 @@ interface Props {
     subLabel?: string;
     onSelect: () => void;
   }[];
+  /**
+   * A scorer sheet, for what's being scored ("goal", "try"): closed with
+   * nobody picked and no Cancel (the other phone ended the period and
+   * the screen became the break), it's noted so the break can say the
+   * score wasn't saved (lib/live/lostScore, Stagehand round 8).
+   */
+  lostScore?: string;
 }
 
 export function SlotFillSheet({
   slotLabel,
   candidates,
-  onPick,
-  onCancel,
+  onPick: pickProp,
+  onCancel: cancelProp,
   titleVerb = "Fill",
   title,
   eyebrow = "Pick a player",
   subtitle,
   emptyMessage,
   dismissOnBackdrop = false,
-  extraOption,
-  extraOptions = [],
+  extraOption: extraOptionProp,
+  extraOptions: extraOptionsProp = [],
+  lostScore,
 }: Props) {
+  // Any answer settles the sheet; closing unanswered is a lost score.
+  const settled = useRef(false);
+  const settle = <A extends unknown[]>(fn: (...a: A) => void) => (...a: A) => {
+    settled.current = true;
+    fn(...a);
+  };
+  const onPick = settle(pickProp);
+  const onCancel = settle(cancelProp);
+  const extraOptions = [...(extraOptionProp ? [extraOptionProp] : []), ...extraOptionsProp].map((o) => ({ ...o, onSelect: settle(o.onSelect) }));
+  const lostRef = useRef(lostScore);
+  lostRef.current = lostScore;
+  useEffect(() => {
+    // Not dev's StrictMode remount, which closes it at once.
+    const openedAt = Date.now();
+    return () => {
+      if (lostRef.current && !settled.current && Date.now() - openedAt > 250) markLostScore(lostRef.current);
+    };
+  }, []);
   // Focus in, Tab kept inside, Escape cancels, focus back to the chip
   // that opened it (UX round 3, e4: Tab walked the score chips behind
   // the backdrop and Escape did nothing).
@@ -193,7 +220,7 @@ export function SlotFillSheet({
         {/* Extra rows and the kids scroll together between the heading
             and Cancel. */}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          {[...(extraOption ? [extraOption] : []), ...extraOptions].map((option) => (
+          {extraOptions.map((option) => (
             <button
               key={option.label}
               type="button"
@@ -258,6 +285,14 @@ export function SlotFillSheet({
         </div>
 
         <div className="shrink-0 border-t border-hairline px-5 py-3">
+          {/* A scorer sheet stays put on a tap outside (so the score
+              isn't lost by accident): say how to leave it (Stagehand
+              round 8, #14: "tapping outside didn't close it"). */}
+          {lostScore && !dismissOnBackdrop && (
+            <p data-testid="scorer-sheet-hint" className="mb-2 text-center text-xs text-ink-dim">
+              Nothing&apos;s saved until you pick. Tap Cancel if nobody scored.
+            </p>
+          )}
           <button
             type="button"
             onClick={onCancel}

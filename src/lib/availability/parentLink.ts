@@ -22,7 +22,9 @@ export function parentAnswerError(input: {
   if (input.gameStatus !== "upcoming") {
     return "This game has started, so availability is closed. Tell the coach on the day.";
   }
-  if (input.status !== "available" && input.status !== "unavailable") {
+  // "unknown" clears a wrong answer: a sleepy parent tapped someone
+  // else's child and could only overwrite it (Stagehand round 8, #12).
+  if (input.status !== "available" && input.status !== "unavailable" && input.status !== "unknown") {
     return "Choose In or Out.";
   }
   if (!input.player || input.player.team_id !== input.gameTeamId || !input.player.is_active) {

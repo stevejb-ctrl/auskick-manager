@@ -80,6 +80,12 @@ const as = flag("as", "");
 // --seed=NAME (with --as=coach): the coach already has a team, squad and
 // a game today, so a game-day mission starts where a Saturday does.
 const seed = flag("seed", "");
+// Round 8: the phone the persona holds. --viewport=915x412 is a phone on
+// its side; --text-zoom=200 is a grandparent's large text (the root font
+// size, which every rem scales from); --slow-net is a weak sideline signal.
+const [vw, vh] = flag("viewport", "412x915").split("x").map(Number);
+const textZoom = parseInt(flag("text-zoom", "100"), 10);
+const slowNet = flag("slow-net", "false") === "true";
 
 // ─── Load mission prompt ───────────────────────────────────────
 const missionPath = resolve(__dirname, "missions", `${mission}.md`);
@@ -146,7 +152,7 @@ const stagehand = new Stagehand({
     headless: !headed,
     // Mobile viewport — matches the real coach context (phone on the
     // sideline). The Playwright e2e config also runs at Pixel 7.
-    viewport: { width: 412, height: 915 },
+    viewport: { width: vw, height: vh },
   },
 });
 
@@ -226,9 +232,25 @@ if (as === "coach") {
 // page already navigated to the start URL, which we then thread
 // into the agent via `execute({ page })` so the agent acts on
 // this page instead of opening its own.
-const page = await stagehand.context.newPage(
-  seededStart ?? (as === "coach" && startUrl.endsWith("/login") ? startUrl.replace(/\/login$/, "/dashboard") : startUrl),
-);
+const firstUrl = seededStart ?? (as === "coach" && startUrl.endsWith("/login") ? startUrl.replace(/\/login$/, "/dashboard") : startUrl);
+console.log(`▶ Start page: ${firstUrl}`);
+const page = await stagehand.context.newPage(textZoom !== 100 || slowNet ? "about:blank" : firstUrl);
+if (textZoom !== 100) {
+  await page.addInitScript((pct) => {
+    const put = () => {
+      const s = document.createElement("style");
+      s.textContent = `html { font-size: ${pct}% !important; }`;
+      document.head.appendChild(s);
+    };
+    if (document.head) put();
+    else document.addEventListener("DOMContentLoaded", put);
+  }, textZoom);
+}
+if (slowNet) {
+  await page.sendCDP("Network.enable");
+  await page.sendCDP("Network.emulateNetworkConditions", { offline: false, latency: 600, downloadThroughput: 40_000, uploadThroughput: 15_000 });
+}
+if (textZoom !== 100 || slowNet) await page.goto(firstUrl);
 
 // ─── Run the agent ─────────────────────────────────────────────
 // v3 fields are `systemPrompt` (not v2's `instructions`) and `model`
@@ -573,7 +595,9 @@ async function seedTeam(admin, email, name, origin) {
   const onFieldFor = runner ? RUNNER_ON_FIELD[runner[1]][runner[2]] : undefined;
   // <seed>-runner: any seed, started from its game's share link.
   const viaRunner = /^(.+)-runner$/.exec(name);
-  const s = SEEDS[name] ?? (viaRunner && SEEDS[viaRunner[1]] ? { ...SEEDS[viaRunner[1]], start: "runner" } : undefined) ?? (onFieldFor
+  const viaAvail = /^(.+)-availability$/.exec(name);
+  const s = SEEDS[name] ?? (viaRunner && SEEDS[viaRunner[1]] ? { ...SEEDS[viaRunner[1]], start: "runner" } : undefined) ??
+    (viaAvail && SEEDS[viaAvail[1]] ? { ...SEEDS[viaAvail[1]], start: "availability", gameIn: 18 * 60, noAnswers: true } : undefined) ?? (onFieldFor
     ? {
         team: { name: runner[1] === "afl" ? "Coburg Cubs" : "Brunswick Bluebirds", age_group: runner[2], sport: runner[1] },
         playbook: null,
@@ -693,14 +717,14 @@ async function seedTeam(admin, email, name, origin) {
       sub_interval_seconds: 900,
       on_field_size: onField,
     })
-    .select("id, share_token")
+    .select("id, share_token, availability_token")
     .single();
   if (gameErr) throw new Error(`seed game: ${gameErr.message}`);
   // Kids not marked available (they turn up late): a live seed's, or a
   // game-day seed's own `late`.
   const lateCount = s.live?.late ?? s.late ?? 0;
   const lateIds = new Set(lateCount ? ids.slice(-lateCount) : []);
-  await admin.from("game_availability").insert(
+  if (!s.noAnswers) await admin.from("game_availability").insert(
     ids.map((pid) => ({
       game_id: game.id,
       player_id: pid,
@@ -741,6 +765,8 @@ async function seedTeam(admin, email, name, origin) {
   }
   console.log(`▶ Seeded ${s.team.name} (${name})`);
   if (s.start === "runner") return `${origin}/run/${game.share_token}`;
+  // The night before: the parents' "who's coming?" link, nobody answered yet.
+  if (s.start === "availability") return `${origin}/availability/${game.availability_token}`;
   if (s.start === "report" && lastPastShareToken) return `${origin}/run/${lastPastShareToken}`;
   if (s.start === "game") return `${origin}/teams/${team.id}/games/${game.id}`;
   return `${origin}/teams/${team.id}`;
