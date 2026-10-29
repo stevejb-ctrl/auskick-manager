@@ -3,6 +3,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { SCORE_CHIP, SCORE_TEAM_NAME } from "@/components/live/scoreChip";
 import { announce } from "@/lib/a11y/announce";
+import { repeatTapGate } from "@/lib/live/repeatTap";
 
 // ─── ScoreBugFrame ───────────────────────────────────────────
 // The one layout every sport's scorebug sits in: AFL's GameHeader (the
@@ -80,6 +81,8 @@ export function ScoreBugFrame({
   periodOverSaid = null,
   card = false,
 }: ScoreBugFrameProps) {
+  // A double tap on one chip is one score (lib/live/repeatTap).
+  const gate = useRef(repeatTapGate());
   const said = useRef(scoreSaid);
   useEffect(() => {
     if (scoreSaid && said.current !== scoreSaid) announce(scoreSaid);
@@ -101,7 +104,9 @@ export function ScoreBugFrame({
           <button
             key={c.key}
             type="button"
-            onClick={c.onTap}
+            onClick={() => {
+              if (gate.current(`${side}:${c.key}`, Date.now())) c.onTap();
+            }}
             onPointerDown={onChipPointerDown}
             disabled={chipsDisabled}
             className={`${SCORE_CHIP} min-w-[48px]${c.sub ? " flex-col !px-1 !py-1 leading-none" : ""}`}
