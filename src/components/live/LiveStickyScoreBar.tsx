@@ -110,9 +110,17 @@ export function LiveStickyScoreBar({
       {/* `desk`, not `md`: the bar is sticky only inside the desktop
           phone frame (DeviceFrame); a phone held sideways pins it. */}
       <div aria-hidden className="desk:hidden" style={{ height: `calc(${barHeight}px + var(--live-hint-h, 0px))` }} />
+      {/* On a desktop the bar is in flow, but the tap hint still floats
+          above it: room for the hint, so it never sits on the page's last
+          row (round 9: over Game settings, Fix scores and Restart). */}
+      <div aria-hidden className="hidden desk:block" style={{ height: "var(--live-hint-h, 0px)" }} />
       <div
         ref={barRef}
-        className={`fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(26,30,26,0.05)] motion-safe:animate-slide-in-bottom-fast desk:sticky desk:inset-x-auto ${
+        id="live-scores"
+        tabIndex={-1}
+        aria-label="Scores"
+        role="region"
+        className={`fixed inset-x-0 bottom-0 z-30 outline-none border-t border-hairline bg-surface pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(26,30,26,0.05)] motion-safe:animate-slide-in-bottom-fast desk:sticky desk:inset-x-auto ${
           capped ? "max-h-[45dvh] overflow-y-auto overscroll-contain" : ""
         }`}
       >

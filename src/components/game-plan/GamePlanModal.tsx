@@ -19,7 +19,7 @@
 // CopyableTextBlock (the "Copy for group chat" affordance, shared
 // with all three post-game summary cards).
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
 import { Guernsey, SegTabs, SFButton, SFCard, SFIcon } from "@/components/sf";
@@ -234,16 +234,6 @@ export function GamePlanModal({
   // First-tapped player id, awaiting a second tap to swap. Null = idle.
   const [selected, setSelected] = useState<string | null>(null);
 
-  // Escape closes the planner — parity with the app's other
-  // dismissable surfaces (Modal itself doesn't bind keys).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   const playerById = useMemo(
     () => new Map(players.map((p) => [p.id, p])),
     [players],
@@ -398,7 +388,9 @@ export function GamePlanModal({
   };
 
   return (
-    <Modal size="lg">
+    // Escape or a tap outside closes the planner, as the app's other
+    // dismissable surfaces.
+    <Modal size="lg" onClose={onClose}>
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">

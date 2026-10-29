@@ -30,6 +30,7 @@ import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { updateLiveGame } from "@/lib/games/updateLiveGame";
 import { getSportConfig, isSoccer, teamSport, type SoccerSport } from "@/lib/sports/registry";
 import { soccerFamilyAgeGroupForTeam, soccerFamilyRules } from "@/lib/sports/soccer/family";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
@@ -220,13 +221,13 @@ export async function startSoccerGame(
   // write stops kick-off: at 3 a side the lineup and the first half were
   // written, the clock ran, and the game stayed "Upcoming" everywhere
   // else (UX round 3, 24 Oct 2026).
-  const { error: gameError } = await w.supabase.from("games").update(gameUpdate).eq("id", gameId);
+  const { error: gameError } = await updateLiveGame(w.supabase, gameId, gameUpdate);
   if (gameError) {
     return { success: false, error: gameWriteError(gameError, { size, onSurface: onSurfaceLabel(sport) }) };
   }
   // Back to upcoming if the kick-off events don't land.
   const undoStart = async (message: string): Promise<ActionResult> => {
-    await w.supabase.from("games").update({ status: "upcoming" }).eq("id", gameId);
+    await updateLiveGame(w.supabase, gameId, { status: "upcoming" });
     return { success: false, error: message };
   };
 
@@ -361,7 +362,7 @@ export async function finaliseSoccerGame(
   }, idempotencyKey);
   if (!finalise.success) return finalise;
 
-  const { error: updateError } = await w.supabase.from("games").update({ status: "completed" }).eq("id", gameId);
+  const { error: updateError } = await updateLiveGame(w.supabase, gameId, { status: "completed" });
   if (updateError) return { success: false, error: updateError.message };
 
   await writeGameRollup(w.supabase, gameId);

@@ -878,6 +878,13 @@ export function TouchLiveGame({
                   {fixSubs.length === 0 && fixOff.length === 0 && (
                     <span className="text-ink-dim"> — nobody on the bench can fix it</span>
                   )}
+                  {/* What Fix will do, before it's tapped: it makes the subs
+                      straight away (round 9: a parent read it as a check). */}
+                  {fixSubs.length > 0 && (
+                    <span data-testid="touch-mixed-fix" className="block text-xs text-ink-dim">
+                      Fix: {fixLabel}
+                    </span>
+                  )}
                 </p>
                 {(fixSubs.length > 0 || fixOff.length > 0) && (
                   <SFButton

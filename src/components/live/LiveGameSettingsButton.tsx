@@ -219,7 +219,7 @@ function LiveGameSettingsModal({
   }
 
   return (
-    <Modal>
+    <Modal onClose={onClose}>
       <h2 className="text-center text-lg font-bold text-ink">Game settings</h2>
       <p className="mt-1 text-center text-xs text-ink-mute">
         Adjust without restarting the game. Sub changes apply from the next
@@ -417,7 +417,7 @@ function ShrinkPickerModal({
   }
 
   return (
-    <Modal>
+    <Modal onClose={onCancel}>
       <h2 className="text-center text-lg font-bold text-ink">
         Pick {countToRemove} to come off
       </h2>

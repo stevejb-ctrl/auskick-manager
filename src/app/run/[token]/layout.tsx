@@ -6,6 +6,7 @@ import { DeviceFrame } from "@/components/DeviceFrame";
 import { SirenWordmark } from "@/components/marketing/SirenWordmark";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SquadNamesProvider } from "@/components/live/SquadNames";
+import { ScoringForProvider } from "@/components/live/ScoringFor";
 import { loadSquadNames } from "@/lib/live/loadSquadNames";
 import type { NamedPlayer } from "@/lib/names";
 import { GameGoneWatcher } from "@/components/live/GameGoneWatcher";
@@ -149,7 +150,9 @@ export default async function RunLayout({
       </header>
       <DeviceFrame>
         <main>
-          <SquadNamesProvider players={players}>{children}</SquadNamesProvider>
+          <SquadNamesProvider players={players}>
+            <ScoringForProvider>{children}</ScoringForProvider>
+          </SquadNamesProvider>
           {/* The coach deleting the game (or replacing the link) shows here. */}
           {gameId && <GameGoneWatcher auth={{ kind: "token", token: params.token }} gameId={gameId} exitHref={backHref} />}
         </main>

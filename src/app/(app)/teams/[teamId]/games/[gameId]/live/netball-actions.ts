@@ -10,6 +10,8 @@ import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { updateLiveGame } from "@/lib/games/updateLiveGame";
+import { gameWriteError } from "@/lib/games/gameWriteError";
 import { getAgeGroupConfig } from "@/lib/sports/registry";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
@@ -223,7 +225,8 @@ export async function startNetballGame(
     update.quarter_length_seconds = quarterLengthSeconds;
   }
 
-  await w.supabase.from("games").update(update).eq("id", gameId);
+  const { error: gameError } = await updateLiveGame(w.supabase, gameId, update);
+  if (gameError) return { success: false, error: gameWriteError(gameError) };
 
   // Mirror the AFL startGame: kickoff invalidates any pre-game
   // lineup draft. Same table for both sports.
@@ -320,10 +323,7 @@ export async function setNetballOnFieldSize(
   if (w.error) return { success: false, error: w.error };
 
   const { value } = await clampOnFieldSize(w.supabase, w.teamId, onFieldSize);
-  const { error } = await w.supabase
-    .from("games")
-    .update({ on_field_size: value })
-    .eq("id", gameId);
+  const { error } = await updateLiveGame(w.supabase, gameId, { on_field_size: value });
   if (error) return { success: false, error: error.message };
 
   if (auth.kind === "team") {
@@ -502,10 +502,7 @@ export async function finaliseNetballGame(
 
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
-  const { error: updateError } = await w.supabase
-    .from("games")
-    .update({ status: "completed" })
-    .eq("id", gameId);
+  const { error: updateError } = await updateLiveGame(w.supabase, gameId, { status: "completed" });
   if (updateError) return { success: false, error: updateError.message };
 
   // Season time rollup for stats and season balance (UX plan 4.5).

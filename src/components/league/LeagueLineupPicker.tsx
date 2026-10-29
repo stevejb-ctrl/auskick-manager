@@ -1172,7 +1172,7 @@ export function LeagueLineupPicker({
                 {lentPlayers.map((p) => (
                   <span
                     key={p.id}
-                    className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-warn-soft px-2.5 py-1 text-xs font-medium text-warn"
+                    className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-warn-soft px-2.5 py-1 text-xs font-medium text-warn-ink"
                   >
                     {p.jersey_number != null && (
                       <span className="font-semibold tabular-nums">

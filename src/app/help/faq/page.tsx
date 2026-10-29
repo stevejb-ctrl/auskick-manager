@@ -51,6 +51,78 @@ const FAQ: FAQItem[] = [
       </>
     ),
   },
+  // Round 9 (29 Oct 2026): questions parents and coaches asked in the
+  // Stagehand rounds that no help page answered.
+  {
+    q: "What happens when two phones score the same game?",
+    a: (
+      <>
+        Both count. Each phone saves its own taps, and a score from the other
+        phone shows on yours within a few seconds with a note such as{" "}
+        <strong>Another phone added Isla&apos;s goal</strong>. It isn&apos;t a
+        mistake, so don&apos;t undo it: <strong>Undo</strong> takes back the
+        latest score whichever phone made it, and says which one before you
+        tap. Agree who scores for which team before the start.
+      </>
+    ),
+  },
+  {
+    q: "A player leaves early. What do I do?",
+    a: (
+      <>
+        Tap the player and choose <strong>Went home</strong>. They come off
+        straight away (on the field, you pick who comes on), their time stops,
+        and they&apos;re out of the rotation for the rest of the game. Their
+        tile shows <strong>HOME</strong>. If they come back, tap them again to
+        bring them back.
+      </>
+    ),
+  },
+  {
+    q: "What do \"OFF 1\" and \"Stays\" mean?",
+    a: (
+      <>
+        When subs are due, the next-sub card numbers each swap, and the player
+        going off wears the same number on their tile: <strong>OFF 1</strong>{" "}
+        comes off for the first swap on the card. At a break, each tile says
+        where the player was last period: <strong>Stays</strong> means the same
+        spot, otherwise it says where they come from (another line, or the
+        bench).
+      </>
+    ),
+  },
+  {
+    q: "Can I reset season balance without losing stats?",
+    a: (
+      <>
+        Yes. <strong>Reset</strong> under Season balance in How we play (Team ›
+        Settings) only changes where the balance starts counting, from today.
+        Past games, their minutes and every stat stay as they are.
+      </>
+    ),
+  },
+  {
+    q: "How do I change the quarter or half length?",
+    a: (
+      <>
+        In Team › Settings, set the length in minutes. New games use it. In
+        netball you can also change it for one game on the lineup screen
+        before the start. Once a game has started, its length stays as it was.
+      </>
+    ),
+  },
+  {
+    q: "Do parents need an account to say if their child can play?",
+    a: (
+      <>
+        No. On the game page, tap <strong>Ask parents who&apos;s in</strong>{" "}
+        and post the message in your group chat. Parents open the link, tap
+        their child and choose <strong>In</strong> or <strong>Out</strong>,
+        with no account or app. The game-day link that runs the game needs no
+        account either.
+      </>
+    ),
+  },
   {
     q: "Why isn't a stat showing up?",
     a: (

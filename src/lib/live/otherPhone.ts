@@ -56,14 +56,34 @@ export function newOtherPhoneScores<E extends ScoreEventLike>(
   return out;
 }
 
-/** "Sharks goal", "Roos 2-pointer": a score event, in plain words. */
-export function describeScoreEvent(type: string, teamName: string, opponentName: string): string {
-  const theirs = type.startsWith("opponent_");
-  const what = type
+/**
+ * The notice for a score from the other phone, who scored first: "Another
+ * phone added Isla's goal", "Another phone added a Sharks goal". Round 9:
+ * "Coburg goal added on another phone" read as a mistake, and the parent
+ * deleted the other parent's goal for Isla.
+ */
+export function otherPhoneScoreText(
+  type: string,
+  names: { teamName: string; opponentName: string },
+  scorer?: string | null,
+): string {
+  const what = scoreWord(type);
+  if (scorer && !type.startsWith("opponent_")) return `Another phone added ${scorer}'s ${what}`;
+  return `Another phone added a ${describeScoreEvent(type, names.teamName, names.opponentName)}`;
+}
+
+function scoreWord(type: string): string {
+  return type
     .replace(/^opponent_/, "")
     .replace("two_pointer", "2-pointer")
     .replace("three_pointer", "3-pointer")
     .replace("conversion_attempt", "conversion")
     .replace(/_/g, " ");
+}
+
+/** "Sharks goal", "Roos 2-pointer": a score event, in plain words. */
+export function describeScoreEvent(type: string, teamName: string, opponentName: string): string {
+  const theirs = type.startsWith("opponent_");
+  const what = scoreWord(type);
   return `${theirs ? opponentName : teamName} ${what}`;
 }

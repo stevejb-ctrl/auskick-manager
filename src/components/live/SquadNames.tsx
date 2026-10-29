@@ -39,6 +39,8 @@ export interface SquadNames {
   first(p: Named): string;
   /** The full name, with a number where two kids share it. */
   full(p: Named): string;
+  /** A notice's "Jack" by the kid's id, or null for a kid not in the squad. */
+  byId(id: string): string | null;
 }
 
 export function useSquadNames(): SquadNames {
@@ -48,6 +50,7 @@ export function useSquadNames(): SquadNames {
       tile: (p) => maps?.tile.get(p.id) ?? shortName(p.full_name, "initial"),
       first: (p) => maps?.first.get(p.id) ?? shortName(p.full_name, "first"),
       full: (p) => maps?.full.get(p.id) ?? p.full_name,
+      byId: (id) => maps?.first.get(id) ?? null,
     }),
     [maps],
   );

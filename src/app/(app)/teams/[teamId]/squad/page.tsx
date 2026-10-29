@@ -27,7 +27,7 @@ export default async function SquadPage({ params }: SquadPageProps) {
     isAdmin = membership?.role === "admin";
     isManager = membership?.role === "game_manager";
     // Parents follow the team read-only — no squad screen (UX plan §6).
-    if (membership?.role === "parent") redirect(`/teams/${params.teamId}`);
+    if (membership?.role === "parent") redirect(`/teams/${params.teamId}?coachOnly=squad`);
   }
 
   return (

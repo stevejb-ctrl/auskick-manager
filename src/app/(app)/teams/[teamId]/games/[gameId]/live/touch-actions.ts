@@ -27,6 +27,7 @@ import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { updateLiveGame } from "@/lib/games/updateLiveGame";
 import { getSportConfig, isTouch, teamSport, type TouchSport } from "@/lib/sports/registry";
 import { touchAgeGroupForTeam } from "@/lib/sports/touch/family";
 import { countMixedGroups, girlsTryCountsDouble, mixedFieldPlan, teamMixedRule } from "@/lib/sports/touch/mixed";
@@ -257,7 +258,7 @@ export async function startTouchGame(
   if (subIntervalSeconds != null) {
     gameUpdate.sub_interval_seconds = Math.round(Math.min(10 * 60, Math.max(60, subIntervalSeconds)));
   }
-  const { error: gameError } = await w.supabase.from("games").update(gameUpdate).eq("id", gameId);
+  const { error: gameError } = await updateLiveGame(w.supabase, gameId, gameUpdate);
   // A refused write says so (UX round 3: soccer's kick-off went on with
   // the game still "Upcoming").
   if (gameError) return { success: false, error: gameWriteError(gameError) };
@@ -369,7 +370,7 @@ export async function finaliseTouchGame(
   }, idempotencyKey);
   if (!finalise.success) return finalise;
 
-  const { error: updateError } = await w.supabase.from("games").update({ status: "completed" }).eq("id", gameId);
+  const { error: updateError } = await updateLiveGame(w.supabase, gameId, { status: "completed" });
   if (updateError) return { success: false, error: updateError.message };
 
   await writeGameRollup(w.supabase, gameId);

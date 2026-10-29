@@ -45,7 +45,7 @@ export function DeletionScheduledBanner({
     <div
       role="status"
       aria-live="polite"
-      className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-warn/30 bg-warn-soft px-3 py-2 text-xs text-warn"
+      className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-warn/30 bg-warn-soft px-3 py-2 text-xs text-warn-ink"
       data-testid="deletion-scheduled-banner"
     >
       <span className="leading-relaxed">
@@ -57,7 +57,7 @@ export function DeletionScheduledBanner({
       </span>
       <Link
         href="/account"
-        className="rounded-md border border-warn/40 bg-surface px-2.5 py-1 font-semibold text-warn transition-colors duration-fast ease-out-quart hover:bg-warn/10"
+        className="rounded-md border border-warn/40 bg-surface px-2.5 py-1 font-semibold text-warn-ink transition-colors duration-fast ease-out-quart hover:bg-warn/10"
       >
         Manage
       </Link>

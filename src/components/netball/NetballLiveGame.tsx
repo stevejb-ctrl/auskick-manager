@@ -2510,10 +2510,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             onWentHome={handleWentHome}
             onToggleLoan={isLoaned ? handleUnLoan : handleMarkLoaned}
             // No Switch mid-quarter where the team's comp bans it: say so.
+            // A bench kid's sheet too: a parent asked to sub one on for a
+            // drink opened it from the bench, saw no note, and used Mark
+            // injured (round 9).
             note={
-              !allowMidQuarterSubs && positionId && !isInjured && !isLoaned
-                ? "Netball subs happen at the break. If they can't play on, mark them injured."
-                : undefined
+              allowMidQuarterSubs || isInjured || isLoaned
+                ? undefined
+                : positionId
+                  ? "Netball subs happen at the break. If they can't play on, mark them injured."
+                  : "Netball subs happen at the break: bench players go on in the next quarter's lineup."
             }
             // Mid-quarter sub, only with the team's allow_mid_quarter_subs
             // on (Steve 2026-05-16: most netball comps ban them) and

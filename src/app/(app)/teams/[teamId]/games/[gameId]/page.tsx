@@ -587,6 +587,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                     teamName={teamName}
                     opponent={g.opponent}
                     scheduledAt={g.scheduled_at}
+                    location={g.location}
                     token={g.availability_token}
                     className="w-full sm:w-auto"
                   />
@@ -599,6 +600,10 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
               so a parent who joined by code had no way in. */}
           {!canRun && role === "parent" && isUp && (
             <div className="border-t border-hairline bg-surface-alt px-5 py-4 sm:px-7">
+              {/* Why there's no lineup or start (round 9, a parent helper). */}
+              <p data-testid="parent-game-note" className="mb-3 text-sm text-ink-dim">
+                The coach or a game manager sets the lineup and starts the game. Mark your child In or Out here.
+              </p>
               <SFButton
                 href={`/teams/${params.teamId}/games/${params.gameId}/availability`}
                 variant="primary"

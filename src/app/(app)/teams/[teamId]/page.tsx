@@ -25,6 +25,8 @@ import { notPlayedCutoffIso, playedInSiren } from "@/lib/games/notPlayed";
 
 interface TeamDashboardProps {
   params: { teamId: string };
+  /** `coachOnly`: a parent was sent here from the squad or settings. */
+  searchParams?: { coachOnly?: string };
 }
 
 /**
@@ -39,7 +41,7 @@ interface TeamDashboardProps {
  *   4. Last result + season snapshot (record across final games)
  *   5. More upcoming
  */
-export default async function TeamDashboardPage({ params }: TeamDashboardProps) {
+export default async function TeamDashboardPage({ params, searchParams }: TeamDashboardProps) {
   const supabase = createClient();
 
   const {
@@ -185,6 +187,12 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
   return (
     <div className="space-y-4">
       {showSetupBanner && <FinishSetupBanner teamId={params.teamId} />}
+      {membership?.role === "parent" && searchParams?.coachOnly && (
+        <p data-testid="coach-only-note" role="status" className="rounded-md border border-hairline bg-surface px-4 py-3 text-sm text-ink-dim">
+          {searchParams.coachOnly === "squad" ? "The squad is" : "Team settings are"} the coach&apos;s. You joined as a
+          parent: you can follow games, see stats, and mark your child In or Out on each game.
+        </p>
+      )}
 
       {liveGame ? (
         <LiveHero teamId={params.teamId} game={liveGame} canRun={canRun} />
@@ -351,7 +359,7 @@ function LastResult({
 }) {
   const outcome = score ? outcomeOf(score) : null;
   const tone =
-    outcome === "W" ? "bg-ok/10 text-ok" : outcome === "L" ? "bg-alarm-soft text-alarm" : "bg-surface-alt text-ink";
+    outcome === "W" ? "bg-ok/10 text-ok" : outcome === "L" ? "bg-alarm-soft text-alarm-ink" : "bg-surface-alt text-ink";
   return (
     <section aria-label="Last result">
       <Link href={`/teams/${teamId}/games/${game.id}#summary`} className="block">

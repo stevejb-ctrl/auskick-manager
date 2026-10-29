@@ -67,7 +67,7 @@ const VARIANT_CLASSES: Record<Variant, string> = {
   accent:
     "bg-brand-600 text-warm border border-brand-600 shadow-card hover:bg-brand-700 active:bg-brand-800",
   alarm:
-    "bg-alarm text-white border border-alarm shadow-card hover:bg-alarm/90 active:bg-alarm/85",
+    "bg-alarm-ink text-white border border-alarm-ink shadow-card hover:bg-alarm-ink/90 active:bg-alarm-ink/85",
   ghost:
     "bg-transparent text-ink border border-hairline hover:bg-surface-alt active:bg-hairline",
   subtle:

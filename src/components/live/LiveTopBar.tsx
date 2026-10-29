@@ -99,6 +99,14 @@ export function LiveTopBar({
     // in ink 15/600.
     <div ref={barRef} className="sticky top-0 z-20 -mx-4 border-b border-hairline bg-surface/90 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/[0.85]">
       <div className="mx-auto flex min-h-12 max-w-4xl items-center justify-between gap-3 px-1 sm:px-3">
+        {/* Keyboard: straight to the score bar, first stop on the page.
+            The other team's score chip was 26 Tabs in (round 9). */}
+        <a
+          href="#live-scores"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-ink focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-warm"
+        >
+          Skip to scores
+        </a>
         <button
           type="button"
           onClick={handleExit}

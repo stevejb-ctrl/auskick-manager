@@ -17,8 +17,9 @@
 import { create } from "zustand";
 
 interface LiveNoticeState {
-  notice: { id: number; text: string } | null;
-  show(text: string): void;
+  notice: { id: number; text: string; ms?: number } | null;
+  /** `ms`: how long it stays up (LiveSync's default otherwise). */
+  show(text: string, ms?: number): void;
   clear(id: number): void;
 }
 
@@ -26,7 +27,7 @@ let noticeSeq = 0;
 
 export const useLiveNotice = create<LiveNoticeState>((set) => ({
   notice: null,
-  show: (text) => set({ notice: { id: ++noticeSeq, text } }),
+  show: (text, ms) => set({ notice: { id: ++noticeSeq, text, ms } }),
   clear: (id) => set((s) => (s.notice?.id === id ? { notice: null } : s)),
 }));
 

@@ -75,7 +75,7 @@ export function UnbrokenPeriodWarning({
     <section
       aria-label="Unbroken periods"
       data-testid="unbroken-period-warning"
-      className="rounded-md border border-warn/40 bg-warn-soft/60 px-3 py-2 text-xs text-warn"
+      className="rounded-md border border-warn/40 bg-warn-soft/60 px-3 py-2 text-xs text-warn-ink"
     >
       <p className="font-semibold">
         §6: everyone plays {required} unbroken {required === 1 ? periodNoun : periodNounPlural}

@@ -235,7 +235,7 @@ export function gameReport(input: GameReportInput): GameReport {
             }
           }
         }
-        items.push(clash ? { id: rule.id, status: sev(rule), text: clash } : { id: rule.id, status: "ok", text: `${joinNames(ids.map(input.name))} kept apart` });
+        items.push(clash ? { id: rule.id, status: sev(rule), text: clash } : { id: rule.id, status: "ok", text: `${joinNames(ids.map(input.name))} kept in different ${input.lineWord}s` });
         break;
       }
       case "stays-home": {

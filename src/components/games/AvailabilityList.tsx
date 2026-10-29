@@ -131,7 +131,7 @@ export async function AvailabilityList({
         <span
           className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 font-semibold ${
             needsMore
-              ? "border-warn/30 bg-warn/10 text-warn"
+              ? "border-warn/30 bg-warn/10 text-warn-ink"
               : "border-ok/30 bg-ok/10 text-ok"
           }`}
         >

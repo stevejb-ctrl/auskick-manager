@@ -1725,7 +1725,7 @@ export function LeagueLiveGame({
       {missingVestWearer && !forceVestReplaceOpen && isPeriodActive && (
         <div
           role="status"
-          className="flex items-center justify-between gap-3 rounded-md border border-warn/40 bg-warn-soft/60 px-3 py-2 text-xs text-warn"
+          className="flex items-center justify-between gap-3 rounded-md border border-warn/40 bg-warn-soft/60 px-3 py-2 text-xs text-warn-ink"
         >
           <span>
             Nobody on the field is wearing the{" "}
@@ -1749,7 +1749,7 @@ export function LeagueLiveGame({
               key={m.key}
               role="status"
               data-testid="front-row-warning"
-              className="rounded-md border border-warn/40 bg-warn-soft/60 px-3 py-2 text-xs text-warn"
+              className="rounded-md border border-warn/40 bg-warn-soft/60 px-3 py-2 text-xs text-warn-ink"
             >
               {squad.find((p) => p.id === m.playerId)?.full_name ?? "A player"} is at {m.label} but isn&apos;t picked to
               play there.

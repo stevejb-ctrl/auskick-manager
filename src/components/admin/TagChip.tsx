@@ -9,7 +9,7 @@ interface TagChipProps {
 // the admin picks from a fixed palette, not arbitrary hex.
 const colorClasses: Record<string, string> = {
   brand: "bg-brand-100 text-brand-700",
-  warn: "bg-warn-soft text-warn",
+  warn: "bg-warn-soft text-warn-ink",
   ok: "bg-ok/10 text-ok",
   info: "bg-info/10 text-info",
   danger: "bg-danger/10 text-danger",
