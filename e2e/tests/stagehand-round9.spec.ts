@@ -225,3 +225,21 @@ test("#10 netball: a bench kid's sheet says subs happen at the break", async ({ 
   await expect(page.getByTestId("lock-modal-note")).toContainText("bench players go on in the next quarter's lineup");
   await context.close();
 });
+
+// ─── #11 Help answers the questions the rounds asked ─────────────
+
+test("#11 the FAQ answers two phones, leaving early, OFF 1, the balance reset, period length and parents' accounts", async ({ browser }) => {
+  const { context, page } = await parentPhone(browser);
+  await page.goto("/help/faq");
+  for (const q of [
+    "What happens when two phones score the same game?",
+    "A player leaves early. What do I do?",
+    'What do "OFF 1" and "Stays" mean?',
+    "Can I reset season balance without losing stats?",
+    "How do I change the quarter or half length?",
+    "Do parents need an account to say if their child can play?",
+  ]) {
+    await expect(page.getByText(q, { exact: true })).toBeVisible();
+  }
+  await context.close();
+});
