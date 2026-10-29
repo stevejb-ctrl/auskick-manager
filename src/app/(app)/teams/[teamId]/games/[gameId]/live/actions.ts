@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { updateLiveGame } from "@/lib/games/updateLiveGame";
+import { gameWriteError } from "@/lib/games/gameWriteError";
 import { getAgeGroupConfig } from "@/lib/sports/registry";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
@@ -216,16 +218,14 @@ export async function startGame(
     if (qStartError) return { success: false, error: qStartError.message };
   }
 
-  await w.supabase
-    .from("games")
-    .update({
-      status: "in_progress",
-      sub_interval_seconds: subIntervalSeconds,
-      on_field_size: clampedSize,
-      // How we play at kickoff (UX plan 3.7).
-      playbook_snapshot: await kickoffSnapshot(w.supabase, w.teamId),
-    })
-    .eq("id", gameId);
+  const { error: gameError } = await updateLiveGame(w.supabase, gameId, {
+    status: "in_progress",
+    sub_interval_seconds: subIntervalSeconds,
+    on_field_size: clampedSize,
+    // How we play at kickoff (UX plan 3.7).
+    playbook_snapshot: await kickoffSnapshot(w.supabase, w.teamId),
+  });
+  if (gameError) return { success: false, error: gameWriteError(gameError) };
 
   // The lineup_set event is now the source of truth; any pre-game
   // draft is stale. Clean it up so the game card stops showing the
@@ -348,10 +348,7 @@ export async function setOnFieldSize(
     };
   }
 
-  const { error } = await w.supabase
-    .from("games")
-    .update({ on_field_size: value })
-    .eq("id", gameId);
+  const { error } = await updateLiveGame(w.supabase, gameId, { on_field_size: value });
   if (error) return { success: false, error: error.message };
 
   if (auth.kind === "team") {
@@ -455,10 +452,7 @@ export async function setOnFieldSizeMidGame(
   }
 
   // Update games.on_field_size for both grow + shrink paths.
-  const { error: updErr } = await w.supabase
-    .from("games")
-    .update({ on_field_size: clampedSize })
-    .eq("id", gameId);
+  const { error: updErr } = await updateLiveGame(w.supabase, gameId, { on_field_size: clampedSize });
   if (updErr) return { success: false, error: updErr.message };
 
   if (auth.kind === "team") {
@@ -506,10 +500,7 @@ export async function setSubInterval(
   // land as 282s.
   const rounded = Math.round(seconds / 30) * 30;
 
-  const { error } = await w.supabase
-    .from("games")
-    .update({ sub_interval_seconds: rounded })
-    .eq("id", gameId);
+  const { error } = await updateLiveGame(w.supabase, gameId, { sub_interval_seconds: rounded });
   if (error) return { success: false, error: error.message };
 
   if (auth.kind === "team") {
@@ -617,10 +608,7 @@ export async function finaliseGame(
 
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
-  const { error: updateError } = await w.supabase
-    .from("games")
-    .update({ status: "completed" })
-    .eq("id", gameId);
+  const { error: updateError } = await updateLiveGame(w.supabase, gameId, { status: "completed" });
   if (updateError) return { success: false, error: updateError.message };
 
   // Season time rollup for stats and season balance (UX plan 4.5).
