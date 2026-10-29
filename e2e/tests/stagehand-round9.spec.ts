@@ -115,3 +115,31 @@ test("#3 Escape closes the quarter-by-quarter scores and Game settings", async (
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
 });
+
+// ─── #5 The reset pages' tagline ─────────────────────────────────
+
+test("#5 the password-reset page says what sign-in says, not AFL", async ({ browser }) => {
+  const { context, page } = await parentPhone(browser);
+  await page.goto("/forgot-password");
+  await expect(page.getByText(/junior sport team management/i)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/junior afl team management/i)).toHaveCount(0);
+  await context.close();
+});
+
+// ─── #6 The parents' message says when and where ─────────────────
+
+test("#6 Ask parents who's in: the message has the game's time and venue", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await ownerOf(admin);
+  const team = await makeTeam(admin, { ownerId, sport: "soccer", ageGroup: "U12", name: `R9 ask ${uniq()}` });
+  const at = new Date(Date.now() + 3 * 86_400_000);
+  at.setHours(19, 30, 0, 0);
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Kew Kestrels", scheduledAt: at.toISOString() });
+  await admin.from("games").update({ location: "Brunswick Park" }).eq("id", game.id);
+  await page.goto(`/teams/${team.id}/games/${game.id}`);
+  await waitForHydration(page);
+  await page.getByRole("button", { name: /ask parents who.s in/i }).click({ timeout: 15_000 });
+  const sheet = page.getByRole("dialog", { name: "Ask parents who's in" });
+  await expect(sheet).toContainText("Kew Kestrels");
+  await expect(sheet).toContainText(/7:30\s?pm at Brunswick Park/i);
+});

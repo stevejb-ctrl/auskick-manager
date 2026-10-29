@@ -587,6 +587,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                     teamName={teamName}
                     opponent={g.opponent}
                     scheduledAt={g.scheduled_at}
+                    location={g.location}
                     token={g.availability_token}
                     className="w-full sm:w-auto"
                   />

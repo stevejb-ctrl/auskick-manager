@@ -45,10 +45,17 @@ export function availabilityAskText(input: {
   opponent: string;
   /** The game's day in the coach's own words, e.g. "Sat 25 Oct". */
   dayLabel: string;
+  /** Its start, e.g. "9:30 am", and the venue, when the game has them. */
+  timeLabel?: string | null;
+  location?: string | null;
   url: string;
 }): string {
+  // When and where, so a parent can answer from the chat (round 9: the
+  // message had only the day, after the coach moved it to 7:30 pm).
+  const when = [input.dayLabel, input.timeLabel].filter(Boolean).join(" ");
+  const where = input.location?.trim() ? ` at ${input.location.trim()}` : "";
   return [
-    `${input.teamName} v ${input.opponent}, ${input.dayLabel}`,
+    `${input.teamName} v ${input.opponent}, ${when}${where}`,
     "Can your child play? Tap their name and choose In or Out (no account needed):",
     input.url,
   ].join("\n");

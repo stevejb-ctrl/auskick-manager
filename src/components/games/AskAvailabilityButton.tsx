@@ -12,6 +12,8 @@ interface AskAvailabilityButtonProps {
   teamName: string;
   opponent: string;
   scheduledAt: string;
+  /** The game's venue, if it has one. */
+  location?: string | null;
   /** games.availability_token (migration 0072). */
   token: string;
   className?: string;
@@ -31,6 +33,7 @@ export function AskAvailabilityButton({
   teamName,
   opponent,
   scheduledAt,
+  location,
   token,
   className,
 }: AskAvailabilityButtonProps) {
@@ -47,7 +50,8 @@ export function AskAvailabilityButton({
     day: "numeric",
     month: "short",
   });
-  const text = availabilityAskText({ teamName, opponent, dayLabel, url });
+  const timeLabel = new Date(scheduledAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const text = availabilityAskText({ teamName, opponent, dayLabel, timeLabel, location, url });
 
   async function share() {
     try {
