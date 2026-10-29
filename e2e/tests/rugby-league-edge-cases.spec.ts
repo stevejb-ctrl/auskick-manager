@@ -211,7 +211,9 @@ test("league: the opponent can't convert a try they haven't scored", async ({ pa
   await page.getByRole("button", { name: "Record opponent try" }).click();
   await page.getByRole("button", { name: "Record opponent conversion" }).click();
   await expect.poll(conversions, { timeout: 15_000 }).toBe(1);
-  // One try, one conversion: a second kick has nothing to convert.
+  // One try, one conversion: a second kick has nothing to convert. A
+  // second apart: the chip drops a repeat within 0.9 s (lib/live/repeatTap).
+  await page.waitForTimeout(1_100);
   await page.getByRole("button", { name: "Record opponent conversion" }).click();
   await expect(page.getByText("They have no try to convert. Record their try first.")).toBeVisible();
   await page.waitForTimeout(1_000);
