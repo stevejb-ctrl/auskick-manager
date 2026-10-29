@@ -34,48 +34,40 @@ export function AddGameSection({
   compact = false,
 }: Props) {
   const [showManual, setShowManual] = useState(false);
-  const [open, setOpen] = useState(!compact);
-
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-expanded={false}
-        className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-hairline bg-surface px-4 text-sm font-semibold text-ink shadow-card transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
-      >
-        <span aria-hidden="true">+</span> Add games
-      </button>
-    );
-  }
 
   return (
-    <div className="rounded-lg border border-hairline bg-surface p-4 shadow-card sm:p-5">
-      <h2 className="text-base font-semibold text-ink">Add games</h2>
-      <p className="mt-1 text-xs text-ink-mute">
-        {playhqTenant
-          ? "Importing from PlayHQ keeps opponents, rounds and kickoff times in sync with your league fixtures."
-          : "Add each game from your fixture: opponent, round and kickoff time."}
-      </p>
+    // With games in, the same two buttons in one quiet row, no card or
+    // explanation: the season is what the page is for.
+    <div className={compact ? "" : "rounded-lg border border-hairline bg-surface p-4 shadow-card sm:p-5"}>
+      {!compact && (
+        <>
+          <h2 className="text-base font-semibold text-ink">Add games</h2>
+          <p className="mt-1 text-xs text-ink-mute">
+            {playhqTenant
+              ? "Importing from PlayHQ keeps opponents, rounds and kickoff times in sync with your league fixtures."
+              : "Add each game from your fixture: opponent, round and kickoff time."}
+          </p>
+        </>
+      )}
 
-      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+      <div className={compact ? "flex flex-wrap gap-2" : "mt-4 flex flex-col gap-2 sm:flex-row"}>
         {playhqTenant && (
           <ImportFixturesButton
             teamId={teamId}
             existingExternalIds={existingExternalIds}
             initialUrl={initialUrl}
             tenant={playhqTenant}
-            variant="primary"
-            size="md"
-            className="sm:flex-1"
+            variant={compact ? "secondary" : "primary"}
+            size={compact ? "sm" : "md"}
+            className={compact ? "" : "sm:flex-1"}
           />
         )}
         <Button
           type="button"
-          variant={playhqTenant ? "secondary" : "primary"}
-          size="md"
+          variant={playhqTenant || compact ? "secondary" : "primary"}
+          size={compact ? "sm" : "md"}
           onClick={() => setShowManual(true)}
-          className="sm:flex-1"
+          className={compact ? "" : "sm:flex-1"}
         >
           Create manually
         </Button>
