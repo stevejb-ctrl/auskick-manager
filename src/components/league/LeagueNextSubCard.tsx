@@ -47,7 +47,8 @@ const ZONE_LABEL: Record<"forward" | "back", string> = {
   back: "BACK",
 };
 const ZONE_COLOR: Record<"forward" | "back", string> = {
-  forward: "text-warn",
+  // On the dark card, as AFL and the other sports: text-warn is 4.2:1 there.
+  forward: "text-zone-f-dark",
   back: "text-brand-200",
 };
 

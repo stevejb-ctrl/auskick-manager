@@ -351,7 +351,7 @@ function LastResult({
 }) {
   const outcome = score ? outcomeOf(score) : null;
   const tone =
-    outcome === "W" ? "bg-ok/10 text-ok" : outcome === "L" ? "bg-alarm-soft text-alarm" : "bg-surface-alt text-ink";
+    outcome === "W" ? "bg-ok/10 text-ok" : outcome === "L" ? "bg-alarm-soft text-alarm-ink" : "bg-surface-alt text-ink";
   return (
     <section aria-label="Last result">
       <Link href={`/teams/${teamId}/games/${game.id}#summary`} className="block">

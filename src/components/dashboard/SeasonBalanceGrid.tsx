@@ -17,7 +17,7 @@ interface SeasonBalanceGridProps {
 type Sort = "gap" | "name";
 
 function cellTone(owed: number): string {
-  if (owed >= 1) return "bg-warn-soft text-warn font-semibold";
+  if (owed >= 1) return "bg-warn-soft text-warn-ink font-semibold";
   if (owed <= -1) return "bg-surface-alt text-ink-mute";
   return "text-ink";
 }
@@ -100,7 +100,7 @@ export function SeasonBalanceGrid({ grid, periodWord, sinceLabel }: SeasonBalanc
         </table>
       </div>
       <p className="text-xs text-ink-mute">
-        Minutes this season. <span className="rounded-xs bg-warn-soft px-1 text-warn">Tinted</span> = owed at
+        Minutes this season. <span className="rounded-xs bg-warn-soft px-1 text-warn-ink">Tinted</span> = owed at
         least a {periodWord} there.
       </p>
     </div>

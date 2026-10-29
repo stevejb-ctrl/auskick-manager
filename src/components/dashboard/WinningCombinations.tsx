@@ -72,7 +72,7 @@ export function WinningCombinations({
                           {names}
                         </p>
                         {c.isLowConfidence && (
-                          <span className="mt-1 inline-block rounded bg-warn-soft px-1.5 py-0.5 text-[10px] font-semibold text-warn">
+                          <span className="mt-1 inline-block rounded bg-warn-soft px-1.5 py-0.5 text-[10px] font-semibold text-warn-ink">
                             &lt;20 min
                           </span>
                         )}

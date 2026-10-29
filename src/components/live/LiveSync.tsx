@@ -115,7 +115,7 @@ function LiveNotice() {
         role="status"
         aria-live="polite"
         data-testid="live-sync-notice"
-        className="pointer-events-auto flex items-start gap-2 rounded-md border border-warn/30 bg-warn-soft py-2 pl-3 pr-1 text-sm font-medium text-warn shadow-pop motion-safe:animate-slide-in-bottom"
+        className="pointer-events-auto flex items-start gap-2 rounded-md border border-warn/30 bg-warn-soft py-2 pl-3 pr-1 text-sm font-medium text-warn-ink shadow-pop motion-safe:animate-slide-in-bottom"
       >
         <span aria-hidden className="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full bg-warn" />
         <span className="py-0.5">{notice.text}</span>

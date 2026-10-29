@@ -100,12 +100,12 @@ export function FillInRow({
                 case where a fill-in arrived without one. Mirrors the same
                 null-guard already in AvailabilityRow. */}
             {jerseyNumber != null && (
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-warn-soft text-xs font-semibold text-warn tabular-nums">
+              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-warn-soft text-xs font-semibold text-warn-ink tabular-nums">
                 {jerseyNumber}
               </span>
             )}
             <span className="text-sm font-medium text-ink">{fullName}</span>
-            <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-micro text-warn">
+            <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-micro text-warn-ink">
               Fill-in
             </span>
           </div>

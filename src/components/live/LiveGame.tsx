@@ -1890,7 +1890,7 @@ export function LiveGame({
       )}
 
       {error && (
-        <p className="rounded-sm bg-warn-soft px-3 py-2 text-sm text-warn" role="alert">
+        <p className="rounded-sm bg-warn-soft px-3 py-2 text-sm text-warn-ink" role="alert">
           {error}
         </p>
       )}

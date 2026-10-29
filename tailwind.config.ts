@@ -55,8 +55,10 @@ const config: Config = {
         // Signals
         alarm:          "#D9442D",   // siren-red — brand mark, pulse indicator
         "alarm-soft":   "#FBE7DF",   // tinted background for alarm pills
+        "alarm-ink":    "#B5321E",   // alarm text on alarm-soft, and under white text (AA)
         warn:           "#C8751F",   // ochre — sub timer firing, NEXT chip
         "warn-soft":    "#F5E5D2",
+        "warn-ink":     "#8F5216",   // warn text on warn-soft (AA; text-warn there is 2.8:1)
         danger:         "#B4393A",
         ok:             "#4C8B63",
 

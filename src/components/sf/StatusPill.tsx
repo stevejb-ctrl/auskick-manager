@@ -20,7 +20,7 @@ export function StatusPill({ status, ariaLabel }: StatusPillProps) {
     return (
       <span
         aria-label={ariaLabel ?? "Live"}
-        className="inline-flex items-center gap-1.5 rounded-full bg-alarm-soft py-1 pl-2 pr-2.5 font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-alarm"
+        className="inline-flex items-center gap-1.5 rounded-full bg-alarm-soft py-1 pl-2 pr-2.5 font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-alarm-ink"
       >
         <span
           aria-hidden="true"

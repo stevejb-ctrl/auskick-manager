@@ -38,7 +38,7 @@ export function SwapConfirmDialog({ off, on, zone, spotName, playersById, ruleWa
     <Modal label={message} onClose={onCancel}>
         <p className="text-center text-sm font-semibold text-ink">{message}</p>
         {ruleWarning && (
-          <p className="mt-2 rounded-md bg-warn-soft px-3 py-2 text-center text-sm text-warn" data-testid="swap-rule-warning">
+          <p className="mt-2 rounded-md bg-warn-soft px-3 py-2 text-center text-sm text-warn-ink" data-testid="swap-rule-warning">
             {ruleWarning}.
           </p>
         )}
