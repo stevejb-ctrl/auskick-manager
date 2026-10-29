@@ -123,7 +123,7 @@ export function ScoreBugFrame({
 
   return (
     <div
-      className={`grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-x-[12px] px-[16px] pb-[24px] pt-[12px] short:grid-cols-[auto_minmax(72px,1fr)_auto_minmax(72px,1fr)_auto] short:items-center short:pb-[8px] short:pt-[8px] ${
+      className={`grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-x-[12px] px-[16px] pb-[24px] pt-[12px] bigtext:gap-x-[6px] bigtext:px-[8px] bigtext:pb-[12px] short:grid-cols-[auto_minmax(72px,1fr)_auto_minmax(72px,1fr)_auto] short:items-center short:pb-[8px] short:pt-[8px] ${
         card ? "rounded-md bg-surface shadow-card" : ""
       }`}
     >
@@ -134,7 +134,8 @@ export function ScoreBugFrame({
         </p>
         <p className={TOTAL_ROW}>
           {ours.total}
-          {ours.tally}
+          {/* Large text: the total is the score; the breakdown goes. */}
+          {ours.tally && <span className="bigtext:hidden">{ours.tally}</span>}
         </p>
       </div>
 
@@ -150,7 +151,7 @@ export function ScoreBugFrame({
           {theirs.name}
         </p>
         <p className={`${TOTAL_ROW} justify-end`}>
-          {theirs.tally}
+          {theirs.tally && <span className="bigtext:hidden">{theirs.tally}</span>}
           {theirs.total}
         </p>
       </div>

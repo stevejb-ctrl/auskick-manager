@@ -14,13 +14,13 @@ const config: Config = {
         // A short screen: a phone held sideways (844×390), or a short
         // browser window. The live bars and footers go compact (UX round
         // 3, e4: in landscape they took 205–232 of 390 px).
-        //
-        // Or large text (design review, Oct 2026): at 200% the live
-        // chrome took the whole phone and the field was a sliver. A
-        // media query's em is the reader's own text size, so a 390 px
-        // phone is 24em at 100% and 12em at 200%; under 18em (about
-        // 135% and up on a phone) the same compact layout applies.
-        short: { raw: "(max-height: 500px), (max-width: 18em)" },
+        short: { raw: "(max-height: 500px)" },
+        // Large text on a phone (design review, Oct 2026: at 200% the
+        // live chrome took the whole phone and the field was a sliver).
+        // A media query's em is the reader's own text size, so a 390 px
+        // phone is 24em at 100% and 12em at 200%: under 18em is about
+        // 135% and up. The live bars drop what they can do without.
+        bigtext: { raw: "(max-width: 18em)" },
         // A desktop: wide AND a mouse. A phone held sideways is 844–932
         // px wide, so `md` alone drew the demo's phone frame inside the
         // phone (Stagehand round 8: a sideways phone got a 390 px app

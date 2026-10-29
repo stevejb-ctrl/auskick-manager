@@ -16,7 +16,7 @@ export function QuarterScoresButton({ onClick }: { onClick: () => void }) {
         <rect x="2" y="3" width="12" height="10" rx="1.5" />
         <path d="M2 7h12M6 3v10M10 3v10" />
       </svg>
-      Quarters
+      <span className="bigtext:sr-only">Quarters</span>
     </button>
   );
 }

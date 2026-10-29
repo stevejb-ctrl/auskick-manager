@@ -44,4 +44,4 @@ export const SCORE_CHIP_THEIRS =
 // large text (design review, Oct 2026: 10 px spaced mono capitals were
 // the slowest way to read "which side is mine").
 export const SCORE_TEAM_NAME =
-  "line-clamp-2 break-words text-[0.8125rem] font-semibold leading-tight text-ink";
+  "line-clamp-2 break-words text-[0.8125rem] font-semibold leading-tight text-ink bigtext:line-clamp-1";

@@ -155,7 +155,7 @@ export function LeagueScoreBug({
       type="button"
       onClick={onClockTap}
       disabled={!onClockTap || quarterEnded}
-      className="flex min-w-[104px] flex-col items-center justify-center rounded-md bg-ink px-4 pb-2.5 pt-2 text-warm shadow-[0_6px_16px_rgba(26,30,26,0.18)] transition-colors duration-fast ease-out-quart hover:bg-ink/90 disabled:opacity-80"
+      className="flex min-w-[104px] bigtext:min-w-0 bigtext:!px-2 flex-col items-center justify-center rounded-md bg-ink px-4 pb-2.5 pt-2 text-warm shadow-[0_6px_16px_rgba(26,30,26,0.18)] transition-colors duration-fast ease-out-quart hover:bg-ink/90 disabled:opacity-80"
       aria-label={
         onClockTap
           ? `Clock — ${periodTag}, ${running ? "running" : "paused"}`

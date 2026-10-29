@@ -126,11 +126,11 @@ export function LiveTopBar({
         // start it's the round and kick-off (the lineup header used to
         // show only the date, never who you were playing).
         <div className="flex min-w-0 flex-1 flex-col items-center justify-center py-1 text-center">
-          <p className="max-w-full truncate text-[0.9375rem] font-semibold leading-tight tracking-[-0.01em] text-ink">
+          <p className="max-w-full truncate text-[0.9375rem] font-semibold leading-tight tracking-[-0.01em] text-ink bigtext:line-clamp-2 bigtext:whitespace-normal bigtext:break-words">
             vs {game.opponent}
           </p>
           {whose ? (
-            <p data-testid="run-whose" className="max-w-full truncate text-xs leading-4 text-ink-dim">
+            <p data-testid="run-whose" className="max-w-full truncate text-xs leading-4 text-ink-dim bigtext:hidden">
               {runWhoseLine(whose)}
             </p>
           ) : !isLive ? (
@@ -156,7 +156,12 @@ export function LiveTopBar({
             Surfaces that legitimately need help on the right must
             wire onHelp to a modal; never a Link. */}
         <div className="-mr-1 flex items-center">
-          {feedback && <FeedbackHeaderButton />}
+          {feedback && (
+            // Large text: the opponent needs the room; feedback is in ?.
+            <span className="contents bigtext:hidden">
+              <FeedbackHeaderButton />
+            </span>
+          )}
 
           {/* The visible "?" pill is 28pt, but the surrounding button
               keeps the iOS-min 44pt tap target via `h-11 w-11`. Steve

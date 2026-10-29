@@ -233,7 +233,7 @@ export function Field({
               )}
               {/* Named group per zone so screen readers (and specs)
                   can tell which line a tile is on. */}
-              <div role="group" aria-label={ZONE_LABELS[key]} className="grid grid-cols-2 gap-2">
+              <div role="group" aria-label={ZONE_LABELS[key]} className="grid grid-cols-2 gap-2 bigtext:grid-cols-1">
                 {Array.from({ length: slotCount }).map((_, slot) => {
                   const isOrphan = slot === orphanIdx;
                   const pid = ids[slot];
