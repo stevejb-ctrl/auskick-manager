@@ -32,6 +32,8 @@ export function ParentAvailabilityList({
   const router = useRouter();
   const [clearing, startClear] = useTransition();
   const [cleared, setCleared] = useState<Set<string>>(new Set());
+  // Each clear remounts the row, dropping its last tap; a new answer doesn't.
+  const [clears, setClears] = useState<Record<string, number>>({});
   // A wrong kid's answer can be taken back to none (Stagehand round 8:
   // a sleepy parent could only overwrite another child's with Out).
   const clear = (id: string) =>
@@ -39,27 +41,37 @@ export function ParentAvailabilityList({
       const res = await answerAvailability(token, id, "unknown");
       if (res.success) {
         setCleared((prev) => new Set(prev).add(id));
+        setClears((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
         router.refresh();
       }
     });
   return (
     <ul className="divide-y divide-hairline rounded-lg border border-hairline bg-surface shadow-card">
       {kids.map((kid) => {
-        const answered = kid.replied && !cleared.has(kid.id);
+        // Cleared here: no answer, until a new tap answers again.
+        const isCleared = cleared.has(kid.id);
+        const answered = kid.replied && !isCleared;
         return (
           <li key={kid.id} className="list-none">
             <ul>
               <AvailabilityRow
-                key={`${kid.id}-${answered ? "a" : "n"}`}
+                key={`${kid.id}-${clears[kid.id] ?? 0}`}
                 gameId={gameId}
                 playerId={kid.id}
                 playerName={kid.label}
                 jerseyNumber={kid.jerseyNumber}
-                status={answered ? kid.status : "unknown"}
+                status={isCleared ? "unknown" : kid.status}
                 canEdit
                 answering
                 note={answered ? "Answered · the coach can see it" : undefined}
-                onWrite={(next) => answerAvailability(token, kid.id, next)}
+                onWrite={(next) => {
+                  setCleared((prev) => {
+                    const s = new Set(prev);
+                    s.delete(kid.id);
+                    return s;
+                  });
+                  return answerAvailability(token, kid.id, next);
+                }}
               />
             </ul>
             {answered && (
