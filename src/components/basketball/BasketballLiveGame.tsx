@@ -1050,18 +1050,31 @@ export function BasketballLiveGame({
                       }}
                       disabled={pending || (state.fouls[selectedPlayer.id] ?? 0) === 0}
                       aria-label={`Take back a foul from ${selectedPlayer.full_name}`}
-                      className="min-h-[44px] min-w-[44px] rounded-sm border border-due/50 bg-surface font-mono text-base font-bold text-due transition-colors duration-fast ease-out-quart hover:bg-due/10 disabled:opacity-40"
+                      className="min-h-[44px] min-w-[44px] rounded-sm border border-due/50 bg-surface px-3 text-sm font-semibold text-due transition-colors duration-fast ease-out-quart hover:bg-due/10 disabled:opacity-40"
                     >
-                      −
+                      {/* A word, not a lone "−" that read as a points stepper
+                          (design review, Oct 2026). */}
+                      Undo
                     </button>
                     <button
                       type="button"
                       data-testid="basketball-foul"
                       onClick={() => foul(selectedPlayer.id)}
                       disabled={pending || (state.fouls[selectedPlayer.id] ?? 0) >= ageGroup.foulOutAt}
-                      className="min-h-[44px] flex-1 rounded-sm border border-due/50 bg-due-tint py-2.5 font-mono text-sm font-bold uppercase tracking-micro text-due transition-colors duration-fast ease-out-quart hover:bg-due/10 disabled:opacity-60"
+                      aria-label={`Foul for ${selectedPlayer.full_name}, ${state.fouls[selectedPlayer.id] ?? 0} of ${ageGroup.foulOutAt}`}
+                      className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2.5 rounded-sm border border-due/50 bg-due-tint py-2.5 text-sm font-semibold text-due transition-colors duration-fast ease-out-quart hover:bg-due/10 disabled:opacity-60"
                     >
-                      + Foul ({state.fouls[selectedPlayer.id] ?? 0} of {ageGroup.foulOutAt})
+                      + Foul
+                      {/* A dot per foul allowed: how close to fouling out, at
+                          a glance (was "+ FOUL (0 OF 5)" in spaced capitals). */}
+                      <span aria-hidden="true" className="inline-flex gap-1">
+                        {Array.from({ length: ageGroup.foulOutAt }, (_, i) => (
+                          <span
+                            key={i}
+                            className={`h-2 w-2 rounded-full border border-due ${i < (state.fouls[selectedPlayer.id] ?? 0) ? "bg-due" : "bg-transparent"}`}
+                          />
+                        ))}
+                      </span>
                     </button>
                   </div>
                 )}

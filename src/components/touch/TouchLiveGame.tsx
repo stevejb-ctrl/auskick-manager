@@ -769,7 +769,9 @@ export function TouchLiveGame({
       candidates={(state.lineup ? touchOnField(state.lineup) : [])
         .map((id) => playerById.get(id))
         .filter((p): p is Player => Boolean(p))
-        .map((p) => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number }))}
+        .map((p) => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number }))
+        // Jersey order, as league's: a parent looks for a number or a name.
+        .sort((a, b) => (a.jerseyNumber ?? 999) - (b.jerseyNumber ?? 999))}
       emptyMessage="Nobody is on the field."
       extraOptions={scorerOptions}
       onPick={(pid) => {
