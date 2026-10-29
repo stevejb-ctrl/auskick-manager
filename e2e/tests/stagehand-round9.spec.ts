@@ -9,6 +9,8 @@ import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
 import { contrastOf, skipHints } from "../helpers/a11y";
+import { newPerson, signedInPhone } from "../helpers/people";
+import { deleteTestUser } from "../fixtures/supabase";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -242,4 +244,23 @@ test("#11 the FAQ answers two phones, leaving early, OFF 1, the balance reset, p
     await expect(page.getByText(q, { exact: true })).toBeVisible();
   }
   await context.close();
+});
+
+// ─── #12 A parent helper is told why ─────────────────────────────
+
+test("#12 a parent helper's game page says who sets the lineup and starts the game", async ({ browser }) => {
+  const admin = createAdminClient();
+  const ownerId = await ownerOf(admin);
+  const team = await makeTeam(admin, { ownerId, sport: "afl", ageGroup: "U10", name: `R9 parent ${uniq()}` });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Kew" });
+  const parent = await newPerson(admin, "r9-parent", "Pat Parent");
+  await admin.from("team_memberships").insert({ team_id: team.id, user_id: parent.id, role: "parent" });
+  const { context, page } = await signedInPhone(browser, parent);
+  try {
+    await page.goto(`/teams/${team.id}/games/${game.id}`);
+    await expect(page.getByTestId("parent-game-note")).toContainText("The coach or a game manager sets the lineup and starts the game");
+  } finally {
+    await context.close();
+    await deleteTestUser(admin, parent.id);
+  }
 });
