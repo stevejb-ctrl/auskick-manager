@@ -11,6 +11,7 @@
 // mouth. An age with no keeper has no lines: one group of kids.
 
 import { Fragment } from "react";
+import { sportSurface } from "@/components/live/sportSurface";
 import type { Player } from "@/lib/types";
 import type { SoccerLineup } from "@/lib/sports/soccer/lineup";
 import type { SoccerUnitMs } from "@/lib/sports/soccer/replay";
@@ -161,7 +162,7 @@ export function SoccerField({
       role="region"
       aria-label={surface === "court" ? "On court" : "On field"}
       data-surface={surface}
-      className={`relative rounded-[18px] ${surface === "court" ? "bg-court" : "bg-field"} shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]`}
+      className={`relative rounded-[18px] ${sportSurface(surface === "court" ? "court" : "field")}`}
     >
       {wakeUpKey !== null && (
         <span

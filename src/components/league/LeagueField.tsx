@@ -11,6 +11,7 @@
 // gap.
 
 import type { Player } from "@/lib/types";
+import { ON_SURFACE_CHIP, sportSurface } from "@/components/live/sportSurface";
 import type { VestType } from "@/lib/sports/rugby_league/vests";
 import type { PlayerConversionStatus } from "@/lib/sports/rugby_league/kicks";
 import { arrangeLeagueField, type FieldSlot } from "@/lib/sports/rugby_league/fieldFormation";
@@ -156,7 +157,7 @@ export function LeagueField({
   return (
     <section
       aria-label="On field"
-      className="relative flex w-full flex-col rounded-lg border border-emerald-800/60 bg-emerald-700 shadow-card"
+      className={`relative flex w-full flex-col rounded-lg ${sportSurface("field")}`}
     >
       {wakeUpKey !== null && (
         <span
@@ -289,7 +290,7 @@ export function LeagueField({
           <span
             aria-hidden
             className={`pointer-events-none absolute right-2.5 top-2.5 inline-flex items-center rounded-full px-2 py-0.5 font-mono text-nano font-bold tabular-nums ${
-              players.length === onFieldSize ? "bg-emerald-900/70 text-white" : "bg-warn text-white"
+              players.length === onFieldSize ? ON_SURFACE_CHIP : "bg-warn text-white"
             }`}
           >
             {players.length} / {onFieldSize}
@@ -297,7 +298,7 @@ export function LeagueField({
         ) : (
           <span
             aria-hidden
-            className="pointer-events-none absolute right-2.5 top-2.5 rounded-full bg-emerald-900/70 px-2 py-0.5 font-mono text-nano font-bold tabular-nums text-white"
+            className="pointer-events-none absolute right-2.5 top-2.5 rounded-full bg-black/25 px-2 py-0.5 font-mono text-nano font-bold tabular-nums text-white"
           >
             {players.length}
           </span>

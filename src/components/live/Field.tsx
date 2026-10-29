@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
+import { sportSurface } from "@/components/live/sportSurface";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import type { Lineup, Player, PositionModel, Zone } from "@/lib/types";
 import type { ZoneCaps, ZoneMinutes } from "@/lib/fairness";
@@ -141,7 +142,7 @@ export function Field({
   // its zone and the dividers split the lines.
   return (
     <div
-      className="relative bg-field shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]"
+      className={`relative ${sportSurface("field")}`}
       style={{ borderRadius: "50% / 12%" }}
     >
       {/* Q1-kickoff wake-up halo. Fires a one-shot brand pulse

@@ -10,6 +10,7 @@
 // no lanes: one group of kids.
 
 import { Fragment } from "react";
+import { sportSurface } from "@/components/live/sportSurface";
 import type { Player } from "@/lib/types";
 import type { TouchLineup } from "@/lib/sports/touch/lineup";
 import type { TouchLineMs } from "@/lib/sports/touch/replay";
@@ -138,7 +139,7 @@ export function TouchField({
   const rows = usesLanes ? TOUCH_LANES.filter((line) => Math.max(lineCaps[line] ?? 0, lineup.lines[line].length) > 0) : [];
 
   return (
-    <div role="region" aria-label="On field" className="relative rounded-[18px] bg-field shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]">
+    <div role="region" aria-label="On field" className={`relative rounded-[18px] ${sportSurface("field")}`}>
       <div className="relative overflow-hidden rounded-[18px]">
         <FieldMarkings />
         <div className="relative space-y-2 px-5 pb-8 pt-8">
