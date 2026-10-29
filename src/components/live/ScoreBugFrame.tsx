@@ -4,6 +4,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { SCORE_CHIP, SCORE_TEAM_NAME } from "@/components/live/scoreChip";
 import { announce } from "@/lib/a11y/announce";
 import { repeatTapGate } from "@/lib/live/repeatTap";
+import { useScoringFor } from "@/components/live/ScoringFor";
 
 // ─── ScoreBugFrame ───────────────────────────────────────────
 // The one layout every sport's scorebug sits in: AFL's GameHeader (the
@@ -83,6 +84,8 @@ export function ScoreBugFrame({
 }: ScoreBugFrameProps) {
   // A double tap on one chip is one score (lib/live/repeatTap).
   const gate = useRef(repeatTapGate());
+  // On a game-day link, our name says it is the parent's team.
+  const scoringFor = useScoringFor();
   const said = useRef(scoreSaid);
   useEffect(() => {
     if (scoreSaid && said.current !== scoreSaid) announce(scoreSaid);
@@ -131,6 +134,12 @@ export function ScoreBugFrame({
       <div className="min-w-0 short:col-start-2 short:row-start-1">
         <p data-testid="scorebug-team-name" className={`${SCORE_TEAM_NAME} short:line-clamp-1`}>
           {ours.name}
+          {scoringFor && (
+            <span data-testid="scorebug-yours" className="font-normal text-ink-mute">
+              {" "}
+              (you)
+            </span>
+          )}
         </p>
         <p className={TOTAL_ROW}>
           {ours.total}

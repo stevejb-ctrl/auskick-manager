@@ -172,3 +172,25 @@ test("#4 on a laptop, the live page's last row scrolls clear of the tap hint and
   expect(r.y + r.height).toBeLessThanOrEqual(bar);
   await context.close();
 });
+
+// ─── #7 Which team is the parent's ───────────────────────────────
+
+for (const sport of ["netball", "soccer", "rugby_league"] as const) {
+  test(`#7 ${sport}: on a game-day link the scorebug marks our team as the parent's`, async ({ browser }) => {
+    const { game, team } = await inFirstPeriod(sport);
+    const { context, page } = await parentPhone(browser);
+    await openLive(page, `/run/${game.share_token}`);
+    const names = page.getByTestId("scorebug-team-name");
+    await expect(names.first()).toContainText(team.name);
+    await expect(names.first().getByTestId("scorebug-yours")).toHaveText(/\(you\)/);
+    await expect(names.last().getByTestId("scorebug-yours")).toHaveCount(0);
+    await context.close();
+  });
+}
+
+test("#7 the coach's own live screen doesn't say (you)", async ({ page }) => {
+  const { team, game } = await inFirstPeriod("soccer");
+  await skipHints(page);
+  await openLive(page, `/teams/${team.id}/games/${game.id}/live`);
+  await expect(page.getByTestId("scorebug-yours")).toHaveCount(0);
+});
