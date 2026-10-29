@@ -26,3 +26,8 @@ export function isFullScreenTeamPath(pathname: string | null | undefined): boole
 export function showsTeamBottomBar(pathname: string | null | undefined): boolean {
   return teamIdFromPath(pathname) !== null && !isFullScreenTeamPath(pathname);
 }
+
+/** The team list and a team's Today tab: where the feedback button floats. */
+export function isHomeSurface(pathname: string | null | undefined): boolean {
+  return !!pathname && (pathname === "/dashboard" || /^\/teams\/(?!new$)[^/]+$/.test(pathname));
+}

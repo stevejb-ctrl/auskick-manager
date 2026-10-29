@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { showsTeamBottomBar } from "@/lib/nav";
+import { isHomeSurface, showsTeamBottomBar } from "@/lib/nav";
 import { usePathname } from "next/navigation";
 import { FeedbackModal, type FeedbackKind } from "./FeedbackModal";
 
@@ -23,6 +23,13 @@ interface FeedbackFabProps {
    * array is self-documenting).
    */
   hiddenOnPathSuffixes?: string[];
+  /**
+   * Only on the home surfaces (the team list and Today). Elsewhere it
+   * covered row chevrons on Games, Squad and Stats, and at 200% text it
+   * was 95 pt over the Today card (design review, Oct 2026). The account
+   * menu's "Send feedback" reaches the same form from every page.
+   */
+  homeOnly?: boolean;
 }
 
 const FAB_ARIA_LABEL: Record<FeedbackKind, string> = {
@@ -43,6 +50,7 @@ const FAB_ARIA_LABEL: Record<FeedbackKind, string> = {
 export function FeedbackFab({
   kind,
   hiddenOnPathSuffixes = ["/live", "/availability"],
+  homeOnly = false,
 }: FeedbackFabProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -50,8 +58,9 @@ export function FeedbackFab({
   // Path-hide must come AFTER the hook above — React's rules-of-hooks
   // forbid conditional hooks. Returning null is fine.
   if (
-    pathname &&
-    hiddenOnPathSuffixes.some((suffix) => pathname.endsWith(suffix))
+    (pathname &&
+      hiddenOnPathSuffixes.some((suffix) => pathname.endsWith(suffix))) ||
+    (homeOnly && !isHomeSurface(pathname))
   ) {
     return null;
   }
