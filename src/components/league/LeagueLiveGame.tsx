@@ -47,7 +47,7 @@ import { subDueBannerShows } from "@/components/live/SubDue";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
 import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import { hapticTap } from "@/lib/haptics";
-import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
+import { DOCK_SWAP_HINT, ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { LockModal } from "@/components/live/LockModal";
@@ -2113,19 +2113,8 @@ export function LeagueLiveGame({
           Player actions opens the same sheet as long-press. */}
       {playerDockVisible && selectedPlayer && (
         <ScoreRecordingDock
-          swapHint="Or tap a teammate to swap them."
-          heading={
-            scoreDockVisible ? (
-              <>
-                Record score for{" "}
-                <span className="text-brand-700">
-                  {selectedPlayer.full_name}
-                </span>
-              </>
-            ) : (
-              <span className="text-brand-700">{selectedPlayer.full_name}</span>
-            )
-          }
+          swapHint={DOCK_SWAP_HINT}
+          heading={<span className="text-brand-700">{selectedPlayer.full_name}</span>}
           onCancel={handleClearSelection}
           onPlayerActions={() => {
             const id = selectedPlayer.id;
@@ -2172,10 +2161,6 @@ export function LeagueLiveGame({
                   </button>
                 </div>
               )}
-              <p className="text-center text-[11px] text-ink-mute">
-                Or tap a bench player to swap{" "}
-                <strong>{selectedPlayer.full_name}</strong> off.
-              </p>
             </div>
             )
           }

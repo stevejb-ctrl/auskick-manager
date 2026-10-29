@@ -47,7 +47,7 @@ import { ClockMenu } from "@/components/live/ClockMenu";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { SubDueBanner } from "@/components/live/SubDueBanner";
 import { subDueBannerShows } from "@/components/live/SubDue";
-import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
+import { DOCK_SWAP_HINT, ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { LockModal } from "@/components/live/LockModal";
 import { NextSubCard } from "@/components/live/NextSubCard";
@@ -931,16 +931,8 @@ export function SoccerLiveGame({
 
       {playerDockVisible && selectedPlayer && (
         <ScoreRecordingDock
-          swapHint="Or tap a teammate to swap them."
-          heading={
-            scoreDockVisible ? (
-              <>
-                Record a goal for <span className="text-brand-700">{selectedPlayer.full_name}</span>
-              </>
-            ) : (
-              <span className="text-brand-700">{selectedPlayer.full_name}</span>
-            )
-          }
+          swapHint={DOCK_SWAP_HINT}
+          heading={<span className="text-brand-700">{selectedPlayer.full_name}</span>}
           onCancel={() => setSelectedId(null)}
           onPlayerActions={() => {
             const id = selectedPlayer.id;
@@ -958,9 +950,6 @@ export function SoccerLiveGame({
                 >
                   + Goal
                 </button>
-                <p className="text-center text-[11px] text-ink-mute">
-                  Or tap a bench player to swap <strong>{selectedPlayer.full_name}</strong> off.
-                </p>
               </div>
             ) : (
               <p className="text-xs text-ink-dim">

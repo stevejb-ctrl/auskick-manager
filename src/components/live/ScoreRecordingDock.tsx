@@ -61,6 +61,13 @@ interface ScoreRecordingDockProps {
   swapHint?: string;
 }
 
+/**
+ * The dock's one line about swapping (design review, Oct 2026): it said
+ * "swap" three ways ("Or tap a teammate…", "Or tap a bench player to swap
+ * X off", and the heading named only scoring). Every sport passes this.
+ */
+export const DOCK_SWAP_HINT = "Tap anyone, on the field or the bench, to swap them.";
+
 export function ScoreRecordingDock({
   heading,
   actions,

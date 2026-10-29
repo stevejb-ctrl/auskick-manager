@@ -236,7 +236,9 @@ test("#11 tapping a player says a second tap swaps, not just how to score", asyn
   const { context, page } = await parentPhone(browser);
   await openLive(page, `/run/${game.share_token}`);
   await page.getByTestId(`player-tile-${ids[4]}`).click();
-  await expect(page.getByTestId("dock-swap-hint")).toHaveText("Or tap a teammate to swap them.");
+  await expect(page.getByTestId("dock-swap-hint")).toHaveText("Tap anyone, on the field or the bench, to swap them.");
+  // One swap line (design review, Oct 2026): not a second one under + Goal.
+  await expect(page.getByText(/Or tap a bench player to swap/)).toHaveCount(0);
   await context.close();
 });
 

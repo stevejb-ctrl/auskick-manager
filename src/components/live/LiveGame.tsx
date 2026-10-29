@@ -27,7 +27,7 @@ import { SwapCard } from "@/components/live/SwapCard";
 import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { LiveGameSettingsButton } from "@/components/live/LiveGameSettingsButton";
-import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
+import { DOCK_SWAP_HINT, ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
 import { QuarterBreak } from "@/components/live/QuarterBreak";
 import { buildWalkthroughSteps } from "@/components/live/WalkthroughModal";
@@ -2141,16 +2141,8 @@ export function LiveGame({
         // affordance when a field player is selected).
         return (
           <ScoreRecordingDock
-            swapHint="Or tap a teammate to swap them."
-            heading={
-              canScore ? (
-                <>
-                  Record score for <span className="text-brand-700">{name}</span>
-                </>
-              ) : (
-                <span className="text-brand-700">{name}</span>
-              )
-            }
+            swapHint={DOCK_SWAP_HINT}
+            heading={<span className="text-brand-700">{name}</span>}
             onCancel={() => clearSelection()}
             onPlayerActions={() => {
               clearSelection();
