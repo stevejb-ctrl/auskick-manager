@@ -316,6 +316,19 @@ export function PeriodBreak(props: PeriodBreakProps) {
       )}
 
       <div className="mt-3 space-y-3">
+        {/* The period's over, said plainly, in every sport: at the hooter
+            nine of them turned into this screen without a word, and a
+            parent running the game didn't know the quarter had ended or
+            what to do (Stagehand round 8, #8). AFL's end-of-quarter modal
+            comes first there; this is the same line once it's gone. */}
+        {nextPeriod > 1 && (
+          <div data-testid="period-over" role="status" className="rounded-md border border-hairline bg-surface px-4 py-3 shadow-card">
+            <p className="text-base font-bold text-ink">{config.periodName(nextPeriod - 1)} is over</p>
+            <p className="mt-0.5 text-sm text-ink-dim">
+              Check the {periodName} lineup below, then tap Start {periodName}.
+            </p>
+          </div>
+        )}
         {lostScore && (
           <div data-testid="lost-score-notice">
             <InlineAlert kind="warn">{lostScoreText(lostScore)}</InlineAlert>

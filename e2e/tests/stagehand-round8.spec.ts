@@ -163,3 +163,15 @@ test("#12 the availability link can clear a wrong answer", async ({ browser }) =
   }, { timeout: 10_000 }).toBe("unknown:-");
   await context.close();
 });
+
+for (const [sport, over] of [["netball", "Q1 is over"], ["soccer", "1st half is over"]] as const) {
+  test(`#8 ${sport}: the break says the period is over and what to do`, async ({ browser }) => {
+    const { admin, ownerId, game } = await inFirstPeriod(sport);
+    await admin.from("game_events").insert({ game_id: game.id, type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 600_000, sport }, created_by: ownerId });
+    const { context, page } = await parentPhone(browser);
+    await page.goto(`/run/${game.share_token}`);
+    await expect(page.getByTestId("period-over")).toContainText(over, { timeout: 15_000 });
+    await expect(page.getByTestId("period-over")).toContainText("then tap Start");
+    await context.close();
+  });
+}
