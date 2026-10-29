@@ -87,17 +87,20 @@ export function LongPressHint({ enabled = true }: { enabled?: boolean }) {
     // Any tap on the page outside the chip clears it too (design review,
     // Oct 2026: it sat over the last row of tiles and the bench's "→ ON"
     // strip in every sport, hiding the thing it pointed at). The tap
-    // itself still goes through to whatever was under the finger.
-    function dismissOnTap(e: PointerEvent) {
+    // itself still goes through to whatever was under the finger. On
+    // click, not pointerdown: clearing the hint frees the room the page
+    // kept for it, and a layout shift between pointerdown and click sent
+    // the click to whatever moved under the finger.
+    function dismissOnTap(e: MouseEvent) {
       if (chipRef.current?.contains(e.target as Node)) return;
       dismiss();
     }
     window.addEventListener(LONG_PRESS_EVENT, dismiss);
-    window.addEventListener("pointerdown", dismissOnTap, true);
+    window.addEventListener("click", dismissOnTap);
     const t = window.setTimeout(dismiss, AUTO_DISMISS_MS);
     return () => {
       window.removeEventListener(LONG_PRESS_EVENT, dismiss);
-      window.removeEventListener("pointerdown", dismissOnTap, true);
+      window.removeEventListener("click", dismissOnTap);
       window.clearTimeout(t);
     };
   }, [show]);
