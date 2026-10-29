@@ -116,7 +116,11 @@ export function LiveStickyScoreBar({
       <div aria-hidden className="hidden desk:block" style={{ height: "var(--live-hint-h, 0px)" }} />
       <div
         ref={barRef}
-        className={`fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(26,30,26,0.05)] motion-safe:animate-slide-in-bottom-fast desk:sticky desk:inset-x-auto ${
+        id="live-scores"
+        tabIndex={-1}
+        aria-label="Scores"
+        role="region"
+        className={`fixed inset-x-0 bottom-0 z-30 outline-none border-t border-hairline bg-surface pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(26,30,26,0.05)] motion-safe:animate-slide-in-bottom-fast desk:sticky desk:inset-x-auto ${
           capped ? "max-h-[45dvh] overflow-y-auto overscroll-contain" : ""
         }`}
       >

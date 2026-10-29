@@ -264,3 +264,28 @@ test("#12 a parent helper's game page says who sets the lineup and starts the ga
     await deleteTestUser(admin, parent.id);
   }
 });
+
+// ─── #13 Keyboard: a skip link to the scores ─────────────────────
+
+test("#13 keyboard: the first Tab offers Skip to scores, and the other team's chip is a few Tabs after", async ({ browser }) => {
+  const { game } = await inFirstPeriod("soccer");
+  const { context, page } = await parentPhone(browser);
+  await openLive(page, `/run/${game.share_token}`);
+  await page.locator("body").focus();
+  let reached = false;
+  for (let i = 0; i < 6 && !reached; i++) {
+    await page.keyboard.press("Tab");
+    reached = await page.evaluate(() => document.activeElement?.textContent?.trim() === "Skip to scores");
+  }
+  expect(reached).toBe(true);
+  await page.keyboard.press("Enter");
+  let tabs = 0;
+  for (; tabs < 8; tabs++) {
+    await page.keyboard.press("Tab");
+    const label = await page.evaluate(() => document.activeElement?.getAttribute("aria-label"));
+    if (label === "Add goal, Sharks") break;
+  }
+  expect(tabs).toBeLessThan(8);
+  expect(await page.evaluate(() => !!document.activeElement?.closest("#live-scores"))).toBe(true);
+  await context.close();
+});
