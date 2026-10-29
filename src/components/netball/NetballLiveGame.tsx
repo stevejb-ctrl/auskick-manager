@@ -12,6 +12,7 @@
 // Score: +1 goal (our team) / +1 opponent goal. That's it.
 
 import { SFButton, SFIcon } from "@/components/sf";
+import { QuarterScoresButton } from "@/components/live/QuarterScoresButton";
 import { useOtherPhoneScores } from "@/components/live/useOtherPhoneScores";
 import { WENT_HOME_REASON, wentHomeIds } from "@/lib/live/wentHome";
 import { useRouter } from "next/navigation";
@@ -2955,14 +2956,7 @@ function NetballScoreBug({
       // 44pt text button (the old bordered 9px pill was ~20px).
       underClock={
         onShowQuarterScores && (
-          <button
-            type="button"
-            onClick={onShowQuarterScores}
-            className="min-h-[44px] px-3 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
-            aria-label="Show quarter-by-quarter scores"
-          >
-            Q-by-Q
-          </button>
+          <QuarterScoresButton onClick={onShowQuarterScores} />
         )
       }
       chipsDisabled={isPending}

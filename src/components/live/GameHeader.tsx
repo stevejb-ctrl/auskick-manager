@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { QuarterScoresButton } from "@/components/live/QuarterScoresButton";
 import {
   clockElapsedMs,
   formatClock,
@@ -245,14 +246,7 @@ export function GameHeader({
       // 9px bordered pill was a ~20px target). Tap → QuarterScoreModal.
       underClock={
         onShowQuarterScores && (
-          <button
-            type="button"
-            onClick={onShowQuarterScores}
-            className="min-h-[44px] px-3 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
-            aria-label="Show quarter-by-quarter scores"
-          >
-            Q-by-Q
-          </button>
+          <QuarterScoresButton onClick={onShowQuarterScores} />
         )
       }
       chipsDisabled={isPending}
