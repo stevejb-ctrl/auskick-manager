@@ -71,6 +71,17 @@ export interface FinishedScoreRow {
   period: number;
 }
 
+/** The period a game is in: its latest start (0 before the first). */
+export function periodInPlay(events: GameEvent[]): number {
+  let period = 0;
+  for (const e of events) {
+    if (e.type !== "quarter_start") continue;
+    const q = (e.metadata as { quarter?: unknown } | null)?.quarter;
+    period = Math.max(period, typeof q === "number" ? q : period + 1);
+  }
+  return period;
+}
+
 /** The scores still standing, in order, each with the period it counts in. */
 export function finishedScoreLog(sport: Sport, events: GameEvent[]): FinishedScoreRow[] {
   const kinds = new Map(scoreKinds(sport, { goalsFromPlay: true, girlsTry: true }).map((k) => [k.type, k]));
@@ -125,6 +136,9 @@ export function scoreFixRows(
     const kind = scoreKinds(sport, { goalsFromPlay: true, girlsTry: true }).find((k) => k.type === fix.type);
     if (!kind) return { error: "That isn't a score in this sport." };
     if (!Number.isInteger(fix.period) || fix.period < 1 || fix.period > 4) return { error: "Pick the period it was scored in." };
+    // A game that's on: not a period still to come (a usability pass, 29
+    // Oct 2026: the live sheet offered H2 during H1).
+    if (!finished && fix.period > periodInPlay(events)) return { error: "That period hasn't started yet." };
     return [
       {
         type: kind.type,

@@ -33,6 +33,12 @@ export interface FixScoresProps {
   opponentName: string;
   /** Opened from the game-day link: fixes go through it (fixScoreFromLink). */
   token?: string;
+  /**
+   * A game that's on: the period in play. A missed score goes in it by
+   * default, and never in one still to come (the sheet offered H2 during
+   * H1: usability pass, 29 Oct 2026). Absent after full time.
+   */
+  currentPeriod?: number;
 }
 
 const NOBODY = "";
@@ -48,6 +54,7 @@ export function FixScoresDialog({
   periodLetter,
   teamName,
   opponentName,
+  currentPeriod,
   onClose,
   onFixed,
 }: FixScoresProps & {
@@ -62,7 +69,7 @@ export function FixScoresDialog({
   const [changing, setChanging] = useState<{ id: string; playerId: string } | null>(null);
   const [adding, setAdding] = useState(false);
   const [addType, setAddType] = useState(kinds[0]?.type ?? "");
-  const [addPeriod, setAddPeriod] = useState(periodCount);
+  const [addPeriod, setAddPeriod] = useState(currentPeriod || periodCount);
   const [addPlayer, setAddPlayer] = useState(NOBODY);
 
   const nameOf = new Map(players.map((p) => [p.id, p.name]));
@@ -225,7 +232,7 @@ export function FixScoresDialog({
                   onChange={(e) => setAddPeriod(parseInt(e.target.value, 10))}
                   className="mt-0.5 block w-full rounded-md border border-hairline bg-surface px-2 py-1 text-xs text-ink"
                 >
-                  {periods.map((p) => (
+                  {periods.filter((p) => !currentPeriod || p <= currentPeriod).map((p) => (
                     <option key={p} value={p}>
                       {periodName(p)}
                     </option>
