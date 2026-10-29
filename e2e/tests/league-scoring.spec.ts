@@ -180,7 +180,7 @@ test("U13 plays international laws: anyone may kick, and there's no kickoff rota
     await page.getByRole("button", { name: /^\+\s*try$/i }).click();
     await expectWrite.poll(async () => (await eventsOfType(admin, game.id, "try")).length).toBe(n);
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByText("Pick the kicker.")).toBeVisible();
+    await expect(dialog.getByText("Pick the kicker, or Skip.")).toBeVisible();
     // No rotation, so no Force carve-out either.
     await expect(dialog.getByRole("checkbox")).toHaveCount(0);
     await kickerRow(page, kicker.full_name).getByRole("button", { name: /^made\b/i }).click();

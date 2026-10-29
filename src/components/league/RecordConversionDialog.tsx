@@ -114,7 +114,14 @@ export function RecordConversionDialog({
               Record conversion
             </h2>
             <p className="text-xs text-ink-mute">
-              {rotation ? "Pick the kicker — laws §15 rotation enforced." : "Pick the kicker."}
+              {/* Plain words, and that there's a way out: a parent who
+                  doesn't know rugby didn't know the kick could be skipped
+                  ("laws §15", Stagehand round 8, #14). */}
+              {rotation
+                ? "Pick the kicker: each kid takes a turn, as junior laws say. Or Skip."
+                : hasTryToConvert
+                  ? "Pick the kicker, or Skip."
+                  : "Pick the kicker."}
             </p>
           </div>
           <button
@@ -122,7 +129,7 @@ export function RecordConversionDialog({
             onClick={onClose}
             className="rounded-md px-2 py-1 text-sm text-ink-mute hover:bg-surface-alt"
           >
-            Cancel
+            {hasTryToConvert ? "Skip" : "Cancel"}
           </button>
         </header>
 
