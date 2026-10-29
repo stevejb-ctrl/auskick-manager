@@ -29,7 +29,7 @@ describe("standingScores", () => {
     const c = ev("behind", { player_id: "jo" });
     const undo = ev("score_undo", {}, { target_event_id: c.id, original_type: "behind", quarter: 1 });
     expect(standingScores([a, b, c, undo, ev("quarter_end")], TYPES).map((s) => s.eventId)).toEqual([a.id, b.id]);
-    expect(standingScores([a], TYPES)[0]).toEqual({ eventId: a.id, key: a.idempotency_key, type: "goal", playerId: "mia", quarter: 1 });
+    expect(standingScores([a], TYPES)[0]).toEqual({ eventId: a.id, key: a.idempotency_key, type: "goal", playerId: "mia", quarter: 1, createdAt: a.created_at });
   });
 });
 
