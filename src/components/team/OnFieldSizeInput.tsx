@@ -36,6 +36,8 @@ interface Props {
 
 export function OnFieldSizeInput({ teamId, sport, ageGroupDefault, min, max, initialSize, scheduledGames = 0, isAdmin = true }: Props) {
   const [size, setSize] = useState<number>(initialSize ?? ageGroupDefault);
+  // What's on the server, so Save shows only for a change.
+  const [savedSize, setSavedSize] = useState<number>(initialSize ?? ageGroupDefault);
   const [usingOverride, setUsingOverride] = useState<boolean>(initialSize !== null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -57,6 +59,7 @@ export function OnFieldSizeInput({ teamId, sport, ageGroupDefault, min, max, ini
         return;
       }
       setUsingOverride(next !== null && next !== ageGroupDefault);
+      setSavedSize(next ?? ageGroupDefault);
       setMoved(r.data?.scheduled ?? 0);
       setSaved(true);
     });
@@ -95,9 +98,12 @@ export function OnFieldSizeInput({ teamId, sport, ageGroupDefault, min, max, ini
         </div>
         {isAdmin && (
           <div className="flex gap-2">
-            <SFButton type="button" size="sm" onClick={() => save(size)} loading={isPending}>
-              Save
-            </SFButton>
+            {/* Save appears with a change, not as a standing button. */}
+            {(size !== savedSize || isPending) && (
+              <SFButton type="button" size="sm" onClick={() => save(size)} loading={isPending}>
+                Save
+              </SFButton>
+            )}
             {usingOverride && (
               <SFButton
                 type="button"

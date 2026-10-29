@@ -57,15 +57,12 @@ export function TeamNameSettings({ teamId, currentName, isAdmin }: TeamNameSetti
           maxLength={TEAM_NAME_MAX}
           className="min-w-0 flex-1"
         />
-        <SFButton
-          type="button"
-          onClick={submit}
-          disabled={!isAdmin || name.trim() === currentName}
-          loading={isPending}
-          size="md"
-        >
-          Save
-        </SFButton>
+        {/* Save appears with a change, not as a greyed-out button. */}
+        {isAdmin && (name.trim() !== currentName || isPending) && (
+          <SFButton type="button" onClick={submit} loading={isPending} size="md">
+            Save
+          </SFButton>
+        )}
       </div>
       {error && (
         <InlineAlert className="mt-2">
