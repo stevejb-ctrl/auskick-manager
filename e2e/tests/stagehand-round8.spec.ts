@@ -65,7 +65,11 @@ for (const sport of ["soccer", "afl"] as const) {
     const { admin, game } = await inFirstPeriod(sport);
     const { context, page } = await parentPhone(browser);
     await openLive(page, `/run/${game.share_token}`);
-    await page.getByRole("button", { name: "Add goal, Sharks" }).dblclick();
+    // Two taps a moment apart, as an anxious parent's are.
+    const theirs = page.getByRole("button", { name: "Add goal, Sharks" });
+    await theirs.click();
+    await page.waitForTimeout(150);
+    await theirs.click();
     await page.waitForTimeout(2500);
     expect(await countOf(admin, game.id, "opponent_goal")).toBe(1);
     // A second goal a moment later still counts.
