@@ -150,7 +150,13 @@ test("#6 Ask parents who's in: the message has the game's time and venue", async
 
 test("#4 on a laptop, the live page's last row scrolls clear of the tap hint and the score bar", async ({ browser }) => {
   const { team, game } = await inFirstPeriod("afl");
-  const context = await browser.newContext({ storageState: "playwright/.auth/super-admin.json", viewport: { width: 1366, height: 900 } });
+  // A laptop: a mouse, no touch (the suite's default is a Pixel 7).
+  const context = await browser.newContext({
+    storageState: "playwright/.auth/super-admin.json",
+    viewport: { width: 1366, height: 900 },
+    isMobile: false,
+    hasTouch: false,
+  });
   const page = await context.newPage();
   await page.addInitScript(() => {
     try {
@@ -160,8 +166,10 @@ test("#4 on a laptop, the live page's last row scrolls clear of the tap hint and
   await openLive(page, `/teams/${team.id}/games/${game.id}/live`);
   const hint = page.getByText("Tap a player for actions");
   await expect(hint).toBeVisible();
+  // The rows under the field settle in after the clock shows.
+  await page.waitForTimeout(1500);
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(500);
   const restart = page.getByRole("button", { name: /^restart game$/i });
   const r = (await restart.boundingBox())!;
   const h = (await hint.boundingBox())!;
