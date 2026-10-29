@@ -21,7 +21,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { SFIcon } from "@/components/sf";
-import { BackLink } from "@/components/ui/BackLink";
 
 interface LineupPickerBreadcrumbProps {
   /**
@@ -45,15 +44,24 @@ export function LineupPickerBreadcrumb({
 }: LineupPickerBreadcrumbProps) {
   if (!availabilityHref && !action) return null;
   return (
-    <div className="flex items-start justify-between gap-3">
+    <div className="flex items-center justify-between gap-3">
       {availabilityHref ? (
-        <div className="flex min-w-0 flex-col gap-1">
-          <BackLink href={availabilityHref} label="Update availability" />
-          <p className="text-xs text-ink-mute">
-            A player didn&apos;t turn up? Tap here to mark them
-            unavailable.
-          </p>
-        </div>
+        // A row that goes forward, not a "‹" back link (design review,
+        // Oct 2026: everywhere else ‹ means go back). Same words as the
+        // coach's "Who's here" row.
+        <Link
+          href={availabilityHref}
+          aria-label="Who's here: update availability"
+          className="flex min-h-[48px] min-w-0 flex-1 items-center gap-3 rounded-lg border border-hairline bg-surface px-4 py-2 text-left shadow-card transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-ink">Who&apos;s here</span>
+            <span className="block text-xs text-ink-dim">A kid didn&apos;t turn up? Mark them out.</span>
+          </span>
+          <span aria-hidden className="text-ink-mute">
+            <SFIcon.chevronRight />
+          </span>
+        </Link>
       ) : (
         <span />
       )}

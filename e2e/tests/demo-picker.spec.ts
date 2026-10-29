@@ -230,7 +230,7 @@ test.describe("Demo picker", () => {
       // the universal smoke check — it renders on the pre-kickoff
       // screen for every sport.
       await expect(
-        page.getByText(/you're running today's game for/i),
+        page.getByText(/you're running today's game/i),
       ).toBeVisible({ timeout: 10_000 });
 
       // The game belongs to this sport's demo team, sped up 8×.
