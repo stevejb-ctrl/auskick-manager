@@ -478,13 +478,12 @@ function NextUpHero({
 
       <div className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
         <div className="text-sm text-ink-dim">
+          {/* "16 of 16 available", in words (design review, Oct 2026:
+              "16 / 16 AVAIL" was a code). */}
           <span className="font-mono text-base font-bold tabular-nums text-ink">
             {available}
           </span>
-          <span className="text-ink-mute"> / {playerCount}</span>
-          <span className="ml-1.5 font-mono text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
-            avail
-          </span>
+          <span> of {playerCount} available</span>
         </div>
         {/* KickoffPulseWrapper renders a slow alarm-orange halo around
             the button when current time is within ±30min of kickoff —
@@ -606,7 +605,7 @@ function UpcomingRow({
             <span className="text-ink-mute">/{playerCount}</span>
           </div>
           <div className="font-mono text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
-            avail
+            available
           </div>
         </div>
 

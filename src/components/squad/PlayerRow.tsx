@@ -249,13 +249,18 @@ export function PlayerRow({
       )}
 
       {canEdit && (
-        <Toggle
-          checked={player.is_active}
-          onChange={handleToggle}
-          disabled={isPending}
-          // Named for the kid: every row read "Deactivate player" (UX round 3, e4).
-          label={`${player.is_active ? "Deactivate" : "Reactivate"} ${player.full_name}`}
-        />
+        // A visible word next to the switch (design review, Oct 2026: a
+        // bare toggle on its own line didn't say what it did).
+        <span className="inline-flex items-center gap-2 text-xs font-medium text-ink-dim">
+          <Toggle
+            checked={player.is_active}
+            onChange={handleToggle}
+            disabled={isPending}
+            // Named for the kid: every row read "Deactivate player" (UX round 3, e4).
+            label={`${player.is_active ? "Deactivate" : "Reactivate"} ${player.full_name}`}
+          />
+          <span aria-hidden="true">{player.is_active ? "Active" : "Inactive"}</span>
+        </span>
       )}
       {!editing && serverError && (
         <InlineAlert className="basis-full">{serverError}</InlineAlert>

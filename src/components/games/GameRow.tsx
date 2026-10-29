@@ -84,7 +84,7 @@ export function GameRow({ teamId, game, availableCount, totalActive }: GameRowPr
               <span className="text-ink-mute">/{totalActive}</span>
             </div>
             <div className="font-mono text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
-              avail
+              available
             </div>
           </div>
         )}

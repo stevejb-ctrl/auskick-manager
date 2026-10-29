@@ -102,7 +102,7 @@ export async function GameList({ teamId, filter = "all", canEdit = false }: Game
       {showCompleted && completed.length > 0 && (
         <section className="space-y-2">
           <h2 className="text-[11px] font-semibold uppercase tracking-micro text-ink-mute">
-            Completed
+            Played
           </h2>
           <div className="space-y-2">
             {completed.map((game) => (
