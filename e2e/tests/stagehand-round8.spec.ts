@@ -190,3 +190,26 @@ test("#6 #13 a score from the other phone says so, and Undo names what it takes 
   await a.context.close();
   await b.context.close();
 });
+
+test("#10 at 200% text a netball court name isn't cut to a letter, and the hint stays one line", async ({ browser }) => {
+  const { players, game } = await inFirstPeriod("netball");
+  const { context, page } = await parentPhone(browser);
+  await page.addInitScript(() =>
+    document.addEventListener("DOMContentLoaded", () => {
+      const s = document.createElement("style");
+      s.textContent = "html { font-size: 200% !important; }";
+      document.head.appendChild(s);
+    }),
+  );
+  await openLive(page, `/run/${game.share_token}`);
+  const token = page.getByRole("button", { name: /^Goal Shooter,/ });
+  const name = token.getByText(players[0].full_name.split(" ")[0], { exact: false }).first();
+  const cut = await name.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
+  expect(cut).toBe(false);
+  const hint = page.getByText("Tap a player for actions");
+  if (await hint.count()) {
+    const box = await hint.boundingBox();
+    expect(box!.height).toBeLessThan(60);
+  }
+  await context.close();
+});
