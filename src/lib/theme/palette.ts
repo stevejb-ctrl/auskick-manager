@@ -7,9 +7,13 @@
 // check every pair below in both themes. Change a value here and the
 // test tells you whether it still reads.
 //
+// The look is "Chalk on grass" (live v3, Nov 2026): chalk page, ink
+// words, an oval-green brand ramp, a shaded field green behind the
+// kids, and hi-vis / sun / sky / blood kept for what they mean.
+//
 // Three roles per token. In the light theme the three are the same
-// value (the palette as it always was), bar a few words that never
-// reached AA (see lightText below). The dark theme can split them,
+// value, bar the few fills too pale to be words or rings on chalk
+// (see lightText below). The dark theme can split them,
 // because one value can't do every job on a dark page:
 //   - fill: backgrounds (`bg-warn`, `bg-brand-600`). A strong fill keeps
 //     carrying white text, so it stays a mid-dark colour.
@@ -52,15 +56,23 @@ const same = (hex: string): Token => ({ light: hex, dark: hex });
 
 export const TOKENS = {
   // ── Surfaces and neutral ink ──────────────────────────────────
-  // Dark neutrals keep the light palette's faint green-warm cast.
-  warm: { light: "#F7F5F1", dark: "#0F1311", darkText: "#F4F2EC", darkLine: "#3A423D" },
-  surface: { light: "#FFFFFF", dark: "#181D1A" },
-  "surface-alt": { light: "#EFECE6", dark: "#232925" },
-  ink: { light: "#1A1E1A", dark: "#242A26", darkText: "#EEECE6", darkLine: "#8E978F" },
-  "ink-dim": { light: "#5E6860", dark: "#5E6860", darkText: "#B8BFB9", darkLine: "#7D877F" },
-  // R6 (UX round 3, e4): was #8A948C, which failed AA everywhere.
-  "ink-mute": { light: "#646D66", dark: "#646D66", darkText: "#9CA59E", darkLine: "#7D877F" },
-  hairline: { light: "#E3DFD7", dark: "#333B36" },
+  // "Chalk on grass" (live v3, Nov 2026): the page is line-marking
+  // chalk, cool rather than cream; ink is the oval's shadow, a black
+  // green. Dark is a near-black green page with chalk words, so the
+  // field green reads as the same grass in both.
+  warm: { light: "#F3F6F0", dark: "#0A1610", darkText: "#F3F6F0", darkLine: "#3A5245" },
+  surface: { light: "#FFFFFF", dark: "#10211A" },
+  "surface-alt": { light: "#E4EAE2", dark: "#182C22" },
+  // Dark `bg-ink` is the chrome a step above the dark page (the clock
+  // pill, the sub card), so its chalk words and zone labels hold.
+  ink: { light: "#0B1E15", dark: "#1B3328", darkText: "#F3F6F0", darkLine: "#8FA397" },
+  "ink-dim": { light: "#2A3F34", dark: "#4E6257", darkText: "#BCCBC1", darkLine: "#8A9E92" },
+  // About 6:1 on the chalk page.
+  "ink-mute": { light: "#4E6257", dark: "#6A7F72", darkText: "#93A79B", darkLine: "#7D9186" },
+  hairline: { light: "#D3DCD2", dark: "#2A3F34" },
+  // The v3 bottom sheet: chalk in light (white rows sit on it), and in
+  // dark a step above the page so it stands off the dimmed screen.
+  sheet: { light: "#F3F6F0", dark: "#14271D" },
 
   // ── Signals ───────────────────────────────────────────────────
   // Signal words. warn, ok, alarm and draw text were 3.5, 4.05, 4.4
@@ -71,7 +83,10 @@ export const TOKENS = {
   "alarm-soft": { light: "#FBE7DF", dark: "#3A1E18" },
   warn: { light: "#C8751F", lightText: "#985610", dark: "#96500D", darkText: "#F2A65A", darkLine: "#E0913F" },
   "warn-soft": { light: "#F5E5D2", dark: "#36291A" },
-  danger: { light: "#B4393A", dark: "#B4393A", darkText: "#F79A97", darkLine: "#E2706E" },
+  // Injuries and errors: the v3 blood red, a step deeper so the
+  // "Mark injured" button's line under its label (chalk at 90%) clears
+  // AA (4.45:1 on blood itself). The kid's injured mark is `blood`.
+  danger: { light: "#B91B32", dark: "#B91B32", darkText: "#FF9AA6", darkLine: "#F0707F" },
   ok: { light: "#4C8B63", lightText: "#3C7651", dark: "#3F7653", darkText: "#86D09E", darkLine: "#6DBA86" },
   // Round 9 (axe): words on the alarm and warn tints, and the alarm
   // button's fill under white words. The fill stays the same deep red
@@ -116,32 +131,83 @@ export const TOKENS = {
   "zone-f-fill": { light: "#F08A4B", dark: "#F08A4B" },
   "zone-c-fill": { light: "#047857", dark: "#2B9C73" },
   "zone-b-fill": { light: "#1E3A8A", dark: "#AFC2F6" },
-  "bar-track": { light: "#ECE8E1", dark: "#2C332E" },
+  "bar-track": { light: "#E4EAE2", dark: "#22382D" },
   // Labels on the dark chrome (the sub card, the clock pill). The
   // chrome stays dark in both themes, so these don't change.
   "zone-f-dark": same("#F08A4B"),
   "zone-c-dark": same("#3FBF95"),
   "zone-b-dark": same("#8FA9F2"),
-  // Sub-due amber. `due` carries white words (5.1:1); `due-tint` is a
-  // due tile's surface; `due-dark` is amber on the chrome.
-  due: { light: "#A8590F", dark: "#A8590F", darkText: "#F2A65A", darkLine: "#F2A65A" },
-  "due-tint": { light: "#FBF1E6", dark: "#33250F" },
-  "due-dark": same("#F2A65A"),
+  // Sub due: hi-vis. `due` still carries white words (old tiles and
+  // chips paint `bg-due text-white`), and white on #FF5A1F is 3.1:1,
+  // so the fill is a deeper hi-vis (4.6:1). The new live screen uses
+  // `hivis` + `hivis-ink` below. `due-tint` is a due tile's surface;
+  // `due-dark` is hi-vis on the chrome.
+  due: { light: "#D4400C", lightText: "#B8360A", dark: "#D4400C", darkText: "#FF7A45", darkLine: "#FF7A45" },
+  "due-tint": { light: "#FFE3D6", dark: "#3A1C10" },
+  "due-dark": same("#FF7A45"),
   // Score-button fill.
-  well: { light: "#F1EEE8", dark: "#262C28" },
-  // Running-clock dot + live countdown ring (on the chrome).
-  mint: same("#9ACC9B"),
+  well: { light: "#EAEFE8", dark: "#1A2E24" },
+  // Running-clock dot + live countdown ring: the oval's highlight
+  // green, 3:1 on the chalk header and the ink chrome alike. Its words
+  // (the sub card's "Apply") are the old light mint, on the chrome.
+  mint: { light: "#2C7D4E", lightText: "#9ACC9B", dark: "#3FA36A", darkText: "#9ACC9B" },
 
   // ── Playing surfaces ──────────────────────────────────────────
-  // The oval and the court keep their saturated light-theme greens and
-  // blues at night: white lines and tiles read on them the same way,
-  // and a darkened field turns to mud in sunlight.
-  field: same("#3C8050"),
-  court: same("#2A74A8"),
-  "court-mid": same("#2F7AAF"),
+  // Grass in shade, the same in both themes: chalk names clear 7:1 on
+  // it, and a field that changed colour at night would read as a
+  // different ground. Court and boards follow the same rule.
+  field: same("#0F4C2B"),
+  court: same("#1E465F"),
+  "court-mid": same("#24506B"),
+  wood: same("#5A3820"),
+  // The edge round an old-style white tile on the field (shadow-lift-
+  // field / -court). White in light, where the tile is white; a chalk
+  // grey in dark, where the tile is the dark surface and would
+  // otherwise sink into the grass (1.7:1).
+  "tile-edge": { light: "#FFFFFF", dark: "#8FA397" },
+  // The painted lines: names and marks on the grass, court and boards.
+  // Plates are `bg-mark/[0.07]` on the field, `bg-ink/[0.045]` on the bench.
+  mark: same("#F7FAF5"),
+  // Ink words on a chalk mark (a selected kid on the grass). The grass
+  // doesn't change at night, so neither does this.
+  "mark-ink": same("#0B1E15"),
+
+  // ── Chalk on grass signals (live v3) ──────────────────────────
+  // hivis only for "act now"; sun for forwards and "under the
+  // minimum"; sky for backs; blood for injuries. Each bright fill
+  // carries its own *-ink words in both themes (a hi-vis chip looks
+  // the same at night). The *-soft tints go dark in the dark theme,
+  // so words on a tint are `text-ink` or the signal's own text tone,
+  // never *-ink. Text and line tones split in light because the
+  // bright fills are too pale to be words or rings on chalk.
+  hivis: { light: "#FF5A1F", lightText: "#B93A0C", lightLine: "#D9440E", dark: "#FF5A1F", darkText: "#FF7A45" },
+  "hivis-ink": same("#1C0900"),
+  "hivis-soft": { light: "#FFE3D6", dark: "#3A1C10" },
+  sun: { light: "#F6C445", lightText: "#7A5900", lightLine: "#A07400", dark: "#F6C445" },
+  "sun-ink": same("#3A2A00"),
+  "sun-soft": { light: "#FCEFC4", dark: "#33290C" },
+  sky: { light: "#7CC0F4", lightText: "#1F5F8F", lightLine: "#3A84BE", dark: "#7CC0F4" },
+  "sky-ink": same("#06263F"),
+  "sky-soft": { light: "#DCEEFC", dark: "#102A3D" },
+  blood: { light: "#C81D36", dark: "#C81D36", darkText: "#FF9AA6", darkLine: "#F0707F" },
+  "blood-soft": { light: "#FBE3E6", dark: "#3A1419" },
+
+  // The one filled primary per screen: ink with chalk words on the
+  // chalk page; in dark it inverts to a chalk fill with ink words.
+  primary: { light: "#0B1E15", dark: "#F3F6F0" },
+  "on-primary": { light: "#F7FAF5", dark: "#0B1E15" },
+
+  // Zones on the grass only: sun forwards, white centres, sky backs.
+  // Light surfaces (stats, the break, pickers) keep the colourblind-
+  // safe zone-f / zone-c / zone-b above.
+  "zone-f-on-field": same("#F6C445"),
+  "zone-c-on-field": same("#FFFFFF"),
+  // Sky is #7CC0F4; on a kid plate that is 4.3:1, so the words take a
+  // lighter sky (4.8:1).
+  "zone-b-on-field": same("#8FCBF6"),
 
   // Modal / sheet backdrop. `bg-scrim/40`.
-  scrim: { light: "#1A1E1A", dark: "#000000" },
+  scrim: { light: "#0B1E15", dark: "#000000" },
 } satisfies Record<string, Token>;
 
 export type TokenName = keyof typeof TOKENS;
@@ -159,17 +225,20 @@ export type BrandName = "afl" | "netball";
 type Ladder = Record<BrandStep, Token>;
 
 export const BRANDS: Record<BrandName, Ladder> = {
+  // The oval ramp (live v3): 500 the oval's highlight, 600 the oval,
+  // 700 the field in shade, 800–900 the deep shadow; 50–400 chalked
+  // tints of the same green.
   afl: {
-    50: { light: "#E4EEE4", dark: "#15231A", darkText: "#E4EEE4", darkLine: "#203628" },
-    100: { light: "#CDDFCD", dark: "#1B2E21", darkText: "#CDDFCD", darkLine: "#29432F" },
-    200: { light: "#A7C7A7", dark: "#24402D", darkText: "#A7C7A7", darkLine: "#3A6446" },
-    300: { light: "#7CAA7D", dark: "#2F5A3B", darkText: "#A3CFA4", darkLine: "#5E9A6C" },
-    400: { light: "#568C57", dark: "#3F7A4C", darkText: "#95C9A0", darkLine: "#6AAE7A" },
-    500: { light: "#357840", dark: "#357840", darkText: "#94CFA1", darkLine: "#76BB87" },
-    600: { light: "#2F6B3E", dark: "#2F6B3E", darkText: "#9DD5A9", darkLine: "#7CC08D" },
-    700: { light: "#275834", dark: "#275834", darkText: "#ABDDB5", darkLine: "#8CCB9B" },
-    800: { light: "#1F4528", dark: "#1F4528", darkText: "#C0E6C7", darkLine: "#A2D6AE" },
-    900: { light: "#183420", dark: "#183420", darkText: "#D4EFD9", darkLine: "#B8E2C1" },
+    50: { light: "#E6F0E8", dark: "#0F2219", darkText: "#E6F0E8", darkLine: "#1C3A2A" },
+    100: { light: "#CDE2D3", dark: "#132B1F", darkText: "#CDE2D3", darkLine: "#234632" },
+    200: { light: "#A3CBAF", dark: "#1A3B2A", darkText: "#A3CBAF", darkLine: "#356249" },
+    300: { light: "#74AE86", dark: "#22513A", darkText: "#9FD0AE", darkLine: "#5A9C72" },
+    400: { light: "#4A9265", dark: "#2B6A4A", darkText: "#93CBA4", darkLine: "#65AC7D" },
+    500: { light: "#2C7D4E", dark: "#2C7D4E", darkText: "#8FD0A5", darkLine: "#6FBC88" },
+    600: { light: "#17653A", dark: "#17653A", darkText: "#9CD6AF", darkLine: "#7CC395" },
+    700: { light: "#0F4C2B", dark: "#0F4C2B", darkText: "#ABDDBB", darkLine: "#8CCBA2" },
+    800: { light: "#0A3620", dark: "#0A3620", darkText: "#C0E6CB", darkLine: "#A2D6B3" },
+    900: { light: "#072816", dark: "#072816", darkText: "#D4EFDB", darkLine: "#B8E2C6" },
   },
   netball: {
     50: { light: "#EAF4FB", dark: "#12212D", darkText: "#EAF4FB", darkLine: "#1C3346" },
