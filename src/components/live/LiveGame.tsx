@@ -19,7 +19,7 @@ import { Field, ZONE_SHORT } from "@/components/live/Field";
 import { Bench } from "@/components/live/Bench";
 import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import { GameHeader } from "@/components/live/GameHeader";
-import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
+import { ScoresSheet } from "@/components/live/ScoresSheet";
 import { SwapDoneToast } from "@/components/live/SwapDoneToast";
 import { undoSwaps } from "@/lib/live/liveChrome";
 import { useSquadNames } from "@/components/live/SquadNames";
@@ -560,12 +560,10 @@ export function LiveGame({
   // instant sub (with Undo) as the tap-bench flow.
   const [subOffSelected, setSubOffSelected] = useState<{ playerId: string; zone: Zone } | null>(null);
 
-  // Modal-open state for the quarter-by-quarter score breakdown.
-  // Triggered from the "Q-by-Q" chip under the clock pill. The
-  // modal renders a richer view (table + cumulative running
-  // totals + lead/margin per quarter) than the always-visible
-  // QuarterScoreStrip below the scorebug.
-  const [quarterScoresOpen, setQuarterScoresOpen] = useState(false);
+  // The Scores and fixes sheet (live/ScoresSheet): the Q-by-Q table,
+  // then every score to take off or add. Opened from under the clock
+  // and from the utility row, for whoever's running the game.
+  const [scoresOpen, setScoresOpen] = useState(false);
 
   // Team song — extracted to the shared `useHypeSong` hook
   // 2026-05-16 so netball can use the same playback path. Hook
@@ -1821,7 +1819,7 @@ export function LiveGame({
       // post-FT (the GameSummaryCard handles those views).
       onShowQuarterScores={
         trackScoring && !isPreGame && !isFinished
-          ? () => setQuarterScoresOpen(true)
+          ? () => setScoresOpen(true)
           : undefined
       }
       // Strip the inner card chrome when sticky-bottom (Steve
@@ -1858,24 +1856,22 @@ export function LiveGame({
           (search for `isLivePlay && gameHeader`). */}
       {!isLivePlay && gameHeader}
 
-      {/* Quarter-by-quarter modal — drill-down view triggered by
-          the chip under the clock pill. Mirrors the glance-level
-          QuarterScoreStrip below but with more detail (cumulative
-          running totals, per-quarter margin). */}
-      {quarterScoresOpen && (
-        <QuarterScoreModal
-          sport="afl"
-          scoreByQuarter={scoreByQuarter}
-          currentQuarter={currentQuarter}
-          quarterEnded={quarterEnded}
-          teamName={teamName}
-          opponentName={opponentName}
-          onClose={() => setQuarterScoresOpen(false)}
-          // Wire fix-scores so coach can unwind a misattributed
-          // goal mid-quarter without waiting for the break.
+      {/* Scores and fixes: the Q-by-Q table (the store's numbers, so
+          it's there before the log loads), then the fix list. */}
+      {scoresOpen && (
+        <ScoresSheet
           auth={auth}
           gameId={gameId}
-          players={squadPlayers}
+          quarters={{
+            sport: "afl",
+            scoreByQuarter,
+            currentQuarter,
+            quarterEnded,
+            teamName,
+            opponentName,
+            totalQuarters: ageGroup.periodCount,
+          }}
+          onClose={() => setScoresOpen(false)}
         />
       )}
 
@@ -2124,6 +2120,7 @@ export function LiveGame({
         return (
           <LiveAdminUtilityRow
             trackScoring={trackScoring}
+            onScores={() => setScoresOpen(true)}
             candidates={lateCandidates}
             onLateArrival={handleLateArrival}
             lateArrivalPending={isPending}

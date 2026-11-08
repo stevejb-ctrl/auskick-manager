@@ -32,7 +32,7 @@
 import type { ReactNode } from "react";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { ResetGameButton } from "@/components/games/ResetGameButton";
-import { LiveFixScoresButton } from "@/components/live/LiveFixScoresButton";
+import { SFButton } from "@/components/sf";
 import type { LiveAuth, Player } from "@/lib/types";
 
 interface LiveAdminUtilityRowProps {
@@ -74,8 +74,16 @@ interface LiveAdminUtilityRowProps {
    * runner link can't wipe a finished game.
    */
   finished?: boolean;
-  /** The game keeps score: coaches, and the game-day link, get Fix scores (LiveFixScoresButton). */
+  /** The game keeps score: whoever's running it gets Scores and fixes. */
   trackScoring?: boolean;
+  /**
+   * Opens the screen's Scores and fixes sheet (live/ScoresSheet). Anyone
+   * on the live screen is running the game (the page lets in the team's
+   * admins and game managers; the game-day link its runner), and the
+   * server lets each of them fix scores while the game is on, so the
+   * button is theirs too (live v3: it used to be admin and link only).
+   */
+  onScores?: () => void;
 }
 
 export function LiveAdminUtilityRow({
@@ -89,15 +97,16 @@ export function LiveAdminUtilityRow({
   extra: extraProp,
   finished = false,
   trackScoring = false,
+  onScores,
 }: LiveAdminUtilityRowProps) {
   const showLate = candidates.length > 0 && !finished;
   const isAdmin = isAdminProp && !finished && auth.kind !== "token";
   const settings = finished ? null : settingsProp;
   const extra = finished ? null : extraProp;
-  // Fix scores while the game is on: the coach, or the game-day link
-  // (Stagehand round 7). A finished game's scores are the coach's, on
-  // the game page.
-  const canFix = trackScoring && !finished && (isAdmin || auth.kind === "token");
+  // Scores and fixes while the game is on, for whoever runs it (the
+  // coach, a game manager, the game-day link: Stagehand round 7, live
+  // v3). A finished game's scores are the coach's, on the game page.
+  const canFix = trackScoring && !finished && !!onScores;
   // Row mounts whenever ANY slot has content — extra now joins
   // late-candidates and isAdmin in the "is there anything to show"
   // gate so the Game-settings button (AFL or RL) surfaces even on
@@ -117,7 +126,11 @@ export function LiveAdminUtilityRow({
       )}
       {settings}
       {extra}
-      {canFix && <LiveFixScoresButton auth={auth} gameId={gameId} />}
+      {canFix && (
+        <SFButton size="md" variant="ghost" onClick={onScores} data-testid="live-fix-scores">
+          Scores and fixes
+        </SFButton>
+      )}
       {isAdmin && <ResetGameButton auth={auth} gameId={gameId} />}
     </div>
   );

@@ -304,6 +304,8 @@ export function BasketballLiveGame({
   // A score from the other phone says so (Stagehand round 8, #6).
   useOtherPhoneScores(events, BASKETBALL_SCORE_EVENT_TYPES, { teamName: teamName, opponentName: game.opponent || "Opponent" });
   const chrome = useLiveChrome({
+    auth,
+    gameId: game.id,
     teamName,
     opponentName,
     playersById: playerById,
@@ -991,6 +993,7 @@ export function BasketballLiveGame({
 
       <LiveAdminUtilityRow
         trackScoring={trackScoring}
+        onScores={chrome.openScores}
         candidates={lateArrivalCandidates}
         onLateArrival={addLateArrival}
         lateArrivalPending={pending}

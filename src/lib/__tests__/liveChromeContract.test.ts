@@ -65,7 +65,8 @@ type Piece =
   | "settingsInRow"
   | "optimisticWrites"
   | "pauseFromEvents"
-  | "summaryAtTop";
+  | "summaryAtTop"
+  | "scoresSheet";
 
 /**
  * Each piece, as a check on a live screen's source. A screen without
@@ -107,6 +108,12 @@ const PIECES: Record<Piece, (s: string) => boolean> = {
     !/usePeriodPause\(/.test(s),
   // The summary after Finish opens at the top (round 2).
   summaryAtTop: (s) => /useScrollToTopOnFinish\(/.test(s),
+  // One Scores and fixes sheet (live/ScoresSheet) for whoever runs the
+  // game, opened from the utility row: the shared chrome's, or AFL's and
+  // netball's own with their Q-by-Q table (live v3, Steve 8 Nov 2026).
+  scoresSheet: (s) =>
+    blocks(s, "LiveAdminUtilityRow").every((b) => /onScores=\{/.test(b)) &&
+    (/<ScoresSheet\b/.test(s) || /onScores=\{chrome\.openScores\}/.test(s)),
 };
 
 /**

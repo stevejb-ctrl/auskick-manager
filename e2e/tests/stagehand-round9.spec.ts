@@ -101,14 +101,15 @@ test("#2 league: the next-sub card's position labels read at AA on the dark card
 
 // ─── #3 Escape closes info dialogs ───────────────────────────────
 
-test("#3 Escape closes the quarter-by-quarter scores and Game settings", async ({ page }) => {
+test("#3 Escape closes Scores and fixes and Game settings", async ({ page }) => {
   const { team, game } = await inFirstPeriod("afl");
   await skipHints(page);
   await openLive(page, `/teams/${team.id}/games/${game.id}/live`);
   const dialog = page.getByRole("dialog");
 
-  await page.getByRole("button", { name: "Show quarter-by-quarter scores" }).click();
+  await page.getByRole("button", { name: "Scores by quarter" }).click();
   await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Scores and fixes" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
 

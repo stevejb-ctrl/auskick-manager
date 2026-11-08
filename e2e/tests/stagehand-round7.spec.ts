@@ -179,7 +179,7 @@ test("a game-day link is titled with the game, and can fix scores while it's on"
   await expect(page).toHaveTitle(/ v Sharks · Siren$/);
 
   await page.getByTestId("live-fix-scores").click();
-  const dialog = page.getByRole("dialog", { name: "Fix scores" });
+  const dialog = page.getByRole("dialog", { name: "Scores and fixes" });
   await expect(dialog.getByTestId("fix-scores-total")).toContainText("12 – 0");
   await context.close();
 });

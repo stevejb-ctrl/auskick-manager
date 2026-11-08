@@ -4,13 +4,14 @@
 // A finished game's scores, fixable from the game page's More (round 3
 // edge testing, 24 Oct 2026: "Open game screen: fix scores" opened a
 // read-only summary, and the only edit was Restart), and a game's in
-// play from the live screen (LiveFixScoresButton). Every sport: take a
-// score off, change who scored, add a missed one. The list and its
+// play from the live screen (ScoreFixList, under live/ScoresSheet's
+// Q-by-Q). Every sport: take a score off, change who scored, add a
+// missed one. The list and its
 // delete confirm follow the live Fix-scores panel (ScoreReviewPanel),
 // which is tied to the live screen's store and AFL's actions; the writes
 // are events (fixFinishedScore), so the summary and Stats recompute.
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { fixFinishedScore, fixScoreFromLink } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
 import { Modal } from "@/components/ui/Modal";
@@ -43,7 +44,47 @@ export interface FixScoresProps {
 
 const NOBODY = "";
 
+/** The game's score so far from its log: ours, theirs. */
+export function logPoints(log: FinishedScoreRow[], side: "us" | "them"): number {
+  return log.filter((r) => r.side === side).reduce((n, r) => n + r.kind.points, 0);
+}
+
+/**
+ * A finished game's scores, fixable from the game page's More. The live
+ * screen's Scores and fixes sheet (live/ScoresSheet) has the same list
+ * under its quarter-by-quarter table.
+ */
 export function FixScoresDialog({
+  onClose,
+  ...props
+}: FixScoresProps & {
+  onClose: () => void;
+  /** After each fix. */
+  onFixed?: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <Modal label="Fix scores" size="md" onClose={busy ? undefined : onClose}>
+      <h2 className="text-lg font-semibold text-ink">Fix scores</h2>
+      <p className="mt-0.5 text-xs text-ink-mute">
+        Take off a wrong score, change who scored, or add one that was missed. Stats follow.
+      </p>
+      <ScoreFixList {...props} onBusy={setBusy} />
+      <div className="mt-4 flex justify-end">
+        <Button variant="secondary" size="sm" onClick={onClose} disabled={busy}>
+          Done
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * The fix itself: the total, each score by period with Change and ×
+ * (behind a "Take this score off?" confirm), and "+ Add a missed score".
+ * Shared by FixScoresDialog and the live ScoresSheet.
+ */
+export function ScoreFixList({
   teamId,
   gameId,
   token,
@@ -55,15 +96,20 @@ export function FixScoresDialog({
   teamName,
   opponentName,
   currentPeriod,
-  onClose,
   onFixed,
+  onBusy,
+  showTotal = true,
 }: FixScoresProps & {
-  onClose: () => void;
   /** After each fix (the live screen reads the log again). */
   onFixed?: () => void;
+  /** A fix is saving (the sheet holds its Done meanwhile). */
+  onBusy?: (busy: boolean) => void;
+  /** The "Us 12 – 6 Them" line (the live sheet shows it in its header). */
+  showTotal?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  useEffect(() => onBusy?.(isPending), [isPending, onBusy]);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<FinishedScoreRow | null>(null);
   const [changing, setChanging] = useState<{ id: string; playerId: string } | null>(null);
@@ -74,7 +120,6 @@ export function FixScoresDialog({
 
   const nameOf = new Map(players.map((p) => [p.id, p.name]));
   const who = (r: FinishedScoreRow) => (r.side === "them" ? opponentName : r.playerId ? nameOf.get(r.playerId) ?? "Unknown" : "No scorer");
-  const points = (side: "us" | "them") => log.filter((r) => r.side === side).reduce((n, r) => n + r.kind.points, 0);
   const addKind = kinds.find((k) => k.type === addType);
   // Every period a score is in, even past the team's count now (its
   // halves or quarters may have changed since this game).
@@ -98,14 +143,12 @@ export function FixScoresDialog({
   }
 
   return (
-    <Modal label="Fix scores" size="md" onClose={isPending ? undefined : onClose}>
-      <h2 className="text-lg font-semibold text-ink">Fix scores</h2>
-      <p className="mt-0.5 text-xs text-ink-mute">
-        Take off a wrong score, change who scored, or add one that was missed. Stats follow.
-      </p>
-      <p className="mt-3 text-sm font-semibold text-ink" data-testid="fix-scores-total">
-        {teamName} {points("us")} – {points("them")} {opponentName}
-      </p>
+    <>
+      {showTotal && (
+        <p className="mt-3 text-sm font-semibold text-ink" data-testid="fix-scores-total">
+          {teamName} {logPoints(log, "us")} – {logPoints(log, "them")} {opponentName}
+        </p>
+      )}
 
       <div className="mt-3 max-h-[45vh] space-y-3 overflow-y-auto">
         {log.length === 0 && <p className="text-xs text-ink-mute">No scores yet.</p>}
@@ -284,12 +327,6 @@ export function FixScoresDialog({
 
       {error && <InlineAlert className="mt-3">{error}</InlineAlert>}
 
-      <div className="mt-4 flex justify-end">
-        <Button variant="secondary" size="sm" onClick={onClose} disabled={isPending}>
-          Done
-        </Button>
-      </div>
-
       {deleting && (
         <Modal label="Take off this score?" onClose={() => setDeleting(null)}>
           <p className="text-center text-sm font-semibold text-ink">Take off this score?</p>
@@ -315,6 +352,6 @@ export function FixScoresDialog({
           </div>
         </Modal>
       )}
-    </Modal>
+    </>
   );
 }

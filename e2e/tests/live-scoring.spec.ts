@@ -292,8 +292,8 @@ test("Q-by-Q shows the score of the quarter in play", async ({ page }) => {
   );
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await page.getByRole("button", { name: /show quarter-by-quarter scores/i }).click();
-  const q1 = page.getByRole("row").filter({ hasText: /Q1/ });
+  await page.getByRole("button", { name: "Scores by quarter" }).click();
+  const q1 = page.getByRole("dialog", { name: "Scores and fixes" }).getByRole("row").filter({ hasText: /Q1/ });
   await expect(q1).toContainText(/in play/i);
   await expect(q1).toContainText("1.1");
   await expect(q1).toContainText("1.0");
@@ -376,7 +376,7 @@ test("Fix scores takes off an earlier score mid-quarter", async ({ page }) => {
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await page.getByTestId("live-fix-scores").click({ timeout: 15_000 });
-  const dialog = page.getByRole("dialog", { name: "Fix scores" });
+  const dialog = page.getByRole("dialog", { name: "Scores and fixes" });
   await expect(dialog.getByTestId("fix-scores-total")).toHaveText(/12 – 0/, { timeout: 15_000 });
   await dialog.getByRole("button", { name: new RegExp(`^Take off ${wrong.full_name}'s goal in Q1`) }).click();
   await page.getByRole("dialog", { name: "Take off this score?" }).getByRole("button", { name: "Take it off" }).click();
@@ -414,7 +414,7 @@ test("Fix scores mid-game adds a missed score to the quarter in play", async ({ 
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await page.getByTestId("live-fix-scores").click({ timeout: 15_000 });
-  const dialog = page.getByRole("dialog", { name: "Fix scores" });
+  const dialog = page.getByRole("dialog", { name: "Scores and fixes" });
   await dialog.getByRole("button", { name: "+ Add a missed score" }).click();
   const period = dialog.getByRole("combobox", { name: "Period" });
   await expect(period).toHaveValue("1");

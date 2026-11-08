@@ -74,12 +74,14 @@ test("04: our score buttons are filled and theirs outlined", async ({ browser })
   await openLive(page, `/run/${game.share_token}`);
   const bg = (name: string) =>
     page.getByRole("button", { name }).evaluate((el) => getComputedStyle(el).backgroundColor);
-  const ours = await bg(`Add goal, ${(await page.getByTestId("scorebug-team-name").first().textContent())!.trim()}`);
+  // The team's name without the "(you)" a game-day link adds after it.
+  const teamName = (await page.getByTestId("scorebug-team-name").first().textContent())!.replace(/\s*\(you\)\s*$/, "").trim();
+  const ours = await bg(`Add goal, ${teamName}`);
   const theirs = await bg("Add goal, Sharks");
   expect(ours).not.toBe(theirs);
   // Theirs is the surface white; ours is the brand fill.
   expect(theirs).toBe("rgb(255, 255, 255)");
-  await expect(page.getByRole("button", { name: "Show quarter-by-quarter scores" })).toContainText("Quarters");
+  await expect(page.getByRole("button", { name: "Scores by quarter" })).toContainText("Scores");
   await context.close();
 });
 

@@ -26,6 +26,7 @@ import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { SwapDoneToast } from "@/components/live/SwapDoneToast";
 import { WalkthroughModal, buildSharedWalkthroughSteps } from "@/components/live/WalkthroughModal";
 import { useSquadNames } from "@/components/live/SquadNames";
+import { ScoresSheet } from "@/components/live/ScoresSheet";
 import { hapticTap } from "@/lib/haptics";
 import {
   liveLoanMinutes,
@@ -33,7 +34,7 @@ import {
   swapToastText,
   undoMessage,
 } from "@/lib/live/liveChrome";
-import type { GameEvent, Player } from "@/lib/types";
+import type { GameEvent, LiveAuth, Player } from "@/lib/types";
 
 /** How long the undo strip flashes what was recorded (AFL's 8 s). */
 const UNDO_FLASH_MS = 8000;
@@ -98,6 +99,8 @@ export interface LiveChrome {
   overlays: ReactNode;
   /** Opens the walkthrough (the top bar's ?), these sports' first. */
   openHelp(): void;
+  /** Opens the Scores and fixes sheet (live/ScoresSheet), in `overlays`. */
+  openScores(): void;
   /** A kid's first name, as the toasts and strip say it. */
   firstName(playerId: string): string;
   /** The long-press sheet's lent minutes for a kid. */
@@ -105,6 +108,9 @@ export interface LiveChrome {
 }
 
 export function useLiveChrome(opts: {
+  /** Who's running the game, and which: the Scores and fixes sheet reads and fixes its log. */
+  auth: LiveAuth;
+  gameId: string;
   teamName: string;
   opponentName: string;
   playersById: Map<string, Player>;
@@ -115,7 +121,7 @@ export function useLiveChrome(opts: {
   /** The period's elapsed ms while one is in play, else null. */
   openElapsedMs: number | null;
 }): LiveChrome {
-  const { teamName, opponentName, playersById, seasonLoanMinutes, events, openElapsedMs } = opts;
+  const { auth, gameId, teamName, opponentName, playersById, seasonLoanMinutes, events, openElapsedMs } = opts;
   const [message, setMessage] = useState<string | null>(null);
   const [flashing, setFlashing] = useState(false);
   const [namedScoreKey, setNamedScoreKey] = useState<string | null>(null);
@@ -123,6 +129,7 @@ export function useLiveChrome(opts: {
   const [toastText, setToastText] = useState<string | null>(null);
   const [toastUndo, setToastUndo] = useState<{ run: () => void } | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [scoresOpen, setScoresOpen] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pendingSwap, setPendingSwap] = useState<ManualSwap | null>(null);
   const names = useSquadNames();
@@ -217,7 +224,10 @@ export function useLiveChrome(opts: {
       />
     ) : null,
     openHelp: () => setHelpOpen(true),
-    overlays: helpOpen ? (
+    openScores: () => setScoresOpen(true),
+    overlays: scoresOpen ? (
+      <ScoresSheet auth={auth} gameId={gameId} onClose={() => setScoresOpen(false)} />
+    ) : helpOpen ? (
       <WalkthroughModal steps={buildSharedWalkthroughSteps()} onClose={() => setHelpOpen(false)} />
     ) : pendingSwap ? (
       <SwapConfirmDialog

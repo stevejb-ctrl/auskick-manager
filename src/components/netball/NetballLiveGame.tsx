@@ -12,7 +12,7 @@
 // Score: +1 goal (our team) / +1 opponent goal. That's it.
 
 import { SFButton, SFIcon } from "@/components/sf";
-import { QuarterScoresButton } from "@/components/live/QuarterScoresButton";
+import { ScoresButton, ScoresSheet } from "@/components/live/ScoresSheet";
 import { useOtherPhoneScores } from "@/components/live/useOtherPhoneScores";
 import { WENT_HOME_REASON, wentHomeIds } from "@/lib/live/wentHome";
 import { useRouter } from "next/navigation";
@@ -40,7 +40,6 @@ import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
 import { hapticTap, hapticSiren } from "@/lib/haptics";
-import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
 import { RunnerAllDone } from "@/components/games/RunnerAllDone";
 import { noteLiveResult } from "@/lib/live/liveSync";
@@ -1743,10 +1742,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // the AFL walkthrough still gets the netball one on their first
   // netball game — different mechanics, different copy.
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
-  // Q-by-Q modal trigger — set to true when the coach taps the
-  // small chip under the clock pill in NetballScoreBug. Mirrors
-  // AFL's quarterScoresOpen in LiveGame.tsx.
-  const [quarterScoresOpen, setQuarterScoresOpen] = useState(false);
+  // The Scores and fixes sheet (live/ScoresSheet), from "Scores" under
+  // the clock pill in NetballScoreBug or the utility row. Mirrors AFL's
+  // scoresOpen in LiveGame.tsx.
+  const [scoresOpen, setScoresOpen] = useState(false);
   // NETBALL-07: walkthrough scoring-step gate is wired to the team's
   // actual track_scoring (was hard-coded `true` before plan 04-04).
   // The "Recording scores" step is dropped when trackScoring=false so
@@ -2182,7 +2181,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       // Q-by-Q chip surfaces only when there's something to show.
       // trackScoring=false hides it entirely (would be empty).
       onShowQuarterScores={
-        trackScoring ? () => setQuarterScoresOpen(true) : undefined
+        trackScoring ? () => setScoresOpen(true) : undefined
       }
       paused={isPaused}
       showScores={trackScoring}
@@ -2230,20 +2229,20 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         />
       )}
 
-      {quarterScoresOpen && (
-        <QuarterScoreModal
-          sport="netball"
-          scoreByQuarter={scoreByQuarter}
-          currentQuarter={currentQuarter}
-          quarterEnded={quarterEnded}
-          teamName={teamName}
-          opponentName={game.opponent}
-          onClose={() => setQuarterScoresOpen(false)}
-          // Wire fix-scores so coach can unwind a misattributed
-          // goal mid-quarter without waiting for the break.
+      {scoresOpen && (
+        <ScoresSheet
           auth={auth}
           gameId={game.id}
-          players={squad}
+          quarters={{
+            sport: "netball",
+            scoreByQuarter,
+            currentQuarter,
+            quarterEnded,
+            teamName,
+            opponentName: game.opponent,
+            totalQuarters: ageGroup.periodCount,
+          }}
+          onClose={() => setScoresOpen(false)}
         />
       )}
 
@@ -2453,6 +2452,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           just pass it through. */}
       <LiveAdminUtilityRow
         trackScoring={trackScoring}
+        onScores={() => setScoresOpen(true)}
         candidates={lateArrivalCandidates}
         onLateArrival={handleLateArrival}
         lateArrivalPending={isPending}
@@ -2970,7 +2970,7 @@ function NetballScoreBug({
       // 44pt text button (the old bordered 9px pill was ~20px).
       underClock={
         onShowQuarterScores && (
-          <QuarterScoresButton onClick={onShowQuarterScores} />
+          <ScoresButton onClick={onShowQuarterScores} />
         )
       }
       chipsDisabled={isPending}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { QuarterScoresButton } from "@/components/live/QuarterScoresButton";
+import { ScoresButton } from "@/components/live/ScoresSheet";
 import { ClockPillReadout } from "@/components/live/ClockPillReadout";
 import {
   clockElapsedMs,
@@ -64,9 +64,9 @@ interface GameHeaderProps {
    */
   clockPulseKey?: string | number | null;
   /**
-   * Tap the small "Q-by-Q" chip below the clock pill. Parent owns
-   * the modal so the same data the strip uses can be reused
-   * without re-passing the full scoreByQuarter array down here.
+   * Tap "Scores" below the clock pill. Parent owns the Scores and
+   * fixes sheet (live/ScoresSheet) so the same data the strip uses
+   * can be reused without re-passing scoreByQuarter down here.
    * Hidden when omitted (pre-Q1 / track_scoring=false / FT).
    */
   onShowQuarterScores?: () => void;
@@ -234,11 +234,11 @@ export function GameHeader({
         ),
       }}
       clock={pill}
-      // Quarter-by-quarter: a 44pt text button under the pill (the old
-      // 9px bordered pill was a ~20px target). Tap → QuarterScoreModal.
+      // Scores: a 44pt text button under the pill (the old 9px bordered
+      // pill was a ~20px target). Tap → the Scores and fixes sheet.
       underClock={
         onShowQuarterScores && (
-          <QuarterScoresButton onClick={onShowQuarterScores} />
+          <ScoresButton onClick={onShowQuarterScores} />
         )
       }
       chipsDisabled={isPending}

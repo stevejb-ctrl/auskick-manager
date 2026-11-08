@@ -348,6 +348,8 @@ export function LeagueLiveGame({
   // A score from the other phone says so (Stagehand round 8, #6).
   useOtherPhoneScores(thisGameEvents, RUGBY_SCORE_EVENT_TYPES, { teamName: teamName, opponentName: game.opponent || "Opponent" });
   const chrome = useLiveChrome({
+    auth,
+    gameId: game.id,
     teamName,
     opponentName: game.opponent || "Opponent",
     playersById: playerById,
@@ -2077,6 +2079,7 @@ export function LeagueLiveGame({
 
       <LiveAdminUtilityRow
         trackScoring={trackScoring}
+        onScores={chrome.openScores}
         candidates={lateArrivalCandidates}
         onLateArrival={handleAddLateArrival}
         lateArrivalPending={pending}

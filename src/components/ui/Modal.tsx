@@ -107,7 +107,7 @@ export function Modal({
           2026-05-15 added the modal slide-up sweep. Every modal in
           the app (StartQuarterModal, QuarterEndModal,
           LockModal, WalkthroughModal, SwapConfirmDialog,
-          InjuryReplacementModal, QuarterScoreModal, FeedbackModal)
+          InjuryReplacementModal, ScoresSheet, FeedbackModal)
           inherits this behaviour from the Modal primitive — no
           per-modal change needed. */}
       <div
@@ -119,7 +119,7 @@ export function Modal({
           breathing room above) and rendered as a flex column so
           children can opt-in to scrolling middle + pinned footer.
           Default behaviour for short content is unchanged. Bug:
-          when QuarterScoreModal's Fix-scores list got long the
+          when the Q-by-Q modal's Fix-scores list got long the
           card extended past the viewport and the Close button
           could not be reached.
 

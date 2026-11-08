@@ -2,7 +2,7 @@
 
 // ─── Quarter Score Table ───────────────────────────────────────
 // Reusable per-quarter breakdown table, used by:
-//   • QuarterScoreModal (drill-down from the in-game scorebug)
+//   • ScoresSheet (Scores and fixes, from the live screen)
 //   • QuarterBreak / NetballQuarterBreak (expanded "Review and
 //     update scores" panel at the break)
 //
