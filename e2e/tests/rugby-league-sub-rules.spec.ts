@@ -17,6 +17,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
+import { openGameMenu, openPairs, pairList } from "../helpers/liveShell";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -90,22 +91,19 @@ test("league H2: the sub card never takes off a kid who sat out H1", async ({ pa
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
 
-  // The sub card's pairs (open when the sub is due, else tap it open).
-  const pairs = page.locator("[data-testid^='league-swap-pair-']");
-  const header = page.locator("button[aria-expanded='false']").filter({ hasText: "→" });
-  await expect(pairs.first().or(header)).toBeVisible({ timeout: 15_000 });
-  if (await header.isVisible()) await header.click();
-  await expect(pairs.first()).toBeVisible();
-  // A row reads "<label><initials><off>→<initials><on>".
-  const offIs = (pid: string) => pairs.filter({ hasText: new RegExp(`^(FWD|BACK)[A-Z]{0,3}${nameOf(pid)}→`) });
-  await expect(offIs(tyler)).toHaveCount(0);
-  await expect(offIs(archie)).toHaveCount(0);
+  // The planned sub's pairs (live v3: the info line opens the pairs sheet).
+  const sheet = await openPairs(page);
+  const pairs = await pairList(sheet);
+  expect(pairs.length).toBeGreaterThan(0);
+  expect(pairs.map((x) => x.off)).not.toContain(nameOf(tyler));
+  expect(pairs.map((x) => x.off)).not.toContain(nameOf(archie));
 
   // Lachlan leans forward, but the forwards free to come off have been on
   // five minutes: he crosses to a back who's played since kickoff.
-  const lachlanPair = pairs.filter({ hasText: new RegExp(`→[A-Z]{0,3}${nameOf(lachlan)}`) });
-  await expect(lachlanPair).toHaveCount(1);
-  await expect(lachlanPair).toContainText(/^BACK/);
+  const lachlanPair = pairs.filter((x) => x.on === nameOf(lachlan));
+  expect(lachlanPair).toHaveLength(1);
+  expect(lachlanPair[0].where).toBe("BACK");
+  await sheet.getByRole("button", { name: "Close" }).click();
 
   // The live screen says why: §6 keeps them on to the hooter.
   const warning = page.getByTestId("unbroken-period-warning");
@@ -120,7 +118,9 @@ test("league game settings state §6 with no switch to turn it off", async ({ pa
   await skipWalkthroughs(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  await page.getByRole("button", { name: /^game settings$/i }).click({ timeout: 15_000 });
+  // Live v3: Game settings is in the ⋯ game menu.
+  const menu = await openGameMenu(page);
+  await menu.getByRole("button", { name: /^game settings/i }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText(/§6: each player must play 1 unbroken half./)).toBeVisible({ timeout: 10_000 });
   await expect(dialog.getByText(/enforce unbroken periods/i)).toHaveCount(0);

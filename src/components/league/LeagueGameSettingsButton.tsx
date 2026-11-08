@@ -8,7 +8,7 @@
 //
 // Three knobs in the modal, and the grade's §6 rule stated:
 //
-//   1. Sub interval — drives the LeagueNextSubCard cadence.
+//   1. Sub interval — drives the live screen's next-sub cadence.
 //
 //   2. Players on field — grow adds empty slots the coach fills
 //      via the existing tap-to-swap UI; shrink opens a "who comes
@@ -130,7 +130,7 @@ interface LeagueGameSettingsModalProps extends LeagueGameSettingsButtonProps {
 const MIN_SUB_SECONDS = 30;
 const MAX_SUB_SECONDS = 600;
 
-function LeagueGameSettingsModal({
+export function LeagueGameSettingsModal({
   auth,
   gameId,
   subIntervalSeconds,

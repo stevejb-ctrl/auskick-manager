@@ -65,6 +65,11 @@ export interface KidTileProps {
   out?: KidOutKind | null;
   /** Big fields: a shorter tile and name. */
   dense?: boolean;
+  /**
+   * A small flag on the tile's top-left corner: rugby's FR / DH vest.
+   * Seen only: say it in `spoken.states`.
+   */
+  flag?: string | null;
   onClick?: () => void;
   onLongPress?: () => void;
 }
@@ -101,6 +106,7 @@ export function KidTile({
   lockLabel = null,
   out = null,
   dense = false,
+  flag = null,
   onClick,
   onLongPress,
 }: KidTileProps) {
@@ -196,6 +202,19 @@ export function KidTile({
         arming && !selected ? (field ? "ring-2 ring-mark/50" : "ring-2 ring-hairline") : "",
       ].join(" ")}
     >
+      {flag && (
+        <span
+          aria-hidden
+          data-testid="kid-flag"
+          className={`absolute -left-[4px] -top-[7px] z-[2] flex h-[18px] min-w-[22px] items-center justify-center rounded-[9px] px-[5px] font-display text-[0.5625rem] font-black leading-none tracking-[0.06em] ${
+            field
+              ? "bg-field text-mark shadow-[inset_0_0_0_1.5px_rgb(247_250_245/0.62)]"
+              : "bg-warm text-ink shadow-[inset_0_0_0_1.5px_rgb(var(--l-hairline))]"
+          }`}
+        >
+          {flag}
+        </span>
+      )}
       {badge && (
         <span
           aria-hidden

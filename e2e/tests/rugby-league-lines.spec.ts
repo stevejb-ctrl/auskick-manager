@@ -69,7 +69,7 @@ test("league U10: with both vests on forwards, every back stands in the backs", 
   await expect(field.locator("[data-testid^='league-player-tile-']")).toHaveCount(11, { timeout: 15_000 });
 
   const inLine = (line: "forwards" | "backs", pid: string) =>
-    field.locator(`[data-line="${line}"]`).getByTestId(`league-player-tile-${pid}`);
+    field.getByRole("group", { name: line === "forwards" ? "Forwards" : "Backs", exact: true }).getByTestId(`league-player-tile-${pid}`);
   for (const pid of backs) await expect(inLine("backs", pid), `back ${pid}`).toHaveCount(1);
   // The three forwards without a vest stand with the forwards.
   for (const pid of forwards.slice(2)) await expect(inLine("forwards", pid), `forward ${pid}`).toHaveCount(1);

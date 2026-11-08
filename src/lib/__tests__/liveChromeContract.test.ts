@@ -118,7 +118,9 @@ const PIECES: Record<Piece, (s: string) => boolean> = {
   scoresSheet: (s) =>
     blocks(s, "LiveAdminUtilityRow").every((b) => /onScores=\{/.test(b)) &&
     blocks(s, "LiveGameMenu").every((b) => /onScores=\{/.test(b)) &&
-    (/<ScoresSheet\b/.test(s) || /onScores=\{chrome\.openScores\}/.test(s)),
+    // (Before kickoff a shell screen has nothing to fix: rugby passes
+    // "onScores={!preKickoff ? chrome.openScores : undefined}".)
+    (/<ScoresSheet\b/.test(s) || /onScores=\{[^}]*chrome\.openScores/.test(s)),
 };
 
 /**

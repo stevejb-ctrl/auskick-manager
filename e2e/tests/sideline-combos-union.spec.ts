@@ -113,8 +113,8 @@ test("rugby union at 15 a side: lend, fill, hurt and replaced, a late arrival, t
   await expect(page.getByTestId("swap-toast")).toContainText(`${hurt.full_name} → ${replacement.full_name}`);
   await landed((evs) => evs.some((e) => e.type === "swap" && (e.metadata as { on_player_id?: string }).on_player_id === replacement.id));
 
-  // A late arrival joins the bench.
-  await page.getByRole("button", { name: /add late arrival/i }).click({ timeout: 10_000 });
+  // A late arrival joins the bench ("+ Late" at the bench's foot, live v3).
+  await page.getByRole("button", { name: /^\+ late arrival/i }).click({ timeout: 10_000 });
   await page.getByRole("button", { name: new RegExp(`^${late.full_name}$`, "i") }).click({ timeout: 5_000 });
   await landed((evs) => evs.some((e) => e.type === "player_arrived" && e.player_id === late.id));
 

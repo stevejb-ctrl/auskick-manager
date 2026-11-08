@@ -4,6 +4,7 @@ import { rugbyScoreWords, type LeagueScore, type RugbyScoreWords } from "@/lib/s
 import type { RugbySport } from "@/lib/sports/registry";
 import { RollingNumber } from "@/components/live/RollingNumber";
 import { ScoreBugFrame, type ScoreChipSpec } from "@/components/live/ScoreBugFrame";
+import { ClockPillReadout } from "@/components/live/ClockPillReadout";
 
 // ─── LeagueScoreBug ──────────────────────────────────────────
 // Rugby's scorebug (league and union), inside the shared
@@ -17,6 +18,13 @@ import { ScoreBugFrame, type ScoreChipSpec } from "@/components/live/ScoreBugFra
 //   Under : each team's chips in one row (+T +C, U13+ +PG +FG / DG).
 //
 // The rows are the shared ScoreBugFrame's (UX round 3, e4).
+//
+// Live v3 (Phase 8) splits it as AFL's GameHeader does (`part`): the
+// header (names, big totals, the clock in ink, hi-vis when a sub is due;
+// tap a side for Scores and fixes) and the bar. With two kinds a side
+// (+ TRY, + CONVERSION) the bar is AFL's: ours the filled primary and an
+// outlined one, theirs text buttons. With more (U13+ and union's +PG and
+// +DG) it's the two-row bar, a row a team (ScoreBugFrame's sides2).
 //
 // Own-team +T / +C are wired by the parent to open a player picker
 // for the scorer / kicker; the chips themselves don't mutate state
@@ -62,6 +70,14 @@ interface LeagueScoreBugProps {
   /** Tap on the dark clock pill — toggle pause/resume. */
   onClockTap?: () => void;
   /** End-period-early — surfaces below the clock when paused (AFL parity). */
+  /** Live v3: the header or the bar (LiveShell); omitted, the one-piece bug. */
+  part?: "header" | "bar";
+  /** The header: a sub is due, so the clock goes hi-vis. */
+  subDue?: boolean;
+  /** The header: before the first whistle ("H1 20:00", not started). */
+  preKickoff?: boolean;
+  /** The header: tap the score for Scores and fixes. */
+  onScores?: () => void;
 }
 
 /** "2T·1C·1PG" — penalty / field (drop) goals only once there are some. */
@@ -118,7 +134,12 @@ export function LeagueScoreBug({
   pending,
   running = true,
   onClockTap,
+  part,
+  subDue = false,
+  preKickoff = false,
+  onScores,
 }: LeagueScoreBugProps) {
+  const v3 = part !== undefined;
   const words = rugbyScoreWords(sport);
   const periodNoun = periodLabel.toUpperCase();
   const periodTag = `${periodNoun.charAt(0)}${currentPeriod || 1}`;
@@ -127,9 +148,9 @@ export function LeagueScoreBug({
   const TOTAL = "text-[44px] font-bold leading-10 tracking-[-0.04em]";
 
   const ours: ScoreChipSpec[] = [
-    ...(onTeamTry ? [{ key: "t", text: "+T", label: "Record a try for our team", onTap: onTeamTry }] : []),
+    ...(onTeamTry ? [{ key: "t", text: "+T", word: "Try", hint: "who scored?", label: "Record a try for our team", onTap: onTeamTry }] : []),
     ...(kickingAllowed && onTeamConversion
-      ? [{ key: "c", text: "+C", label: "Record a conversion for our team", onTap: onTeamConversion }]
+      ? [{ key: "c", text: "+C", word: "Conversion", hint: `${teamName} +2`, label: "Record a conversion for our team", onTap: onTeamConversion }]
       : []),
     ...(onTeamPenaltyGoal
       ? [{ key: "pg", text: `+${words.penaltyGoal.short}`, label: `Record a ${words.penaltyGoal.label.toLowerCase()} for our team`, onTap: onTeamPenaltyGoal }]
@@ -175,13 +196,38 @@ export function LeagueScoreBug({
     </button>
   );
 
+  // v3: the clock on the chalk in ink; hi-vis only when a sub is due.
+  const hot = v3 && !preKickoff && subDue && !quarterEnded;
+  const v3Pill = (
+    <button
+      type="button"
+      onClick={onClockTap}
+      disabled={!onClockTap || quarterEnded || preKickoff}
+      className={`flex min-w-[92px] flex-col items-center justify-center rounded-[12px] px-[10px] py-[6px] transition-colors duration-move ease-out-quart bigtext:min-w-0 bigtext:px-[6px] ${
+        hot ? "bg-hivis text-hivis-ink" : "bg-transparent text-ink enabled:hover:bg-surface-alt"
+      }`}
+      aria-label={`Clock — ${periodTag}, ${preKickoff ? "not started" : quarterEnded ? "over" : `${running ? "running" : "paused"}${hot ? ", sub due" : ""}`}`}
+    >
+      <ClockPillReadout
+        periodTag={hot ? "Sub due" : quarterEnded ? `${periodTag} · over` : periodTag}
+        live={live && !preKickoff && !hot}
+        pausedIcon={!preKickoff && !quarterEnded && !running ? "▶" : null}
+        readout={clockReadout}
+        tone={hot ? "hot" : "ink"}
+      />
+    </button>
+  );
+
   return (
     <ScoreBugFrame
+      part={part}
+      onScores={onScores}
+      scoringOff={v3 && !trackScoring}
       ours={{
         name: teamName,
         total: (
           <span data-testid="league-points-team">
-            <RollingNumber value={teamScore.points} className={TOTAL} />
+            <RollingNumber value={teamScore.points} className={v3 ? "" : TOTAL} />
           </span>
         ),
         tally: <ScoreLine score={teamScore} testId="league-score-line-team" words={words} />,
@@ -191,13 +237,13 @@ export function LeagueScoreBug({
         name: opponentName,
         total: (
           <span data-testid="league-points-opponent">
-            <RollingNumber value={opponentScore.points} className={TOTAL} />
+            <RollingNumber value={opponentScore.points} className={v3 ? "" : TOTAL} />
           </span>
         ),
         tally: <ScoreLine score={opponentScore} testId="league-score-line-opponent" words={words} />,
         chips: trackScoring ? theirs : [],
       }}
-      clock={pill}
+      clock={v3 ? v3Pill : pill}
       chipsDisabled={pending}
       scoreSaid={trackScoring ? `${teamName} ${teamScore.points}, ${opponentName} ${opponentScore.points}` : null}
       periodOverSaid={quarterEnded ? `${periodLabel.charAt(0).toUpperCase()}${periodLabel.slice(1)} ${currentPeriod || 1} over` : null}

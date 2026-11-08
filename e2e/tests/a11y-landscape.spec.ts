@@ -11,7 +11,7 @@
 // sheet puts its actions before the stats.
 
 import { test, expect, type Page } from "@playwright/test";
-import { barOf, boxOf, liveChrome, openLive, skipHints, unionGame } from "../helpers/a11y";
+import { barOf, boxOf, openLive, skipHints, unionGame } from "../helpers/a11y";
 import { waitForHydration } from "../helpers/navigation";
 
 test.describe.configure({ mode: "parallel" });
@@ -29,12 +29,22 @@ async function tilesInView(page: Page, top: number, bottom: number): Promise<num
   );
 }
 
+// Live v3 (Phase 8): union is on the shell. Sideways, the shell scrolls as
+// one column with its top bar and its bar (the "Scores" region, the two
+// score rows side by side) stuck to the edges.
+async function shellBars(page: Page) {
+  const top = await barOf(page.getByRole("button", { name: "Exit live game" }).first());
+  const bottom = await boxOf(page.getByRole("region", { name: "Scores" }));
+  const viewport = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
+  return { top, bottom, viewport };
+}
+
 test("the live bars leave the field room: two rows of kids show between them", async ({ page }) => {
   const { team, game } = await unionGame({ name: "A11Y-LAND-LIVE" });
   await skipHints(page);
   await openLive(page, team.id, game.id);
 
-  const { top, bottom, viewport } = await liveChrome(page);
+  const { top, bottom, viewport } = await shellBars(page);
   // The bars together take at most 40% of the height (they took 53%).
   expect(top.height + bottom.height).toBeLessThanOrEqual(viewport.height * 0.4);
   // Every score chip is in the bar and on screen.
@@ -47,8 +57,10 @@ test("the live bars leave the field room: two rows of kids show between them", a
 
   // Scroll the field up under the top bar: two rows (six kids) show.
   const field = page.getByRole("region", { name: "On field" });
-  await field.evaluate((el, t) => window.scrollBy(0, el.getBoundingClientRect().top - t), top.bottom);
-  const after = await liveChrome(page);
+  const fieldTop = (await boxOf(field)).top;
+  await page.getByTestId("live-shell").evaluate((shell, d) => shell.scrollBy(0, d), fieldTop - top.bottom);
+  await page.waitForTimeout(150);
+  const after = await shellBars(page);
   expect(await tilesInView(page, after.top.bottom, after.bottom.top)).toBeGreaterThanOrEqual(6);
 });
 
@@ -66,13 +78,22 @@ test("with a sub due, 'Make the swap' sits clear of the score bar", async ({ pag
   await skipHints(page);
   await openLive(page, team.id, game.id);
 
+  // Live v3: a due sub makes it the bar's own button, stuck to the foot.
   const make = page.getByRole("button", { name: /^make this swap$/i });
   await expect(make).toBeVisible({ timeout: 15_000 });
-  await page.evaluate(() => window.scrollTo(0, 0));
-  const { top, bottom } = await liveChrome(page);
+  const { top, viewport } = await shellBars(page);
   const box = await boxOf(make);
   expect(box.top, "below the top bar").toBeGreaterThanOrEqual(top.bottom - 1);
-  expect(box.bottom, "above the score bar").toBeLessThanOrEqual(bottom.top + 1);
+  expect(box.bottom, "on screen").toBeLessThanOrEqual(viewport.height + 1);
+  expect(box.height, "a 44 px target").toBeGreaterThanOrEqual(44);
+  // Nothing sits over it.
+  expect(
+    await make.evaluate((el) => {
+      const b = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+      return !!hit && (hit === el || el.contains(hit));
+    }),
+  ).toBe(true);
 });
 
 test("the player sheet's first action shows without scrolling the sheet", async ({ page }) => {
@@ -106,7 +127,8 @@ test("the lineup's footer is one compact row", async ({ page }) => {
   await skipHints(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  const start = page.getByRole("button", { name: /^start h1$/i });
+  // The picker's Ready (live v3: Start H1 is on the live screen's bar).
+  const start = page.getByRole("button", { name: /^ready$/i });
   await expect(start).toBeVisible({ timeout: 15_000 });
   const footer = await barOf(start);
   expect(footer.height, "footer height").toBeLessThanOrEqual(76);

@@ -8,7 +8,8 @@
 // Flow:
 //   1. Pre-kickoff: the lineup picker draws all fifteen on union's
 //      field (its 22 m line, not league's 20 m) with no vest card.
-//   2. Start H1 from the picker.
+//   2. Ready on the picker, then Start H1 on the live screen's bar
+//      (live v3).
 //   3. A try (5) and its conversion (2) with no rotation, a penalty
 //      goal (3) and a drop goal (3) for us, a drop goal for them.
 //   4. The score bug reads union's points and words (13 to 3, DG).
@@ -23,6 +24,7 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
+import { readyRugby, startRugbyFirst } from "../helpers/kickoff";
 import { startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "serial" });
@@ -74,9 +76,9 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
   await expect(page.getByText(/First Receiver|Dummy Half/)).toHaveCount(0);
 
   // ─── 2. Start H1 ───────────────────────────────────────────────
-  await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click({ timeout: 10_000 });
-  await expect(page.getByRole("button", { name: /^clock — h1, running$/i })).toBeVisible({ timeout: 15_000 });
+  // Live v3: the picker's Ready, then Start H1 on the live screen's bar.
+  await readyRugby(page);
+  await startRugbyFirst(page);
   // No kickoff rotation in union.
   await expect(page.getByText(/kicking off this period/i)).toHaveCount(0);
 

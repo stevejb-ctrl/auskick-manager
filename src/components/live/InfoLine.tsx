@@ -156,6 +156,7 @@ export function InfoLine({
         <span className="min-w-0 flex-1 truncate">
           <b className="font-bold text-ink">{plural(swaps, "swap")} planned</b>
           {carry ? ` · make now or it carries to the break` : ""}
+          {underText}
         </span>
         {CHEV}
       </button>

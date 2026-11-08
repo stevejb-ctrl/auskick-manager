@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ActionSheet, type ActionSheetAction } from "@/components/ui/ActionSheet";
 import { Modal } from "@/components/ui/Modal";
@@ -72,6 +72,11 @@ export interface LiveGameMenuProps {
   onWalkthrough: () => void;
   /** Before kickoff: back to the lineup picker with the saved lineup. */
   onEditLineup?: () => void;
+  /**
+   * A sport's own settings sheet in place of the shared one (rugby's:
+   * the sub interval in seconds, §6, forward and back time).
+   */
+  settingsDialog?: (onClose: () => void) => ReactNode;
 }
 
 export function LiveGameMenu({
@@ -92,6 +97,7 @@ export function LiveGameMenu({
   planNext,
   onWalkthrough,
   onEditLineup,
+  settingsDialog,
 }: LiveGameMenuProps) {
   const router = useRouter();
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -208,7 +214,8 @@ export function LiveGameMenu({
         />
       )}
 
-      {dialog === "settings" && settings && (
+      {dialog === "settings" && settings && settingsDialog && settingsDialog(() => setDialog(null))}
+      {dialog === "settings" && settings && !settingsDialog && (
         <LiveGameSettingsModal
           auth={auth}
           gameId={gameId}

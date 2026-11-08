@@ -23,6 +23,17 @@ export interface FieldLine {
   tiles: ReactNode[];
   /** Kids per row; defaults to all of them up to 4, then two rows. */
   cols?: number;
+  /**
+   * Big fields: the formation's rows (formationRows), each centred on
+   * its own, in place of `tiles`' grid. Union's front row, 2nd row and
+   * back row are three rows of one "Forwards" line.
+   */
+  rows?: ReactNode[][];
+  /**
+   * How many are on after the margin label ("FORWARDS 4/4"), underlined
+   * when the line is short. Seen only, as the old count chip was.
+   */
+  count?: { text: string; short: boolean };
 }
 
 const SURFACE = {
@@ -75,7 +86,7 @@ export function FieldLines({ lines, surface = "field", marks, dense = false, til
             key={line.key}
             role="group"
             aria-label={line.label}
-            className={`relative grid flex-[1_0_auto] grid-cols-[minmax(14px,auto)_minmax(0,1fr)] items-center gap-[6px] py-[8px] ${
+            className={`relative grid flex-[1_0_auto] grid-cols-[minmax(14px,auto)_minmax(0,1fr)] items-center gap-[6px] ${dense ? "py-[6px]" : "py-[8px]"} ${
               i > 0 ? "border-t border-mark/10" : ""
             }`}
           >
@@ -85,16 +96,39 @@ export function FieldLines({ lines, surface = "field", marks, dense = false, til
               className="self-center justify-self-center whitespace-nowrap font-display text-[0.53125rem] font-bold uppercase leading-none tracking-[0.16em] text-mark/[0.62] [transform:rotate(180deg)] [writing-mode:vertical-rl]"
             >
               {line.label}
+              {line.count && (
+                <>
+                  {"  "}
+                  <span className={line.count.short ? "underline decoration-[1.5px] underline-offset-[3px]" : ""}>{line.count.text}</span>
+                </>
+              )}
             </span>
-            <div
-              className="grid justify-center gap-[8px] bigtext:!grid-cols-2"
-              style={{
-                gridTemplateColumns: `repeat(${cols}, minmax(0, ${tileWidth}px))`,
-                gridAutoRows: `minmax(${rowH}px, auto)`,
-              }}
-            >
-              {line.tiles}
-            </div>
+            {line.rows ? (
+              <div className="flex flex-col gap-[6px]">
+                {line.rows.map((row, r) => (
+                  <div
+                    key={r}
+                    className="grid justify-center gap-[8px] bigtext:!grid-cols-2"
+                    style={{
+                      gridTemplateColumns: `repeat(${row.length}, minmax(0, ${tileWidth}px))`,
+                      gridAutoRows: `minmax(${rowH}px, auto)`,
+                    }}
+                  >
+                    {row}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div
+                className="grid justify-center gap-[8px] bigtext:!grid-cols-2"
+                style={{
+                  gridTemplateColumns: `repeat(${cols}, minmax(0, ${tileWidth}px))`,
+                  gridAutoRows: `minmax(${rowH}px, auto)`,
+                }}
+              >
+                {line.tiles}
+              </div>
+            )}
           </div>
         );
       })}

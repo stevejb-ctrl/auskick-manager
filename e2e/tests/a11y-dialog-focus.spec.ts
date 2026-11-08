@@ -51,7 +51,8 @@ test("the player sheet opened from the keyboard takes focus, traps it and gives 
   const tile = page.getByTestId(`league-player-tile-${lineup.forwards[0]}`);
   await tile.focus();
   await page.keyboard.press("Enter");
-  const actions = page.getByRole("button", { name: /^player actions/i });
+  // Live v3 (Phase 8): the kid bar's More is the player sheet.
+  const actions = page.getByTestId("kid-bar").getByRole("button", { name: /^more$/i });
   await actions.focus();
   await page.keyboard.press("Enter");
   const sheet = page.getByRole("dialog").filter({ has: page.getByRole("button", { name: /switch player/i }) });
@@ -67,7 +68,7 @@ test("the player sheet opened from the keyboard takes focus, traps it and gives 
       page.evaluate(() => {
         const a = document.activeElement as HTMLElement | null;
         if (!a || a === document.body) return "BODY";
-        return /^player actions/i.test(a.textContent ?? "") ? "actions" : a.dataset.testid?.startsWith("league-player-tile-") ? "tile" : a.outerHTML.slice(0, 80);
+        return /^more$/i.test((a.textContent ?? "").trim()) ? "actions" : a.dataset.testid?.startsWith("league-player-tile-") ? "tile" : a.outerHTML.slice(0, 80);
       }),
     )
     .toMatch(/^(actions|tile)$/);
