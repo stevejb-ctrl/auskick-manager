@@ -115,15 +115,17 @@ export function LiveShell({ top, banners, header, undo, info, field, bench, bar,
           field, so the header, bench and bar keep their places. */}
       <div
         data-testid="live-field"
-        className="min-h-[112px] flex-1 overflow-y-auto overscroll-contain px-[8px] short:min-h-0 short:flex-none short:overflow-visible"
+        className="flex min-h-[112px] flex-1 flex-col overflow-y-auto overscroll-contain px-[8px] short:min-h-0 short:flex-none short:overflow-visible"
         style={{ paddingBottom: "var(--live-hint-h, 0px)" }}
       >
         {info && (
-          <div className="sticky top-0 z-[5] max-h-[40dvh] overflow-y-auto bg-warm pb-[6px] pt-[4px] bigtext:static bigtext:max-h-none short:static short:max-h-none">
+          <div className="sticky top-0 z-[5] max-h-[40dvh] flex-none overflow-y-auto bg-warm pb-[4px] pt-[2px] bigtext:static bigtext:max-h-none short:static short:max-h-none">
             {info}
           </div>
         )}
-        <div className={info ? "" : "pt-[6px]"}>{field}</div>
+        {/* The field fills what's left (its lines share the height), and
+            grows past it at large text, where this part scrolls. */}
+        <div className={`flex flex-[1_0_auto] flex-col ${info ? "pt-[2px]" : "pt-[6px]"}`}>{field}</div>
       </div>
       {/* The foot: the bench, then the bar, stuck to the bottom. On a
           short screen only the bar sticks, and the bench scrolls with the

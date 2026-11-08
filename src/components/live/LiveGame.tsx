@@ -13,19 +13,26 @@ import {
 } from "@/lib/stores/liveGameStore";
 import { enqueueLiveAction, pendingWriteCount } from "@/lib/live/registerLiveActions";
 import { aflStoreLocks, type PlayerLock } from "@/lib/live/locks";
-import { hapticTap, hapticSiren } from "@/lib/haptics";
+import { hapticTap, hapticSiren, hapticSuccess } from "@/lib/haptics";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { Button } from "@/components/ui/Button";
-import { Field, ZONE_SHORT } from "@/components/live/Field";
-import { Bench } from "@/components/live/Bench";
+import { ZONE_SHORT } from "@/components/live/Field";
 import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import { GameHeader } from "@/components/live/GameHeader";
 import { ScoresSheet } from "@/components/live/ScoresSheet";
 import { SwapDoneToast } from "@/components/live/SwapDoneToast";
 import { undoSwaps } from "@/lib/live/liveChrome";
 import { useSquadNames } from "@/components/live/SquadNames";
-import { SwapCard } from "@/components/live/SwapCard";
-import { DOCK_SWAP_HINT, ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
+import { KidSlot, KidTile, type KidOutKind } from "@/components/live/KidTile";
+import { FieldLines, OvalMarks, type FieldLine } from "@/components/live/FieldLines";
+import { KidBench } from "@/components/live/KidBench";
+import { InfoLine } from "@/components/live/InfoLine";
+import { PairsSheet, type SheetPair } from "@/components/live/PairsSheet";
+import { KidBar, TimeSplit } from "@/components/live/KidBar";
+import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
+import { barButton, BAR_SMALL } from "@/components/live/barButtons";
+import { kidWords, type KidOut, type KidSubRole } from "@/lib/live/kidWords";
+import { pctOfGame } from "@/lib/live/minGameTime";
 import { LiveShell } from "@/components/live/LiveShell";
 import { LiveGameMenu, settingsSummary } from "@/components/live/LiveGameMenu";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
@@ -35,8 +42,6 @@ import { emptyLineup } from "@/lib/types";
 import { QuarterBreak } from "@/components/live/QuarterBreak";
 import { buildWalkthroughSteps } from "@/components/live/WalkthroughModal";
 import { ClockMenu } from "@/components/live/ClockMenu";
-import { SubDueBanner } from "@/components/live/SubDueBanner";
-import { subDueBannerShows } from "@/components/live/SubDue";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
 import { GameSummaryCard } from "@/components/live/GameSummaryCard";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
@@ -122,6 +127,10 @@ import {
   withoutSubPin,
   resolveDisplaySuggestions,
   swapsEqual,
+  applyInlineSwapOverride,
+  eligibleOffReplacements,
+  eligibleOnReplacements,
+  isPairEdited,
   availablePlayersForPlan,
   clearPeriodToBench,
   setPeriodGroups,
@@ -473,7 +482,6 @@ export function LiveGame({
   const [fillZone, setFillZone] = useState<Zone | null>(null);
   const [, setTick] = useState(0);
   const prevSubStateRef = useRef<"idle" | "soft" | "due">("idle");
-  const [subDueOpen, setSubDueOpen] = useState(false);
   // Plan-ahead rotation (F1): true while the shared planner is open over
   // the live game so the coach can edit the upcoming sub before it falls
   // due. Pinning closes it.
@@ -556,17 +564,11 @@ export function LiveGame({
   // discover the long-press / tap-tile path first. Nullable.
   const [pickScorerKind, setPickScorerKind] = useState<"goal" | "behind" | null>(null);
 
-  // When the coach taps "Sub off" in the action drawer for a
-  // currently-selected field player, this captures their slot so
-  // the bench picker knows where to swap into. Stagehand 2026-05-09
-  // (afl-u8-auskick) found the action drawer surfaces only "+ Goal"
-  // / "+ Behind" / "Cancel" when track_scoring=true — the
-  // tap-a-bench-player-to-swap path is invisible. An Auskick coach
-  // (where rotation > scoring) interpreted the drawer as
-  // scoring-only and gave up. Adding an explicit "Sub off" button
-  // surfaces the substitution path. On pick → manualSwap, the same
-  // instant sub (with Undo) as the tap-bench flow.
-  const [subOffSelected, setSubOffSelected] = useState<{ playerId: string; zone: Zone } | null>(null);
+  // The pairs sheet (live v3): the planned sub, pair by pair, from the
+  // info line or the due bar's PAIRS. It replaced the swap card's open
+  // view. (The dock's "Swap player" picker went with the dock: the kid
+  // bar says "Tap another kid to swap", and every kid is a tap away.)
+  const [pairsOpen, setPairsOpen] = useState(false);
 
   // The Scores and fixes sheet (live/ScoresSheet): the Q-by-Q table,
   // then every score to take off or add. Opened from under the clock
@@ -1557,39 +1559,34 @@ export function LiveGame({
       ? "soft"
       : "idle";
 
+  // Scoring in hand: the who-scored sheet is open, or a field kid is
+  // picked and the kid bar shows their + GOAL / + BEHIND (live v3: one
+  // sheet or bar at a time, so it's whichever of them is up). The
+  // hooter and the sub-due alert wait for it, so a goal kicked on the
+  // siren isn't lost under the quarter-end sheet (the picker-race guard,
+  // Stagehand 2026-05-10; netball's goal dock holds it the same way).
+  const holdForScoring =
+    pickScorerKind !== null ||
+    (trackScoring && selected?.kind === "field" && currentQuarter >= 1 && !quarterEnded && !finalised);
+
   useEffect(() => {
-    // Picker-race guard: hold the sub-due alert (beep, haptic,
-    // banner) while the score-attribution picker is open, so it
-    // doesn't jolt the coach mid-pick. The sub-due state stays "due"
-    // while the picker is open — once the coach resolves attribution
-    // and the picker closes, the alert fires (subState didn't change,
-    // prevSubStateRef is still "due", but we re-check on every render
-    // via this effect's deps).
-    if (pickScorerKind !== null) return;
+    // Picker-race guard: hold the sub-due alert (beep, haptic) while
+    // the coach is scoring, so it doesn't jolt them mid-pick. The
+    // sub-due state stays "due" meanwhile — once the sheet or kid bar
+    // closes, the alert fires (subState didn't change, prevSubStateRef
+    // is still "due", but we re-check on every render via this
+    // effect's deps). On screen, the info line and the kids' words say
+    // it (live v3): nothing pops over the field.
+    if (holdForScoring) return;
     if (subState === "due" && prevSubStateRef.current !== "due") {
       playSubDueBeep();
       // Heavy impact — sub-due is "this needs your attention" but
       // not the urgency of a hooter (which gets hapticSiren below).
       // The medium-vs-heavy distinction is meaningful on iOS Taptic.
       void hapticTap("heavy");
-      // P1-12 in MICRO-INTERACTIONS-PLAN.md: stagger the modal
-      // open by 130ms so the beep + haptic land first (drawing
-      // the coach's attention to the clock + their hand), then
-      // the banner slides in. Without the delay, all three events
-      // fire on the same frame and read as one undifferentiated
-      // jolt. The setTimeout is cancelled by the effect's cleanup
-      // if subState or pickScorerKind changes mid-delay.
-      prevSubStateRef.current = subState;
-      const t = window.setTimeout(() => {
-        setSubDueOpen(true);
-      }, 130);
-      return () => window.clearTimeout(t);
-    }
-    if (subState !== "due") {
-      setSubDueOpen(false);
     }
     prevSubStateRef.current = subState;
-  }, [subState, pickScorerKind]);
+  }, [subState, holdForScoring]);
 
   useEffect(() => {
     return () => {
@@ -1607,10 +1604,6 @@ export function LiveGame({
     };
   }, []);
 
-  function handleSubDueAcknowledge() {
-    setSubDueOpen(false);
-  }
-
   useEffect(() => {
     if (quarterEnded || finalised || currentQuarter < 1) return;
 
@@ -1624,8 +1617,9 @@ export function LiveGame({
       // in AFL on a long-quarter age-group near the siren. The
       // freeze is conservative — the picker dismisses on pick OR
       // cancel, and the next interval tick fires the hooter once
-      // the user resolves attribution.
-      if (pickScorerKind !== null) return;
+      // the user resolves attribution. Live v3: the kid bar's + GOAL
+      // holds it too (holdForScoring).
+      if (holdForScoring) return;
       if (currentElapsedMs() >= quarterMs && quarterEndTriggeredRef.current !== currentQuarter) {
         quarterEndTriggeredRef.current = currentQuarter;
         // Freeze the clock at the hooter so per-player stint times don't keep
@@ -1647,7 +1641,7 @@ export function LiveGame({
     if (clockStartedAt === null) return;
     const id = setInterval(maybeTrigger, 500);
     return () => clearInterval(id);
-  }, [clockStartedAt, accumulatedMs, quarterEnded, finalised, currentQuarter, pickScorerKind]);
+  }, [clockStartedAt, accumulatedMs, quarterEnded, finalised, currentQuarter, holdForScoring]);
 
   useEffect(() => {
     if (quarterEnded) setShowQuarterEndModal(false);
@@ -1809,6 +1803,8 @@ export function LiveGame({
 
   function handleClockTap() {
     if (isPreGame || isFinished) return;
+    // One sheet at a time (live v3): the kid is put down.
+    clearSelection();
     setClockMenuOpen(true);
   }
 
@@ -1869,225 +1865,466 @@ export function LiveGame({
     />
   );
 
-  // ─── Live v3's shell (Phase 5) ─────────────────────────────
+  // ─── Live v3's shell ───────────────────────────────────────
   // Before kickoff and through the quarter the screen is LiveShell: top
-  // bar, the light score header, the undo line, the next sub, the field
-  // (the part that scrolls), the bench, and the bar. The old Field,
-  // Bench, SwapCard and the kid's dock sit inside it for now (Phase 6
-  // replaces them). Full time and the finished game keep their page.
-  const swapOffs = new Map<string, number>();
-  const swapOns = new Map<string, { pair: number; zone: Zone }>();
-  if (!selected) {
-    suggestions.forEach((s, i) => {
-      if (s.off_player_id) swapOffs.set(s.off_player_id, i + 1);
-      swapOns.set(s.on_player_id, { pair: i + 1, zone: s.zone });
+  // bar, the light score header, the undo line, the info line (the next
+  // sub), the field (the part that scrolls), the bench, and the bar.
+  // Phase 6: the kids are KidTiles on FieldLines and a KidBench, the next
+  // sub is the InfoLine and the PairsSheet, and a picked kid turns the
+  // bar into their KidBar. Full time and the finished game keep their
+  // page.
+  const subDue = subState === "due";
+  // Each kid's part in the planned sub (the pair's index, off or on, and
+  // the line it's in). Pairs with someone missing aren't drawn.
+  const pairOf = new Map<string, { i: number; role: "off" | "on"; s: (typeof suggestions)[number] }>();
+  suggestions.forEach((s, i) => {
+    if (!playersById.has(s.on_player_id)) return;
+    if (s.off_player_id && !playersById.has(s.off_player_id)) return;
+    if (s.off_player_id) pairOf.set(s.off_player_id, { i, role: "off", s });
+    pairOf.set(s.on_player_id, { i, role: "on", s });
+  });
+  const positionLabels = assignPositionLabels(lineup, aflPlaybook);
+  // Where a bench kid goes on: the off kid's position, else the line.
+  const pairTo = (s: (typeof suggestions)[number]) =>
+    (s.off_player_id && positionLabels?.[s.off_player_id]) || ZONE_SHORT[s.zone];
+  // No more subs this quarter: the next would fall after the siren.
+  const subsDoneThisPeriod = suggestions.length === 0 && (subPastHooter || periodClockDone);
+  const inPlay = isLivePlay && !isPreGame;
+  const injuredSet = new Set(injuredIds);
+  const loanedSet = new Set(loanedIds);
+  const lockedSet = new Set(lockedIds);
+
+  function outOf(pid: string): { kind: KidOutKind; out: KidOut } | null {
+    if (injuredSet.has(pid)) {
+      const home = wentHomeSet.has(pid);
+      return { kind: home ? "home" : "injured", out: { kind: "injured", wentHome: home } };
+    }
+    if (loanedSet.has(pid)) return { kind: "lent", out: { kind: "lent" } };
+    return null;
+  }
+
+  // One kid, on the field or the bench (KidTile).
+  function kidTile(pid: string, zone: Zone | null) {
+    const p = playersById.get(pid);
+    if (!p) return null;
+    const out = outOf(pid);
+    const pair = out ? null : pairOf.get(pid) ?? null;
+    const sub: KidSubRole | null = pair ? (pair.role === "off" ? { role: "off" } : { role: "on", to: pairTo(pair.s) }) : null;
+    const words = kidWords({
+      place: zone ? "field" : "bench",
+      sub,
+      subDue,
+      rollingSubs: true,
+      subsDoneThisPeriod,
+      out: out?.out ?? null,
+      inPlay,
+    });
+    const isSelected = selected?.playerId === pid;
+    const score = playerScores[pid];
+    const scored = !!score && (score.goals > 0 || score.behinds > 0);
+    const lock = lockedSet.has(pid) ? "field" : zoneLockedPlayers[pid] ? "zone" : null;
+    const totalMs = totalMsByPlayer[pid];
+    const pos = zone ? positionLabels?.[pid] ?? null : null;
+    return (
+      <KidTile
+        testId={`player-tile-${pid}`}
+        name={names.tile(p)}
+        spoken={{
+          name: p.full_name,
+          place: zone ? pos ?? ZONE_LABELS[zone] : null,
+          number: p.jersey_number,
+          time: totalMs !== undefined ? formatClock(totalMs) : null,
+          states: [
+            scored ? `${score.goals} goals, ${score.behinds} behinds` : null,
+            !out && lock ? (lock === "field" ? "Field locked" : "Zone locked") : null,
+          ],
+        }}
+        place={zone ? "field" : "bench"}
+        pos={pos}
+        score={scored ? { text: `${score.goals}.${score.behinds}`, label: "" } : null}
+        words={words}
+        badge={pair && inPlay ? { n: pair.i + 1, hot: subDue } : null}
+        selected={isSelected}
+        due={!!pair && inPlay && subDue}
+        locked={!!lock}
+        out={out?.kind ?? null}
+        onClick={
+          out
+            ? // Hurt or lent: a tap opens their sheet (Mark recovered,
+              // Bring back), as the old tiles' did.
+              () => handleLongPress(pid)
+            : zone
+              ? () => handleTapField(pid, zone)
+              : () => handleTapBench(pid)
+        }
+        onLongPress={() => handleLongPress(pid)}
+      />
+    );
+  }
+
+  // The field: a line per zone, attacking up the page (fwd first).
+  const fieldLines: FieldLine[] = positionsFor(positionModel)
+    .slice()
+    .reverse()
+    .flatMap((key) => {
+      const ids = lineup[key];
+      const cap = zoneCaps[key] ?? 0;
+      const displayCap = displayZoneCaps[key] ?? cap;
+      if (cap === 0 && displayCap === 0 && ids.length === 0) return [];
+      const slots = Math.max(displayCap, ids.length);
+      return [
+        {
+          key,
+          label: ZONE_LABELS[key],
+          // Keyed by spot, not kid: a sub hands the spot over and the new
+          // name rises in.
+          tiles: Array.from({ length: slots }, (_, slot) => {
+            const pid = ids[slot];
+            return (
+              <div key={`slot-${slot}`} className="min-w-0">
+                {pid ? (
+                  kidTile(pid, key)
+                ) : (
+                  <KidSlot
+                    label={`Empty ${ZONE_SHORT[key]} spot`}
+                    text={selected ? "Move here" : "Empty"}
+                    hot={!!selected}
+                    onClick={() => handleTapField("", key)}
+                  />
+                )}
+              </div>
+            );
+          }),
+        },
+      ];
+    });
+  const fieldEl = <FieldLines lines={fieldLines} surface="field" marks={<OvalMarks />} wakeUpKey={fieldWakeUpKey} />;
+
+  // Squad kids not in the game yet: "+ Late" at the foot of the bench
+  // (and in ⋯).
+  const lateCandidates = !isFinished
+    ? squadPlayers.filter((p) => !lineup.bench.includes(p.id) && !ALL_ZONES.some((z) => lineup[z].includes(p.id)))
+    : [];
+  // The bench: who can come on, then who's out (hurt, home, lent).
+  const benchOrder = [
+    ...lineup.bench.filter((id) => !injuredSet.has(id) && !loanedSet.has(id)),
+    ...lineup.bench.filter((id) => injuredSet.has(id) || loanedSet.has(id)),
+  ];
+  const benchEl = (
+    <KidBench
+      count={lineup.bench.length}
+      tiles={benchOrder.map((pid) => (
+        <div key={pid} className="min-w-0">
+          {kidTile(pid, null)}
+        </div>
+      ))}
+      late={
+        lateCandidates.length > 0 ? (
+          <LateArrivalMenu look="text" candidates={lateCandidates} onAdd={handleLateArrival} pending={isPending} />
+        ) : undefined
+      }
+    />
+  );
+
+  // ─── The planned sub: make, edit, revert ───────────────────
+  // An edit pins the edited pairs (the Plan-Ahead planner's pin); when
+  // the edit matches the engine's pick again the pin goes, and the live
+  // suggester takes back over. Any F2 next-period plan on the same
+  // slice is kept.
+  function overridePairs(nextSwaps: typeof suggestions) {
+    if (swapsEqual(nextSwaps, rawSuggestions)) {
+      setPlannedRotation(withoutSubPin(pinForThisGame));
+      return;
+    }
+    setPlannedRotation({
+      ...(pinForThisGame ?? {}),
+      gameId,
+      pinnedForPeriod: currentQuarter,
+      pinnedSwaps: nextSwaps,
     });
   }
-  const totalPairs = suggestions.length;
-
-  const swapCard =
-    !isPreGame && !isFinished ? (
-      <SwapCard
-        suggestions={suggestions}
-        autoSuggestions={rawSuggestions}
-        playersById={playersById}
-        lineup={lineup}
-        injuredIds={injuredIds}
-        loanedIds={loanedIds}
-        lockedIds={lockedIds}
-        pending={isPending}
-        subState={subState}
-        forceOpen={subDueOpen}
-        msUntilDue={msUntilDue}
-        subIntervalMs={subIntervalMs}
-        pastHooterCarry={pastHooterCarry}
-        onOverride={(nextSwaps) => {
-          // Inline override → SAME pin wire as the Plan-Ahead
-          // planner. When the edit matches the engine pick again
-          // (e.g. the coach reverted every chip), drop the pin so
-          // the live suggester takes back over. Otherwise pin the
-          // edited array, preserving any F2 next-period plan on
-          // the shared slice.
-          if (swapsEqual(nextSwaps, rawSuggestions)) {
-            setPlannedRotation(withoutSubPin(pinForThisGame));
-            return;
-          }
-          setPlannedRotation({
-            ...(pinForThisGame ?? {}),
-            gameId,
-            pinnedForPeriod: currentQuarter,
-            pinnedSwaps: nextSwaps,
-          });
-        }}
-        onApply={() => {
-          for (const s of suggestions) {
-            persistSwap(s.off_player_id, s.on_player_id, s.zone);
-          }
-          // The toast's Undo puts them back, last first, without
-          // restarting the sub clock again (undoSwaps).
-          const undo = undoSwaps(
-            suggestions.map((s) => ({ off: s.off_player_id, on: s.on_player_id, zone: s.zone })),
-            (s) => persistSwap(s.off, s.on, s.zone, false, 0, true),
-          );
-          if (suggestions.length === 1) {
-            const s = suggestions[0];
-            showSwapToast(`${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`, undo);
-          } else if (suggestions.length > 1) {
-            showSwapToast(`${suggestions.length} subs made`, undo);
-          }
-          // The pinned plan-ahead sub (if any) has now been
-          // applied — consume it so it can't re-fire next window.
-          // Planned periods stay.
-          setPlannedRotation(withoutSubPin(pinForThisGame));
-          handleSubDueAcknowledge();
-        }}
-        onApplyOne={(s) => {
-          // One of a due batch: the rest stay due until they're
-          // made (the sub clock holds; soccer's rule).
-          persistSwap(s.off_player_id, s.on_player_id, s.zone, true, subState === "due" ? suggestions.length - 1 : 0);
-          showSwapToast(`${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`);
-        }}
-      />
-    ) : null;
+  function revertPair(i: number) {
+    const auto = rawSuggestions[i];
+    if (!auto) return;
+    overridePairs(applyInlineSwapOverride(suggestions, i, { off: auto.off_player_id, on: auto.on_player_id }));
+  }
+  function makeAllPairs() {
+    for (const s of suggestions) {
+      persistSwap(s.off_player_id, s.on_player_id, s.zone);
+    }
+    // The toast's Undo puts them back, last first, without restarting
+    // the sub clock again (undoSwaps).
+    const undo = undoSwaps(
+      suggestions.map((s) => ({ off: s.off_player_id, on: s.on_player_id, zone: s.zone })),
+      (s) => persistSwap(s.off, s.on, s.zone, false, 0, true),
+    );
+    if (suggestions.length === 1) {
+      const s = suggestions[0];
+      showSwapToast(`${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`, undo);
+    } else if (suggestions.length > 1) {
+      showSwapToast(`${suggestions.length} subs made`, undo);
+    }
+    // The pinned plan-ahead sub (if any) has now been applied — consume
+    // it so it can't re-fire next window. Planned periods stay.
+    setPlannedRotation(withoutSubPin(pinForThisGame));
+    setPairsOpen(false);
+    clearSelection();
+  }
+  function makeOnePair(i: number) {
+    // The only pair: the same as making them all.
+    if (suggestions.length <= 1) return makeAllPairs();
+    const s = suggestions[i];
+    if (!s) return;
+    // One of a due batch: the rest stay due until they're made (the
+    // sub clock holds; soccer's rule).
+    persistSwap(s.off_player_id, s.on_player_id, s.zone, true, subDue ? suggestions.length - 1 : 0);
+    showSwapToast(`${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`);
+    clearSelection();
+  }
+  function initials(full: string): string {
+    const w = full.trim().split(/\s+/);
+    return ((Array.from(w[0] ?? "")[0] ?? "") + (w.length > 1 ? Array.from(w[w.length - 1])[0] ?? "" : "")).toUpperCase();
+  }
+  const sheetPairs: SheetPair[] = suggestions.flatMap((s, i) => {
+    const off = playersById.get(s.off_player_id);
+    const on = playersById.get(s.on_player_id);
+    if (!off || !on) return [];
+    return [
+      {
+        index: i,
+        offId: off.id,
+        onId: on.id,
+        offName: names.first(off),
+        onName: names.first(on),
+        offFull: off.full_name,
+        onFull: on.full_name,
+        where: positionLabels?.[off.id] ?? ZONE_SHORT[s.zone],
+        edited: isPairEdited(s, rawSuggestions),
+      },
+    ];
+  });
+  const openPairs = () => {
+    clearSelection();
+    setPairsOpen(true);
+  };
 
   // Plan Q{n+1} (F2 / ROTPLAN-02): offered once the rest of this period
   // won't churn the lineup (canPlanNextPeriod). It's in ⋯ too; here it's
-  // the small chip at the end of the info line, as v3 draws it, with the
-  // "ready" badge and Clear once a plan's pinned.
+  // the small chip at the end of the info line, as v3 draws it, or the
+  // "Q3 ready ✓ Clear" badge once a plan's pinned.
   const planLabel = hasPinnedNextPeriod ? `Edit Q${currentQuarter + 1} plan` : `Plan Q${currentQuarter + 1}`;
-  const planRow = showPlanNextPeriod ? (
-    <div className="flex items-center justify-end gap-2 px-1 pt-[4px]">
-      {hasPinnedNextPeriod && (
-        <span className="mr-auto flex items-center gap-1 rounded-[11px] px-[8px] py-[4px] text-brand-700 shadow-[inset_0_0_0_1.5px_currentColor]">
-          <span
-            data-testid="planned-next-period-badge"
-            className="font-display text-[0.78125rem] font-extrabold"
-          >
-            Next period ready
-          </span>
-          <button
-            type="button"
-            data-testid="plan-next-clear"
-            onClick={() => setPlannedRotation(consumePeriodPin(pinForThisGame, currentQuarter))}
-            className="inline-flex min-h-[28px] items-center px-1 font-display text-[0.75rem] font-extrabold underline underline-offset-2"
-          >
-            Clear
-          </button>
-        </span>
-      )}
+  const planChip = showPlanNextPeriod ? (
+    hasPinnedNextPeriod ? (
+      <span className="flex flex-none items-center gap-[4px] rounded-[11px] py-[2px] pl-[10px] pr-[4px] text-brand-700 shadow-[inset_0_0_0_1.5px_currentColor]">
+        <button
+          type="button"
+          data-testid="planned-next-period-badge"
+          onClick={() => setPlanNextOpen(true)}
+          aria-label={`Q${currentQuarter + 1} ready. ${planLabel}`}
+          className="min-h-[32px] font-display text-[0.78125rem] font-extrabold"
+        >
+          Q{currentQuarter + 1} ready ✓
+        </button>
+        <button
+          type="button"
+          data-testid="plan-next-clear"
+          onClick={() => setPlannedRotation(consumePeriodPin(pinForThisGame, currentQuarter))}
+          className="inline-flex min-h-[32px] items-center px-[6px] font-display text-[0.75rem] font-extrabold underline underline-offset-2"
+        >
+          Clear
+        </button>
+      </span>
+    ) : (
       <button
         type="button"
         data-testid="plan-next-period-entry"
         onClick={() => setPlanNextOpen(true)}
-        className="inline-flex min-h-[36px] items-center rounded-[11px] px-[10px] font-display text-[0.78125rem] font-extrabold text-ink shadow-[inset_0_0_0_1.5px_rgb(var(--l-hairline))] hover:bg-surface-alt"
+        className="inline-flex min-h-[36px] flex-none items-center rounded-[11px] px-[10px] font-display text-[0.78125rem] font-extrabold text-ink shadow-[inset_0_0_0_1.5px_rgb(var(--l-hairline))] hover:bg-surface-alt"
       >
         {planLabel}
       </button>
-    </div>
+    )
   ) : null;
 
-  // No colour key here (UI polish audit §13): zone identity is told in
-  // place on the live screen (Steve 2026-06-29).
-  const fieldEl = (
-    <Field
-      playersById={playersById}
-      onTapField={handleTapField}
-      swapOffs={swapOffs}
-      swapDue={subState === "due"}
-      totalMsByPlayer={totalMsByPlayer}
-      zoneMsByPlayer={zoneMsByPlayer}
-      displayZoneCaps={displayZoneCaps}
-      chipModeByKey={chipModeByKey}
-      injuredIds={injuredIds}
-      lockedIds={lockedIds}
-      zoneLockedPlayers={zoneLockedPlayers}
-      onLongPress={handleLongPress}
-      zoneCaps={zoneCaps}
-      positionModel={positionModel}
-      wakeUpKey={fieldWakeUpKey}
-      playerScores={playerScores}
-      totalPairs={totalPairs}
-      positionLabels={assignPositionLabels(lineup, aflPlaybook)}
-    />
-  );
-  const benchEl = (
-    <Bench
-      playersById={playersById}
-      onTapBench={handleTapBench}
-      swapOns={swapOns}
-      totalMsByPlayer={totalMsByPlayer}
-      zoneMsByPlayer={zoneMsByPlayer}
-      injuredIds={injuredIds}
-      wentHomeIds={wentHomeSet}
-      loanedIds={loanedIds}
-      lockedIds={lockedIds}
-      zoneLockedPlayers={zoneLockedPlayers}
-      onLongPress={handleLongPress}
-      playerScores={playerScores}
-      totalPairs={totalPairs}
-    />
-  );
+  // The info line: the next sub (or that it's due), with the plan chip.
+  // Shown in play when there's a bench to sub from, or a plan to make.
+  const infoEl =
+    inPlay && (lineup.bench.length > 0 || planChip) ? (
+      <InfoLine
+        state={subState}
+        msUntilDue={subPastHooter ? null : msUntilDue}
+        subIntervalMs={subIntervalMs}
+        swaps={sheetPairs.length}
+        carry={pastHooterCarry}
+        periodWord="quarter"
+        noBench={lineup.bench.length > 0 && !hasSwappableBench}
+        onOpen={sheetPairs.length > 0 ? openPairs : undefined}
+        plan={planChip}
+      />
+    ) : null;
 
-  // A kid picked: the dock takes the bar's place (v3's kid bar, Phase 6).
-  const dock =
+  // ─── The bar ───────────────────────────────────────────────
+  // A picked kid: the bar is theirs (KidBar). The sub due: MAKE ALL N
+  // SWAPS (hi-vis) and PAIRS. Otherwise the score bar, or (scoring off)
+  // where things are.
+  const kidBar =
     selected && !isPreGame && !isFinished
       ? (() => {
           const pid = selected.playerId;
           const p = playersById.get(pid);
-          const name = p ? `${p.jersey_number != null ? `#${p.jersey_number} ` : ""}${p.full_name}` : "player";
-          return (
-            <ScoreRecordingDock
-              inline
-              swapHint={DOCK_SWAP_HINT}
-              heading={<span className="text-ink">{name}</span>}
-              onCancel={() => clearSelection()}
-              onPlayerActions={() => {
+          if (!p) return null;
+          const zone = selected.kind === "field" ? selected.zone : null;
+          const first = names.first(p);
+          const pos = zone ? positionLabels?.[pid] ?? null : null;
+          const totalMs = totalMsByPlayer[pid] ?? 0;
+          const gameMs = initialState.completedQuarterMs + displayNowMs;
+          const zm = zoneMsByPlayer[pid];
+          const lock = lockedSet.has(pid) ? "field" : zoneLockedPlayers[pid] ? "zone" : null;
+          const pair = pairOf.get(pid) ?? null;
+          const pairS = pair?.s ?? null;
+          const btn = (tone: Parameters<typeof barButton>[0]) => barButton(tone, "sm");
+          const actions = [
+            ...(canScore
+              ? [
+                  <button key="goal" type="button" onClick={() => handleScore("goal")} disabled={isPending} className={btn("primary")}>
+                    + Goal
+                  </button>,
+                  <button key="behind" type="button" onClick={() => handleScore("behind")} disabled={isPending} className={btn("outlined")}>
+                    + Behind
+                  </button>,
+                ]
+              : []),
+            lock ? (
+              <button
+                key="unlock"
+                type="button"
+                onClick={() => {
+                  setLocked(pid, false);
+                  setZoneLocked(pid, null);
+                  saveLock(pid, null);
+                }}
+                className={`${btn("oval")} col-span-2`}
+              >
+                Let them rotate again
+                <span className={BAR_SMALL}>held {lock === "field" ? "on field" : `in ${zone ? ZONE_LABELS[zone] : "their line"}`}</span>
+              </button>
+            ) : (
+              <button
+                key="injured"
+                type="button"
+                disabled={isPending}
+                onClick={() => {
+                  clearSelection();
+                  // On the field with someone to bring on: straight to who
+                  // comes on. On the bench: marked at once.
+                  if (zone && hasSwappableBench) {
+                    setInjuryReplacementModal({ injuredId: pid, zone });
+                    return;
+                  }
+                  handleInjuryToggle(pid, true);
+                }}
+                className={btn("hurt")}
+              >
+                <svg viewBox="0 0 20 20" className="h-[16px] w-[16px]" aria-hidden>
+                  <path d="M10 3v14M3 10h14" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" />
+                </svg>
+                Injured
+              </button>
+            ),
+            <button
+              key="more"
+              type="button"
+              onClick={() => {
                 clearSelection();
                 handleLongPress(pid);
               }}
-              actions={
-                <>
-                  {canScore && (
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleScore("goal")}
-                        disabled={isPending}
-                        className="min-h-[48px] flex-1 rounded-[14px] bg-primary font-display stretch-75 text-base font-extrabold uppercase text-on-primary transition-colors duration-fast ease-out-quart hover:bg-primary/90 disabled:opacity-60"
-                      >
-                        + Goal
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleScore("behind")}
-                        disabled={isPending}
-                        className="min-h-[48px] flex-1 rounded-[14px] bg-transparent font-display stretch-75 text-base font-extrabold uppercase text-ink shadow-[inset_0_0_0_1.5px_rgb(var(--l-hairline))] transition-colors duration-fast ease-out-quart hover:bg-surface-alt disabled:opacity-60"
-                      >
-                        + Behind
-                      </button>
-                    </div>
-                  )}
-                  {selected.kind === "bench" && (
-                    <p className="text-xs text-ink-dim">Tap a field player to swap {p ? names.first(p) : "them"} on.</p>
-                  )}
-                  {/* Swap player: a bench kid (a sub) or a field kid in
-                      another zone (a rotation), from one list. */}
-                  {selected.kind === "field" && (
-                    <button
-                      type="button"
-                      onClick={() => setSubOffSelected({ playerId: selected.playerId, zone: selected.zone })}
-                      disabled={isPending}
-                      className={`${canScore ? "mt-2 " : ""}min-h-[44px] w-full rounded-[14px] bg-transparent text-sm font-semibold text-ink shadow-[inset_0_0_0_1.5px_rgb(var(--l-hairline))] transition-colors duration-fast ease-out-quart hover:bg-surface-alt disabled:opacity-60`}
-                    >
-                      Swap player
-                    </button>
-                  )}
-                </>
+              className={btn("outlined")}
+            >
+              <svg viewBox="0 0 20 20" className="h-[16px] w-[16px]" aria-hidden>
+                <circle cx="4" cy="10" r="2" fill="currentColor" />
+                <circle cx="10" cy="10" r="2" fill="currentColor" />
+                <circle cx="16" cy="10" r="2" fill="currentColor" />
+              </svg>
+              More
+            </button>,
+          ];
+          const columns = actions.length + (lock ? 1 : 0);
+          return (
+            <KidBar
+              name={p.full_name}
+              heading={`${p.jersey_number != null ? `#${p.jersey_number} ` : ""}${p.full_name}${pos ? ` · ${pos}` : ""}`}
+              split={
+                zm ? (
+                  <TimeSplit
+                    parts={[
+                      { ms: zm.fwd + zm.hfwd, className: "bg-zone-f-fill" },
+                      { ms: zm.mid, className: "bg-zone-c-fill" },
+                      { ms: zm.back + zm.hback, className: "bg-zone-b-fill" },
+                    ]}
+                  />
+                ) : null
               }
+              line={`${zone ? ZONE_LABELS[zone] : "Bench"} · ${Math.round(totalMs / 60_000)}′ this game · ${pctOfGame(totalMs, gameMs)}% of game`}
+              hint={
+                zone ? (
+                  <>
+                    Tap another kid to swap with <b className="font-bold text-ink">{first}</b>.
+                  </>
+                ) : (
+                  <>
+                    Tap a field kid to swap <b className="font-bold text-ink">{first}</b> on.
+                  </>
+                )
+              }
+              pair={
+                pair && pairS
+                  ? {
+                      n: pair.i + 1,
+                      text: `${shortName(pairS.off_player_id)} → ${shortName(pairS.on_player_id)}`,
+                      where: pairTo(pairS),
+                      hot: subDue,
+                      edited: isPairEdited(pairS, rawSuggestions),
+                      onRevert: () => revertPair(pair.i),
+                      onMake: () => makeOnePair(pair.i),
+                      disabled: isPending,
+                    }
+                  : null
+              }
+              actions={actions}
+              columns={columns}
+              onClose={clearSelection}
             />
           );
         })()
       : null;
+
+  // The sub's due: the bar's one job is to make it.
+  const dueBar =
+    subDue && sheetPairs.length > 0 ? (
+      <div className="grid grid-cols-[minmax(0,1fr)_84px] gap-[8px]">
+        <button
+          type="button"
+          data-testid="bar-make-all"
+          onClick={() => {
+            void hapticSuccess();
+            makeAllPairs();
+          }}
+          disabled={isPending}
+          aria-label={sheetPairs.length === 1 ? "Make this swap" : `Make all ${sheetPairs.length} swaps`}
+          aria-describedby="bar-make-all-who"
+          className={barButton("hot")}
+        >
+          {sheetPairs.length === 1 ? "Make this swap" : `Make all ${sheetPairs.length} swaps`}
+          <span id="bar-make-all-who" className={`${BAR_SMALL} max-w-full truncate`}>
+            {sheetPairs.map((sp) => sp.onName).join(", ")} on
+          </span>
+        </button>
+        <button type="button" onClick={openPairs} aria-label="Pairs: edit one" className={barButton("outlined")}>
+          Pairs
+          <span className={BAR_SMALL}>edit one</span>
+        </button>
+      </div>
+    ) : null;
 
   // The pre-kickoff bar: the first-visit tour offer, then Start Q1, the
   // same place every sport starts from. Hi-vis: it's the "act now".
@@ -2118,7 +2355,8 @@ export function LiveGame({
   );
   const shellBar = isPreGame
     ? preKickoffBar
-    : dock ??
+    : kidBar ??
+      dueBar ??
       (trackScoring ? (
         <GameHeader
           part="bar"
@@ -2156,13 +2394,17 @@ export function LiveGame({
       clockPulseKey={clockPulseKey}
       subDue={subState === "due"}
       // Tap the score: Scores and fixes, for whoever's running the game.
-      onScores={trackScoring && !isPreGame ? () => setScoresOpen(true) : undefined}
+      onScores={
+        trackScoring && !isPreGame
+          ? () => {
+              clearSelection();
+              setScoresOpen(true);
+            }
+          : undefined
+      }
     />
   );
 
-  const lateCandidates = !isFinished
-    ? squadPlayers.filter((p) => !lineup.bench.includes(p.id) && !ALL_ZONES.some((z) => lineup[z].includes(p.id)))
-    : [];
   const roundWord = game.round_number != null ? `Round ${game.round_number}` : null;
   const topSubline = isPreGame
     ? [roundWord, game.location].filter(Boolean).join(" · ") || `${getSportConfig("afl").shortName} ${ageGroup.id}`
@@ -2199,16 +2441,14 @@ export function LiveGame({
               exitHref={exitHref ?? "/"}
               game={game}
               isLive={!isPreGame}
-              onMenu={() => setMenuOpen(true)}
+              onMenu={() => {
+                // One sheet at a time: the kid is put down.
+                clearSelection();
+                setMenuOpen(true);
+              }}
               subline={topSubline}
-              // Sub due: the swap card is the one alert (design session
-              // 17 Oct 2026); the banner shows only in the rare due
-              // moment with no card on screen.
-              banner={
-                subDueBannerShows(subDueOpen, suggestions.length, hasSwappableBench) ? (
-                  <SubDueBanner onAcknowledge={handleSubDueAcknowledge} />
-                ) : null
-              }
+              // Sub due is said once, by the info line (its alert), the
+              // kids' words and the bar: no banner over the top.
             />
           }
           banners={
@@ -2224,14 +2464,7 @@ export function LiveGame({
               <UndoStrip plain flashing={undoToastVisible} message={undoScoreMessage(undoTop)} onUndo={handleUndo} disabled={isPending} />
             ) : null
           }
-          info={
-            swapCard || planRow ? (
-              <>
-                {swapCard}
-                {planRow}
-              </>
-            ) : null
-          }
+          info={infoEl}
           field={fieldEl}
           bench={benchEl}
           bar={shellBar}
@@ -2877,133 +3110,37 @@ export function LiveGame({
         );
       })()}
 
-      {/* Swap-player picker — opens when the coach taps "Swap player"
-          in the action drawer for a selected field player. Lists
-          BOTH bench players AND other-zone field players (excluding
-          the selected player, same-zone players, injured/loaned).
-          Sub-label tells the coach where each candidate is
-          ("Bench" / zone short label like "FWD"/"BCK") so they can
-          pick a sub OR a rotation in one place.
-
-          On pick:
-            - Bench player    → manualSwap (at once, with Undo)
-                                → field-to-bench substitution
-            - Field player    → applyFieldZoneSwap + recordFieldZoneSwap
-                                → direct field-to-field zone swap
-                                  (no confirm dialog; same path the
-                                  tap-two-field-players flow takes) */}
-      {subOffSelected && (() => {
-        const offPlayer = playersById.get(subOffSelected.playerId);
-        const offName = offPlayer?.full_name ?? "Player";
-        const offZone = subOffSelected.zone;
-        // Bench candidates — eligible (not injured/loaned).
-        const benchCandidates = lineup.bench
-          .filter((id) => !injuredIds.includes(id) && !loanedIds.includes(id))
-          .map((id) => {
-            const p = playersById.get(id);
-            if (!p) return null;
-            return {
-              id,
-              name: p.full_name,
-              jerseyNumber: p.jersey_number,
-              subLabel: "Bench",
-              kind: "bench" as const,
-              zone: null as Zone | null,
-            };
-          })
-          .filter((c): c is NonNullable<typeof c> => !!c);
-        // Field candidates — every other-zone field player except the
-        // selected one. Same-zone "swap" is meaningless (zones don't
-        // preserve internal order), so we filter by zone !== offZone.
-        const fieldCandidates = ALL_ZONES.flatMap((z) =>
-          z === offZone
-            ? []
-            : lineup[z]
-                .filter(
-                  (id) =>
-                    id !== subOffSelected.playerId &&
-                    !injuredIds.includes(id) &&
-                    !loanedIds.includes(id),
-                )
-                .map((id) => {
-                  const p = playersById.get(id);
-                  if (!p) return null;
-                  return {
-                    id,
-                    name: p.full_name,
-                    jerseyNumber: p.jersey_number,
-                    subLabel: z.toUpperCase(),
-                    kind: "field" as const,
-                    zone: z,
-                  };
-                }),
-        ).filter((c): c is NonNullable<typeof c> => !!c);
-        // Bench first (the more common substitution case), then
-        // field rotations grouped by zone.
-        const candidates = [...benchCandidates, ...fieldCandidates];
-        // Map id → kind/zone so the onPick handler knows which
-        // action to fire without re-deriving the lists.
-        const candidateById = new Map(candidates.map((c) => [c.id, c]));
-        return (
-          <SlotFillSheet
-            slotLabel={`${offName}'s spot`}
-            candidates={candidates.map(({ id, name, jerseyNumber, subLabel }) => ({
-              id,
-              name,
-              jerseyNumber,
-              subLabel,
-            }))}
-            titleVerb="Swap"
-            subtitle={`Pick a bench player to sub on for ${offName}, or another on-field player to rotate positions.`}
-            emptyMessage="No eligible players — every available player is on this zone, sidelined, or injured."
-            // Backdrop tap is OK to dismiss this picker — accidental
-            // dismiss returns the coach to the prior selected state
-            // with no data loss.
-            onPick={(picked) => {
-              const c = candidateById.get(picked);
-              if (!c) {
-                setSubOffSelected(null);
-                return;
-              }
-              if (c.kind === "bench") {
-                // Field-to-bench: the sub at once, with Undo.
-                manualSwap(subOffSelected.playerId, picked, subOffSelected.zone);
-              } else if (c.kind === "field" && c.zone) {
-                // Field-to-field zone rotation: same path as
-                // tap-A-then-tap-B-in-different-zone. Direct
-                // store mutation + server event, no confirm.
-                const quarter = Math.max(1, currentQuarter);
-                const elapsed_ms = currentElapsedMs();
-                applyFieldZoneSwap(
-                  subOffSelected.playerId,
-                  subOffSelected.zone,
-                  picked,
-                  c.zone,
-                );
-                showSwapToast(
-                  `${shortName(subOffSelected.playerId)} ⇄ ${shortName(picked)} — zones swapped`,
-                );
-                enqueueLiveAction("recordFieldZoneSwap", [
-                  auth,
-                  gameId,
-                  {
-                    player_a_id: subOffSelected.playerId,
-                    zone_a: subOffSelected.zone,
-                    player_b_id: picked,
-                    zone_b: c.zone!,
-                    quarter,
-                    elapsed_ms,
-                  },
-                ]);
-              }
-              clearSelection();
-              setSubOffSelected(null);
-            }}
-            onCancel={() => setSubOffSelected(null)}
-            dismissOnBackdrop
-          />
-        );
-      })()}
+      {/* The pairs (live v3): the planned sub, pair by pair, from the
+          info line or the due bar's PAIRS. Edit a side, revert an edit,
+          make one, or make them all. */}
+      {pairsOpen && !isPreGame && !isFinished && sheetPairs.length > 0 && (
+        <PairsSheet
+          pairs={sheetPairs}
+          due={subDue}
+          msUntilDue={subPastHooter ? null : msUntilDue}
+          carry={pastHooterCarry}
+          periodWord="Quarter"
+          options={(i, side) => {
+            const input = { swaps: suggestions, pairIndex: i, lineup, injuredIds, loanedIds, lockedIds };
+            return (side === "on" ? eligibleOnReplacements(input) : eligibleOffReplacements(input)).flatMap((id) => {
+              const p = playersById.get(id);
+              return p ? [{ id, name: names.first(p), initials: initials(p.full_name) }] : [];
+            });
+          }}
+          offHeading={(i) => `Take off instead (${suggestions[i] ? ZONE_LABELS[suggestions[i].zone] : "the line"})`}
+          onPick={(i, side, id) => {
+            const cur = suggestions[i];
+            if (!cur) return;
+            if ((side === "on" ? cur.on_player_id : cur.off_player_id) === id) return;
+            overridePairs(applyInlineSwapOverride(suggestions, i, { [side]: id }));
+          }}
+          onRevert={revertPair}
+          onMakeOne={makeOnePair}
+          onMakeAll={makeAllPairs}
+          pending={isPending}
+          onClose={() => setPairsOpen(false)}
+        />
+      )}
 
       {/* Full-time game summary — renders only AFTER the coach has
           tapped "Finalise game" in the FullTimeReview panel above.
