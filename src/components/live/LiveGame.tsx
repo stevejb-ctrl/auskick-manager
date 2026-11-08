@@ -35,6 +35,8 @@ import { kidWords, type KidOut, type KidSubRole } from "@/lib/live/kidWords";
 import { pctOfGame } from "@/lib/live/minGameTime";
 import { LiveShell } from "@/components/live/LiveShell";
 import { LiveGameMenu, settingsSummary } from "@/components/live/LiveGameMenu";
+import { PlanNextChip } from "@/components/live/PlanNextChip";
+import { StartBarButton } from "@/components/live/StartBarButton";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { AflWalkthroughOffer } from "@/components/live/WalkthroughOffer";
 import { reopenLineup } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
@@ -2115,39 +2117,13 @@ export function LiveGame({
   // "Q3 ready ✓ Clear" badge once a plan's pinned.
   const planLabel = hasPinnedNextPeriod ? `Edit Q${currentQuarter + 1} plan` : `Plan Q${currentQuarter + 1}`;
   const planChip = showPlanNextPeriod ? (
-    hasPinnedNextPeriod ? (
-      <span
-        data-testid="planned-next-period-badge"
-        className="flex flex-none items-center gap-[4px] rounded-[11px] py-[2px] pl-[10px] pr-[4px] text-brand-700 shadow-[inset_0_0_0_1.5px_currentColor]"
-      >
-        <button
-          type="button"
-          data-testid="plan-next-period-entry"
-          onClick={() => setPlanNextOpen(true)}
-          aria-label={`Q${currentQuarter + 1} ready. ${planLabel}`}
-          className="min-h-[32px] font-display text-[0.78125rem] font-extrabold"
-        >
-          Q{currentQuarter + 1} ready ✓
-        </button>
-        <button
-          type="button"
-          data-testid="plan-next-clear"
-          onClick={() => setPlannedRotation(consumePeriodPin(pinForThisGame, currentQuarter))}
-          className="inline-flex min-h-[32px] items-center px-[6px] font-display text-[0.75rem] font-extrabold underline underline-offset-2"
-        >
-          Clear
-        </button>
-      </span>
-    ) : (
-      <button
-        type="button"
-        data-testid="plan-next-period-entry"
-        onClick={() => setPlanNextOpen(true)}
-        className="inline-flex min-h-[36px] flex-none items-center rounded-[11px] px-[10px] font-display text-[0.78125rem] font-extrabold text-ink shadow-[inset_0_0_0_1.5px_rgb(var(--l-hairline))] hover:bg-surface-alt"
-      >
-        {planLabel}
-      </button>
-    )
+    <PlanNextChip
+      next={`Q${currentQuarter + 1}`}
+      ready={hasPinnedNextPeriod}
+      label={planLabel}
+      onOpen={() => setPlanNextOpen(true)}
+      onClear={() => setPlannedRotation(consumePeriodPin(pinForThisGame, currentQuarter))}
+    />
   ) : null;
 
   // The info line: the next sub (or that it's due), with the plan chip.
@@ -2335,16 +2311,7 @@ export function LiveGame({
   const preKickoffBar = (
     <div className="flex flex-col gap-[6px]">
       <AflWalkthroughOffer trackScoring={trackScoring} />
-      <button
-        type="button"
-        onClick={() => setStartQ1Open(true)}
-        disabled={isPending}
-        aria-label="Start Q1"
-        className="flex min-h-[58px] w-full flex-col items-center justify-center gap-[3px] rounded-[16px] bg-hivis px-[8px] font-display stretch-75 text-[1.1875rem] font-extrabold uppercase leading-none text-hivis-ink transition-[background-color,transform] duration-tap ease-out-quart hover:bg-hivis/90 motion-safe:active:scale-[0.98] disabled:opacity-60"
-      >
-        Start Q1
-        <span className="font-sans text-[0.6875rem] font-normal normal-case opacity-80">the clock starts when you confirm</span>
-      </button>
+      <StartBarButton label="Start Q1" onClick={() => setStartQ1Open(true)} disabled={isPending} />
     </div>
   );
   const onFieldNow = ALL_ZONES.reduce((n, z) => n + lineup[z].length, 0);

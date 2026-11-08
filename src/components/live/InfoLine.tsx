@@ -39,6 +39,12 @@ export interface InfoLineProps {
   onOpen?: () => void;
   /** The Plan Q{n+1} chip, at the right. */
   plan?: ReactNode;
+  /**
+   * Plain words in place of the countdown, where subs don't roll on a
+   * clock: netball's "Subs at the break · tap GS or GA to score". Not
+   * a button. A due sub still says so over it.
+   */
+  hint?: ReactNode;
 }
 
 function mmss(ms: number): string {
@@ -78,6 +84,7 @@ export function InfoLine({
   noBench = false,
   onOpen,
   plan,
+  hint,
 }: InfoLineProps) {
   const underText = under && under.count > 0 ? (
     <>
@@ -111,6 +118,12 @@ export function InfoLine({
           </p>
         )}
       </div>
+    );
+  } else if (hint) {
+    body = (
+      <p data-testid="info-line" className={LINE}>
+        <span className="min-w-0 flex-1 truncate">{hint}</span>
+      </p>
     );
   } else if (noBench) {
     body = (

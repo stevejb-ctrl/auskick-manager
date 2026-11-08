@@ -39,6 +39,12 @@ interface RunnerWelcomeBannerProps {
   /** The first period as the Start button says it ("Q1", "H1"). */
   firstPeriod?: string;
   /**
+   * The lineup screen's button, where it isn't "Start Q1": netball's
+   * "Ready" (live v3: Ready sets the lineup, Start Q1 is on the live
+   * screen's bar).
+   */
+  cta?: string;
+  /**
    * Where the parent marks who's here: the list under this banner, or
    * the "Update availability" link at the top of the lineup.
    */
@@ -50,6 +56,7 @@ export function RunnerWelcomeBanner({
   opponent,
   trackScoring,
   firstPeriod = "Q1",
+  cta,
   availability = "list",
 }: RunnerWelcomeBannerProps) {
   return (
@@ -61,7 +68,7 @@ export function RunnerWelcomeBanner({
         <span className="font-semibold">You&apos;re running today&apos;s game.</span>{" "}
         {availability === "list"
           ? "Tap In for each kid who turned up, then go to the lineup."
-          : `Check who's here, then tap Start ${firstPeriod}.`}
+          : `Check who's here, then tap ${cta ?? `Start ${firstPeriod}`}.`}
       </p>
       {/* The top bar shows the teams; screen readers hear them here too. */}
       <p className="sr-only">
