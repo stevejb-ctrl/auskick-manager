@@ -164,14 +164,15 @@ test("league half time: a kid brought back from loan is planned into H2", async 
   await expect(page.getByTestId("break-broken-rule")).toHaveCount(0);
 });
 
-test("league U9 lineup with one kid in: Start H1 says the vests need two", async ({ page }) => {
+test("league U9 lineup with one kid in: Ready says the vests need two", async ({ page }) => {
   test.setTimeout(120_000);
   const admin = createAdminClient();
   const { team, game } = await leagueGame(admin, { name: "RL-ONE-KID", ageGroup: "U9", count: 10, available: 1 });
   await skipWalkthroughs(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  const start = page.getByRole("button", { name: /^start q1$/i });
+  // The picker's Ready sets the lineup (live v3; Start Q1 is on the live bar).
+  const start = page.getByRole("button", { name: /^ready$/i });
   await expect(start).toBeVisible({ timeout: 15_000 });
   await expect(start).toBeDisabled();
   await expect(page.getByText("Need 2 on the field for the FR and DH vests")).toBeVisible();

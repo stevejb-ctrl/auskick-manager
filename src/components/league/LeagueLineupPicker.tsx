@@ -44,7 +44,6 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SFButton, SFCard } from "@/components/sf";
 import { LockModal } from "@/components/live/LockModal";
-import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { VestPlanPill, VestPlanCandidatePicker } from "./VestPlanRow";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
@@ -932,13 +931,10 @@ export function LeagueLineupPicker({
     }
   }
 
-  // Two-step kickoff mirrors AFL's LineupPicker (Steve 2026-05-13):
-  // tapping "Ready for Q1/H1" opens StartQuarterModal in-place — only
-  // the modal's "Start" button writes lineup_set + quarter_start to the
-  // server. "Back to lineup" dismisses the modal cleanly with zero
-  // server state changed.
-  const [startModalOpen, setStartModalOpen] = useState(false);
-
+  // Ready sets the lineup; Start H1 is on the live screen's bar (live
+  // v3, as AFL's picker). It used to open "Start H1?" here and write the
+  // lineup and the first whistle at once. Until H1 starts, ⋯ → Edit
+  // lineup brings this picker back (reopenLeagueLineup).
   function handleStartGame() {
     if (fieldIds.length === 0) {
       setError("Pick at least one player for the field.");
@@ -952,13 +948,8 @@ export function LeagueLineupPicker({
       setError(`Pick a Dummy Half — required at ${ageGroup.label}.`);
       return;
     }
-    // Under the minimum: the kickoff confirm says so (shortSide), as in
-    // every sport, instead of a browser confirm.
-    // Reset scrolled ancestors before kickoff so the live view
-    // lands at the top of the DeviceFrame on the public /run demo.
-    // See LeagueLiveGame.handleStartNextPeriod for the full
-    // rationale — same DeviceFrame containing-block bug. Mirrors
-    // AFL's fix in ff771c6.
+    // Reset scrolled ancestors so the live screen opens at the top of the
+    // DeviceFrame on the public /run demo (AFL's fix in ff771c6).
     if (typeof document !== "undefined") {
       let el = pickerRootRef.current?.parentElement ?? null;
       while (el) {
@@ -970,29 +961,23 @@ export function LeagueLineupPicker({
       window.scrollTo({ top: 0, behavior: "auto" });
     }
     setError(null);
-    setStartModalOpen(true);
-  }
-
-  function handleConfirmStart() {
-    setError(null);
-    // vestPlan is a memoized derivation — already in scope.
     startTransition(async () => {
+      // startQuarterToo=false: the lineup and the vest plan, no whistle.
+      // The team page redirects to the live screen; the game-day link's
+      // page re-renders on its own.
       const result = await startLeagueGame(
         auth,
         gameId,
         // Named positions: record each kid's slot (UX plan 5.7).
         withLeagueSlots(lineup, leaguePlaybook),
         fieldIds.length,
-        true,
+        false,
         vestPlan,
         subIntervalSeconds,
       );
       // Refused because another phone already started: say so over the page.
       noteLiveResult(result);
-      if (!result.success) {
-        setError(result.error ?? "Couldn't start the game.");
-        setStartModalOpen(false);
-      }
+      if (result && !result.success) setError(result.error ?? "Couldn't set the lineup.");
     });
   }
 
@@ -1458,9 +1443,7 @@ export function LeagueLineupPicker({
         savedAt={savedAt}
         savePlanDisabled={fieldIds.length === 0 || isPending}
         onConfirm={handleStartGame}
-        confirmLabel={
-          `Start ${periodLabels(sport, ageGroup).label.charAt(0).toUpperCase()}1`
-        }
+        confirmLabel="Ready"
         confirmDisabled={confirmDisabled}
         confirmHint={
           fieldIds.length > 0
@@ -1507,22 +1490,6 @@ export function LeagueLineupPicker({
         />
       )}
       {playerRoles.sheet}
-
-      {/* Two-step kickoff modal — mirrors AFL's LineupPicker. Opens
-          on "Ready for Q1/H1", the modal's primary button is what
-          actually commits lineup_set + quarter_start. Period label
-          tracks the age group (U6–U9 quarters, U10+ halves). */}
-      {startModalOpen && (
-        <StartQuarterModal
-          quarter={1}
-          periodLabel={periodLabels(sport, ageGroup).label}
-          shortSide={{ playing: fieldIds.length, size: defaultOnFieldSize, min: minOnFieldSize }}
-          cue={getSportConfig(sport).words.startCue}
-          loading={isPending}
-          onStart={handleConfirmStart}
-          onCancel={() => setStartModalOpen(false)}
-        />
-      )}
 
       {/* Lend-player picker modal — opens from the "+ Lend a
           player" button in Game settings. Same SlotFillSheet AFL

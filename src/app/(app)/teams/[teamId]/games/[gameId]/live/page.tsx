@@ -36,7 +36,6 @@ import type { TouchSeasonBalance } from "@/lib/sports/touch/suggest";
 import { touchAgeGroupForTeam } from "@/lib/sports/touch/family";
 import { touchHowWePlay } from "@/lib/sports/touch/familyPlaybook";
 import { girlsTryCountsDouble, teamMixedRule } from "@/lib/sports/touch/mixed";
-import { LeagueWalkthroughOffer } from "@/components/live/WalkthroughOffer";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { ParentScoreboard } from "@/components/live/ParentScoreboard";
 import { GameDayAvailabilityPanel } from "@/components/games/GameDayAvailabilityPanel";
@@ -923,19 +922,8 @@ async function LivePageBody({ params }: LivePageProps) {
               seasonEvents={leagueSeasonEvents as GameEvent[]}
               initialLoanedIds={leagueLoanedIds}
               initialDraft={initialDraft}
-              walkthroughOffer={
-                <LeagueWalkthroughOffer
-                  sport={sport}
-                  trackScoring={trackScoring}
-                  periodLabel={periodLabels(sport, ageCfgL).label}
-                  vests={{ fr: ageCfgL.vestRequirements?.fr ?? false, dh: ageCfgL.vestRequirements?.dh ?? false }}
-                  kickingAllowed={ageCfgL.kickingAllowed === true}
-                  goalsFromPlay={ageCfgL.goalsFromPlay === true}
-                  kickRotations={ageCfgL.kickRotations === true}
-                  unbrokenPeriods={ageCfgL.unbrokenPeriods === true}
-                  trackZoneTime={leagueTrackZoneTime}
-                />
-              }
+              // The first-visit tour is offered on the live screen before
+              // the whistle now, over its Start H1 (live v3), not here.
               chipLabels={{
                 a: teamChipLabels.a,
                 b: teamChipLabels.b,

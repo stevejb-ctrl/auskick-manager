@@ -45,7 +45,8 @@ test("AFL: 15 minutes in the sub box becomes the 10 the game uses", async ({ pag
 test("union: 15 minutes in the sub box becomes the 10 the game uses", async ({ page }) => {
   await page.goto(await preGame("rugby_union", "U10", 15));
   await waitForHydration(page);
-  await expect(page.getByRole("button", { name: /^start h1$/i })).toBeVisible({ timeout: 15_000 });
+  // Rugby's picker sets the lineup with Ready too (live v3, Phase 8).
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: /game settings/i }).click();
   const box = page.locator("#sub-interval");
   await box.fill("15");

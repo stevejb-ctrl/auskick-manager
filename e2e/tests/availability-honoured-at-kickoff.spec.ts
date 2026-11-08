@@ -279,7 +279,9 @@ test("rugby league: a player marked unavailable pre-game is dropped from the kic
 
   await suppressWalkthrough(page, "gm-walkthrough-seen");
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  // U10 RL plays HALVES — the picker labels the CTA "Start H1".
+  // Live v3 (Phase 8): the picker's Ready sets the lineup; U10 RL plays
+  // halves, so the live screen's bar holds Start H1.
+  await page.getByRole("button", { name: /^ready$/i }).click({ timeout: 15_000 });
   await page
     .getByRole("button", { name: /^start (h1|half 1|q1)$/i })
     .click({ timeout: 15_000 });

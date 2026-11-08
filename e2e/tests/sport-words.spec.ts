@@ -14,6 +14,8 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
+import { readyRugby } from "../helpers/kickoff";
+import { openGameMenu } from "../helpers/liveShell";
 
 async function leagueGame(name: string) {
   const admin = createAdminClient();
@@ -38,6 +40,9 @@ test("league: the live screen's clock menu and restart say nothing AFL", async (
     } catch {}
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  // Live v3: the picker's Ready, then Start H1 on the live screen's bar.
+  await readyRugby(page);
   await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
   // League waits for the referee's whistle, not AFL's siren.
   const start = page.getByRole("dialog").filter({ hasText: /when the whistle goes/i });
@@ -67,12 +72,13 @@ test("league: the live screen's clock menu and restart say nothing AFL", async (
 
   // Game settings states U11's own §6 rule (one unbroken half), not
   // "an unbroken quarter/half".
-  await page.getByRole("button", { name: /^game settings$/i }).click();
+  // (Live v3: Game settings and Restart are in the ⋯ game menu.)
+  await (await openGameMenu(page)).getByRole("button", { name: /^game settings/i }).click();
   await expect(page.getByText(/§6: each player must play 1 unbroken half\./)).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText(/quarter\/half/)).toHaveCount(0);
   await page.getByRole("button", { name: /^cancel$/i }).click();
 
-  await page.getByRole("button", { name: /^restart game$/i }).click();
+  await (await openGameMenu(page)).getByRole("button", { name: /^restart game/i }).click();
   const restart = page.getByRole("dialog").filter({ hasText: /restart this game\?/i });
   await expect(restart).toBeVisible();
   await expect(restart).not.toContainText(/goal|behind|zone|quarter/i);

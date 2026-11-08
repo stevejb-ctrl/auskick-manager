@@ -23,3 +23,21 @@ export async function kickOffAfl(page: Page, timeout = 15_000): Promise<void> {
   await startQ1(page, timeout);
   await expect(page.getByRole("button", { name: /^clock — q1, running$/i })).toBeVisible({ timeout });
 }
+
+// Rugby's kickoff on live v3 (Phase 8), the same way: the league / union
+// picker's Ready sets the lineup (and the vest plan), the live screen
+// opens before the whistle, and its bar's Start H1 (Q1 for the youngest)
+// asks "Start H1 now".
+
+/** A rugby picker's Ready: the live screen, the first period not started. */
+export async function readyRugby(page: Page, tag = "H1", timeout = 15_000): Promise<void> {
+  await page.getByRole("button", { name: /^ready$/i }).click({ timeout });
+  await expect(page.getByRole("button", { name: new RegExp(`^clock — ${tag}, not started$`, "i") })).toBeVisible({ timeout });
+}
+
+/** From rugby's live screen before the whistle: Start H1, then "Start H1 now". */
+export async function startRugbyFirst(page: Page, tag = "H1", timeout = 15_000): Promise<void> {
+  await page.getByRole("button", { name: new RegExp(`^start ${tag}$`, "i") }).click({ timeout });
+  await page.getByRole("button", { name: new RegExp(`^start ${tag} now$`, "i") }).click({ timeout: 10_000 });
+  await expect(page.getByRole("button", { name: new RegExp(`^clock — ${tag}, running$`, "i") })).toBeVisible({ timeout });
+}
