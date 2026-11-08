@@ -17,7 +17,6 @@ import { Bench } from "@/components/live/Bench";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
-import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
 import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
@@ -33,7 +32,6 @@ import { aflOpeningLineup } from "@/lib/sports/afl/openingLineup";
 import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 
 import { aflRuleCheck, assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
-import { getSportConfig } from "@/lib/sports/registry";
 import { onSurfaceLabel } from "@/lib/sports/words";
 import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
@@ -638,66 +636,28 @@ export function LineupPicker({
     />
   ) : null;
 
-  // Two-step kickoff (Steve 2026-05-13): tapping "Ready for Q1" used
-  // to fire startGame immediately, writing lineup_set + flipping
-  // status. The LiveGame's StartQuarterModal then asked "Start Q1?"
-  // — but "Back to lineup" on that modal was a dead-end (lineup_set
-  // already committed, no way back to the editable LineupPicker).
-  // Now: Ready opens the modal here, in-place; only Start Q1
-  // commits. "Back to lineup" dismisses the modal cleanly with
-  // zero server state changed.
-  const [startModalOpen, setStartModalOpen] = useState(false);
-
-  // Anchor for walking up the DOM to reset scrolled ancestors before
-  // the modal mounts — see handleOpenStartModal for the why.
-  const lineupPickerRootRef = useRef<HTMLDivElement>(null);
-
-  function handleOpenStartModal() {
+  // Ready sets the lineup; Start Q1 is on the live screen's bar (live
+  // v3, B4). History: in May 2026 "Ready for Q1" fired startGame at
+  // once, writing lineup_set, and the live screen's "Start Q1?" confirm
+  // then had a "Back to lineup" that was a dead end, the lineup already
+  // committed. So the confirm moved in here and committed both writes on
+  // its Start (startQuarterToo). Now the live screen holds the start
+  // again, every sport's way, and the dead end is gone a different way:
+  // until Q1 starts, ⋯ → "Edit lineup" brings this picker back with the
+  // lineup (reopenLineup puts it back in the draft and takes the
+  // lineup_set out). The lineup is saved here, the clock starts there.
+  function handleReady() {
     setServerError(null);
     if (onFieldCount === 0) return;
-    // Same scroll-reset as QuarterBreak. The public /run/{token}
-    // demo wraps the app in DeviceFrame, whose `translateZ(0)` makes
-    // it a containing block for `position: fixed` descendants. With
-    // the GM scrolled mid-picker, the modal then renders at the top
-    // of the framed area and its primary "Start Q1" button can fall
-    // below the visible scroll window. Reset every scrolled ancestor
-    // so the modal centres in view. window.scrollTo covers the non-
-    // framed (mobile / installed PWA) case.
-    if (typeof document !== "undefined") {
-      let el = lineupPickerRootRef.current?.parentElement ?? null;
-      while (el) {
-        if (el.scrollTop > 0) el.scrollTop = 0;
-        el = el.parentElement;
-      }
-    }
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "auto" });
-    }
-    setStartModalOpen(true);
-  }
-
-  function handleConfirmStart() {
-    setServerError(null);
     const subSeconds = Math.round(effectiveSubMin * 60);
     startTransition(async () => {
-      // startQuarterToo=true → server writes lineup_set AND
-      // quarter_start atomically in one round-trip, then redirects
-      // (team-auth) or returns success (token-auth). The clock
-      // starts via LiveGame's init() auto-resume path on the next
-      // mount because quarterStartedAt is now set.
-      const result = await startGame(
-        auth,
-        gameId,
-        lineup,
-        subSeconds,
-        onFieldSize,
-        true,
-      );
+      // startQuarterToo=false: lineup_set only. The team page redirects
+      // to the live screen; the game-day link reloads its own.
+      const result = await startGame(auth, gameId, lineup, subSeconds, onFieldSize, false);
       // Refused because another phone already started: say so over the page.
       noteLiveResult(result);
       if (result && !result.success) {
         setServerError(result.error);
-        setStartModalOpen(false);
         return;
       }
       if (auth.kind === "token") {
@@ -773,7 +733,6 @@ export function LineupPicker({
     // element that sticky released its pin partway down the scroll
     // (Steve 2026-05-20 demo fix).
     <div
-      ref={lineupPickerRootRef}
       role="region"
       aria-label="Starting lineup"
       className="space-y-4"
@@ -1202,30 +1161,11 @@ export function LineupPicker({
         savePending={savePending}
         savedAt={savedAt}
         savePlanDisabled={onFieldCount === 0 || isPending}
-        onConfirm={handleOpenStartModal}
-        confirmLabel="Start Q1"
+        onConfirm={handleReady}
+        confirmLabel="Ready"
         confirmDisabled={onFieldCount === 0 || isPending}
         confirmIconAfter={<SFIcon.chevronRight color="currentColor" />}
       />
-
-      {/* Await-kickoff modal — owned by LineupPicker (Steve
-          2026-05-13). Renders only after the coach has confirmed
-          their lineup with "Ready for Q1". The modal's "Start Q1"
-          handler runs the actual server commit (lineup_set +
-          quarter_start atomically via startGame's
-          startQuarterToo=true flag). "Back to lineup" just closes
-          the modal — zero server writes, the picker is still
-          editable in the background. */}
-      {startModalOpen && (
-        <StartQuarterModal
-          quarter={1}
-          cue={getSportConfig("afl").words.startCue}
-          shortSide={{ playing: onFieldCount, size: defaultOnFieldSize, min: minOnFieldSize }}
-          loading={isPending}
-          onStart={handleConfirmStart}
-          onCancel={() => setStartModalOpen(false)}
-        />
-      )}
 
       {/* Empty-slot picker sheet — opens when the coach taps an
           unfilled position with no player pre-selected. Lists every

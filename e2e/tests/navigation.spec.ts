@@ -41,7 +41,7 @@ test("phones get a bottom tab bar that hides on the game-day screen", async ({ p
   // The tab bar's client navigation can still be landing (WebKit), so a
   // plain goto here is interrupted by it.
   await gotoStable(page, `/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.getByRole("button", { name: /^start q1$/i }).or(page.getByText(/who's here/i)).first()).toBeVisible({
+  await expect(page.getByRole("button", { name: /^ready$/i }).or(page.getByText(/who's here/i)).first()).toBeVisible({
     timeout: 10_000,
   });
   await expect(page.getByRole("navigation", { name: /team sections/i })).toHaveCount(0);

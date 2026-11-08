@@ -7,6 +7,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
+import { readyAfl } from "../helpers/kickoff";
 
 const OPPONENT = "Brunswick Magpies";
 
@@ -24,7 +25,9 @@ async function liveGame(sport: "afl" | "netball", ageGroup: string, count: numbe
   return { team, game };
 }
 
-async function kickOff(page: Page) {
+async function kickOff(page: Page, sport: "afl" | "netball") {
+  // Live v3: AFL's Ready sets the lineup, the live screen's bar starts Q1.
+  if (sport === "afl") await readyAfl(page);
   await page.getByRole("button", { name: /^start q1$/i }).click({ timeout: 15_000 });
   await page.getByRole("button", { name: /^start q1 now$/i }).click({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: /^clock — q1, running$/i })).toBeVisible({ timeout: 15_000 });
@@ -60,7 +63,7 @@ test("AFL scorebug shows long team names whole at 375", async ({ page }) => {
   const { team, game } = await liveGame("afl", "U12", 14);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  await kickOff(page);
+  await kickOff(page, "afl");
   await expectNamesWhole(page);
 });
 
@@ -69,6 +72,6 @@ test("netball scorebug shows long team names whole at 375", async ({ page }) => 
   const { team, game } = await liveGame("netball", "go", 9);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  await kickOff(page);
+  await kickOff(page, "netball");
   await expectNamesWhole(page);
 });

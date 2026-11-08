@@ -89,10 +89,11 @@ test("AFL: the pre-kickoff screen gives way to the live game once it has started
   const admin = createAdminClient();
   const { team, game, kickOff } = await aflGame(admin);
   await openLive(page, team.id, game.id);
-  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  // The picker (its Ready sets the lineup, live v3).
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
 
   // Another phone kicks off (or this page is a stale copy).
   await kickOff();
-  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeHidden({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeHidden({ timeout: 15_000 });
   await expect(page.getByRole("button", { name: `Add goal, ${OPPONENT}` })).toBeVisible({ timeout: 15_000 });
 });

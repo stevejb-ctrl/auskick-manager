@@ -1,0 +1,25 @@
+// AFL's kickoff on live v3 (Phase 5, B4): the lineup picker's Ready sets
+// the lineup, the live screen opens before the first siren, and its bar's
+// Start Q1 asks "Start Q1 now" before the clock runs. It used to be one
+// screen: the picker's "Start Q1", then the confirm.
+
+import { expect, type Page } from "@playwright/test";
+
+/** The AFL picker's Ready: sets the lineup and opens the live screen, Q1 not started. */
+export async function readyAfl(page: Page, timeout = 15_000): Promise<void> {
+  await page.getByRole("button", { name: /^ready$/i }).click({ timeout });
+  await expect(page.getByRole("button", { name: /^clock — q1, not started$/i })).toBeVisible({ timeout });
+}
+
+/** From the live screen before kickoff: Start Q1, then "Start Q1 now". */
+export async function startQ1(page: Page, timeout = 15_000): Promise<void> {
+  await page.getByRole("button", { name: /^start q1$/i }).click({ timeout });
+  await page.getByRole("button", { name: /^start q1 now$/i }).click({ timeout: 10_000 });
+}
+
+/** The picker's Ready, then Start Q1 on the live screen: the clock runs. */
+export async function kickOffAfl(page: Page, timeout = 15_000): Promise<void> {
+  await readyAfl(page, timeout);
+  await startQ1(page, timeout);
+  await expect(page.getByRole("button", { name: /^clock — q1, running$/i })).toBeVisible({ timeout });
+}

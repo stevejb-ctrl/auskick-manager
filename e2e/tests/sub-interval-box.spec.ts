@@ -33,7 +33,7 @@ test.beforeEach(async ({ page }) => {
 test("AFL: 15 minutes in the sub box becomes the 10 the game uses", async ({ page }) => {
   await page.goto(await preGame("afl", "U12", 15));
   await waitForHydration(page);
-  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: /game settings/i }).click();
   const box = page.locator("#sub-minutes");
   await box.fill("15");

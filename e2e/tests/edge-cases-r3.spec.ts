@@ -22,6 +22,7 @@ import { createAdminClient } from "../fixtures/supabase";
 import { makeGame, makePlayers, makeTeam } from "../fixtures/factories";
 import { finishedGame, fullTime, playPeriod } from "../helpers/finished-game";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
+import { readyAfl } from "../helpers/kickoff";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -101,9 +102,11 @@ test("AFL: a team that plays 10 a side has no empty slots on the live field", as
   await skipWalkthroughs(page);
   await gotoStable(page, `/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: /game settings/i }).click();
   await page.locator("#on-field-size").selectOption("10");
+  // Live v3: Ready sets the lineup, the live screen's bar starts Q1.
+  await readyAfl(page);
   await page.getByRole("button", { name: /^start q1$/i }).click();
   await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click({ timeout: 10_000 });
 
@@ -182,6 +185,7 @@ test("a game played with scoring off stays 'Scores not kept' after the team turn
   await skipWalkthroughs(page);
   await gotoStable(page, `/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
+  await readyAfl(page);
   await page.getByRole("button", { name: /^start q1$/i }).click({ timeout: 15_000 });
   await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click({ timeout: 10_000 });
   await expect.poll(async () => (await statusOf(game.id))?.status, { timeout: 15_000 }).toBe("in_progress");

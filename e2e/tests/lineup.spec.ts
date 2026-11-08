@@ -45,13 +45,13 @@ test("pre-kickoff lineup renders a full field of players", async ({
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
   // Wait for the LineupPicker to actually render before asserting on
-  // its contents. The pre-kickoff CTA in LineupPicker.tsx is "Ready
-  // for Q1" (renamed from "Start game" 2026-05-13 to match the
-  // QuarterBreak narrative) — the "Start Q1" button only appears
-  // AFTER the lineup is committed, inside LiveGame.tsx.
+  // its contents. The pre-kickoff CTA in LineupPicker.tsx is "Ready"
+  // (live v3): it sets the lineup, and "Start Q1" only appears AFTER,
+  // on the live screen's bar (LiveGame.tsx).
   await expect(
-    page.getByRole("button", { name: /^start q1$/i }),
+    page.getByRole("button", { name: /^ready$/i }),
   ).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("button", { name: /^start q1$/i })).toHaveCount(0);
 
   // PlayerTile renders single-word names verbatim (the factory uses
   // distinct first names — see e2e/fixtures/factories.ts). Each

@@ -15,6 +15,7 @@ import { waitForHydration } from "../helpers/navigation";
 import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
 import { aflPositionModel, getAgeGroupConfig } from "../../src/lib/sports";
 import type { Lineup } from "../../src/lib/types";
+import { readyAfl } from "../helpers/kickoff";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -87,7 +88,7 @@ test.describe("two kids with the same name", () => {
     await allIn(game.id, kids.map((k) => k.id), ownerId);
 
     await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-    await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("Jack Sm", { exact: true })).toHaveCount(1);
     await expect(page.getByText("Jack St", { exact: true })).toHaveCount(1);
     await expect(page.getByText("Emoji K", { exact: true })).toHaveCount(1);
@@ -367,6 +368,8 @@ test.describe("kicking off short", () => {
     await allIn(game.id, players.map((p) => p.id), ownerId);
 
     await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+    // Live v3: the confirm is on the live screen, after the picker's Ready.
+    await readyAfl(page);
     await page.getByRole("button", { name: /^start q1$/i }).click({ timeout: 15_000 });
     await expect(page.getByTestId("short-side")).toHaveText(/^Playing 10 of 12\./);
   });

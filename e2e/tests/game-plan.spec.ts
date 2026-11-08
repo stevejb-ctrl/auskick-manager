@@ -25,6 +25,7 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
+import { readyAfl } from "../helpers/kickoff";
 
 /** Player ids of the tiles in a lineup's bench, sorted. */
 async function benchIds(scope: import("@playwright/test").Locator, prefix: string): Promise<string[]> {
@@ -181,7 +182,7 @@ test("AFL pre-kickoff: planner opens from the lineup-picker breadcrumb on /live"
   // Wait for the picker to render (its commit CTA) before reaching for
   // the breadcrumb-mounted planner button.
   await expect(
-    page.getByRole("button", { name: /^start q1$/i }),
+    page.getByRole("button", { name: /^ready$/i }),
   ).toBeVisible({ timeout: 15_000 });
 
   // Usability run: Game plan's Q1 disagreed with the lineup, and changes
@@ -219,7 +220,7 @@ test("AFL pre-kickoff: Game plan follows the lineup's field size and sub interva
   );
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
 
   await page.getByRole("button", { name: /game settings/i }).click();
   const size = page.locator("#on-field-size");
@@ -426,7 +427,7 @@ test("before kickoff, Game plan keeps the later quarters and the break opens on 
     } catch {}
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
 
   // Plan Q2: put the first kid resting in Q2 onto the field.
   await page.getByRole("button", { name: /^game plan$/i }).click();
@@ -444,6 +445,7 @@ test("before kickoff, Game plan keeps the later quarters and the break opens on 
   await page.getByRole("button", { name: "Use this plan" }).click();
 
   // Play Q1, end it: the break opens on the planned Q2.
+  await readyAfl(page);
   await page.getByRole("button", { name: /^start q1$/i }).click();
   await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   await page.getByRole("button", { name: /^clock — q1, running$/i }).click({ timeout: 15_000 });
@@ -519,7 +521,7 @@ test("AFL game page: the Game plan is the lineup's, saved or not, and says when,
   expect(night.text).toContain("Ross Reserve");
   expect(night.text).toContain(`Out: ${out.full_name.split(" ")[0]}`);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
   const zones = Object.keys(night.q1).filter((k) => k !== "bench");
   expect(await lineupQ1(zones)).toEqual(night.q1);
 

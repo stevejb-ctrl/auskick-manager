@@ -20,6 +20,7 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { readyAfl } from "../helpers/kickoff";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -57,7 +58,8 @@ test("AFL: player tile time freezes at the auto-hooter", async ({ page }) => {
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // Kick off Q1 via the new (post-2026-05-13) flow.
+  // Kick off Q1 (live v3): the picker's Ready, then the bar's Start Q1.
+  await readyAfl(page);
   await page
     .getByRole("button", { name: /^start q1$/i })
     .click({ timeout: 10_000 });

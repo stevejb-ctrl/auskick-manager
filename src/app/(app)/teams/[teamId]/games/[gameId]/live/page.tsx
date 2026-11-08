@@ -36,7 +36,7 @@ import type { TouchSeasonBalance } from "@/lib/sports/touch/suggest";
 import { touchAgeGroupForTeam } from "@/lib/sports/touch/family";
 import { touchHowWePlay } from "@/lib/sports/touch/familyPlaybook";
 import { girlsTryCountsDouble, teamMixedRule } from "@/lib/sports/touch/mixed";
-import { AflWalkthroughOffer, LeagueWalkthroughOffer } from "@/components/live/WalkthroughOffer";
+import { LeagueWalkthroughOffer } from "@/components/live/WalkthroughOffer";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { ParentScoreboard } from "@/components/live/ParentScoreboard";
 import { GameDayAvailabilityPanel } from "@/components/games/GameDayAvailabilityPanel";
@@ -1558,7 +1558,8 @@ async function LivePageBody({ params }: LivePageProps) {
           defaultSubMinutes={g.sub_interval_seconds / 60}
           fullPeriodMs={quarterMs}
           backHref={`/teams/${params.teamId}/games/${params.gameId}`}
-          walkthroughOffer={<AflWalkthroughOffer trackScoring={trackScoring} />}
+          // The first-visit tour is offered on the live screen before
+          // kickoff now, over its Start Q1 (live v3), not here.
           gamePlan={{
             sport,
             ageGroup: ageCfg,

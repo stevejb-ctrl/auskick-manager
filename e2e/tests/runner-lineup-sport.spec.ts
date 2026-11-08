@@ -42,8 +42,8 @@ for (const sport of ["rugby_league", "rugby_union", "netball"] as const) {
     const { context, page } = await runnerPage(browser);
     await page.goto(`/run/${game.share_token}/lineup`);
     await expect(page).toHaveURL(new RegExp(`/run/${game.share_token}$`));
-    // AFL's picker kicks off with "Start Q1"; league U11 and union U11
-    // play halves.
+    // League U11 and union U11 play halves: their picker kicks off with
+    // "Start H1" (AFL's sets the lineup with Ready).
     if (sport !== "netball") {
       await expect(page.getByRole("button", { name: /^start h1$/i })).toBeVisible({ timeout: 15_000 });
     }

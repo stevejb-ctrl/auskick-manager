@@ -174,11 +174,11 @@ test("Continue-to-lineup CTA is a button with pending state, not a plain link", 
   await cta.click();
 
   // After click, we should land on /live and the LineupPicker should
-  // render. The "Ready for Q1" CTA is the LineupPicker's pre-kickoff
-  // signal (see lineup.spec.ts for the deeper assertion).
+  // render. Its "Ready" CTA is the LineupPicker's pre-kickoff signal (see
+  // lineup.spec.ts for the deeper assertion).
   await expect(page).toHaveURL(/\/live$/, { timeout: 10_000 });
   await expect(
-    page.getByRole("button", { name: /^start q1$/i }),
+    page.getByRole("button", { name: /^ready$/i }),
   ).toBeVisible({ timeout: 10_000 });
 });
 

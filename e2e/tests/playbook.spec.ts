@@ -11,6 +11,7 @@ import { createAdminClient, createTestUser, deleteTestUser } from "../fixtures/s
 import { makeGame, makePlayers, makeTeam } from "../fixtures/factories";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
 import { closeGameSettings, openGameSettings } from "../helpers/break";
+import { readyAfl } from "../helpers/kickoff";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -441,7 +442,7 @@ test("set positions: game day puts kids in their home line, labelled", async ({ 
   );
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
   for (const [i, , line, label] of homes) {
     const tile = page.getByRole("group", { name: line, exact: true }).getByTestId(`player-tile-${players[i].id}`);
     await expect(tile).toBeVisible();
@@ -468,6 +469,8 @@ test("kickoff freezes How we play onto the game", async ({ page }) => {
     } catch {}
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  // Live v3: Ready sets the lineup, the live screen's bar starts Q1.
+  await readyAfl(page);
   await page.getByRole("button", { name: /^start q1$/i }).click({ timeout: 15_000 });
   await expect(page.getByRole("heading", { name: /^start q1$/i })).toBeVisible();
   await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
@@ -600,7 +603,7 @@ test("Must rules shape the game-day lineup", async ({ page }) => {
   );
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
   // Staying home is about where they play, not whether: on the field
   // means the Back line (with 14 kids, two start on the bench).
   for (const p of homeBack) {
@@ -1330,6 +1333,7 @@ test("AFL: keep a kid on the field from the lineup, and it carries into the game
     .toEqual([[pid, { kind: "field" }]]);
 
   // Start the game: the hold is still there on the live field.
+  await readyAfl(page);
   await page.getByRole("button", { name: /^start q1$/i }).click();
   await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   await expect(page.getByTestId(`player-tile-${pid}`).getByLabel("Field locked")).toBeVisible({ timeout: 15_000 });

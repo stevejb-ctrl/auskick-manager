@@ -34,6 +34,9 @@ function expectTargets(boxes: Box[]) {
 }
 
 async function kickOff(page: Page, period: "q" | "h") {
+  // AFL's picker sets the lineup with Ready (live v3); the live screen's
+  // bar holds Start Q1. Union's picker starts H1 itself.
+  if (period === "q") await page.getByRole("button", { name: /^ready$/i }).click({ timeout: 15_000 });
   await page.getByRole("button", { name: new RegExp(`^start ${period}1$`, "i") }).click({ timeout: 15_000 });
   await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: new RegExp(`^clock — ${period}1, running$`, "i") })).toBeVisible({ timeout: 15_000 });

@@ -86,7 +86,7 @@ test("AFL: players on the field and the sub interval survive a late kid marked I
   });
   await gotoStable(page, `/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: /game settings/i }).click();
   await page.locator("#on-field-size").selectOption("11");
   await page.locator("#sub-minutes").fill("5");

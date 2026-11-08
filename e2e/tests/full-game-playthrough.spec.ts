@@ -37,6 +37,7 @@ import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
 import { aflPositionModel, getAgeGroupConfig } from "../../src/lib/sports";
 import type { AgeGroup, Lineup } from "../../src/lib/types";
+import { readyAfl } from "../helpers/kickoff";
 
 test.describe.configure({ mode: "serial" });
 
@@ -147,12 +148,11 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
   );
 
   // ─── Phase 1: kickoff → Q1 in progress ────────────────────
-  // Post-2026-05-13 kickoff flow: /live renders LineupPicker
-  // pre-kickoff (since no lineup_set event yet). User taps the
-  // "Ready for Q1" CTA → StartQuarterModal opens in-place → tapping
-  // "Start Q1" commits lineup_set + quarter_start atomically. The
-  // previous seed-lineup_set shortcut would put the page in an
-  // unreachable intermediate state in the new architecture.
+  // Live v3 kickoff flow: /live renders LineupPicker pre-kickoff
+  // (no lineup_set event yet). User taps Ready → lineup_set, and the
+  // live screen opens before the first siren → its bar's Start Q1 opens
+  // the StartQuarterModal → "Start Q1 now" writes quarter_start and
+  // starts the clock.
   //
   // buildDefaultLineup is unused by this path — the suggester
   // auto-fills positions from the availability roster. Kept the
@@ -181,6 +181,7 @@ test("full game playthrough: start → score → Q-break recap + fix → finalis
     } catch {}
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await readyAfl(page);
   await page
     .getByRole("button", { name: /^start q1$/i })
     .click({ timeout: 10_000 });

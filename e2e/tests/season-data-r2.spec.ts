@@ -47,7 +47,7 @@ async function openLineup(page: Page, teamId: string, gameId: string) {
   });
   await gotoStable(page, `/teams/${teamId}/games/${gameId}/live`);
   await waitForHydration(page);
-  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
 }
 
 /** A card on the Season settings page, by its field's label. */

@@ -69,6 +69,9 @@ for (const c of CASES) {
       });
       await page.goto(`/teams/${team.id}/games/${game.id}/live`);
       await waitForHydration(page);
+      // AFL's picker sets the lineup with Ready; the live screen's bar
+      // holds Start Q1 (live v3). The other sports start from the picker.
+      if (c.sport === "afl") await page.getByRole("button", { name: /^ready$/i }).click({ timeout: 20_000 });
       await page.getByRole("button", { name: FIRST }).click({ timeout: 20_000 });
       await page.getByRole("button", { name: /^start [qh]\d+ now$|^start anyway$/i }).click({ timeout: 10_000 });
       await expect(page.getByRole("button", { name: /^clock — [qh]1, running$/i })).toBeVisible({ timeout: 20_000 });
