@@ -32,6 +32,7 @@ import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { updateLiveGame } from "@/lib/games/updateLiveGame";
 import { getAgeGroupConfig, getSportConfig, isRugby, teamSport, type RugbySport } from "@/lib/sports/registry";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
@@ -414,7 +415,7 @@ export async function startLeagueGame(
     );
     gameUpdate.sub_interval_seconds = clamped;
   }
-  const { error: gameError } = await w.supabase.from("games").update(gameUpdate).eq("id", gameId);
+  const { error: gameError } = await updateLiveGame(w.supabase, gameId, gameUpdate);
   // A refused write says so (UX round 3: soccer's kick-off went on with
   // the game still "Upcoming").
   if (gameError) return { success: false, error: gameWriteError(gameError) };
@@ -549,10 +550,7 @@ export async function finaliseLeagueGame(
   }, idempotencyKey);
   if (!finalise.success) return finalise;
 
-  const { error: updateError } = await w.supabase
-    .from("games")
-    .update({ status: "completed" })
-    .eq("id", gameId);
+  const { error: updateError } = await updateLiveGame(w.supabase, gameId, { status: "completed" });
   if (updateError) return { success: false, error: updateError.message };
 
   // Season time rollup for stats and season balance (UX plan 4.5).
@@ -1075,10 +1073,7 @@ export async function setLeagueTrackZoneTime(
 ): Promise<ActionResult> {
   const writer = await resolveWriter(auth, gameId);
   if (writer.error) return { success: false, error: writer.error };
-  const { error: updateError } = await writer.supabase
-    .from("games")
-    .update({ track_zone_time: enabled })
-    .eq("id", gameId);
+  const { error: updateError } = await updateLiveGame(writer.supabase, gameId, { track_zone_time: enabled });
   if (updateError) {
     return { success: false, error: updateError.message };
   }
@@ -1164,10 +1159,7 @@ export async function setLeagueOnFieldSizeMidGame(
     };
   }
 
-  const { error: updErr } = await w.supabase
-    .from("games")
-    .update({ on_field_size: clampedSize })
-    .eq("id", gameId);
+  const { error: updErr } = await updateLiveGame(w.supabase, gameId, { on_field_size: clampedSize });
   if (updErr) return { success: false, error: updErr.message };
 
   invalidateSeasonEvents(w.teamId);
@@ -1198,10 +1190,7 @@ export async function setLeagueSubInterval(
     30,
     Math.min(600, Math.round(subIntervalSeconds)),
   );
-  const { error: updateError } = await writer.supabase
-    .from("games")
-    .update({ sub_interval_seconds: clamped })
-    .eq("id", gameId);
+  const { error: updateError } = await updateLiveGame(writer.supabase, gameId, { sub_interval_seconds: clamped });
   if (updateError) {
     return { success: false, error: updateError.message };
   }

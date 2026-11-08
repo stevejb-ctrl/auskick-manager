@@ -103,6 +103,7 @@ export default async function AvailabilityPage({
               teamName={(team as { name?: string } | null)?.name ?? "Us"}
               opponent={g.opponent}
               scheduledAt={g.scheduled_at}
+              location={g.location}
               token={g.availability_token}
               className="w-full sm:w-auto"
             />

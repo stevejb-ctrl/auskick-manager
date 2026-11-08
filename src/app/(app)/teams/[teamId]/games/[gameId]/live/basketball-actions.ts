@@ -29,6 +29,7 @@ import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { updateLiveGame } from "@/lib/games/updateLiveGame";
 import { getSportConfig, isBasketball, teamSport } from "@/lib/sports/registry";
 import { basketballAgeGroupForTeam } from "@/lib/sports/basketball";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
@@ -218,7 +219,7 @@ export async function startBasketballGame(
   if (subIntervalSeconds != null) {
     gameUpdate.sub_interval_seconds = Math.round(Math.min(10 * 60, Math.max(60, subIntervalSeconds)));
   }
-  const { error: gameError } = await w.supabase.from("games").update(gameUpdate).eq("id", gameId);
+  const { error: gameError } = await updateLiveGame(w.supabase, gameId, gameUpdate);
   // A refused write says so (UX round 3: soccer's kick-off went on with
   // the game still "Upcoming").
   if (gameError) return { success: false, error: gameWriteError(gameError) };
@@ -334,7 +335,7 @@ export async function finaliseBasketballGame(
   }, idempotencyKey);
   if (!finalise.success) return finalise;
 
-  const { error: updateError } = await w.supabase.from("games").update({ status: "completed" }).eq("id", gameId);
+  const { error: updateError } = await updateLiveGame(w.supabase, gameId, { status: "completed" });
   if (updateError) return { success: false, error: updateError.message };
 
   await writeGameRollup(w.supabase, gameId);

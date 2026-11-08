@@ -175,7 +175,7 @@ export function checkRules(input: RuleCheckInput): RuleCheckItem[] {
                 rule: ruleLine(rule, input),
                 playerIds: clash[1],
               }
-            : { id: rule.id, status: "ok", text: `${joinNames(ids.map(input.name))} kept apart` },
+            : { id: rule.id, status: "ok", text: `${joinNames(ids.map(input.name))} in different ${input.lineWord}s` },
         );
         break;
       }
@@ -283,7 +283,7 @@ function ruleLine(rule: RuleInstance, input: RuleCheckInput): string {
     case "distinct-lines":
       return `Everyone plays ${rule.params.count ?? 2} different ${input.lineWord}s`;
     case "keep-apart":
-      return `Keep ${names} apart`;
+      return `Keep ${names} in different ${input.lineWord}s`;
     case "keep-together":
       return `Keep ${names} together`;
     case "max-bench-in-row":

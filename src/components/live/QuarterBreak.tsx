@@ -871,7 +871,7 @@ export function QuarterBreak({
           const isLoaned = loanedSet.has(insightPlayerId);
           const status = isInjured ? (wentHomeIds?.has(insightPlayerId) ? "Went home" : "Injured") : isLoaned ? "Lent" : "Available";
           return (
-            <Modal>
+            <Modal onClose={() => setInsightPlayerId(null)}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
                   <Guernsey num={ip.jersey_number ?? ""} size={32} />

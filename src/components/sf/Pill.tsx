@@ -11,8 +11,8 @@ interface PillProps {
 const TONE_CLASSES: Record<Tone, string> = {
   neutral: "bg-surface-alt text-ink",
   ok: "bg-brand-50 text-brand-700",
-  warn: "bg-warn-soft text-warn",
-  live: "bg-alarm-soft text-alarm",
+  warn: "bg-warn-soft text-warn-ink",
+  live: "bg-alarm-soft text-alarm-ink",
   info: "bg-surface-alt text-ink-dim border border-hairline",
   danger: "bg-loss-soft text-loss",
 };

@@ -113,7 +113,7 @@ export function FeedbackModal({ open, onClose, kind }: FeedbackModalProps) {
   }
 
   return (
-    <Modal>
+    <Modal onClose={handleCancel}>
       {sent ? (
         <div role="status" className="py-2 text-center">
           <h3 className="text-lg font-semibold text-ink">

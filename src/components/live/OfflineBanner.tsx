@@ -44,7 +44,7 @@ export function OfflineBanner({ message }: OfflineBannerProps) {
       <div
         role="alert"
         data-testid="offline-banner"
-        className="flex flex-wrap items-center gap-2 rounded-md border border-warn/30 bg-warn-soft px-3 py-2 text-xs text-warn"
+        className="flex flex-wrap items-center gap-2 rounded-md border border-warn/30 bg-warn-soft px-3 py-2 text-xs text-warn-ink"
       >
         <OfflineDot />
         <p className="min-w-0 flex-1 leading-relaxed">
@@ -81,7 +81,7 @@ export function OfflineBanner({ message }: OfflineBannerProps) {
         role="status"
         aria-live="polite"
         data-testid="offline-banner"
-        className="flex items-start gap-2 rounded-md border border-warn/30 bg-warn-soft px-3 py-2 text-xs text-warn"
+        className="flex items-start gap-2 rounded-md border border-warn/30 bg-warn-soft px-3 py-2 text-xs text-warn-ink"
       >
         <OfflineDot />
         <p className="leading-relaxed">Saving {plural(live.length, "change", "changes")}…</p>
@@ -94,7 +94,7 @@ export function OfflineBanner({ message }: OfflineBannerProps) {
       role="status"
       aria-live="polite"
       data-testid="offline-banner"
-      className="flex items-start gap-2 rounded-md border border-warn/30 bg-warn-soft px-3 py-2 text-xs text-warn"
+      className="flex items-start gap-2 rounded-md border border-warn/30 bg-warn-soft px-3 py-2 text-xs text-warn-ink"
     >
       <OfflineDot />
       <p className="leading-relaxed">

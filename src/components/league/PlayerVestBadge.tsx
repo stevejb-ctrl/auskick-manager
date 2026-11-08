@@ -21,7 +21,7 @@ interface PlayerVestBadgeProps {
 
 const styles: Record<VestType, string> = {
   // FR — yellow ladder. Junior laws §12: yellow vest.
-  fr: "bg-warn-soft text-warn",
+  fr: "bg-warn-soft text-warn-ink",
   // DH — pink ladder. Junior laws §12: pink vest. Tailwind doesn't
   // ship a pink-soft alias by default in this project, so the
   // explicit rgb() value keeps the colour stable across themes.

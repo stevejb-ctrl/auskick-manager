@@ -69,7 +69,7 @@ export default async function StatsPage(props: StatsPageProps) {
   if (games.length === 0) return <StatsBody {...props} />;
   return (
     <div className="space-y-4">
-      <div role="status" data-testid="stats-unfinished-games" className="rounded-md border border-warn/30 bg-warn-soft px-4 py-3 text-sm text-warn">
+      <div role="status" data-testid="stats-unfinished-games" className="rounded-md border border-warn/30 bg-warn-soft px-4 py-3 text-sm text-warn-ink">
         <p>
           {games.length === 1
             ? "A game isn't finished yet, so it isn't in these stats. Finish it at full time to count its minutes."

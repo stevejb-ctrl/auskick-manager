@@ -80,7 +80,7 @@ export function QuarterScoreModal({
   const fixScoresAvailable = !!auth && !!gameId && !!players;
 
   return (
-    <Modal size="md">
+    <Modal size="md" onClose={onClose}>
       {/* Flex column inside the Modal's max-h-capped card so a long
           Fix-scores list can scroll without pushing the Close
           button off-screen. Steve's bug 2026-05-09: "If [the

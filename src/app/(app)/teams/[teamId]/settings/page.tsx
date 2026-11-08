@@ -65,7 +65,8 @@ export default async function SettingsPage({ params, searchParams }: SettingsPag
 
   if (!team) notFound();
   // Parents follow the team read-only — no Team tab (UX plan §6).
-  if (membership?.role === "parent") redirect(`/teams/${params.teamId}`);
+  // Today then says why (round 9: a parent helper's settings "opened blank").
+  if (membership?.role === "parent") redirect(`/teams/${params.teamId}?coachOnly=settings`);
 
   // Read `join_code` in its own query so a deploy that beats the
   // migration to prod still renders the rest of the page. Migration

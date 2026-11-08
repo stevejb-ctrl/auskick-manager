@@ -234,6 +234,8 @@ test("touch U11 mixed: the Girl/Boy prompt, the cap kept through subs, a girl hu
   // Over the cap, a chip stays pinned until it's fixed; Fix brings a girl on for a boy.
   const breach = page.getByTestId("touch-mixed-breach");
   await expect(breach).toContainText("4 boys on · rule 3", { timeout: 15_000 });
+  // It says what Fix will do before it's tapped (round 9).
+  await expect(breach.getByTestId("touch-mixed-fix")).toContainText(/^Fix: .+ on for .+$/);
   await breach.getByRole("button", { name: /^fix/i }).click();
   await expect.poll(() => count("swap"), { timeout: 15_000 }).toBe(swapsBeforeHand + 2);
   const { data: fixSwap } = await admin

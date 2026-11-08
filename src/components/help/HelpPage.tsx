@@ -88,7 +88,7 @@ export function HelpCallout({
   const styles = {
     tip: "border-brand-200 bg-brand-50 text-brand-700",
     note: "border-hairline bg-surface-alt text-ink-dim",
-    warning: "border-warn-soft bg-warn-soft text-warn",
+    warning: "border-warn-soft bg-warn-soft text-warn-ink",
   } as const;
 
   const icons = {

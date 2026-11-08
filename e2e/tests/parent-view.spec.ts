@@ -61,11 +61,13 @@ test("a parent follows the team read-only, watches the live score, and can leave
     const bar = page.getByRole("navigation", { name: /team sections/i });
     await expect(bar.getByRole("link")).toHaveText(["Today", "Games", "Stats"], { timeout: 10_000 });
 
-    // Squad and Team bounce back to Today.
+    // Squad and Team bounce back to Today, which says why (round 9).
     await page.goto(`/teams/${team.id}/squad`);
-    await expect(page).toHaveURL(new RegExp(`/teams/${team.id}$`));
+    await expect(page).toHaveURL(new RegExp(`/teams/${team.id}\\?coachOnly=squad$`));
+    await expect(page.getByTestId("coach-only-note")).toContainText("The squad is the coach's");
     await page.goto(`/teams/${team.id}/settings`);
-    await expect(page).toHaveURL(new RegExp(`/teams/${team.id}$`));
+    await expect(page).toHaveURL(new RegExp(`/teams/${team.id}\\?coachOnly=settings$`));
+    await expect(page.getByTestId("coach-only-note")).toContainText("Team settings are the coach's");
 
     // The live game is a read-only scoreboard.
     await page.getByRole("link", { name: /^watch live$/i }).click();
