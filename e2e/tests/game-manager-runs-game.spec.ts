@@ -62,17 +62,17 @@ for (const c of CASES) {
     try {
       await page.addInitScript(() => {
         try {
-          for (const k of ["gm-walkthrough-seen", "nb-walkthrough-seen", "league-walkthrough-seen", "rl-walkthrough-seen"]) {
+          for (const k of ["gm-walkthrough-seen", "nb-walkthrough-seen", "league-walkthrough-seen", "rl-walkthrough-seen", "basketball-walkthrough-seen", "touch-walkthrough-seen"]) {
             localStorage.setItem(k, "1");
           }
         } catch {}
       });
       await page.goto(`/teams/${team.id}/games/${game.id}/live`);
       await waitForHydration(page);
-      // AFL's, netball's and rugby's pickers set the lineup with Ready; the
-      // live screen's bar holds Start Q1 / H1 (live v3). The other sports
-      // start from the picker.
-      if (c.sport === "afl" || c.sport === "netball" || c.sport === "rugby_league" || c.sport === "rugby_union")
+      // AFL's, netball's, rugby's, basketball's and touch's pickers set the
+      // lineup with Ready; the live screen's bar holds Start Q1 / H1 (live
+      // v3). Soccer's starts from the picker.
+      if (c.sport !== "soccer")
         await page.getByRole("button", { name: /^ready$/i }).click({ timeout: 20_000 });
       await page.getByRole("button", { name: FIRST }).click({ timeout: 20_000 });
       await page.getByRole("button", { name: /^start [qh]\d+ now$|^start anyway$/i }).click({ timeout: 10_000 });
@@ -82,16 +82,21 @@ for (const c of CASES) {
       await expect.poll(async () => (await gameRow(admin, game.id)).status, { timeout: 15_000 }).toBe("in_progress");
       expect((await gameRow(admin, game.id)).playbook_snapshot).not.toBeNull();
 
-      // The rest of the game is played; the manager finishes it.
-      const { data: started } = await admin
-        .from("game_events")
-        .select("created_at")
-        .eq("game_id", game.id)
-        .eq("type", "quarter_start")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-      const t0 = new Date(started!.created_at as string).getTime();
+      // The rest of the game is played; the manager finishes it. The bar's
+      // Start is an optimistic write (on screen at once, saved a moment
+      // later), so wait for its quarter_start to land before reading it.
+      const firstStart = async () =>
+        (
+          await admin
+            .from("game_events")
+            .select("created_at")
+            .eq("game_id", game.id)
+            .eq("type", "quarter_start")
+            .order("created_at", { ascending: false })
+            .limit(1)
+        ).data?.[0]?.created_at as string | undefined;
+      await expect.poll(firstStart, { timeout: 15_000 }).toBeTruthy();
+      const t0 = new Date((await firstStart())!).getTime();
       const sportTag = c.sport === "afl" || c.sport === "netball" ? {} : { sport: c.sport };
       const rows: { type: string; metadata: Record<string, unknown> }[] = [
         { type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 600_000 } },

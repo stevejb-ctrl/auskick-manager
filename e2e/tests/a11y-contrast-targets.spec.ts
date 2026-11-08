@@ -35,20 +35,27 @@ test("muted text passes AA on the page, on white and on surface-alt", async ({ p
   expect(contrast(fg, [...ALT]), "on surface-alt").toBeGreaterThanOrEqual(4.5);
 });
 
-test("basketball's sub card: bench pair badges pass AA and Make swap is a 44 px target", async ({ page }) => {
+// Live v3 (Phase 10): basketball's sub card is the bench kids' pair
+// badges and "On now →" words, the bar's "Make all N swaps" and the pairs
+// sheet's Make on each pair.
+test("basketball's planned sub: bench pair badges and words pass AA, and each Make is a 44 px target", async ({ page }) => {
   // Eight kids, five on: three on the bench, due 2 minutes in.
   const { team, game } = await basketballGame({ name: "A11Y-CON-BB", subIntervalSec: 120, elapsedSec: 130 });
   await skipHints(page);
   await openLive(page, team.id, game.id);
 
   const bench = page.getByRole("group", { name: "Bench" });
-  const badge = bench.getByLabel(/^Going on/).first();
+  const badge = bench.getByTestId("pair-badge").first();
   await expect(badge).toBeVisible({ timeout: 15_000 });
-  for (const text of await badge.locator("span").all()) {
-    expect(await contrastOf(text), `"${await text.textContent()}"`).toBeGreaterThanOrEqual(4.5);
-  }
+  expect(await contrastOf(badge), "the pair badge").toBeGreaterThanOrEqual(4.5);
+  const words = bench.getByText(/^On now/).first();
+  expect(await contrastOf(words), `"${await words.textContent()}"`).toBeGreaterThanOrEqual(4.5);
 
-  const make = page.locator("button", { hasText: /^Make swap$/ });
+  const all = page.getByTestId("bar-make-all");
+  await expect(all).toBeVisible();
+  expect((await boxOf(all)).height).toBeGreaterThanOrEqual(44);
+  await page.getByRole("button", { name: /^pairs/i }).click();
+  const make = page.getByRole("dialog").locator("button", { hasText: /^Make$/ });
   await expect(make.first()).toBeVisible();
   for (const b of await make.all()) {
     expect((await boxOf(b)).height).toBeGreaterThanOrEqual(44);

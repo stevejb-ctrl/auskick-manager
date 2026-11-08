@@ -22,6 +22,8 @@ import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
 import { startFromBreak } from "../helpers/break";
+import { readyShell, startShellFirst } from "../helpers/kickoff";
+import { openGameMenu } from "../helpers/liveShell";
 
 test.describe.configure({ mode: "serial" });
 
@@ -127,6 +129,8 @@ test("oztag U10 single-gender: lanes 2-4-2, no Girl/Boy, lanes rotate at half-ti
   const wingId = ((await wingTile.getAttribute("data-testid")) ?? "").slice("player-tile-".length);
   await expectLongPressSheet(page, wingId, 6);
 
+  // Live v3: Ready sets the side; Start H1 is on the live screen's bar.
+  await readyShell(page);
   await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
   // The start waits for Oztag's own cue, as its break does.
   await expect(page.getByRole("dialog").filter({ hasText: /when the whistle goes/i })).toBeVisible({ timeout: 10_000 });
@@ -161,7 +165,7 @@ test("oztag U10 single-gender: lanes 2-4-2, no Girl/Boy, lanes rotate at half-ti
   const middle = h2.lines.middle[0];
   await expectLongPressSheet(page, middle, 6);
   await page.getByTestId(`player-tile-${middle}`).click({ timeout: 10_000 });
-  await page.getByRole("button", { name: /player actions/i }).click({ timeout: 5_000 });
+  await page.getByTestId("kid-bar").getByRole("button", { name: /^more$/i }).click({ timeout: 5_000 });
   await page.getByTestId("touch-move-wing").click({ timeout: 5_000 });
   await expect.poll(() => count("field_zone_swap")).toBe(1);
   const { data: move } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "field_zone_swap").single();
@@ -222,9 +226,8 @@ test("oztag U10 mixed: a girl's try scores 2, a boy's 1, the opponent's +T and +
   await expect(page.getByTestId("rule-check-summary")).toHaveText("All rules kept");
   await page.getByTestId("rule-check-summary").click();
   await expect(page.getByTestId("rule-check")).toContainText("Mixed rule kept: 4 of 4 boys, 4 girls");
-  await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
-  await page.getByRole("button", { name: /^start h1 now$/i }).click({ timeout: 10_000 });
-  await expect(page.getByRole("button", { name: /^clock — h1, running$/i })).toBeVisible({ timeout: 15_000 });
+  await readyShell(page);
+  await startShellFirst(page);
   const h1 = await lineup();
   const on = [...h1.lines.middle, ...h1.lines.link, ...h1.lines.wing, ...h1.lines.field];
   expect(on).toHaveLength(8);
@@ -247,17 +250,18 @@ test("oztag U10 mixed: a girl's try scores 2, a boy's 1, the opponent's +T and +
   await page.getByTestId("touch-dock-try").click({ timeout: 5_000 });
   await expect.poll(() => count("try")).toBe(1);
 
-  // The opponent: a try, "+T" as ours reads, and a girl's try, "+2"
-  // marked girl, one row a side on an iPhone (audit 23 Oct, P2: "+1" and
-  // "+2 (girl)" stacked into a column at 390 px and the bar covered
-  // about 30% of the screen, Finish game included).
+  // The opponent: a try, "+T", and a girl's try, "+2" over "girl" one
+  // button wide, one row with ours on an iPhone (audit 23 Oct, P2: "+1"
+  // and "+2 (girl)" stacked into a column at 390 px and the bar covered
+  // about 30% of the screen, Finish game included). Live v3's bar: ours
+  // is the filled "+ TRY / who scored?", theirs text buttons.
   await page.setViewportSize({ width: 390, height: 844 });
   const ourTry = page.getByRole("button", { name: `Add a try, ${teamName}` });
   const theirTry = page.getByRole("button", { name: "Add a try, Charlestown Chargers" });
   const theirGirls = page.getByRole("button", { name: "Add a girl's try, 2 points, Charlestown Chargers" });
-  await expect(ourTry).toHaveText("+T");
+  await expect(ourTry).toContainText(/^\+ Try/);
   await expect(theirTry).toHaveText("+T");
-  await expect(theirGirls).toContainText("+2");
+  await expect(theirGirls).toHaveText("+2girl");
   const bottomOf = async (chip: Locator) => {
     const box = (await chip.boundingBox())!;
     return box.y + box.height;
@@ -315,7 +319,7 @@ test("oztag U10 mixed: a girl's try scores 2, a boy's 1, the opponent's +T and +
 // Every write but a try used to wait for its save, then refresh the
 // page: on a ground's patchy signal a sub took seconds to show (UX audit
 // 23 Oct 2026, "Drift from AFL"). Touch now writes as soccer's family does.
-test("oztag: a try, its undo and a sub show before the server saves; Game settings sits in the row", async ({ page }) => {
+test("oztag: a try, its undo and a sub show before the server saves; Game settings is in ⋯", async ({ page }) => {
   test.setTimeout(120_000);
   const { admin, ownerId } = await ownerIdOf();
   const team = await makeTeam(admin, {
@@ -383,8 +387,9 @@ test("oztag: a try, its undo and a sub show before the server saves; Game settin
   await expect(wings.getByTestId(`player-tile-${benchKid.id}`)).toBeVisible({ timeout: 15_000 });
   await expect(theirs).toHaveText("0");
 
-  // Game settings: the sub interval mid-game, as AFL's.
-  await page.getByRole("button", { name: "Game settings", exact: true }).click();
+  // Game settings: the sub interval mid-game, as AFL's, in ⋯.
+  const menu = await openGameMenu(page);
+  await menu.getByRole("button", { name: "Game settings" }).click();
   const settings = page.getByRole("dialog").filter({ hasText: "Sub interval" });
   await expect(settings).toBeVisible();
   await settings.getByLabel("Sub interval").fill("5");

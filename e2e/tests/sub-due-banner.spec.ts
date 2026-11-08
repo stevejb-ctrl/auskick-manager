@@ -116,7 +116,8 @@ async function expectOneVoice(page: Page, chip: string | RegExp) {
 async function expectCardIsTheAlert(
   page: Page,
   // Rugby's shell (live v3, Phase 8) is the same: its kid bar's + TRY.
-  kid: { tiles: string; score: RegExp } = { tiles: '[data-testid^="player-tile-"]', score: /^\+ goal$/i },
+  // Basketball's (Phase 10) says what to do in its words: "send them to the table now".
+  kid: { tiles: string; score: RegExp; said?: RegExp } = { tiles: '[data-testid^="player-tile-"]', score: /^\+ goal$/i },
 ) {
   const alerts = page.getByRole("alert");
   await expect(alerts.filter({ hasText: /sub due/i })).toBeVisible({ timeout: 20_000 });
@@ -125,7 +126,7 @@ async function expectCardIsTheAlert(
   const spoken = alerts.filter({ hasText: /\S/ });
   await expect(spoken).toHaveCount(1);
   const card = spoken.first();
-  await expect(card).toContainText(/rotate a player off/i);
+  await expect(card).toContainText(kid.said ?? /rotate a player off/i);
   await expect(page.getByRole("button", { name: /^make (all \d+ swaps|this swap)$/i })).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as unknown as { __beeps: number }).__beeps)).toBeGreaterThan(0);
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -174,10 +175,15 @@ test("rugby_union: sub due is the info line, and a kid's + Try still takes the t
   await expectCardIsTheAlert(page, { tiles: '[data-testid^="league-player-tile-"]', score: /^\+ try$/i });
 });
 
-for (const { sport, chip } of [
-  { sport: "basketball" as const, chip: /^add 2 points, /i },
-  { sport: "soccer" as const, chip: /^add goal, /i },
-]) {
+// Basketball is on the v3 shell (Phase 10): the info line is the alert, as AFL's.
+test("basketball: sub due is the info line, and a kid's +2 still takes the tap", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto((await subDueGame("basketball")).coach);
+  await waitForHydration(page);
+  await expectCardIsTheAlert(page, { tiles: '[data-testid^="player-tile-"]', score: /^\+2$/, said: /send them to the table now/i });
+});
+
+for (const { sport, chip } of [{ sport: "soccer" as const, chip: /^add goal, /i }]) {
   test(`${sport}: sub due is the sub card alone, and the score chip still takes the tap`, async ({ page }) => {
     test.setTimeout(90_000);
     await page.goto((await subDueGame(sport)).coach);

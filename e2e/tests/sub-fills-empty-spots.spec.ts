@@ -15,6 +15,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
+import { openPairs } from "../helpers/liveShell";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -87,11 +88,11 @@ test("basketball: two hurt with nobody on, a late arrival goes on into the empty
   await page.addInitScript(() => window.localStorage.setItem("siren-longpress-seen-v1", "true"));
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  await openSubCard(page);
-  const pair = page.getByTestId("basketball-swap-pair-0");
-  await expect(pair).toContainText("Empty spot");
-  await expect(pair).toContainText(nameOf(ids[5]).split(" ")[0]);
-  await pair.getByRole("button", { name: /^Put .+ on$/ }).click();
+  // Live v3: the info line opens the pairs; the first fills the empty spot.
+  const sheet = await openPairs(page);
+  await expect(sheet.getByTestId("swap-pair-0-off")).toHaveText("Empty spot");
+  await expect(sheet.getByTestId("swap-pair-0-on")).toContainText(nameOf(ids[5]).split(" ")[0]);
+  await sheet.getByTestId("swapcard-apply-all").click();
   await expect.poll(() => lastSwap(admin, game.id), { timeout: 15_000 }).toMatchObject({ off_player_id: null, on_player_id: ids[5] });
 });
 

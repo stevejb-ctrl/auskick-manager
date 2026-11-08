@@ -10,8 +10,8 @@
 // "I did one sub in basketball and now no more upcoming subs show": a
 // sub only showed while it evened time now. His bench kids play Guards
 // only and had more time than the guards who'd just come on, so for a
-// minute and a half there was nothing to show. Now the card shows the
-// subs due at the next sub time.
+// minute and a half there was nothing to show. Now the next sub's pairs
+// show (the info line, the kids' badges and words) for the next sub time.
 
 import { test, expect, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
@@ -77,6 +77,8 @@ test("after a sub, the next upcoming sub still shows when nothing evens time yet
   );
   await open(page, team.id, game.id);
   const bench = page.getByRole("group", { name: "Bench" });
-  await expect(bench.getByLabel(/^Going on to Guards, pair 1/)).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(/^Suggested — /)).toBeVisible();
+  // Live v3: the bench kid says "On next → G" with the pair badge, and
+  // the info line counts down to the next sub.
+  await expect(bench.getByRole("button", { name: /On next to Guards, pair 1/ })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("info-line")).toContainText(/Next sub \d+:\d\d · \d+ swaps?/);
 });
