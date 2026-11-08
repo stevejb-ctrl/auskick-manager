@@ -59,6 +59,8 @@ export interface KidTileProps {
   dimmed?: boolean;
   /** Held on (Keep on / Keep in a line): a small lock after the name. */
   locked?: boolean;
+  /** What the lock means ("Field locked"): on the lock, as the old tiles' chip said it. */
+  lockLabel?: string | null;
   /** Out of the rotation (hurt, home, lent, sitting, fouled out). */
   out?: KidOutKind | null;
   /** Big fields: a shorter tile and name. */
@@ -96,6 +98,7 @@ export function KidTile({
   under = false,
   dimmed = false,
   locked = false,
+  lockLabel = null,
   out = null,
   dense = false,
   onClick,
@@ -196,29 +199,34 @@ export function KidTile({
       {badge && (
         <span
           aria-hidden
-          className={`absolute -right-[5px] -top-[7px] z-[2] flex h-[18px] min-w-[18px] items-center justify-center rounded-[9px] px-[5px] font-display text-[10.5px] font-black leading-none ${badgeClass}`}
+          data-testid="pair-badge"
+          className={`absolute -right-[5px] -top-[7px] z-[2] flex h-[18px] min-w-[18px] items-center justify-center rounded-[9px] px-[5px] font-display text-[0.65625rem] font-black leading-none ${badgeClass}`}
         >
           {badge.n}
         </span>
       )}
       <span className="flex min-w-0 items-baseline gap-[5px] whitespace-nowrap font-display stretch-72 leading-[1.05]">
-        {pos && <span className="flex-none text-[11px] font-extrabold tracking-[0.05em] opacity-[0.76]">{pos}</span>}
+        {pos && <span className="flex-none text-[0.6875rem] font-extrabold tracking-[0.05em] opacity-[0.76]">{pos}</span>}
         <span
           key={fresh || undefined}
-          className={`min-w-0 max-w-full flex-[0_1_auto] truncate font-extrabold ${dense ? "text-[16px]" : "text-[17px]"} ${
+          className={`min-w-0 max-w-full flex-[0_1_auto] truncate font-extrabold ${dense ? "text-base" : "text-[1.0625rem]"} ${
             fresh ? "motion-safe:animate-roll-in-up" : ""
           }`}
         >
           {name}
         </span>
-        {score && !out && <span className="min-w-0 flex-shrink-[2] overflow-hidden text-[11.5px] font-extrabold opacity-[0.72]">{score.text}</span>}
-        {locked && !out && <span className="inline-flex flex-none opacity-70">{LOCK}</span>}
+        {score && !out && <span className="min-w-0 flex-shrink-[2] overflow-hidden text-[0.71875rem] font-extrabold opacity-[0.72]">{score.text}</span>}
+        {locked && !out && (
+          <span aria-label={lockLabel ?? undefined} className="inline-flex flex-none opacity-70">
+            {LOCK}
+          </span>
+        )}
         {out && words && (
-          <span className={`ml-auto flex-none text-[10px] font-black tracking-[0.1em] ${outTone}`}>{words.text}</span>
+          <span className={`ml-auto flex-none text-[0.625rem] font-black tracking-[0.1em] ${outTone}`}>{words.text}</span>
         )}
       </span>
       {words && !out && (
-        <span className={`block min-w-0 truncate font-display stretch-72 text-[12px] font-bold leading-[1.15] ${wordsClass}`}>
+        <span className={`block min-w-0 truncate font-display stretch-72 text-[0.75rem] font-bold leading-[1.15] ${wordsClass}`}>
           {words.text}
         </span>
       )}
@@ -248,7 +256,7 @@ export function KidSlot({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className={`flex h-full min-h-[44px] w-full min-w-0 items-center rounded-[10px] border-[1.5px] px-[8px] text-left font-display stretch-72 text-[13px] font-bold transition-colors duration-fast ease-out-quart ${
+      className={`flex h-full min-h-[44px] w-full min-w-0 items-center rounded-[10px] border-[1.5px] px-[8px] text-left font-display stretch-72 text-[0.8125rem] font-bold transition-colors duration-fast ease-out-quart ${
         hot ? "border-solid border-mark/[0.85] text-mark" : "border-dashed border-mark/[0.32] text-mark/[0.72] hover:border-mark/60"
       }`}
     >

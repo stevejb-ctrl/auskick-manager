@@ -75,14 +75,14 @@ export function FieldLines({ lines, surface = "field", marks, dense = false, til
             key={line.key}
             role="group"
             aria-label={line.label}
-            className={`relative grid flex-[1_0_auto] grid-cols-[14px_minmax(0,1fr)] items-center gap-[6px] py-[8px] ${
+            className={`relative grid flex-[1_0_auto] grid-cols-[minmax(14px,auto)_minmax(0,1fr)] items-center gap-[6px] py-[8px] ${
               i > 0 ? "border-t border-mark/10" : ""
             }`}
           >
             {/* Dim, but 4.5:1 on the grass (the design's 42% was 3:1). */}
             <span
               aria-hidden
-              className="self-center justify-self-center whitespace-nowrap font-display text-[8.5px] font-bold uppercase leading-none tracking-[0.16em] text-mark/[0.62] [transform:rotate(180deg)] [writing-mode:vertical-rl]"
+              className="self-center justify-self-center whitespace-nowrap font-display text-[0.53125rem] font-bold uppercase leading-none tracking-[0.16em] text-mark/[0.62] [transform:rotate(180deg)] [writing-mode:vertical-rl]"
             >
               {line.label}
             </span>

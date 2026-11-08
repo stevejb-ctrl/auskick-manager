@@ -90,7 +90,7 @@ export function KidBar({ name, heading, line, split, hint, pair, actions, column
           type="button"
           onClick={onClose}
           aria-label={`Put ${name} down`}
-          className="flex h-[44px] min-w-[44px] flex-none items-center justify-center rounded-[12px] text-[20px] font-bold leading-none text-ink shadow-[inset_0_0_0_1.5px_rgb(var(--l-hairline))] hover:bg-surface-alt"
+          className="flex h-[44px] min-w-[44px] flex-none items-center justify-center rounded-[12px] text-[1.25rem] font-bold leading-none text-ink shadow-[inset_0_0_0_1.5px_rgb(var(--l-hairline))] hover:bg-surface-alt"
         >
           ×
         </button>
@@ -103,7 +103,7 @@ export function KidBar({ name, heading, line, split, hint, pair, actions, column
         >
           <span
             aria-hidden
-            className={`grid h-[26px] w-[26px] flex-none place-items-center rounded-[8px] font-display text-[15px] font-black ${
+            className={`grid h-[26px] w-[26px] flex-none place-items-center rounded-[8px] font-display text-[0.9375rem] font-black ${
               pair.hot ? "bg-hivis text-hivis-ink" : "bg-primary text-on-primary"
             }`}
           >
@@ -111,13 +111,13 @@ export function KidBar({ name, heading, line, split, hint, pair, actions, column
           </span>
           <span className="min-w-0 flex-1 font-display stretch-80 text-base font-extrabold leading-[1.1] text-ink">
             {pair.text}
-            {pair.where && <i className="ml-[4px] not-italic text-[11px] tracking-[0.08em] text-ink-mute">{pair.where}</i>}
+            {pair.where && <i className="ml-[4px] not-italic text-[0.6875rem] tracking-[0.08em] text-ink-mute">{pair.where}</i>}
             {pair.edited && pair.onRevert && (
               <button
                 type="button"
                 onClick={pair.onRevert}
                 aria-label="Edited. Revert to Siren's pick"
-                className="ml-[4px] inline-flex min-h-[24px] items-center rounded-[7px] bg-primary px-[7px] align-[1px] font-display text-[11px] font-extrabold tracking-[0.04em] text-on-primary"
+                className="ml-[4px] inline-flex min-h-[24px] items-center rounded-[7px] bg-primary px-[7px] align-[1px] font-display text-[0.6875rem] font-extrabold tracking-[0.04em] text-on-primary"
               >
                 Edited ↺
               </button>

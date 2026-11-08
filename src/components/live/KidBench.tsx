@@ -27,10 +27,10 @@ export interface KidBenchProps {
 
 export function KidBench({ count, tiles, late, emptyText = "Nobody on the bench", dense = false }: KidBenchProps) {
   return (
-    <div role="group" aria-label="Bench" className="grid grid-cols-[14px_minmax(0,1fr)] items-center gap-[6px] px-[4px]">
+    <div role="group" aria-label="Bench" className="grid grid-cols-[minmax(14px,auto)_minmax(0,1fr)] items-center gap-[6px] px-[4px]">
       <span
         aria-hidden
-        className="self-center justify-self-center whitespace-nowrap font-display text-[8.5px] font-bold uppercase leading-none tracking-[0.16em] text-ink-mute [transform:rotate(180deg)] [writing-mode:vertical-rl]"
+        className="self-center justify-self-center whitespace-nowrap font-display text-[0.53125rem] font-bold uppercase leading-none tracking-[0.16em] text-ink-mute [transform:rotate(180deg)] [writing-mode:vertical-rl]"
       >
         Bench {count}
       </span>

@@ -65,7 +65,7 @@ function Ring({ progress, hot }: { progress: number; hot: boolean }) {
 }
 
 const LINE = "flex min-h-[44px] min-w-0 flex-1 items-center gap-[7px] rounded-[12px] px-[2px] text-left text-[0.8125rem] text-ink-dim";
-const CHEV = <span aria-hidden className="flex-none font-display text-[18px] font-black text-ink-mute">›</span>;
+const CHEV = <span aria-hidden className="flex-none font-display text-[1.125rem] font-black text-ink-mute">›</span>;
 
 export function InfoLine({
   state,

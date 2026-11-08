@@ -1947,6 +1947,7 @@ export function LiveGame({
         selected={isSelected}
         due={!!pair && inPlay && subDue}
         locked={!!lock}
+        lockLabel={lock === "field" ? "Field locked" : lock === "zone" ? "Zone locked" : null}
         out={out?.kind ?? null}
         onClick={
           out
@@ -2115,10 +2116,13 @@ export function LiveGame({
   const planLabel = hasPinnedNextPeriod ? `Edit Q${currentQuarter + 1} plan` : `Plan Q${currentQuarter + 1}`;
   const planChip = showPlanNextPeriod ? (
     hasPinnedNextPeriod ? (
-      <span className="flex flex-none items-center gap-[4px] rounded-[11px] py-[2px] pl-[10px] pr-[4px] text-brand-700 shadow-[inset_0_0_0_1.5px_currentColor]">
+      <span
+        data-testid="planned-next-period-badge"
+        className="flex flex-none items-center gap-[4px] rounded-[11px] py-[2px] pl-[10px] pr-[4px] text-brand-700 shadow-[inset_0_0_0_1.5px_currentColor]"
+      >
         <button
           type="button"
-          data-testid="planned-next-period-badge"
+          data-testid="plan-next-period-entry"
           onClick={() => setPlanNextOpen(true)}
           aria-label={`Q${currentQuarter + 1} ready. ${planLabel}`}
           className="min-h-[32px] font-display text-[0.78125rem] font-extrabold"

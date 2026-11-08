@@ -158,13 +158,13 @@ export function PairsSheet({
                   <div className="flex flex-wrap items-center gap-x-[8px] py-[6px] pl-[8px] pr-[6px]">
                     <span
                       aria-hidden
-                      className={`grid h-[26px] w-[26px] flex-none place-items-center rounded-[8px] font-display text-[14px] font-black ${
+                      className={`grid h-[26px] w-[26px] flex-none place-items-center rounded-[8px] font-display text-[0.875rem] font-black ${
                         due ? "bg-hivis text-hivis-ink" : "bg-primary text-on-primary"
                       }`}
                     >
                       {p.index + 1}
                     </span>
-                    <span className="flex-none rounded-[5px] bg-surface-alt px-[6px] py-[2px] font-display text-[10px] font-extrabold tracking-[0.08em] text-ink">
+                    <span className="flex-none rounded-[5px] bg-surface-alt px-[6px] py-[2px] font-display text-[0.625rem] font-extrabold tracking-[0.08em] text-ink">
                       {p.where}
                     </span>
                     <span className="flex min-w-0 flex-1 flex-wrap items-center gap-[2px]">
@@ -182,7 +182,7 @@ export function PairsSheet({
                             onRevert(p.index);
                           }}
                           aria-label="Edited. Revert to Siren's pick"
-                          className="ml-[4px] inline-flex min-h-[24px] items-center rounded-[7px] bg-primary px-[7px] font-display text-[11px] font-extrabold tracking-[0.04em] text-on-primary"
+                          className="ml-[4px] inline-flex min-h-[24px] items-center rounded-[7px] bg-primary px-[7px] font-display text-[0.6875rem] font-extrabold tracking-[0.04em] text-on-primary"
                         >
                           Edited ↺
                         </button>
@@ -230,7 +230,7 @@ export function PairsSheet({
                                   chosen ? "bg-brand-600 text-mark" : "bg-surface-alt text-ink hover:bg-hairline"
                                 }`}
                               >
-                                <span aria-hidden className="flex h-5 w-5 items-center justify-center rounded-full bg-ink/10 font-display text-[9px] font-black">
+                                <span aria-hidden className="flex h-5 w-5 items-center justify-center rounded-full bg-ink/10 font-display text-[0.5625rem] font-black">
                                   {o.initials}
                                 </span>
                                 {o.name}
