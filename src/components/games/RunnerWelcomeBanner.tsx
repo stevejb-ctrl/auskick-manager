@@ -98,7 +98,7 @@ export function RunnerWelcomeBanner({
           <span className="font-medium text-ink">Set the starting
           lineup</span>{" "}
           — we&apos;ll suggest a fair one. You can swap players if you
-          like, or just tap Start {firstPeriod}.
+          like, or just tap {cta ?? `Start ${firstPeriod}`}.
         </li>
         <li>
           <span className="font-medium text-ink">

@@ -419,6 +419,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
             opponent={g.opponent}
             trackScoring={trackScoring}
             firstPeriod={firstPeriodOf(ageCfgB.periodLabel)}
+            cta="Ready"
             availability={availablePlayers.length === 0 || wantsAvailability ? "list" : "link"}
           />
           {availablePlayers.length === 0 || wantsAvailability ? (
@@ -582,6 +583,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
             opponent={g.opponent}
             trackScoring={trackScoring}
             firstPeriod={firstPeriodOf(ageCfgT.periodLabel)}
+            cta="Ready"
             availability={availablePlayers.length === 0 || wantsAvailability ? "list" : "link"}
           />
           {availablePlayers.length === 0 || wantsAvailability ? (

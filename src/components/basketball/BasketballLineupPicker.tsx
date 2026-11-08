@@ -6,7 +6,8 @@
 // collapsible "Game settings" card, the court and bench drawn as the
 // live game draws them, tap a kid then a second to swap, long-press for
 // the shared player actions, and the shared footer with Save plan and
-// "Start H1" (or Q1), which opens the shared StartQuarterModal.
+// Ready, which sets the lineup and opens the live screen before the
+// tip-off (its bar's Start H1, or Q1, starts the clock).
 //
 // The suggestion comes from the basketball engine
 // (suggestBasketballLineup), by the team's How we play rotation: the
@@ -26,7 +27,6 @@ import { Label } from "@/components/ui/Label";
 import { RadioChips } from "@/components/ui/RadioChips";
 import { SFButton } from "@/components/sf";
 import { LockModal } from "@/components/live/LockModal";
-import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { SUB_MINUTES_MAX, SUB_MINUTES_MIN, subMinutesFrom } from "@/lib/live/subCadence";
@@ -114,8 +114,6 @@ export function BasketballLineupPicker({
   const [error, setError] = useState<string | null>(null);
   const [loanedIds, setLoanedIds] = useState<Set<string>>(() => new Set(initialLoanedIds));
   const playerById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
-  const periodLetter = ageGroup.periodCount === 4 ? "Q" : "H";
-  const periodWord = ageGroup.periodCount === 4 ? "quarter" : "half";
 
   const clampSize = (n: number) => Math.max(ageGroup.minOnFieldSize, Math.min(ageGroup.maxOnFieldSize, n));
   // Settings are kept through a Who's here change (useKeptSetting): the
@@ -153,7 +151,6 @@ export function BasketballLineupPicker({
   const [fillLine, setFillLine] = useState<BasketballLine | null>(null);
   const [actionPlayerId, setActionPlayerId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [startModalOpen, setStartModalOpen] = useState(false);
   const [savePending, setSavePending] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(initialDraft?.updated_at ?? null);
   const [subMinInput, setSubMinInput] = useKeptSetting(gameId, "subMinutes", String(defaultSubMinutes));
@@ -234,19 +231,17 @@ export function BasketballLineupPicker({
     }
     window.scrollTo({ top: 0, behavior: "auto" });
     setError(null);
-    setStartModalOpen(true);
-  }
-
-  function handleConfirmStart() {
-    setError(null);
+    // Ready sets the lineup; Start H1 is on the live screen's bar (live
+    // v3, as AFL's, netball's and rugby's pickers). It used to open "Start
+    // H1?" here and write the lineup and the first whistle at once.
+    // Until it starts, ⋯ → Edit lineup brings this picker back.
     startTransition(async () => {
-      const result = await startBasketballGame(auth, gameId, lineup, onCourtSize, true, subIntervalSeconds);
+      // startPeriodToo=false: the lineup, no whistle. The team page
+      // redirects to the live screen; the game-day link's page re-renders.
+      const result = await startBasketballGame(auth, gameId, lineup, onCourtSize, false, subIntervalSeconds);
       // Refused because another phone already started: say so over the page.
       noteLiveResult(result);
-      if (!result.success) {
-        setError(result.error ?? "Couldn't start the game.");
-        setStartModalOpen(false);
-      }
+      if (result && !result.success) setError(result.error ?? "Couldn't set the lineup.");
     });
   }
 
@@ -421,7 +416,7 @@ export function BasketballLineupPicker({
         savedAt={savedAt}
         savePlanDisabled={courtIds.length === 0 || isPending}
         onConfirm={handleStartGame}
-        confirmLabel={`Start ${periodLetter}1`}
+        confirmLabel="Ready"
         confirmDisabled={courtIds.length === 0 || isPending}
         confirmLoading={isPending}
       />
@@ -486,17 +481,6 @@ export function BasketballLineupPicker({
         />
       )}
 
-      {startModalOpen && (
-        <StartQuarterModal
-          quarter={1}
-          periodLabel={periodWord}
-          cue="ball goes up"
-          shortSide={{ playing: courtIds.length, size: initialSize, min: ageGroup.minOnFieldSize }}
-          loading={isPending}
-          onStart={handleConfirmStart}
-          onCancel={() => setStartModalOpen(false)}
-        />
-      )}
     </div>
   );
 }
