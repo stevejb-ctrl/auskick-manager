@@ -48,6 +48,11 @@ export interface KidBarProps {
   hint?: ReactNode;
   /** Their pair in the planned sub. */
   pair?: KidBarPair | null;
+  /**
+   * Rows of the sport's own between the hint and the buttons: basketball's
+   * foul row (− and + Foul, n of 5).
+   */
+  extra?: ReactNode;
   /** The buttons: score, Injured, More (BAR buttons, size sm). */
   actions: ReactNode;
   /** How many buttons, for the row's columns. */
@@ -55,7 +60,7 @@ export interface KidBarProps {
   onClose: () => void;
 }
 
-export function KidBar({ name, heading, line, split, hint, pair, actions, columns, onClose }: KidBarProps) {
+export function KidBar({ name, heading, line, split, hint, pair, extra, actions, columns, onClose }: KidBarProps) {
   // Escape puts the kid down (when no sheet is open over the bar: a
   // sheet's own Escape closes it first and stops there).
   useEffect(() => {
@@ -140,6 +145,7 @@ export function KidBar({ name, heading, line, split, hint, pair, actions, column
           {hint}
         </p>
       )}
+      {extra}
       <div
         className="grid gap-[8px] bigtext:!grid-cols-2"
         style={{ gridTemplateColumns: `repeat(${Math.max(1, columns)}, minmax(0, 1fr))` }}

@@ -45,6 +45,16 @@ export interface InfoLineProps {
    * a button. A due sub still says so over it.
    */
   hint?: ReactNode;
+  /**
+   * Words after the countdown in its last 30 s: basketball's "send them
+   * to the table", touch's "make the change next time you have the ball".
+   */
+  softHint?: string;
+  /**
+   * What to do when the sub is due, in the sport's words, in place of
+   * "rotate a player off": basketball's "send them to the table now".
+   */
+  dueHint?: string;
 }
 
 function mmss(ms: number): string {
@@ -85,6 +95,8 @@ export function InfoLine({
   onOpen,
   plan,
   hint,
+  softHint,
+  dueHint,
 }: InfoLineProps) {
   const underText = under && under.count > 0 ? (
     <>
@@ -100,7 +112,7 @@ export function InfoLine({
         <Ring progress={1} hot />
         <span className="min-w-0 flex-1 truncate">
           <b className="font-bold text-ink">{swaps > 0 ? `Sub due — ${plural(swaps, "swap")}` : "Sub due"}</b>
-          {carry ? ` · ${periodWord} ending: make now or it carries to the break` : " · rotate a player off"}
+          {carry ? ` · ${periodWord} ending: make now or it carries to the break` : ` · ${dueHint ?? "rotate a player off"}`}
         </span>
       </>
     );
@@ -145,6 +157,7 @@ export function InfoLine({
         <span className="min-w-0 flex-1 truncate">
           Next sub <b className="nums font-bold text-ink tabular-nums">{mmss(msUntilDue)}</b> · {plural(swaps, "swap")}
           {underText}
+          {soft && softHint ? ` · ${softHint}` : null}
         </span>
         {CHEV}
       </button>

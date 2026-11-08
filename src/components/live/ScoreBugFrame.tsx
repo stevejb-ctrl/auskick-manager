@@ -218,7 +218,15 @@ export function ScoreBugFrame({
                 aria-label={c.label}
                 className={BAR_TEXT}
               >
-                {c.text}
+                {c.sub ? (
+                  // Touch's "+2" over "girl", one button wide.
+                  <span className="flex flex-col items-center leading-none">
+                    {c.text}
+                    <span className="mt-[2px] text-[0.625rem] font-bold uppercase tracking-[0.06em]">{c.sub}</span>
+                  </span>
+                ) : (
+                  c.text
+                )}
               </button>
             ))}
             {theirs.ghost}
