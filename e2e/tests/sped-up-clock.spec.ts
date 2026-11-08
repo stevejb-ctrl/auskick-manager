@@ -22,13 +22,15 @@ async function suppressWalkthrough(page: Page): Promise<void> {
   });
 }
 
-/** Seconds shown on each tile (its trailing m:ss), read in one go so
- *  both come from the same render. */
+/** Each kid's game time, read in one go so all come from the same render.
+ *  Live v3's kid keeps the minutes off the face of the tile: they're in
+ *  the tile's name ("Zara Quill, Back, #1, 1:04, Off next, pair 1"), the
+ *  first m:ss in it. */
 async function tileSeconds(page: Page, ids: string[]): Promise<number[]> {
   return page.evaluate((tileIds) => {
     return tileIds.map((id) => {
-      const text = document.querySelector(`[data-testid="player-tile-${id}"]`)?.textContent ?? "";
-      const m = text.match(/(\d+):(\d{2})\s*$/);
+      const text = document.querySelector(`[data-testid="player-tile-${id}"]`)?.getAttribute("aria-label") ?? "";
+      const m = text.match(/(\d+):(\d{2})/);
       return m ? Number(m[1]) * 60 + Number(m[2]) : NaN;
     });
   }, ids);
