@@ -95,11 +95,11 @@ export function LiveGameSettingsButton({
   );
 }
 
-interface LiveGameSettingsModalProps extends LiveGameSettingsButtonProps {
+export interface LiveGameSettingsModalProps extends LiveGameSettingsButtonProps {
   onClose: () => void;
 }
 
-function LiveGameSettingsModal({
+export function LiveGameSettingsModal({
   auth,
   gameId,
   subIntervalSeconds,
