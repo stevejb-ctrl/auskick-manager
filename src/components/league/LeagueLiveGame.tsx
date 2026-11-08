@@ -2095,6 +2095,7 @@ export function LeagueLiveGame({
           currentQuarter={state.currentQuarter}
           currentElapsedMs={elapsedMs}
           sidelined={new Set([...Array.from(injuredSet), ...Array.from(loanedSet)])}
+          shortName={names.tile}
         />
       )}
     </>
