@@ -781,8 +781,9 @@ export function SoccerLiveGame({
     if (s.off_player_id) pairOf.set(s.off_player_id, { i, role: "off", where: lineShort(s.line) });
     pairOf.set(s.on_player_id, { i, role: "on", where: lineShort(s.line) });
   });
-  // Eleven a side: each tile leads with its line ("ATT Max"), as the
-  // design's 11 does; smaller sides say it in the margin only.
+  // Eleven a side: wider tiles. The line is said once, in the margin
+  // label, not on each tile: "DEF" in a row of four cut the names
+  // ("DEF Chl…", Phase 12). The keeper keeps its GK flag.
   const onFieldNow = lineup ? soccerOnField(lineup).length : 0;
   const bigSide = Math.max(game.on_field_size, onFieldNow) >= 11;
 
@@ -823,7 +824,6 @@ export function SoccerLiveGame({
           states: [goals > 0 ? `${goals} ${goals === 1 ? "goal" : "goals"}` : null, lockLabel],
         }}
         place={unit ? "field" : "bench"}
-        pos={bigSide && unit && !keeper ? words[unit].short || null : null}
         score={goals > 0 ? { text: `${goals}G`, label: `${goals} ${goals === 1 ? "goal" : "goals"}` } : null}
         words={kw}
         badge={pair ? { n: pair.i + 1, hot: dueNow } : null}
