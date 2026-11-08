@@ -7,9 +7,10 @@
 // and availability panel, a collapsible "Game settings" card, the pitch
 // and bench drawn as the live game draws them, tap a kid then a second
 // to swap, long-press for the shared player actions, and the shared
-// footer with Save plan and "Start H1" (hockey's quarters: "Start Q1"),
-// which opens the shared StartQuarterModal (two-step kick-off: only its
-// Start writes anything).
+// footer with Save plan and Ready. Ready sets the lineup and opens the
+// live screen before the whistle, where the bar's Start H1 (hockey's
+// quarters: Start Q1) starts the clock (live v3, as AFL's picker). Until
+// then, the live screen's ⋯ → Edit lineup brings this picker back.
 //
 // The suggestion comes from the family's engine (suggestSoccerLineup):
 // the keeper by the age group's keeper strategy and season keeper
@@ -28,7 +29,6 @@ import { Label } from "@/components/ui/Label";
 import { RadioChips } from "@/components/ui/RadioChips";
 import { SFButton } from "@/components/sf";
 import { LockModal } from "@/components/live/LockModal";
-import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { SUB_MINUTES_MAX, SUB_MINUTES_MIN, subMinutesFrom } from "@/lib/live/subCadence";
@@ -132,7 +132,6 @@ export function SoccerLineupPicker({
   const rules = soccerFamilyRules(sport);
   const words = rules.lineLabels;
   const periodWord = periodLabels(sport, ageGroup).label;
-  const firstPeriod = `${periodWord.charAt(0).toUpperCase()}1`;
 
   const clampSize = (n: number) => Math.max(ageGroup.minOnFieldSize, Math.min(ageGroup.maxOnFieldSize, n));
   // Settings are kept through a Who's here change (useKeptSetting): the
@@ -192,7 +191,6 @@ export function SoccerLineupPicker({
   const [fillUnit, setFillUnit] = useState<SoccerUnit | null>(null);
   const [actionPlayerId, setActionPlayerId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [startModalOpen, setStartModalOpen] = useState(false);
   const [savePending, setSavePending] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(initialDraft?.updated_at ?? null);
   const [subMinInput, setSubMinInput] = useKeptSetting(gameId, "subMinutes", String(defaultSubMinutes));
@@ -281,26 +279,20 @@ export function SoccerLineupPicker({
     }
     window.scrollTo({ top: 0, behavior: "auto" });
     setError(null);
-    setStartModalOpen(true);
-  }
-
-  function handleConfirmStart() {
-    setError(null);
     startTransition(async () => {
+      // startHalfToo=false: the lineup only, no whistle. The team page
+      // redirects to the live screen; the game-day link's page re-renders.
       const result = await startSoccerGame(
         auth,
         gameId,
         lineup,
         onFieldSize,
-        true,
+        false,
         ageGroup.subMode.kind === "rolling" ? subIntervalSeconds : null,
       );
       // Refused because another phone already started: say so over the page.
       noteLiveResult(result);
-      if (!result.success) {
-        setError(result.error ?? "Couldn't start the game.");
-        setStartModalOpen(false);
-      }
+      if (result && !result.success) setError(result.error ?? "Couldn't set the lineup.");
     });
   }
 
@@ -491,7 +483,7 @@ export function SoccerLineupPicker({
         savedAt={savedAt}
         savePlanDisabled={fieldIds.length === 0 || isPending}
         onConfirm={handleStartGame}
-        confirmLabel={`Start ${firstPeriod}`}
+        confirmLabel="Ready"
         confirmDisabled={fieldIds.length === 0 || isPending}
         confirmLoading={isPending}
       />
@@ -546,18 +538,6 @@ export function SoccerLineupPicker({
             setLineup((lu) => placeInSoccerLineup(lu, pid, unit));
           }}
           onCancel={() => setFillUnit(null)}
-        />
-      )}
-
-      {startModalOpen && (
-        <StartQuarterModal
-          quarter={1}
-          periodLabel={periodWord}
-          cue="whistle goes"
-          shortSide={{ playing: fieldIds.length, size: initialSize, min: ageGroup.minOnFieldSize }}
-          loading={isPending}
-          onStart={handleConfirmStart}
-          onCancel={() => setStartModalOpen(false)}
         />
       )}
     </div>

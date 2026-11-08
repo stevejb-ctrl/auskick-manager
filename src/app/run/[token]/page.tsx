@@ -266,6 +266,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
             opponent={g.opponent}
             trackScoring={trackScoring}
             firstPeriod={firstPeriodOf(ageCfgS.periodLabel)}
+            cta="Ready"
             availability={availablePlayers.length === 0 || wantsAvailability ? "list" : "link"}
           />
           {availablePlayers.length === 0 || wantsAvailability ? (
