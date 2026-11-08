@@ -5,7 +5,7 @@ import { SCORE_CHIP_OURS, SCORE_CHIP_THEIRS, SCORE_TEAM_NAME } from "@/component
 import { announce } from "@/lib/a11y/announce";
 import { repeatTapGate } from "@/lib/live/repeatTap";
 import { useScoringFor } from "@/components/live/ScoringFor";
-import { BAR_OUTLINED, BAR_PRIMARY, BAR_SMALL, BAR_TEXT } from "@/components/live/barButtons";
+import { BAR_OUTLINED, BAR_PRIMARY, BAR_SMALL, BAR_TEXT, barButton } from "@/components/live/barButtons";
 
 // ─── ScoreBugFrame ───────────────────────────────────────────
 // The one layout every sport's scorebug sits in: AFL's GameHeader (the
@@ -144,6 +144,43 @@ export function ScoreBugFrame({
     };
     const ourChips = ours.chips ?? [];
     const theirChips = theirs.chips ?? [];
+    // More than two kinds a side (rugby's +T +C +PG +DG): v3's "sides2",
+    // a row a team, each led by its name. Ours: the first filled, the
+    // rest outlined; theirs: the same as text buttons.
+    if (ourChips.length > 2 || theirChips.length > 2) {
+      const row = (s: ScoreBugSide, chips: ScoreChipSpec[], side: "ours" | "theirs") =>
+        chips.length > 0 ? (
+          <div className="relative grid grid-cols-[70px_minmax(0,1fr)] items-center gap-[6px] bigtext:grid-cols-1 bigtext:gap-[2px]">
+            <span className="truncate font-display text-[0.625rem] font-extrabold uppercase tracking-[0.08em] text-ink-mute">{s.name}</span>
+            <div className="grid gap-[6px]" style={{ gridTemplateColumns: `repeat(${chips.length}, minmax(0, 1fr))` }}>
+              {chips.map((c, i) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={tap(side, c)}
+                  onPointerDown={onChipPointerDown}
+                  disabled={chipsDisabled}
+                  aria-label={c.label}
+                  className={
+                    side === "theirs" ? BAR_TEXT : `${barButton(i === 0 ? "primary" : "outlined", "sm")} !min-h-[44px] !rounded-[12px]`
+                  }
+                >
+                  <span className="whitespace-nowrap">{c.text}</span>
+                  {side === "ours" && i === 0 && s.ghost}
+                </button>
+              ))}
+            </div>
+            {side === "theirs" && s.ghost}
+          </div>
+        ) : null;
+      // Sideways (a short screen), the two rows sit side by side.
+      return (
+        <div className="flex flex-col gap-[6px] short:grid short:grid-cols-2 short:gap-x-[12px]">
+          {row(ours, ourChips, "ours")}
+          {row(theirs, theirChips, "theirs")}
+        </div>
+      );
+    }
     return (
       <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(88px,100px)] items-stretch gap-[8px] bigtext:grid-cols-2">
         {ourChips.map((c, i) => (

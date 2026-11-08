@@ -154,7 +154,7 @@ export function KidBar({ name, heading, line, split, hint, pair, actions, column
 export function TimeSplit({ parts }: { parts: { ms: number; className: string }[] }) {
   const total = parts.reduce((t, p) => t + p.ms, 0);
   return (
-    <span aria-hidden className="flex h-[6px] w-[46px] flex-none overflow-hidden rounded-full bg-bar-track">
+    <span aria-hidden data-testid="time-split" className="flex h-[6px] w-[46px] flex-none overflow-hidden rounded-full bg-bar-track">
       {total > 0 &&
         parts
           .filter((p) => p.ms > 0)

@@ -78,7 +78,7 @@ export interface LiveChrome {
   /** The last score was taken back: the strip stops flashing. */
   undone(): void;
   /** The undo strip, for LiveStickyScoreBar (null when `show` is false). */
-  undoStrip(opts: { show: boolean; onUndo: () => void; disabled?: boolean; target?: string | null }): ReactNode;
+  undoStrip(opts: { show: boolean; onUndo: () => void; disabled?: boolean; target?: string | null; plain?: boolean }): ReactNode;
   /**
    * A sub made by hand (tap-tap, a bench kid into an empty spot): it
    * happens at once and the toast says so, with Undo. Live v3 (Steve,
@@ -120,8 +120,10 @@ export function useLiveChrome(opts: {
   events: GameEvent[];
   /** The period's elapsed ms while one is in play, else null. */
   openElapsedMs: number | null;
+  /** Live v3's shell: the ink toast over the bar, with its drain bar. */
+  toastLook?: "brand" | "ink";
 }): LiveChrome {
-  const { auth, gameId, teamName, opponentName, playersById, seasonLoanMinutes, events, openElapsedMs } = opts;
+  const { auth, gameId, teamName, opponentName, playersById, seasonLoanMinutes, events, openElapsedMs, toastLook = "brand" } = opts;
   const [message, setMessage] = useState<string | null>(null);
   const [flashing, setFlashing] = useState(false);
   const [namedScoreKey, setNamedScoreKey] = useState<string | null>(null);
@@ -202,9 +204,9 @@ export function useLiveChrome(opts: {
     undone,
     // Named after this phone's last score, else what Undo will take back
     // (the other phone's, or the next one down after an undo).
-    undoStrip: ({ show, onUndo, disabled, target }) =>
+    undoStrip: ({ show, onUndo, disabled, target, plain }) =>
       show ? (
-        <UndoStrip flashing={flashing && message !== null} message={message ?? target ?? ""} onUndo={onUndo} disabled={disabled} />
+        <UndoStrip flashing={flashing && message !== null} message={message ?? target ?? ""} onUndo={onUndo} disabled={disabled} plain={plain} />
       ) : null,
     manualSwap: (swap) => (swap.ruleWarning ? setPendingSwap(swap) : makeSwap(swap)),
     swapped,
@@ -212,6 +214,8 @@ export function useLiveChrome(opts: {
     toast: toastText ? (
       <SwapDoneToast
         text={toastText}
+        look={toastLook}
+        durationMs={toastLook === "ink" ? (toastUndo ? UNDO_TOAST_MS : TOAST_MS) : undefined}
         undoLabel={toastText.endsWith(" subs made") ? "Undo swaps" : "Undo"}
         onUndo={
           toastUndo

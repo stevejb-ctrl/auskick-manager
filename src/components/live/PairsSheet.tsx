@@ -164,7 +164,10 @@ export function PairsSheet({
                     >
                       {p.index + 1}
                     </span>
-                    <span className="flex-none rounded-[5px] bg-surface-alt px-[6px] py-[2px] font-display text-[0.625rem] font-extrabold tracking-[0.08em] text-ink">
+                    <span
+                      data-testid={`swap-pair-${p.index}-where`}
+                      className="flex-none rounded-[5px] bg-surface-alt px-[6px] py-[2px] font-display text-[0.625rem] font-extrabold tracking-[0.08em] text-ink"
+                    >
                       {p.where}
                     </span>
                     <span className="flex min-w-0 flex-1 flex-wrap items-center gap-[2px]">
