@@ -23,3 +23,17 @@ export async function kickOffAfl(page: Page, timeout = 15_000): Promise<void> {
   await startQ1(page, timeout);
   await expect(page.getByRole("button", { name: /^clock — q1, running$/i })).toBeVisible({ timeout });
 }
+
+// Netball's kickoff on live v3 (Phase 7), as AFL's: the picker's Ready
+// sets the lineup, the live screen opens before the first whistle, and
+// its bar's Start Q1 asks "Start Q1 now" before the clock runs.
+
+/** The netball picker's Ready: sets the lineup and opens the live screen, Q1 not started. */
+export async function readyNetball(page: Page, timeout = 15_000): Promise<void> {
+  await readyAfl(page, timeout);
+}
+
+/** The netball picker's Ready, then Start Q1 on the live screen: the clock runs. */
+export async function kickOffNetball(page: Page, timeout = 15_000): Promise<void> {
+  await kickOffAfl(page, timeout);
+}

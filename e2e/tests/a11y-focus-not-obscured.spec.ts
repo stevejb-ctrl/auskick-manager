@@ -42,12 +42,13 @@ test("live: every field and bench tile, focused, shows between the top bar and t
   }
 });
 
-test("lineup: netball's GD and GK, focused, sit above the Start Q1 footer", async ({ page }) => {
+test("lineup: netball's GD and GK, focused, sit above the Ready footer", async ({ page }) => {
   const { team, game } = await netballGame({ name: "A11Y-FNO-NB", seed: false });
   await skipHints(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  const start = page.getByRole("button", { name: /^start q1$/i });
+  // Live v3 (Phase 7): the picker's footer button is Ready.
+  const start = page.getByRole("button", { name: /^ready$/i });
   await expect(start).toBeVisible({ timeout: 15_000 });
   await page.evaluate(() => window.scrollTo(0, 0));
   for (const pos of [/(^|, )goal defence(,|$)/i, /(^|, )goal keeper(,|$)/i]) {

@@ -36,6 +36,7 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { readyNetball } from "../helpers/kickoff";
 
 test.describe.configure({ mode: "serial" });
 
@@ -159,12 +160,11 @@ test("netball full game playthrough: start → score → Q-break recap + fix →
   });
 
   // ─── Phase 1: kickoff → Q1 in progress ────────────────────
-  // NetballLiveGame's pre-Q1 branch renders the page-level "Ready for Q1"
-  // button (renamed 2026-05-09 from "Start Q1"). Tapping surfaces the
-  // NetballStartQuarterModal whose CTA "Start Q1" writes the
-  // quarter_start event. Distinct labels avoid the looping issue
-  // Stagehand caught where both buttons shared an accessible name.
+  // Live v3 (Phase 7): the picker's Ready sets the lineup and opens the
+  // live screen before the whistle; the bar's Start Q1 opens the
+  // confirm, whose "Start Q1 now" writes the quarter_start event.
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await readyNetball(page);
   const readyForQ1 = page.getByRole("button", { name: /^start q1$/i });
   await expect(readyForQ1).toBeVisible({ timeout: 10_000 });
   await readyForQ1.click();

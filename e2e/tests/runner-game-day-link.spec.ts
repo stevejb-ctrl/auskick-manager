@@ -132,10 +132,12 @@ test("netball: the runner's first screen names the game", async ({ browser }) =>
   await expect(runner.getByTestId("run-whose")).toContainText(`Scoring for ${team.name}`, { timeout: 15_000 });
   await expect(runner.getByText(`vs ${OPPONENT}`).first()).toBeVisible();
   await expect(runner.getByRole("region", { name: /welcome/i })).toContainText(
-    "You're running today's game. Check who's here, then tap Start Q1.",
+    // Live v3 (Phase 7): the picker's button is Ready; Start Q1 is on
+    // the live screen after it.
+    "You're running today's game. Check who's here, then tap Ready.",
     { timeout: 15_000 },
   );
-  await expect(runner.getByRole("button", { name: /^start q1$/i })).toBeVisible();
+  await expect(runner.getByRole("button", { name: /^ready$/i })).toBeVisible();
   await runner.context().close();
 });
 

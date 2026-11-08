@@ -22,6 +22,7 @@ import { test, expect, type Browser, type Locator, type Page } from "@playwright
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { closeGameSettings, liveWritesSaved, startFromBreak } from "../helpers/break";
+import { kickOffNetball } from "../helpers/kickoff";
 import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
 import { aflPositionModel, getAgeGroupConfig } from "../../src/lib/sports";
 import type { Lineup } from "../../src/lib/types";
@@ -153,27 +154,26 @@ test("netball: the runner's break gives way when the coach starts Q2", async ({ 
 });
 
 test("netball: a phone that's behind can't kick off a second time", async ({ page, browser }) => {
-  // Both phones on the lineup picker. The coach starts Q1; the runner's
-  // still-open picker then taps Start Q1 too. It used to write a second
-  // lineup and quarter start, overwriting the coach's lineup and
-  // doubling every kid's minutes.
+  // Both phones on the lineup picker. The coach starts Q1 (Ready, then
+  // the live screen's Start Q1: live v3); the runner's still-open picker
+  // then taps Ready too. It used to write a second lineup and quarter
+  // start, overwriting the coach's lineup and doubling every kid's
+  // minutes.
   const admin = createAdminClient();
   const { team, game } = await netballGame(admin);
 
   await coachPhone(page, team.id, game.id);
   const runner = await runnerPhone(browser, game.share_token, { behind: true });
-  await expect(runner.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(runner.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
 
-  await page.getByRole("button", { name: /^start q1$/i }).click();
-  await page.getByRole("button", { name: /^start q1 now$/i }).click();
+  await kickOffNetball(page);
   await expect.poll(async () => (await events(admin, game.id, "quarter_start")).length, SYNC).toBe(1);
   const coachLineup = (await events(admin, game.id, "lineup_set"))[0].metadata.lineup;
 
-  await runner.getByRole("button", { name: /^start q1$/i }).click();
-  await runner.getByRole("button", { name: /^start q1 now$/i }).click();
+  await runner.getByRole("button", { name: /^ready$/i }).click();
   await expect(runner.getByTestId("live-sync-notice")).toHaveText(/Another phone already started Q1\./, SYNC);
   // The runner's phone shows the game as it stands.
-  await expect(runner.getByRole("button", { name: /^start q1$/i })).toBeHidden(SYNC);
+  await expect(runner.getByRole("button", { name: /^ready$/i })).toBeHidden(SYNC);
 
   // One kickoff: the coach's lineup stands.
   expect(await events(admin, game.id, "lineup_set")).toHaveLength(1);

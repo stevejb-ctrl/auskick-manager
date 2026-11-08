@@ -6,7 +6,8 @@
 // would) the header, the bench and the bar stay put and only the field
 // scrolls, so the score and + GOAL are always a glance and a thumb away.
 //
-// Covers: src/components/live/LiveShell.tsx, LiveGame.tsx's shell.
+// Covers: src/components/live/LiveShell.tsx, LiveGame.tsx's shell, and
+// NetballLiveGame.tsx's (Phase 7).
 
 import { test, expect, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
@@ -133,4 +134,57 @@ test("at 200% text only the field scrolls: the header, bench and bar stay pinned
   } finally {
     await context.close();
   }
+});
+
+/** Netball "go": 7 on court and 3 on the bench, a minute into Q1, scoring on (live v3, Phase 7). */
+async function netballSevenPlusThree() {
+  const admin = createAdminClient();
+  const ownerId = await coachId(admin);
+  const team = await makeTeam(admin, { ownerId, sport: "netball", ageGroup: "go", name: `NbFit ${Date.now() % 100000}` });
+  await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 10, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Kookas" });
+  await admin.from("game_availability").insert(players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const })));
+  const ids = players.map((p) => p.id);
+  const keys = ["gs", "ga", "wa", "c", "wd", "gd", "gk"];
+  const lineup = { positions: Object.fromEntries(keys.map((k, i) => [k, [ids[i]]])), bench: ids.slice(7) };
+  const at = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString();
+  const { error } = await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup, sport: "netball" }, created_at: at(90) },
+      { type: "quarter_start", metadata: { quarter: 1, sport: "netball" }, created_at: at(60) },
+      { type: "goal", player_id: ids[0], metadata: { quarter: 1, elapsed_ms: 30_000 }, created_at: at(30) },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  if (error) throw new Error(`seed: ${error.message}`);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+  return { team, game, ids };
+}
+
+test("netball 7 + 3 at 390×844: the page doesn't scroll, and the court, bench and bar are all on screen", async ({ page }) => {
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("nb-walkthrough-seen", "1");
+    } catch {}
+  });
+  const { team, game, ids } = await netballSevenPlusThree();
+  await open(page, team.id, game.id);
+  const s = await scrolls(page);
+  expect(s.page, "the page scrolls").toBeLessThanOrEqual(0);
+  expect(s.pageX, "the page scrolls sideways").toBeLessThanOrEqual(0);
+  expect(s.shell, "the shell scrolls").toBeLessThanOrEqual(1);
+  // Seven fit without the court scrolling, as AFL's twelve do.
+  expect(s.field, "the court scrolls").toBeLessThanOrEqual(1);
+
+  await onScreen(page, "clock", await page.getByRole("button", { name: /^clock — /i }).boundingBox());
+  await onScreen(page, "+ GOAL", await page.getByRole("button", { name: /^add goal, nbfit/i }).boundingBox());
+  await onScreen(page, "their +G", await page.getByRole("button", { name: "Add goal, Kookas" }).boundingBox());
+  for (const id of ids.slice(0, 7)) await onScreen(page, `court ${id}`, await page.getByTestId(`player-tile-${id}`).boundingBox());
+  for (const id of ids.slice(7)) {
+    await onScreen(page, `bench ${id}`, await page.getByRole("group", { name: "Bench", exact: true }).getByTestId(`player-tile-${id}`).boundingBox());
+  }
+  // The thirds are the court's lines, attack at the top.
+  const attack = await page.getByRole("group", { name: "Attack third", exact: true }).boundingBox();
+  const defence = await page.getByRole("group", { name: "Defence third", exact: true }).boundingBox();
+  expect(attack!.y).toBeLessThan(defence!.y);
 });

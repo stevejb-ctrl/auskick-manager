@@ -27,6 +27,8 @@ import { playerThirdMs, type ThirdLookup } from "../../src/lib/sports/netball/fa
 import { primaryThirdFor } from "../../src/lib/sports/netball";
 import type { GameEvent } from "../../src/lib/types";
 import { closeGameSettings, openGameSettings, pickBreakStrategy, startFromBreak } from "../helpers/break";
+import { kickOffNetball, readyNetball } from "../helpers/kickoff";
+import { openGameMenu } from "../helpers/liveShell";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -221,12 +223,10 @@ test("NETBALL-01: pre-kickoff renders the netball lineup picker (six-state machi
   // both branches resolve simultaneously — the button is the
   // canonical entry-point assertion for this state.
   //
-  // 2026-05-15: kickoff CTA was renamed "Start game" → "Ready for
-  // Q1" in the 2026-05-13 LineupPicker rework — the button now
-  // matches the StartQuarterModal heading so the user knows the
-  // tap opens the modal (not commits immediately).
+  // Live v3 (Phase 7): the picker's button is Ready. It sets the
+  // lineup; Start Q1 is on the live screen's bar.
   await expect(
-    page.getByRole("button", { name: /^start q1$/i }),
+    page.getByRole("button", { name: /^ready$/i }),
   ).toBeVisible({ timeout: 10_000 });
 });
 
@@ -252,20 +252,15 @@ test("NETBALL-01: live state renders score bug + court + opponent name when Q1 i
   await expect(page.getByText(/test opponent/i).first()).toBeVisible();
 });
 
-test("NETBALL-01: Start Q1 surfaces the await-kickoff modal — both events deferred to the modal CTA", async ({
+test("NETBALL-01: Ready sets the lineup, Start Q1 on the live screen's bar starts the quarter, and Edit lineup goes back", async ({
   page,
 }) => {
-  // Two-step kickoff (Steve 2026-05-15 refactor): the "Ready for Q1"
-  // tap inside NetballLineupPicker no longer writes any server event.
-  // It opens NetballStartQuarterModal in-place. ONLY the modal's
-  // "Start Q1" tap calls startNetballGame with `startQuarterToo=true`,
-  // committing both `lineup_set` and `quarter_start` atomically so
-  // there's no intermediate "lineup locked, no whistle yet" page
-  // state (the umpire's whistle and the clock kickoff are bound to
-  // the same tap). Mirrors AFL's modal-gated pattern.
-  //
-  // Test seeds availability so the picker has a squad to suggest
-  // from, then verifies the picker → modal → atomic-commit chain.
+  // Live v3 (Phase 7, as AFL's Phase 5): the picker's Ready writes
+  // lineup_set only and opens the live screen before the first whistle,
+  // the clock at Q1's full length and not running. The bar's Start Q1
+  // asks "Start Q1 now" (the umpire's whistle) and only that writes
+  // quarter_start. Until then ⋯ → Edit lineup takes the lineup back to
+  // the picker (the 15 May 2026 dead end: a lineup set with no way back).
   const { team, game, players, admin } = await setupNetballTeam({ trackScoring: true });
   await admin.from("game_availability").insert(
     players.map((p) => ({
@@ -274,58 +269,42 @@ test("NETBALL-01: Start Q1 surfaces the await-kickoff modal — both events defe
       status: "available" as const,
     })),
   );
+  const kickoffEvents = async () => {
+    const { data } = await admin
+      .from("game_events")
+      .select("type, metadata")
+      .eq("game_id", game.id)
+      .in("type", ["lineup_set", "quarter_start"]);
+    return (data ?? []).map((e) => e.type).sort();
+  };
 
   await suppressWalkthrough(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // Picker's "Ready for Q1" CTA — NetballLineupPicker is mounted by
-  // NetballLiveGame's `!hasStarted` branch because no lineup_set
-  // event exists yet. The picker auto-suggests a starting lineup on
-  // mount so the confirm button is enabled without further input.
-  const readyForQ1 = page.getByRole("button", { name: /^start q1$/i });
-  await expect(readyForQ1).toBeVisible({ timeout: 10_000 });
-  await readyForQ1.click();
+  // Ready: the lineup, no quarter yet. The live screen's clock reads Q1, not started.
+  await readyNetball(page);
+  await expect.poll(kickoffEvents, { timeout: 5_000 }).toEqual(["lineup_set"]);
+  await expect(page.getByRole("group", { name: "Attack third", exact: true })).toBeVisible();
 
-  // Modal opens — heading "Ready for Q1" lives inside
-  // NetballStartQuarterModal (mirrors AFL StartQuarterModal).
-  await expect(
-    page.getByRole("heading", { name: /^start q1$/i }),
-  ).toBeVisible({ timeout: 2_000 });
+  // ⋯ → Edit lineup: back to the picker, the lineup taken out.
+  const menu = await openGameMenu(page);
+  await menu.getByRole("button", { name: /^edit lineup/i }).click();
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
+  await expect.poll(kickoffEvents, { timeout: 5_000 }).toEqual([]);
 
-  // CRITICAL: opening the modal must NOT commit anything yet. Coach
-  // can hit "Back to lineup" if the umpire hasn't whistled. No
-  // lineup_set, no quarter_start.
+  // Ready again, then the bar's Start Q1: its confirm writes nothing yet.
+  await readyNetball(page);
+  await page.getByRole("button", { name: /^start q1$/i }).click();
+  await expect(page.getByRole("heading", { name: /^start q1$/i })).toBeVisible({ timeout: 2_000 });
   await page.waitForTimeout(500);
-  const { data: preEvents } = await admin
-    .from("game_events")
-    .select("type")
-    .eq("game_id", game.id)
-    .in("type", ["lineup_set", "quarter_start"]);
-  expect(preEvents ?? []).toHaveLength(0);
+  expect(await kickoffEvents()).toEqual(["lineup_set"]);
 
-  // Modal CTA "Start Q1" — fires the atomic commit.
+  // "Start Q1 now": the quarter starts, and the clock runs.
   await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
-
-  // Both events land now in the same server round-trip.
+  await expect(page.getByRole("button", { name: /^clock — q1, running$/i })).toBeVisible({ timeout: 10_000 });
   await expect
-    .poll(
-      async () => {
-        const { data } = await admin
-          .from("game_events")
-          .select("type, metadata")
-          .eq("game_id", game.id)
-          .in("type", ["lineup_set", "quarter_start"]);
-        const lineupSet = (data ?? []).some((e) => e.type === "lineup_set");
-        const quarterStart = (data ?? []).some(
-          (e) =>
-            e.type === "quarter_start" &&
-            (e.metadata as { quarter?: number } | null)?.quarter === 1,
-        );
-        return lineupSet && quarterStart;
-      },
-      { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] },
-    )
-    .toBe(true);
+    .poll(kickoffEvents, { timeout: 5_000, intervals: [200, 200, 500, 500, 1000] })
+    .toEqual(["lineup_set", "quarter_start"]);
 });
 
 // ─── NETBALL-04: live-shell suppression mirror ────────────
@@ -371,9 +350,11 @@ test("NETBALL-04 (live-shell): track_scoring=false hides +G button in score bug"
   await expect(
     page.getByRole("button", { name: /^add goal, /i }),
   ).toHaveCount(0);
-  // ...and the score bar says why, with a way to turn scoring on.
-  await expect(page.getByText("Scoring is off")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Turn it on" })).toBeVisible();
+  // ...and the score header says so; a team admin turns it on from ⋯
+  // (live v3, as AFL's).
+  await expect(page.getByTestId("scores-not-kept")).toHaveText("No score kept");
+  const menu = await openGameMenu(page);
+  await expect(menu.getByRole("button", { name: "Turn scoring on" })).toBeVisible();
 });
 
 // ─── Hydration: the live court survives a slow phone ──────
@@ -588,17 +569,13 @@ test("NETBALL-03: scorebug + GS chip update after a goal without manual refresh"
     }),
   ).toBeVisible({ timeout: 3_000 });
 
-  // The scorebug's team-total integer renders inside a 44px span.
-  // Pre-fix, team.goals stays 0 and "1" never appears in that span.
-  // Post-fix, the integer flips to "1" once router.refresh() lands.
-  // Use a class-based locator so the team name (which can also
-  // contain digits in the test factory's "NB-LF-{ts}-{rand}" naming)
-  // doesn't accidentally match.
-  await expect(
-    page
-      .locator('span.text-\\[44px\\]')
-      .filter({ hasText: /^1$/ }),
-  ).toBeVisible({ timeout: 3_000 });
+  // The score header (live v3) says the score in its name: ours 1,
+  // theirs 0. Pre-fix, team.goals stayed 0.
+  await expect(page.getByRole("button", { name: /^Scores and fixes\./ }).first()).toHaveAttribute(
+    "aria-label",
+    / 1, Test Opponent 0$/,
+    { timeout: 3_000 },
+  );
 });
 
 // ─── NETBALL-08: long-press, replacement, late-arrival ────
@@ -817,10 +794,10 @@ test("NETBALL-08: late arrival adds a previously-unavailable squad member and wr
   await suppressWalkthrough(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // LateArrivalMenu renders "+ Add late arrival" only when
-  // candidates exist (LateArrivalMenu.tsx:23).
+  // "+ Late" at the end of the bench (live v3), only when there are
+  // candidates (LateArrivalMenu).
   await page
-    .getByRole("button", { name: /add late arrival/i })
+    .getByRole("button", { name: /^\+ late arrival/i })
     .click({ timeout: 10_000 });
 
   // After expand, the menu lists candidates by full_name. players[8]
@@ -998,8 +975,7 @@ test("a NetSetGO Set team can kick off four-a-side", async ({ page }) => {
 
   await suppressWalkthrough(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await page.getByRole("button", { name: /^start q1$/i }).click();
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
+  await kickOffNetball(page);
 
   await expect
     .poll(
@@ -1221,8 +1197,11 @@ test("sideline story: lend GA, GS hurt, then the lent kid comes back on at the b
 // "INJURED" label ("INJ NJURED"), put a "BENCH" eyebrow on every tile
 // and showed no time on a healthy bench kid. It's AFL's bench now: a
 // "Bench (n)" card of tiles in a four-column grid, a status chip in the
-// tile's top row, and every kid's time.
-test("the bench is AFL's: INJ once, no eyebrow, everyone's time", async ({ page }) => {
+// tile's top row, and every kid's time. Live v3 (Phase 7): it's the v3
+// kid on a KidBench, as AFL's: "BENCH 2" in the margin, INJ beside the
+// hurt kid's name, and the healthy bench kid's words ("On at the break")
+// where the time was (time is in the kid bar now).
+test("the bench is AFL's: INJ once, no eyebrow, a bench kid goes on at the break", async ({ page }) => {
   const { team, game, players, admin, ownerId } = await setupNetballTeam({ trackScoring: true });
   await seedQ1InProgress({ admin, gameId: game.id, ownerId, playerIds: players.map((p) => p.id) });
   await suppressWalkthrough(page);
@@ -1236,12 +1215,12 @@ test("the bench is AFL's: INJ once, no eyebrow, everyone's time", async ({ page 
     .click();
 
   const bench = page.getByRole("group", { name: "Bench", exact: true });
-  await expect(bench).toContainText("Bench (2)");
+  await expect(bench).toContainText("Bench 2");
   const hurt = bench.getByTestId(`player-tile-${players[0].id}`);
   await expect(hurt).toContainText("INJ", { timeout: 10_000 });
   await expect(hurt).not.toContainText(/injured|bench/i);
-  // A healthy bench kid shows their time, 0:00 before they've played.
-  await expect(bench.getByTestId(`player-tile-${players[8].id}`)).toContainText("0:00");
+  // A healthy bench kid says when they go on (subs at the break).
+  await expect(bench.getByTestId(`player-tile-${players[8].id}`)).toContainText("On at the break");
   // No jersey numbers in netball (the factory's players have them).
   await expect(bench).not.toContainText(/#\d/);
   // The chip sits inside the tile, clear of the name.
@@ -1269,7 +1248,9 @@ test("a benched kid's summary says they're on the bench, not a ticking On time",
   await suppressWalkthrough(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
+  // A tap picks the kid (live v3: their kid bar); More is their sheet.
   await page.getByRole("group", { name: "Bench", exact: true }).getByTestId(`player-tile-${ids[0]}`).click({ timeout: 15_000 });
+  await page.getByTestId("kid-bar").getByRole("button", { name: /^more$/i }).click();
   const thisGame = page.getByRole("dialog").getByTestId("player-insight-ingame");
   await expect(thisGame).toContainText("On the bench");
   await expect(thisGame).not.toContainText(/On \d/);

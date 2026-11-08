@@ -214,15 +214,17 @@ for (const sport of ["rugby_league", "rugby_union", "soccer", "basketball"] as c
   });
 }
 
-test("live netball: running and the scorer dock", async ({ page }, testInfo) => {
+test("live netball: running and the scorer's kid bar", async ({ page }, testInfo) => {
   const { team, game } = await netballGame({ name: "DARK-NB" });
   await open(page, `/teams/${team.id}/games/${game.id}/live`);
   await expect(clockPill(page)).toBeVisible({ timeout: 15_000 });
   await expectDarkAndReadable(page, testInfo, "live-netball");
   // Tokens are named kid first ("Alicia, Goal Shooter, …"; the a11y follow-up).
+  // Live v3 (Phase 7): the GS's kid bar, in the bar's place, as AFL's.
   await page.getByRole("button", { name: /, goal shooter, /i }).click();
-  await expect(page.getByText(/^Record goal for/)).toBeVisible();
-  await expectDarkAndReadable(page, testInfo, "live-netball-scorer");
+  await expect(page.getByTestId("kid-bar").getByRole("button", { name: /^\+ goal$/i })).toBeVisible();
+  await page.getByTestId("kid-bar").evaluate((el) => el.setAttribute("data-e2e-sample", ""));
+  await expectDarkAndReadable(page, testInfo, "live-netball-scorer", "[data-e2e-sample]");
 });
 
 // ── The break, full time and after ─────────────────────────────────

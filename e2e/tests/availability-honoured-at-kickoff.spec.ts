@@ -24,7 +24,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
-import { readyAfl } from "../helpers/kickoff";
+import { readyAfl, readyNetball } from "../helpers/kickoff";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -209,6 +209,8 @@ test("netball: a player marked unavailable pre-game is dropped from the kickoff 
 
   await suppressWalkthrough(page, "nb-walkthrough-seen");
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  // Live v3: netball's Ready sets the lineup, the bar starts Q1.
+  await readyNetball(page);
   await page
     .getByRole("button", { name: /^start q1$/i })
     .click({ timeout: 15_000 });

@@ -67,16 +67,19 @@ test("union's sub card: Make swap is a 44 px target", async ({ page }) => {
   for (const b of await make.all()) expect((await boxOf(b)).height).toBeGreaterThanOrEqual(44);
 });
 
-test("netball: the scorer dock's Cancel is a 44 px target", async ({ page }) => {
+test("netball: the scorer's kid bar puts them down with a 44 px ×", async ({ page }) => {
+  // Live v3 (Phase 7): the goal dock's Cancel is the kid bar's ×, as AFL's.
   const { team, game } = await netballGame({ name: "A11Y-CON-NB-DOCK" });
   await skipHints(page);
   await openLive(page, team.id, game.id);
 
   await page.getByRole("button", { name: /^[^,]+, goal shooter(,|$)/i }).click();
-  await expect(page.getByText(/^Record goal for/)).toBeVisible();
-  const cancel = await boxOf(page.getByRole("button", { name: "Cancel", exact: true }));
-  expect(cancel.height).toBeGreaterThanOrEqual(44);
-  expect(cancel.width).toBeGreaterThanOrEqual(44);
+  const bar = page.getByTestId("kid-bar");
+  await expect(bar.getByRole("button", { name: /^\+ goal$/i })).toBeVisible();
+  const close = await boxOf(bar.getByRole("button", { name: /^Put .+ down$/ }));
+  expect(close.height).toBeGreaterThanOrEqual(44);
+  expect(close.width).toBeGreaterThanOrEqual(44);
+  for (const b of await bar.getByRole("button").all()) expect((await boxOf(b)).height).toBeGreaterThanOrEqual(44);
 });
 
 test("netball's break: the score fix's × is a 44 px target that names the score", async ({ page }) => {
