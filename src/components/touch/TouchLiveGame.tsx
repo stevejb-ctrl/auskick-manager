@@ -433,19 +433,20 @@ export function TouchLiveGame({
   /** A lane in the coach's words ("Wings"), or the field when it plays no lanes. */
   const spotName = (line: TouchLine | null | undefined) => (line && line !== "field" ? TOUCH_LINE_LABEL[line] : "the field");
   /**
-   * A sub the coach makes by hand asks first (AFL's confirm), then toasts.
-   * One that would break the mixed rule says so on that same confirm:
-   * "Swap anyway", or "Pick someone else" with the first kid still picked.
+   * A sub the coach makes by hand happens at once and toasts, with Undo
+   * (AFL's). One that would break the mixed rule asks first: "Swap
+   * anyway", or "Pick someone else" with the first kid still picked.
    */
   function handSub(offId: string | null, onId: string, line: TouchLine | undefined, reselect: string) {
     const warning = capWarning(offId, onId);
-    chrome.confirmSwap({
+    chrome.manualSwap({
       offId,
       onId,
       spotName: spotName(line ?? (offId ? lineOf(offId) : null)),
       ruleWarning: warning,
       onCancel: warning ? () => setSelectedId(reselect) : undefined,
-      onConfirm: () => sub(offId, onId, line, true),
+      run: () => sub(offId, onId, line, true),
+      undo: offId ? () => sub(onId, offId, undefined, true) : undefined,
     });
   }
   function move(a: string, b: string | null, zoneB: TouchLine) {

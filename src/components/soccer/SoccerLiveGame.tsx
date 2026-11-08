@@ -519,8 +519,8 @@ export function SoccerLiveGame({
           move(kid, null, unit);
           chrome.showToast(`${chrome.firstName(kid)} → ${words[unit].label}`);
         } else {
-          // A bench kid into an empty spot asks first, as AFL's does.
-          chrome.confirmSwap({ offId: null, onId: kid, spotName: words[unit].label, onConfirm: () => sub(null, kid, unit, { manual: true }) });
+          // A bench kid into an empty spot goes on at once, as AFL's does.
+          chrome.manualSwap({ offId: null, onId: kid, spotName: words[unit].label, run: () => sub(null, kid, unit, { manual: true }) });
         }
         setSelectedId(null);
       } else {
@@ -549,11 +549,17 @@ export function SoccerLiveGame({
       move(first, pid, bUnit);
       chrome.showToast(`${chrome.firstName(first)} ⇄ ${chrome.firstName(pid)} — swapped`);
     } else if (aUnit || bUnit) {
-      // A field kid and a bench kid: AFL's confirm, then the toast.
+      // A field kid and a bench kid: the sub at once, Undo on the toast (AFL's).
       const off = aUnit ? first : pid;
       const on = aUnit ? pid : first;
       const spot = (aUnit ?? bUnit)!;
-      chrome.confirmSwap({ offId: off, onId: on, spotName: words[spot].label, onConfirm: () => sub(off, on, undefined, { manual: true }) });
+      chrome.manualSwap({
+        offId: off,
+        onId: on,
+        spotName: words[spot].label,
+        run: () => sub(off, on, undefined, { manual: true }),
+        undo: () => sub(on, off, undefined, { manual: true }),
+      });
     } else setSelectedId(pid); // two bench kids: the second is the selection
   }
 

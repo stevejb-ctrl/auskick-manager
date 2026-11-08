@@ -82,9 +82,8 @@ test("swap a bench player onto the field produces a swap event", async ({
   await page.getByTestId(`player-tile-${bench.id}`).click();
   await page.getByTestId(`player-tile-${onFieldPlayer.id}`).click();
 
-  // SwapConfirmDialog opens reliably once both clicks land — its
-  // CTA is "Confirm" (per src/components/live/SwapConfirmDialog.tsx).
-  await page.getByRole("button", { name: /^confirm$/i }).click();
+  // The sub happens at once (live v3: no confirm), with Undo on the toast.
+  await expect(page.getByTestId("swap-toast")).toContainText(`${onFieldPlayer.full_name} → ${bench.full_name}`);
 
   // recordSwap runs in startTransition; poll the DB until the swap
   // event lands.

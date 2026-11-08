@@ -37,7 +37,7 @@ test("a swap is said as who's off and who's on, in words", async ({ page }) => {
   const [on, off] = [lineup.bench[0], lineup.forwards[0]];
   await page.getByTestId(`league-player-tile-${on}`).click();
   await page.getByTestId(`league-player-tile-${off}`).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Confirm" }).click();
+  // The sub happens at once (live v3): the toast says it.
   await expect(page.getByTestId("swap-toast")).toBeVisible();
   await expect.poll(() => announcedText(page)).toContain(`${name(off)} off, ${name(on)} on`);
   expect(await announcedText(page)).not.toContain("→");

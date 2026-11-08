@@ -224,7 +224,8 @@ test("touch U11 mixed: the Girl/Boy prompt, the cap kept through subs, a girl hu
   expect(await count("swap")).toBe(swapsBeforeHand);
   // The girl is still picked: the coach chooses again, and this time swaps anyway.
   await bench.getByTestId(`player-tile-${boyOn}`).click();
-  // One dialog: AFL's swap confirm, carrying the rule it breaks.
+  // One dialog: the shared swap confirm, carrying the rule it breaks (the
+  // one hand sub that still asks first: other hand subs are instant).
   await expect(page.getByRole("dialog")).toHaveCount(1);
   await expect(page.getByRole("dialog")).toContainText(`Manually sub ${nameOf(boyOn)} (Bench) for ${nameOf(girlOff)}`);
   await page.getByRole("dialog").getByRole("button", { name: "Swap anyway" }).click();

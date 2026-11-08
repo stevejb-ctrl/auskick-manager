@@ -359,13 +359,10 @@ test("oztag: a try, its undo and a sub show before the server saves; Game settin
   await strip.getByRole("button", { name: "Undo" }).click();
   await expect(theirs).toHaveText("0", { timeout: 1_500 });
 
-  // A bench kid on for a wing: AFL's confirm, then it shows at once.
+  // A bench kid on for a wing: at once, with Undo on the toast (AFL's).
   const [benchKid, wing] = [players[8], players[6]];
   await page.getByTestId(`player-tile-${benchKid.id}`).click();
   await page.getByTestId(`player-tile-${wing.id}`).click();
-  const confirm = page.getByRole("dialog", { name: /manually sub/i });
-  await expect(confirm).toContainText(`${benchKid.full_name} (Bench) for ${wing.full_name} (Wings)`);
-  await confirm.getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByTestId("swap-toast")).toContainText(`${wing.full_name} → ${benchKid.full_name}`, { timeout: 1_500 });
   const wings = page.getByRole("region", { name: "On field" }).getByRole("group", { name: "Wings" });
   await expect(wings.getByTestId(`player-tile-${benchKid.id}`)).toBeVisible({ timeout: 1_500 });

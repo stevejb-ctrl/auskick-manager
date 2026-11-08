@@ -74,10 +74,9 @@ test("rugby league: lend a forward, fill the gap, a back is hurt and replaced, t
   await page.getByRole("button", { name: /lend to opposition/i }).click();
   await landed((evs) => evs.some((e) => e.type === "player_loan" && e.player_id === lent.id));
 
-  // Bring a bench kid into the gap: AFL's confirm, then its toast.
+  // Bring a bench kid into the gap: at once, then its toast (AFL's).
   await tile(filler.id).click();
   await page.getByRole("button", { name: /move selected player to forwards/i }).click();
-  await page.getByRole("dialog", { name: `Move ${filler.full_name} to Forwards?` }).getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByTestId("swap-toast")).toContainText(`${filler.full_name} on`);
   await landed((evs) => evs.filter((e) => e.type === "lineup_set").length === 2);
 
@@ -693,11 +692,10 @@ test("rugby league: a try, its undo and a sub show before the server saves", asy
   await strip.getByRole("button", { name: "Undo" }).click();
   await expect(theirs).toHaveText("0", { timeout: 1_500 });
 
-  // A bench kid on for a forward: asks first, then shows at once.
+  // A bench kid on for a forward: no confirm, it shows at once.
   const [benchKid, fwd] = [players[13], players[0]];
   await page.getByTestId(`league-player-tile-${benchKid.id}`).click();
   await page.getByTestId(`league-player-tile-${fwd.id}`).click();
-  await page.getByRole("dialog", { name: /manually sub/i }).getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByTestId("swap-toast")).toContainText(`${fwd.full_name} → ${benchKid.full_name}`, { timeout: 1_500 });
   await expect(page.getByRole("group", { name: "Forwards" }).getByTestId(`league-player-tile-${benchKid.id}`)).toBeVisible({
     timeout: 1_500,

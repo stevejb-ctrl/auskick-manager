@@ -1257,15 +1257,21 @@ export function LeagueLiveGame({
       handleClearSelection();
       return true;
     }
-    // Field ↔ bench (or bench ↔ field): a rolling sub, after AFL's
-    // confirm; the toast says what changed.
+    // Field ↔ bench (or bench ↔ field): a rolling sub, at once; the
+    // toast says what changed, with Undo (AFL's).
     if (Boolean(firstZone) !== Boolean(secondZone)) {
       const off = firstZone ? first : secondId;
       const on = firstZone ? secondId : first;
       // Never bring a hurt or lent kid on, e.g. one selected before they
       // were lent (Stagehand round 4): this tap starts a new selection.
       if (injuredSet.has(on) || loanedSet.has(on)) return false;
-      chrome.confirmSwap({ offId: off, onId: on, spotName: lineName((firstZone ?? secondZone)!), onConfirm: () => sub(off, on, true) });
+      chrome.manualSwap({
+        offId: off,
+        onId: on,
+        spotName: lineName((firstZone ?? secondZone)!),
+        run: () => sub(off, on, true),
+        undo: () => sub(on, off, true),
+      });
       handleClearSelection();
       return true;
     }
@@ -1341,8 +1347,8 @@ export function LeagueLiveGame({
       || lineup.backs.includes(kid);
 
     if (isBench) {
-      // A bench kid into an empty spot asks first, as AFL's does.
-      chrome.confirmSwap({ offId: null, onId: kid, spotName: lineName(slotZone), onConfirm: () => fillVacantSpot(kid, slotZone) });
+      // A bench kid into an empty spot goes on at once, as AFL's does.
+      chrome.manualSwap({ offId: null, onId: kid, spotName: lineName(slotZone), run: () => fillVacantSpot(kid, slotZone) });
       handleClearSelection();
       return;
     }

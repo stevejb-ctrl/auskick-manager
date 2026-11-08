@@ -24,7 +24,6 @@ import { SwapDoneToast } from "@/components/live/SwapDoneToast";
 import { undoSwaps } from "@/lib/live/liveChrome";
 import { useSquadNames } from "@/components/live/SquadNames";
 import { SwapCard } from "@/components/live/SwapCard";
-import { SwapConfirmDialog } from "@/components/live/SwapConfirmDialog";
 import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
 import { LiveGameSettingsButton } from "@/components/live/LiveGameSettingsButton";
 import { DOCK_SWAP_HINT, ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
@@ -459,7 +458,6 @@ export function LiveGame({
     on: Record<string, number>;
     off: Record<string, number>;
   }>({ on: {}, off: {} });
-  const [pendingSwap, setPendingSwap] = useState<{ off: string; on: string; zone: Zone } | null>(null);
   // An empty spot tapped with nobody selected: pick who comes on there
   // (the break does the same). It used to do nothing, so after lending a
   // kid mid-quarter the gap couldn't be filled from the spot (Stagehand
@@ -558,8 +556,8 @@ export function LiveGame({
   // tap-a-bench-player-to-swap path is invisible. An Auskick coach
   // (where rotation > scoring) interpreted the drawer as
   // scoring-only and gave up. Adding an explicit "Sub off" button
-  // surfaces the substitution path. On pick → setPendingSwap fires
-  // the same swap-confirm dialog as the tap-bench flow.
+  // surfaces the substitution path. On pick → manualSwap, the same
+  // instant sub (with Undo) as the tap-bench flow.
   const [subOffSelected, setSubOffSelected] = useState<{ playerId: string; zone: Zone } | null>(null);
 
   // Modal-open state for the quarter-by-quarter score breakdown.
@@ -844,7 +842,7 @@ export function LiveGame({
     if (playerId === "") {
       if (selected?.kind === "bench") {
         clearSelection();
-        setPendingSwap({ off: "", on: selected.playerId, zone });
+        manualSwap("", selected.playerId, zone);
         return;
       }
       // Field player selected + empty slot tapped → MOVE the player
@@ -888,7 +886,7 @@ export function LiveGame({
     }
     if (selected.kind === "bench") {
       clearSelection();
-      setPendingSwap({ off: playerId, on: selected.playerId, zone });
+      manualSwap(playerId, selected.playerId, zone);
       return;
     }
     // Two different field players in different zones — swap their zones directly.
@@ -924,6 +922,29 @@ export function LiveGame({
     ]);
   }
 
+  // A sub made by hand (tap-tap, the dock's Swap player, a bench kid
+  // into an empty spot) happens at once, off the sub cadence, and the
+  // toast carries Undo for 6 s. Live v3 (Steve, 8 Nov 2026) dropped the
+  // "Manually sub…?" confirm. Undo writes the swap back as its own
+  // event (marked `undo`, so it nets to no sub), on the same write
+  // queue, so it saves after the swap even with no signal. A kid into an
+  // empty spot (`off` "") has nobody to bring back: no Undo.
+  function manualSwap(off: string, on: string, zone: Zone) {
+    persistSwap(off, on, zone, false);
+    if (!off) {
+      showSwapToast(`${shortName(on)} on`);
+      return;
+    }
+    showSwapToast(`${shortName(off)} → ${shortName(on)}`, () => {
+      // Where the kid who came on is now (a zone swap may have moved
+      // them since); nothing to put back if either has moved on.
+      const now = useLiveGame.getState().lineup;
+      const at = ALL_ZONES.find((z) => now[z].includes(on));
+      if (!at || !now.bench.includes(off)) return;
+      persistSwap(on, off, at, false, 0, true);
+    });
+  }
+
   function handleTapBench(playerId: string) {
     if (isFinished) return;
     if (!selected) {
@@ -936,7 +957,7 @@ export function LiveGame({
     }
     if (selected.kind === "field") {
       clearSelection();
-      setPendingSwap({ off: selected.playerId, on: playerId, zone: selected.zone });
+      manualSwap(selected.playerId, playerId, selected.zone);
       return;
     }
     selectBench(playerId);
@@ -2224,34 +2245,9 @@ export function LiveGame({
             const zone = fillZone;
             setFillZone(null);
             // A deliberate pick, off the sub cadence (as a tap-tap sub).
-            persistSwap("", pid, zone, false);
-            showSwapToast(`${shortName(pid)} on`);
+            manualSwap("", pid, zone);
           }}
           onCancel={() => setFillZone(null)}
-        />
-      )}
-
-      {pendingSwap && (
-        <SwapConfirmDialog
-          off={pendingSwap.off}
-          on={pendingSwap.on}
-          zone={pendingSwap.zone}
-          playersById={playersById}
-          onConfirm={() => {
-            // Manual tap-tap swap = off-cadence; don't reset the sub
-            // countdown (issue 5 — keep running toward the next planned
-            // rotation).
-            persistSwap(pendingSwap.off, pendingSwap.on, pendingSwap.zone, false);
-            if (pendingSwap.off) {
-              showSwapToast(
-                `${shortName(pendingSwap.off)} → ${shortName(pendingSwap.on)}`
-              );
-            } else {
-              showSwapToast(`${shortName(pendingSwap.on)} on`);
-            }
-            setPendingSwap(null);
-          }}
-          onCancel={() => setPendingSwap(null)}
         />
       )}
 
@@ -2287,7 +2283,7 @@ export function LiveGame({
       {/* End-quarter-early confirm. Destructive — credits all
           on-field players the full quarter time and triggers the
           Q-break (or FT review on Q4). Same shape as
-          SwapConfirmDialog so the visual language stays consistent. */}
+          the other confirms so the visual language stays consistent. */}
       {clockMenuOpen && (
         <ClockMenu
           sport="afl"
@@ -2649,7 +2645,7 @@ export function LiveGame({
               // players become a "field" selection; bench players a
               // "bench" selection. handleTapField/handleTapBench
               // already wire this through to applyFieldZoneSwap or
-              // setPendingSwap → SwapConfirmDialog.
+              // manualSwap (an instant sub, with Undo).
               const currentZone = ALL_ZONES.find((z) =>
                 lineup[z].includes(lockModal.playerId),
               );
@@ -2803,7 +2799,7 @@ export function LiveGame({
           pick a sub OR a rotation in one place.
 
           On pick:
-            - Bench player    → setPendingSwap → SwapConfirmDialog
+            - Bench player    → manualSwap (at once, with Undo)
                                 → field-to-bench substitution
             - Field player    → applyFieldZoneSwap + recordFieldZoneSwap
                                 → direct field-to-field zone swap
@@ -2883,12 +2879,8 @@ export function LiveGame({
                 return;
               }
               if (c.kind === "bench") {
-                // Field-to-bench: existing SwapConfirmDialog path.
-                setPendingSwap({
-                  off: subOffSelected.playerId,
-                  on: picked,
-                  zone: subOffSelected.zone,
-                });
+                // Field-to-bench: the sub at once, with Undo.
+                manualSwap(subOffSelected.playerId, picked, subOffSelected.zone);
               } else if (c.kind === "field" && c.zone) {
                 // Field-to-field zone rotation: same path as
                 // tap-A-then-tap-B-in-different-zone. Direct

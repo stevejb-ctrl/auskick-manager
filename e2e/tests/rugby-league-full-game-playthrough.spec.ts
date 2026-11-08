@@ -23,7 +23,7 @@
 //
 // And the live chrome AFL's screen has (UX audit 23 Oct 2026, "Drift
 // from AFL"): the undo strip says what each score was, a tap-tap sub
-// asks first and toasts, full time drops the scorebug's chips and the
+// is made at once and toasts, full time drops the scorebug's chips and the
 // undo strip for the review's labelled 44 pt buttons, and nobody can
 // arrive late once the last half is over.
 
@@ -250,15 +250,13 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   // The kid who isn't here yet can be added late.
   await expect(page.getByRole("button", { name: "+ Add late arrival" })).toBeVisible();
 
-  // ─── Phase 3b: A tap-tap sub asks first, then toasts ─────
-  // Bench kid, then a back: AFL's confirm, in league's words.
+  // ─── Phase 3b: A tap-tap sub happens at once, then toasts ─────
+  // Bench kid, then a back: no confirm (live v3), Undo on the toast.
   const [benchKid, offKid] = [players[11], players[5]];
   await page.getByTestId(`league-player-tile-${benchKid.id}`).click({ timeout: 10_000 });
   await page.getByTestId(`league-player-tile-${offKid.id}`).click({ timeout: 10_000 });
-  const confirm = page.getByRole("dialog", { name: /manually sub/i });
-  await expect(confirm).toContainText(`${benchKid.full_name} (Bench) for ${offKid.full_name} (Backs)`);
-  await confirm.getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByTestId("swap-toast")).toContainText(`${offKid.full_name} → ${benchKid.full_name}`);
+  await expect(page.getByTestId("swap-toast").getByRole("button", { name: "Undo" })).toBeVisible();
   await expect(
     page.getByRole("group", { name: "Backs" }).getByTestId(`league-player-tile-${benchKid.id}`),
   ).toBeVisible({ timeout: 1_500 });

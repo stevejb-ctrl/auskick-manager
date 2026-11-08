@@ -191,7 +191,10 @@ test("AFL: a bench kid selected and then lent isn't offered as a sub with the ne
   // Tapping a field kid starts a new selection; it doesn't offer the lent kid.
   await page.getByTestId(`player-tile-${onField[0].id}`).click();
   await page.waitForTimeout(500);
-  await expect(page.getByRole("dialog", { name: new RegExp(`manually sub ${lent.full_name}`, "i") })).toHaveCount(0);
+  // A hand sub happens at once now (live v3): no swap, so no toast and no event.
+  await expect(page.getByTestId("swap-toast")).toHaveCount(0);
+  const { data: swaps } = await admin.from("game_events").select("id").eq("game_id", game.id).eq("type", "swap");
+  expect(swaps ?? []).toHaveLength(0);
 });
 
 // Stagehand round 4 (sideline-chaos-afl): lending a kid mid-quarter

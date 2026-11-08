@@ -125,7 +125,7 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
   await expect.poll(() => count("opponent_field_goal")).toBe(1);
   await expect(strip).toContainText("Easts Juniors drop goal");
 
-  // A tap-tap sub: a bench kid, then a back. AFL's confirm, then its toast.
+  // A tap-tap sub: a bench kid, then a back. At once, then its toast (AFL's).
   const benchKid = players.find((p) => !onField.forwards.includes(p.id) && !onField.backs.includes(p.id))!;
   const offKid = onField.backs[1];
   // Fifteen on the field put the bench below an iPhone's fold, where the
@@ -134,9 +134,6 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
   await benchTile.evaluate((el) => el.scrollIntoView({ block: "center" }));
   await benchTile.click({ timeout: 10_000 });
   await page.getByTestId(`league-player-tile-${offKid}`).click({ timeout: 10_000 });
-  const confirm = page.getByRole("dialog", { name: /manually sub/i });
-  await expect(confirm).toContainText(`${benchKid.full_name} (Bench) for ${nameOf(offKid)} (Backs)`);
-  await confirm.getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByTestId("swap-toast")).toContainText(`${nameOf(offKid)} → ${benchKid.full_name}`);
   await expect.poll(() => count("swap")).toBe(1);
 

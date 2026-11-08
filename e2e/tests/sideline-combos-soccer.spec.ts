@@ -9,7 +9,7 @@
 // 2026 found soccer's family lacked ("Drift from AFL"):
 //   - the scorer sheet asks "Who scored?", attack first, and a stray
 //     tap on its backdrop doesn't lose the goal;
-//   - a tap-tap sub asks first and toasts; the undo strip says what was
+//   - a tap-tap sub is made at once and toasts (with Undo); the undo strip says what was
 //     recorded; a goal, an undo and a sub show before the server saves;
 //   - the long-press sheet knows an on-field kid's line and the season's
 //     lent minutes; Game settings (the sub interval) sits in the row.
@@ -270,7 +270,7 @@ test("soccer: the scorer sheet asks who scored, attack first, and a stray tap do
     .toEqual([striker.id]);
 });
 
-test("soccer: a tap-tap sub asks first and toasts; a goal, its undo and the sub show before the server saves", async ({
+test("soccer: a tap-tap sub is made at once and toasts; a goal, its undo and the sub show before the server saves", async ({
   page,
 }) => {
   const admin = createAdminClient();
@@ -293,13 +293,11 @@ test("soccer: a tap-tap sub asks first and toasts; a goal, its undo and the sub 
   await strip.getByRole("button", { name: "Undo" }).click();
   await expect(theirs).not.toContainText("1", { timeout: 1500 });
 
-  // Bench kid, then a defender: the same confirm AFL asks.
+  // Bench kid, then a defender: made at once, as AFL's, with Undo.
   await page.getByTestId(`player-tile-${benchKid.id}`).click();
   await page.getByTestId(`player-tile-${def1.id}`).click();
-  const confirm = page.getByRole("dialog", { name: /manually sub/i });
-  await expect(confirm).toContainText(`${benchKid.full_name} (Bench) for ${def1.full_name} (Defence)`);
-  await confirm.getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByTestId("swap-toast")).toContainText(`${def1.full_name} → ${benchKid.full_name}`, { timeout: 1500 });
+  await expect(page.getByTestId("swap-toast").getByRole("button", { name: "Undo" })).toBeVisible();
   await expect(page.getByRole("group", { name: "Defence" }).getByTestId(`player-tile-${benchKid.id}`)).toBeVisible({
     timeout: 1500,
   });

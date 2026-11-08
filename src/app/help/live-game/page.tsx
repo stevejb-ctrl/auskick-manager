@@ -233,10 +233,10 @@ export default function LiveGamePage() {
           <li>Tap a player on the playing area. They get a selection ring.</li>
           <li>Tap a player on the bench.</li>
           <li>
-            AFL shows a confirmation dialog with the pair. Tap{" "}
-            <strong className="text-ink">Confirm</strong> to commit or{" "}
-            <strong className="text-ink">Cancel</strong> to back out. League
-            makes the swap straight away.
+            The swap happens straight away, and a note at the top says who
+            went off and who came on. Picked the wrong pair? Tap{" "}
+            <strong className="text-ink">Undo</strong> on the note within a few
+            seconds to put them back.
           </li>
         </ol>
         <p className="mt-2 text-sm text-ink-dim">
@@ -248,8 +248,9 @@ export default function LiveGamePage() {
           comes on.
         </p>
         <HelpCallout type="tip">
-          In AFL, tapping the backdrop or pressing Escape closes the
-          confirmation without making a swap.
+          Touch and Oztag ask first when a swap would break your mixed
+          team&apos;s rule: tap <strong className="text-ink">Swap anyway</strong>{" "}
+          or <strong className="text-ink">Pick someone else</strong>.
         </HelpCallout>
       </section>
 

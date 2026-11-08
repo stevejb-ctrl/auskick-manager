@@ -170,10 +170,9 @@ test("Soccer: a hand swap doesn't restart the sub countdown", async ({ page }) =
   const before = await countdownSeconds(page);
   expect(before).toBeLessThanOrEqual(180);
 
-  // Tap a midfielder, then a bench kid, and confirm.
+  // Tap a midfielder, then a bench kid: the swap is made at once.
   await page.getByTestId(`player-tile-${ids[3]}`).click();
   await page.getByTestId(`player-tile-${ids[7]}`).click();
-  await page.getByRole("button", { name: "Confirm" }).click();
   await expect
     .poll(async () => (await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "swap")).data ?? [], {
       timeout: 15_000,

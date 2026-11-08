@@ -8,13 +8,16 @@
 //
 //   - the undo strip flashes what was just recorded ("Roos goal — Mia")
 //     for 8 s, then settles quietly, still naming it (`scored`, `undoStrip`);
-//   - a tap-tap sub asks first (the shared SwapConfirmDialog), then a
-//     toast says what changed (`confirmSwap`, `swapped`, `toast`);
+//   - a sub made by hand happens at once, and the toast says what changed
+//     with an Undo for 6 s (`manualSwap`, `swapped`, `toast`). Only a sub
+//     that breaks a rule (touch's boys' cap) asks first, on the shared
+//     SwapConfirmDialog;
 //   - the long-press sheet gets the kid's lent minutes, the season's
 //     plus this game's (`loanMinutes`).
 //
 // The screen renders `toast` near the top (an overlay, as AFL's) and
-// `overlays` (the confirm) anywhere. liveChromeContract.test.ts checks
+// `overlays` (the rule-break confirm, the walkthrough) anywhere.
+// liveChromeContract.test.ts checks
 // every sport's screen has these pieces.
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
@@ -39,18 +42,26 @@ const TOAST_MS = 2500;
 /** Long enough to tap Undo after "Make all swaps". */
 const UNDO_TOAST_MS = 6000;
 
-interface PendingSwap {
+export interface ManualSwap {
   offId: string | null;
   onId: string;
   /** The spot in the sport's words ("Defence", "Guards"). */
   spotName: string;
-  onConfirm: () => void;
+  /** Makes the swap (the sport's own write). */
+  run: () => void;
   /**
-   * The rule this sub breaks (touch's boys' cap), on the same confirm:
-   * its buttons then read "Swap anyway" and "Pick someone else".
+   * Puts it back: the same swap with the pair flipped, as a new event
+   * (events are never rewritten). The toast offers it for 6 s. None when
+   * the kid filled an empty spot: there's nobody to bring back.
+   */
+  undo?: () => void;
+  /**
+   * The rule this sub breaks (touch's boys' cap): the one hand sub that
+   * asks first, on the shared confirm, whose buttons then read "Swap
+   * anyway" and "Pick someone else".
    */
   ruleWarning?: string | null;
-  /** After Cancel ("Pick someone else": the kid tapped first stays picked). */
+  /** After "Pick someone else" (the kid tapped first stays picked). */
   onCancel?: () => void;
 }
 
@@ -67,8 +78,13 @@ export interface LiveChrome {
   undone(): void;
   /** The undo strip, for LiveStickyScoreBar (null when `show` is false). */
   undoStrip(opts: { show: boolean; onUndo: () => void; disabled?: boolean; target?: string | null }): ReactNode;
-  /** Ask before a tap-tap sub; on Confirm it runs and the toast shows. */
-  confirmSwap(swap: PendingSwap): void;
+  /**
+   * A sub made by hand (tap-tap, a bench kid into an empty spot): it
+   * happens at once and the toast says so, with Undo. Live v3 (Steve,
+   * 8 Nov 2026) dropped the "Manually sub…?" confirm; a sub that breaks
+   * a rule still asks first.
+   */
+  manualSwap(swap: ManualSwap): void;
   /**
    * A swap landed without asking (a suggested sub, a filled spot): toast
    * it. `undo`: "Make all swaps"' Undo on the toast (lib/live undoSwaps).
@@ -78,7 +94,7 @@ export interface LiveChrome {
   showToast(text: string, undo?: () => void): void;
   /** The swap toast, near the top of the screen (an overlay). */
   toast: ReactNode;
-  /** The swap confirm. */
+  /** The rule-break confirm and the walkthrough. */
   overlays: ReactNode;
   /** Opens the walkthrough (the top bar's ?), these sports' first. */
   openHelp(): void;
@@ -108,7 +124,7 @@ export function useLiveChrome(opts: {
   const [toastUndo, setToastUndo] = useState<{ run: () => void } | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [pendingSwap, setPendingSwap] = useState<PendingSwap | null>(null);
+  const [pendingSwap, setPendingSwap] = useState<ManualSwap | null>(null);
   const names = useSquadNames();
 
   useEffect(
@@ -147,7 +163,15 @@ export function useLiveChrome(opts: {
     [firstName, showToast],
   );
 
-  const scored: LiveChrome["scored"] = ({ side, what, scorerId, key }) => {
+  const makeSwap = useCallback(
+    (swap: ManualSwap) => {
+      swap.run();
+      swapped(swap.offId, swap.onId, swap.undo);
+    },
+    [swapped],
+  );
+
+  const scored: LiveChrome["scored"] =({ side, what, scorerId, key }) => {
     if (flashTimer.current !== null) clearTimeout(flashTimer.current);
     setNamedScoreKey(key ?? null);
     setMessage(undoMessage({ side, what, teamName, opponentName, scorerName: scorerId ? firstName(scorerId) : null }));
@@ -175,7 +199,7 @@ export function useLiveChrome(opts: {
       show ? (
         <UndoStrip flashing={flashing && message !== null} message={message ?? target ?? ""} onUndo={onUndo} disabled={disabled} />
       ) : null,
-    confirmSwap: setPendingSwap,
+    manualSwap: (swap) => (swap.ruleWarning ? setPendingSwap(swap) : makeSwap(swap)),
     swapped,
     showToast,
     toast: toastText ? (
@@ -205,8 +229,7 @@ export function useLiveChrome(opts: {
         onConfirm={() => {
           const swap = pendingSwap;
           setPendingSwap(null);
-          swap.onConfirm();
-          swapped(swap.offId, swap.onId);
+          makeSwap(swap);
         }}
         onCancel={() => {
           const swap = pendingSwap;

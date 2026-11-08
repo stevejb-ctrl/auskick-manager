@@ -61,7 +61,7 @@ type Piece =
   | "lockModalLine"
   | "lockModalLoan"
   | "undoFlash"
-  | "swapConfirm"
+  | "swapUndo"
   | "settingsInRow"
   | "optimisticWrites"
   | "pauseFromEvents"
@@ -81,8 +81,15 @@ const PIECES: Record<Piece, (s: string) => boolean> = {
   // The undo strip flashes with what was recorded ("Roos goal — Mia").
   undoFlash: (s) =>
     (/<UndoStrip\b/.test(s) || /\.undoStrip\(/.test(s)) && !/flashing=\{false\}/.test(s),
-  // A tap-tap sub asks first, then toasts what changed.
-  swapConfirm: (s) => /<SwapConfirmDialog\b/.test(s) || (/useLiveChrome\(/.test(s) && /\.overlays\}/.test(s)),
+  // A sub made by hand happens at once and the toast carries Undo (live
+  // v3, Steve 8 Nov 2026): no screen mounts the old "Manually sub…?"
+  // confirm itself. The shared chrome's overlays still render, for the
+  // one hand sub that asks first (touch's boys' cap).
+  swapUndo: (s) =>
+    /manualSwap\(/.test(s) &&
+    !/<SwapConfirmDialog\b/.test(s) &&
+    !/confirmSwap/.test(s) &&
+    (!/useLiveChrome\(/.test(s) || /\.overlays\}/.test(s)),
   // Game settings (the sub interval) is a standard slot of the row.
   settingsInRow: (s) => blocks(s, "LiveAdminUtilityRow").some((b) => /settings=\{/.test(b)),
   // Score, undo and swap show at once: the AFL store, or optimistic
@@ -108,7 +115,7 @@ const PIECES: Record<Piece, (s: string) => boolean> = {
  */
 const NOT_APPLICABLE: Record<string, Partial<Record<Piece, string>>> = {
   "src/components/netball/NetballLiveGame.tsx": {
-    swapConfirm: "positions change at the breaks; mid-quarter Switch has its own flow",
+    swapUndo: "positions change at the breaks; mid-quarter Switch has its own flow",
     settingsInRow: "no sub interval",
   },
 };
@@ -143,6 +150,24 @@ describe("the live chrome contract", () => {
       expect(missing).toEqual(PICKER_GAPS[path] ?? []);
     });
   }
+});
+
+describe("hand subs", () => {
+  it("the shared chrome asks first only when a sub breaks a rule", () => {
+    expect(src("src/components/live/useLiveChrome.tsx")).toMatch(
+      /manualSwap: \(swap\) => \(swap\.ruleWarning \? setPendingSwap\(swap\) : makeSwap\(swap\)\)/,
+    );
+  });
+
+  it("every screen's kid-for-kid hand sub carries an Undo", () => {
+    for (const path of Array.from(new Set(Object.values(LIVE_SCREEN)))) {
+      const source = src(path);
+      if (!/chrome\.manualSwap\(/.test(source)) continue;
+      // Each manualSwap that takes a kid off (offId isn't null) says how to put it back.
+      const calls = source.split("chrome.manualSwap(").slice(1).map((c) => c.slice(0, c.indexOf("});") + 3));
+      for (const c of calls.filter((c) => !/offId: null/.test(c))) expect(c, path).toMatch(/undo: /);
+    }
+  });
 });
 
 describe("shared sheets", () => {

@@ -73,7 +73,7 @@ export function buildLeagueWalkthroughSteps(opts: {
     {
       emoji: "🔁",
       title: "Rolling subs",
-      body: "Tap a field player to select them, then tap a bench player to swap. A confirmation appears before anything changes. The app tracks how long each player has been on and suggests fair next rotations — players due to come off get an amber ↓ badge, players ready to come on get a brand ↑ badge.",
+      body: "Tap a field player to select them, then tap a bench player to swap. The swap happens straight away; tap Undo on the note that pops up if you picked the wrong pair. The app tracks how long each player has been on and suggests fair next rotations — players due to come off get an amber ↓ badge, players ready to come on get a brand ↑ badge.",
     },
     {
       emoji: "🔔",

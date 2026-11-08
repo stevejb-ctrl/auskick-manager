@@ -95,10 +95,9 @@ test("rugby union at 15 a side: lend, fill, hurt and replaced, a late arrival, t
   await page.getByRole("button", { name: /lend to opposition/i }).click();
   await landed((evs) => evs.some((e) => e.type === "player_loan" && e.player_id === lent.id));
 
-  // Bring a bench kid into the gap: AFL's confirm, then its toast.
+  // Bring a bench kid into the gap: at once, then its toast (AFL's).
   await tile(filler.id).click();
   await page.getByRole("button", { name: /move selected player to forwards/i }).click();
-  await page.getByRole("dialog", { name: `Move ${filler.full_name} to Forwards?` }).getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByTestId("swap-toast")).toContainText(`${filler.full_name} on`);
   await landed((evs) => evs.filter((e) => e.type === "lineup_set").length === 2);
 

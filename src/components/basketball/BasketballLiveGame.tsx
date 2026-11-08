@@ -492,8 +492,8 @@ export function BasketballLiveGame({
           move(kid, null, line);
           chrome.showToast(`${chrome.firstName(kid)} → ${spotName(line)}`);
         } else if (canComeOn(kid)) {
-          // A bench kid into an empty spot asks first, as AFL's does.
-          chrome.confirmSwap({ offId: null, onId: kid, spotName: spotName(line), onConfirm: () => sub(null, kid, line, true) });
+          // A bench kid into an empty spot goes on at once, as AFL's does.
+          chrome.manualSwap({ offId: null, onId: kid, spotName: spotName(line), run: () => sub(null, kid, line, true) });
         }
         setSelectedId(null);
       } else {
@@ -518,11 +518,17 @@ export function BasketballLiveGame({
       move(first, pid, bLine);
       chrome.showToast(`${chrome.firstName(first)} ⇄ ${chrome.firstName(pid)} — swapped`);
     } else if (aLine || bLine) {
-      // A court kid and a bench kid: AFL's confirm, then the toast.
+      // A court kid and a bench kid: the sub at once, Undo on the toast (AFL's).
       const off = aLine ? first : pid;
       const on = aLine ? pid : first;
       if (!canComeOn(on)) return;
-      chrome.confirmSwap({ offId: off, onId: on, spotName: spotName((aLine ?? bLine)!), onConfirm: () => sub(off, on, undefined, true) });
+      chrome.manualSwap({
+        offId: off,
+        onId: on,
+        spotName: spotName((aLine ?? bLine)!),
+        run: () => sub(off, on, undefined, true),
+        undo: () => sub(on, off, undefined, true),
+      });
     } else setSelectedId(pid); // two bench kids: the second is the selection
   }
 

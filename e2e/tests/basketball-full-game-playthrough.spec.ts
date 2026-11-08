@@ -10,7 +10,7 @@
 //   3. A 2 for us from the player's dock, a 3 for them from the
 //      scorebug (the undo strip says what each was). The live chrome,
 //      as AFL's: the scorer sheet asks "Who scored?" and survives a
-//      stray tap, a tap-tap sub asks first and toasts, the long-press
+//      stray tap, a tap-tap sub is made at once and toasts, the long-press
 //      sheet knows a kid's on court, and Game settings sits in the row.
 //   4. Five fouls on one kid: the fifth fouls them out, and the coach
 //      picks who comes on (an injury with reason "fouled_out", and the
@@ -133,13 +133,14 @@ test("basketball U12: guards and forwards, baskets each way, a foul-out, a sit-o
   await scorerSheet.getByRole("button", { name: "Cancel" }).click();
   await expect(scorerSheet).toHaveCount(0);
 
-  // A tap-tap sub asks first, then toasts, as AFL's does.
+  // A tap-tap sub happens at once and toasts, with Undo, as AFL's does.
   const [benchKid] = h1.bench;
   const offKid = h1.lines.forward[2];
   await page.getByTestId(`player-tile-${benchKid}`).click({ timeout: 10_000 });
   await page.getByTestId(`player-tile-${offKid}`).click({ timeout: 10_000 });
-  await page.getByRole("dialog", { name: /manually sub/i }).getByRole("button", { name: "Confirm" }).click({ timeout: 5_000 });
   await expect(page.getByTestId("swap-toast")).toContainText(`${nameOf(offKid)} → ${nameOf(benchKid)}`);
+  await expect(page.getByTestId("swap-toast").getByRole("button", { name: "Undo" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: /manually sub/i })).toHaveCount(0);
   await expect.poll(() => count("swap")).toBe(1);
 
   // A kid on court: Switch swaps with a teammate or a bench player.

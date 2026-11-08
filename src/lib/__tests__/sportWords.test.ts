@@ -287,7 +287,7 @@ describe("rugby's and touch's start cues", () => {
     });
   }
 
-  it("league's walkthrough promises the swap confirm the live screen asks", () => {
+  it("league's walkthrough promises the instant swap and Undo the live screen gives", () => {
     const steps = buildLeagueWalkthroughSteps({
       sport: "rugby_league",
       trackScoring: true,
@@ -297,8 +297,10 @@ describe("rugby's and touch's start cues", () => {
       trackZoneTime: false,
     });
     const subs = steps.find((s) => s.title === "Rolling subs")!;
-    expect(subs.body).toMatch(/confirm/i);
-    expect(readFileSync(join(process.cwd(), "src/components/league/LeagueLiveGame.tsx"), "utf8")).toMatch(/\.confirmSwap\(/);
+    expect(subs.body).toMatch(/straight away/i);
+    expect(subs.body).toMatch(/undo/i);
+    expect(subs.body).not.toMatch(/confirm/i);
+    expect(readFileSync(join(process.cwd(), "src/components/league/LeagueLiveGame.tsx"), "utf8")).toMatch(/\.manualSwap\(\{[^}]*undo: /);
   });
 });
 

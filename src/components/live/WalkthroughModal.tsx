@@ -73,7 +73,7 @@ export function buildWalkthroughSteps(trackScoring: boolean): WalkthroughStep[] 
     {
       emoji: "🔄",
       title: "Making a substitution",
-      body: "Tap a field player to select them (they'll highlight), then tap a bench player to swap them. A confirmation screen appears before anything changes. Empty slots on the field work the same way — tap one with a bench player selected to send them on.",
+      body: "Tap a field player to select them (they'll highlight), then tap a bench player to swap them. The swap happens straight away; tap Undo on the note that pops up if you picked the wrong pair. Empty slots on the field work the same way — tap one with a bench player selected to send them on.",
     },
     {
       emoji: "🔀",

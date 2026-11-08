@@ -115,7 +115,6 @@ test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top change
   const offKid = h1.lines.def[0];
   await page.getByTestId(`player-tile-${benchKid}`).click({ timeout: 10_000 });
   await page.getByTestId(`player-tile-${offKid}`).click({ timeout: 10_000 });
-  await page.getByRole("dialog", { name: /manually sub/i }).getByRole("button", { name: "Confirm" }).click({ timeout: 5_000 });
   await expect(page.getByTestId("swap-toast")).toContainText(`${nameOf(offKid)} → ${nameOf(benchKid)}`);
   await expect.poll(() => count("swap")).toBe(1);
   const { data: swap } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "swap").single();
