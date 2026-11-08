@@ -4,8 +4,8 @@
 // Rugby-league live-game orchestrator. Mirrors AFL `LiveGame.tsx`
 // and netball `NetballLiveGame.tsx` end-to-end so coaches who run
 // teams in multiple sports get a consistent live-game shell —
-// shared `LiveTopBar` / `LiveStickyScoreBar` / `LiveAdminUtilityRow`
-// chrome wrapped around RL-specific surfaces.
+// shared live v3 shell (`LiveShell`, `LiveTopBar`, `LiveGameMenu`)
+// wrapped around RL-specific surfaces.
 //
 // In-game writes are optimistic (useOptimisticEvents): a try, an undo, a
 // sub or a move shows the moment it's tapped and the screen replays the
@@ -62,7 +62,6 @@ const GamePlanModal = dynamic(
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
 import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import { hapticTap } from "@/lib/haptics";
-import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { LockModal } from "@/components/live/LockModal";
 import {
@@ -2394,9 +2393,12 @@ export function LeagueLiveGame({
       {isFinished ? (
         <>
           {/* Full time and the finished game keep their page: the top
-              bar, the review or the summary, the score at the foot. */}
+              bar, the score, the review or the summary (as soccer's). */}
           <LiveTopBar exitHref={exitHref} game={game} isLive onHelp={handleOpenWalkthrough} />
           {error && <InlineAlert kind="danger">{error}</InlineAlert>}
+          <div className="rounded-md bg-surface">
+            <LeagueScoreBug {...scoreBugProps} />
+          </div>
           {isAtFinalQ && (
             <LeagueFullTimeReview
               auth={auth}
@@ -2437,10 +2439,6 @@ export function LeagueLiveGame({
               showArrivalPulse
             />
           )}
-          <LiveStickyScoreBar
-            scoringOff={!trackScoring ? { teamId: auth.kind === "team" && isAdmin ? auth.teamId : null } : undefined}
-            scorebug={<LeagueScoreBug {...scoreBugProps} />}
-          />
         </>
       ) : (
         <LiveShell
