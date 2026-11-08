@@ -26,9 +26,9 @@ Walk through:
      kid is a defender" if you'd flagged it?
 3. Start the game.
 4. Score 4 goals for your team — track which player scored
-   each. Verify per-player goal chips update on each tile.
+   each. Verify each shooter's tally after their name updates.
 5. Score 2 for the opposition.
-6. Use the Fix-scores panel to ADD a goal you missed in Q1
+6. Tap the score (Scores and fixes) to ADD a goal you missed in Q1
    (you saw it but didn't tap fast enough). Verify the kid
    gets credit AND it's tagged as "Q1 retro".
 7. Reach Q-break. Verify Q1 score recap shows correct

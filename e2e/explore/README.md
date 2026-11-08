@@ -65,7 +65,7 @@ Older missions (some still mention player chips, which How we play replaced):
 |---------------------|-------------------------------------------------------|
 | `coach-onboarding`  | Create a team + squad + game from cold                |
 | `game-day-flow`     | Use a runner link to start a game and score goals     |
-| `fix-scores-flow`   | Reach a Q-break and use the Fix-scores panel          |
+| `fix-scores-flow`   | Fix a score at a Q-break and from the live score      |
 
 Missions that start part-way through a game need a seed that puts the
 game there (`--as=coach --seed=…`):

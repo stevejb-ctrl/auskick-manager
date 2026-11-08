@@ -36,7 +36,7 @@ Walk through:
 4. Reach Q-break. The QB recap should give you a clean
    per-quarter breakdown. Verify it's reading like a stats
    sheet you'd submit at end of game.
-5. Use Fix-scores to add a missed goal from Q1 (you only
+5. Tap the score (Scores and fixes) to add a missed goal from Q1 (you only
    noticed mid-Q2). Verify it's tagged as Q1 retro and
    doesn't double-count toward Q2.
 6. Resume Q2.

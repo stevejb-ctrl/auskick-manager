@@ -32,7 +32,7 @@ Walk through:
      kids with the centre third?
 4. Start the game.
 5. Score 2 goals for your team (one each for GS and GA),
-   verify the per-position chip on each shooter's tile.
+   verify the tally after each shooter's name.
 6. Score 1 goal for the opposition.
 7. Try to score a goal as the WA (a non-shooter). Does the
    app cleanly refuse, or does it silently let you?

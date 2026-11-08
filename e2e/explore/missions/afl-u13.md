@@ -35,9 +35,9 @@ Walk through:
 4. Score 3 goals (different scorers across different zones)
    + 2 behinds. Verify zone attribution on each goal — i.e.
    if a half-back kicks a goal, does it show up correctly?
-5. Mark a player INJURED mid-quarter. Use the long-press flow.
+5. Mark a player INJURED mid-quarter: tap them, then Injured on their bar.
    Pick a replacement from the bench. Verify:
-   - The injured kid is visibly off-field with an INJ chip.
+   - The injured kid is visibly off-field, marked INJ.
    - The replacement kid is in the right zone.
    - The minutes-tracking attributes time correctly to both.
 6. Reach Q-break. Check Q2 suggestion. Did it respect the
