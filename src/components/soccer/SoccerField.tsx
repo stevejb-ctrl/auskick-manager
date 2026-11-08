@@ -202,6 +202,16 @@ export function SoccerField({
 }
 
 /**
+ * The surface's markings alone (live v3's FieldLines draws them under
+ * the kids): the pitch, futsal's court or the hockey pitch.
+ */
+export function SoccerSurfaceMarks({ surface }: { surface: SoccerSurface }) {
+  if (surface === "court") return <FutsalCourtMarkings />;
+  if (surface === "hockey") return <HockeyPitchMarkings />;
+  return <PitchMarkings />;
+}
+
+/**
  * Futsal's court, on the shared court token basketball draws on: the
  * lines, halfway and the centre circle, and at each end the 6 m penalty
  * area (quarter circles from the posts, joined by a short straight), the
