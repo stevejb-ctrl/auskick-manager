@@ -27,8 +27,8 @@ test.use({ viewport: { width: 390, height: 844 } });
 
 const SHORT: Record<string, string> = { Back: "BCK", Centre: "CEN", Forward: "FWD" };
 
-/** AFL U10, 12 on and 3 on the bench, 30 s subs, `secondsIn` into Q1. */
-async function aflSubGame(secondsIn: number) {
+/** AFL U10, 12 on and 3 on the bench, 30 s subs, `secondsIn` into Q1 (of `quarterSeconds`, else the age group's). */
+async function aflSubGame(secondsIn: number, quarterSeconds?: number) {
   const admin = createAdminClient();
   const ownerId = await coachId(admin);
   const team = await makeTeam(admin, { ownerId, sport: "afl", ageGroup: "U10", name: `KIDWORDS ${Date.now() % 100000}-${Math.random().toString(36).slice(2, 6)}` });
@@ -48,7 +48,15 @@ async function aflSubGame(secondsIn: number) {
     ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
   );
   if (error) throw new Error(error.message);
-  await admin.from("games").update({ status: "in_progress", sub_interval_seconds: 30, clock_multiplier: 1 }).eq("id", game.id);
+  await admin
+    .from("games")
+    .update({
+      status: "in_progress",
+      sub_interval_seconds: 30,
+      clock_multiplier: 1,
+      ...(quarterSeconds ? { quarter_length_seconds: quarterSeconds } : {}),
+    })
+    .eq("id", game.id);
   return { url: `/teams/${team.id}/games/${game.id}/live`, ids };
 }
 
@@ -138,4 +146,18 @@ test("tapping a kid opens their kid bar with minutes and % of game", async ({ pa
   await expect(bar).toContainText(/Bench · \d+′ this game · \d+% of game/);
   await page.keyboard.press("Escape");
   await expect(bar).toHaveCount(0);
+});
+
+// Regression (live v3, Phase 7): Phase 6 held the siren while a field
+// kid's kid bar was open, so a coach who left a kid tapped never got the
+// quarter-end sheet. Only the who-scored sheet holds it now, and the
+// siren puts the kid down.
+test("a kid left tapped doesn't hold the siren: it puts them down and the quarter ends", async ({ page }) => {
+  test.setTimeout(90_000);
+  const { url, ids } = await aflSubGame(48, 60);
+  await open(page, url);
+  await page.getByTestId(`player-tile-${ids[4]}`).click();
+  await expect(page.getByTestId("kid-bar")).toBeVisible();
+  await expect(page.getByRole("button", { name: /select team for q2/i })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("kid-bar")).toHaveCount(0);
 });

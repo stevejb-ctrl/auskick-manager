@@ -1559,20 +1559,18 @@ export function LiveGame({
       ? "soft"
       : "idle";
 
-  // Scoring in hand: the who-scored sheet is open, or a field kid is
-  // picked and the kid bar shows their + GOAL / + BEHIND (live v3: one
-  // sheet or bar at a time, so it's whichever of them is up). The
-  // hooter and the sub-due alert wait for it, so a goal kicked on the
-  // siren isn't lost under the quarter-end sheet (the picker-race guard,
-  // Stagehand 2026-05-10; netball's goal dock holds it the same way).
-  const holdForScoring =
-    pickScorerKind !== null ||
-    (trackScoring && selected?.kind === "field" && currentQuarter >= 1 && !quarterEnded && !finalised);
+  // Scoring in hand: the who-scored sheet is open. The hooter and the
+  // sub-due alert wait for it, so a goal kicked on the siren isn't lost
+  // under the quarter-end sheet (the picker-race guard, Stagehand
+  // 2026-05-10; netball's who-scored sheet holds it the same way). A kid
+  // picked (their kid bar up) does NOT hold it: a coach who leaves a kid
+  // tapped would never hear the siren. The siren puts the kid down.
+  const holdForScoring = pickScorerKind !== null;
 
   useEffect(() => {
     // Picker-race guard: hold the sub-due alert (beep, haptic) while
     // the coach is scoring, so it doesn't jolt them mid-pick. The
-    // sub-due state stays "due" meanwhile — once the sheet or kid bar
+    // sub-due state stays "due" meanwhile — once the who-scored sheet
     // closes, the alert fires (subState didn't change, prevSubStateRef
     // is still "due", but we re-check on every render via this
     // effect's deps). On screen, the info line and the kids' words say
@@ -1617,11 +1615,13 @@ export function LiveGame({
       // in AFL on a long-quarter age-group near the siren. The
       // freeze is conservative — the picker dismisses on pick OR
       // cancel, and the next interval tick fires the hooter once
-      // the user resolves attribution. Live v3: the kid bar's + GOAL
-      // holds it too (holdForScoring).
+      // the user resolves attribution (holdForScoring: the sheet only).
       if (holdForScoring) return;
       if (currentElapsedMs() >= quarterMs && quarterEndTriggeredRef.current !== currentQuarter) {
         quarterEndTriggeredRef.current = currentQuarter;
+        // The siren puts a picked kid down: the kid bar closes under
+        // the quarter-end sheet (one sheet at a time).
+        useLiveGame.getState().clearSelection();
         // Freeze the clock at the hooter so per-player stint times don't keep
         // accruing while the GM reads the modal.
         pauseClock();
