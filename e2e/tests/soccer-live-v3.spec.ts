@@ -102,6 +102,38 @@ test("Ready sets the lineup only; ⋯ → Edit lineup takes it back; Start H1 no
   await expect.poll(() => count("quarter_start")).toBe(1);
 });
 
+test("Edit lineup after another phone's whistle is refused in halves (\"H1 has started\")", async ({ page }) => {
+  // The refusal said "Q1 has started" for every sport (Phase 12).
+  test.setTimeout(120_000);
+  const admin = createAdminClient();
+  const ownerId = await coachId(admin);
+  const team = await makeTeam(admin, { ownerId, sport: "soccer", ageGroup: "U9", name: `SocReopen ${Date.now() % 100000}` });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 9 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Kookas" });
+  await admin.from("game_availability").insert(players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })));
+  const count = async (type: string) =>
+    ((await admin.from("game_events").select("id").eq("game_id", game.id).eq("type", type)).data ?? []).length;
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  await expect(page.getByRole("heading", { name: /under 9 starting lineup/i })).toBeVisible({ timeout: 15_000 });
+  await readySoccer(page);
+  await expect.poll(() => count("lineup_set")).toBe(1);
+  await expect(page.getByRole("button", { name: /^start h1$/i })).toBeVisible();
+
+  // This phone stops looking; another one blows the whistle.
+  await page.route("**/live/sync", (route) => route.abort());
+  await admin.from("game_events").insert({ game_id: game.id, type: "quarter_start", metadata: { quarter: 1 }, created_by: ownerId });
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  const menu = await openGameMenu(page);
+  await menu.getByRole("button", { name: /^edit lineup/i }).click();
+  await expect(page.getByText("H1 has started, so the lineup changes with subs now.").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/Q1 has started/)).toHaveCount(0);
+  // The lineup stays set.
+  expect(await count("lineup_set")).toBe(1);
+});
+
 test("the kids say their part in the next sub; the keeper wears GK; a tap opens the kid bar", async ({ page }) => {
   await quiet(page);
   // Two minutes in, subs every 5: two bench kids on next.

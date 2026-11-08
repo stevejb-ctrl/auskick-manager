@@ -25,6 +25,14 @@ export function periodShort(word: PeriodWord, period: number): string {
   return `${letter}${period}`;
 }
 
+/**
+ * ⋯ → Edit lineup once the whistle has gone: refused, in the sport's
+ * own period word ("H1 has started" for a halves sport, not "Q1").
+ */
+export function lineupReopenRefusal(word: PeriodWord): string {
+  return `${periodShort(word, 1)} has started, so the lineup changes with subs now.`;
+}
+
 /** What a live write is about to do to the game's periods. */
 export type PeriodWrite =
   /** The kickoff lineup (startGame and its siblings). */

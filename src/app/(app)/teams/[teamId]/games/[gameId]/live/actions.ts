@@ -7,7 +7,7 @@ import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { updateLiveGame } from "@/lib/games/updateLiveGame";
 import { gameWriteError } from "@/lib/games/gameWriteError";
-import { getAgeGroupConfig } from "@/lib/sports/registry";
+import { getAgeGroupConfig, getSportConfig } from "@/lib/sports/registry";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
 import { notifyGameStarted } from "@/lib/notifications/gameStarted";
@@ -23,7 +23,7 @@ import {
   scoreRowsOf,
   staleRefusal,
 } from "@/lib/live/liveWriteGuard";
-import type { PeriodWrite } from "@/lib/live/periodGuard";
+import { lineupReopenRefusal, periodWordOf, type PeriodWrite } from "@/lib/live/periodGuard";
 import { resolveUndoTarget, undoArgs, type UndoTargetRef } from "@/lib/live/undoTarget";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
@@ -305,7 +305,14 @@ export async function reopenLineup(auth: LiveAuth, gameId: string): Promise<Acti
   if (readError) return { success: false, error: readError.message };
   const rows = (events ?? []) as { id: string; type: string; metadata: unknown }[];
   if (rows.some((e) => e.type !== "lineup_set")) {
-    return staleRefusal(auth, w.teamId, gameId, "Q1 has started, so the lineup changes with subs now.");
+    // Said in the sport's own period word (every sport's Edit lineup
+    // comes through here): "H1 has started" for a halves sport.
+    const { data: team } = await w.supabase.from("teams").select("sport, age_group").eq("id", w.teamId).maybeSingle();
+    const sport = (team as { sport?: string } | null)?.sport ?? "afl";
+    const word = periodWordOf(
+      getAgeGroupConfig(sport, (team as { age_group?: string } | null)?.age_group).periodLabel ?? getSportConfig(sport).periodLabel,
+    );
+    return staleRefusal(auth, w.teamId, gameId, lineupReopenRefusal(word));
   }
   const lineups = rows.filter((e) => e.type === "lineup_set");
   const last = lineups.at(-1);
