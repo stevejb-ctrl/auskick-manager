@@ -5,6 +5,7 @@ import { SCORE_CHIP_OURS, SCORE_CHIP_THEIRS, SCORE_TEAM_NAME } from "@/component
 import { announce } from "@/lib/a11y/announce";
 import { repeatTapGate } from "@/lib/live/repeatTap";
 import { useScoringFor } from "@/components/live/ScoringFor";
+import { BAR_OUTLINED, BAR_PRIMARY, BAR_SMALL, BAR_TEXT } from "@/components/live/barButtons";
 
 // ─── ScoreBugFrame ───────────────────────────────────────────
 // The one layout every sport's scorebug sits in: AFL's GameHeader (the
@@ -157,7 +158,7 @@ export function ScoreBugFrame({
           >
             <span className="whitespace-nowrap">+ {c.word ?? c.text.replace(/^\+/, "")}</span>
             {c.hint && (
-              <span className="font-sans text-[0.6875rem] font-normal normal-case tracking-normal opacity-80 bigtext:hidden">
+              <span className={BAR_SMALL}>
                 {c.hint}
               </span>
             )}
@@ -274,21 +275,6 @@ export function ScoreBugFrame({
 }
 
 // ─── Live v3's two halves ─────────────────────────────────────
-
-const BAR_BUTTON =
-  "relative flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-[3px] rounded-[16px] px-[4px] py-[4px] " +
-  "font-display stretch-75 text-[1.0625rem] font-extrabold uppercase leading-none " +
-  "transition-[background-color,transform] duration-tap ease-out-quart motion-safe:active:scale-[0.97] " +
-  "disabled:pointer-events-none disabled:opacity-60 short:min-h-[44px]";
-/** The bar's one filled primary: + GOAL, "who scored?" under it. */
-const BAR_PRIMARY = BAR_BUTTON + " bg-primary text-on-primary hover:bg-primary/90";
-/** Our other chips: outlined on the chalk. */
-const BAR_OUTLINED =
-  BAR_BUTTON + " bg-transparent text-ink shadow-[inset_0_0_0_1.5px_rgb(var(--l-hairline))] hover:bg-surface-alt";
-/** Theirs: text buttons, 44 px tall, underlined so they read as buttons. */
-const BAR_TEXT =
-  "inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md font-display text-base font-extrabold text-ink-dim " +
-  "underline decoration-hairline underline-offset-[3px] hover:bg-surface-alt disabled:pointer-events-none disabled:opacity-60";
 
 const HEADER_TOTAL = "nums font-display stretch-62 text-[40px] font-extrabold leading-none text-ink tabular-nums";
 const HEADER_NAME =
