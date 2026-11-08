@@ -128,6 +128,31 @@ export function emptyZoneMs(): ZoneMinutes {
   return emptyZM();
 }
 
+/**
+ * Two on-field kids trade places: `a` (in `zoneA`) takes `b`'s spot in
+ * `zoneB` and `b` takes `a`'s. Mutates `zones` (callers clone first
+ * where they need to). Inside one zone it swaps the two spots: mapping
+ * that zone twice, once per kid, turned [A, B] into [A, A].
+ */
+export function swapFieldPlayers(
+  zones: Record<Zone, string[]>,
+  a: string,
+  zoneA: Zone,
+  b: string,
+  zoneB: Zone,
+): void {
+  if (zoneA === zoneB) {
+    const row = zones[zoneA];
+    const i = row.indexOf(a);
+    const j = row.indexOf(b);
+    if (i < 0 || j < 0) return;
+    zones[zoneA] = row.map((p, k) => (k === i ? b : k === j ? a : p));
+    return;
+  }
+  zones[zoneA] = zones[zoneA].map((p) => (p === a ? b : p));
+  zones[zoneB] = zones[zoneB].map((p) => (p === b ? a : p));
+}
+
 function zoneOf(lineup: Lineup, playerId: string): Zone | null {
   for (const z of ALL_ZONES) {
     if (lineup[z].includes(playerId)) return z;
@@ -1445,12 +1470,7 @@ export function replayGame(events: GameEvent[]): GameState {
           closeStint(pid, fromZone, elapsed);
         }
         // Swap the two players in the lineup arrays.
-        state.lineup[zoneA] = state.lineup[zoneA].map((p) =>
-          p === pidA ? pidB : p,
-        );
-        state.lineup[zoneB] = state.lineup[zoneB].map((p) =>
-          p === pidB ? pidA : p,
-        );
+        swapFieldPlayers(state.lineup, pidA, zoneA, pidB, zoneB);
         // Open new stints at the swapped zones.
         openStint(pidA, zoneB, elapsed);
         openStint(pidB, zoneA, elapsed);

@@ -42,7 +42,7 @@ import {
   type Lineup,
   type Zone,
 } from "@/lib/types";
-import { ALL_ZONES } from "@/lib/fairness";
+import { ALL_ZONES, swapFieldPlayers } from "@/lib/fairness";
 import { withoutSubPin, type PlannedRotation } from "@/lib/game-plan";
 import type { StagedBreakDraft } from "@/lib/live/breakDraft";
 
@@ -493,8 +493,7 @@ export const useLiveGame = create<LiveGameState>()(
         };
       }
 
-      lineup[zoneA] = lineup[zoneA].map((p) => (p === pidA ? pidB : p));
-      lineup[zoneB] = lineup[zoneB].map((p) => (p === pidB ? pidA : p));
+      swapFieldPlayers(lineup, pidA, zoneA, pidB, zoneB);
 
       for (const [pid, fromZone, toZone] of [
         [pidA, zoneA, zoneB],
