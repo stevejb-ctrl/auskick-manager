@@ -96,7 +96,7 @@ async function eventsOfType(
 function kickerRow(page: Page, name: string) {
   return page
     .getByRole("dialog", { name: /record conversion/i })
-    .locator("div.rounded-lg")
+    .getByTestId("conversion-row")
     .filter({ hasText: name });
 }
 

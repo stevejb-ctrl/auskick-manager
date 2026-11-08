@@ -223,13 +223,12 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   // Dialog is open: pick the second on-field player as the kicker
   // (anyone but the try-scorer to exercise picker selection).
   const kicker = players[1]; // "Brendan"
-  // Each kicker row in RecordConversionDialog has a `rounded-lg`
-  // outer border class (vs the dialog itself which uses
-  // `rounded-2xl`). Filter the row by player name then click its
-  // own Made button — avoids the strict-mode "11 matches" failure.
+  // Each kicker row in RecordConversionDialog is a "conversion-row".
+  // Filter the row by player name then click its own Made button —
+  // avoids the strict-mode "11 matches" failure.
   const kickerRow = page
     .getByRole("dialog", { name: /record conversion/i })
-    .locator("div.rounded-lg")
+    .getByTestId("conversion-row")
     .filter({ hasText: kicker.full_name });
   await kickerRow.getByRole("button", { name: /^made\b/i }).click();
 
