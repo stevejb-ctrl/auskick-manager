@@ -17,7 +17,6 @@ import { hapticTap, hapticSiren, hapticSuccess } from "@/lib/haptics";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { Button } from "@/components/ui/Button";
 import { ZONE_SHORT } from "@/components/live/Field";
-import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import { GameHeader } from "@/components/live/GameHeader";
 import { ScoresSheet } from "@/components/live/ScoresSheet";
 import { SwapDoneToast } from "@/components/live/SwapDoneToast";

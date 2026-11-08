@@ -2,8 +2,8 @@
 
 // ─── LiveGameSettingsButton ──────────────────────────────────
 // Mid-game settings affordance for AFL — sits in the
-// `LiveAdminUtilityRow` alongside "+ Add late arrival" and
-// "Restart game". Tapping opens a modal with knobs the coach
+// live screen's ⋯ menu (LiveGameMenu) alongside the late arrival
+// and "Restart game". Tapping opens a modal with knobs the coach
 // might want to tweak after kickoff without restarting the
 // game or waiting for the next break.
 //
@@ -20,7 +20,7 @@
 // Netball doesn't have a sub interval (its sub model is
 // break-only by default, opt-in mid-Q via `Switch player`), so
 // this button isn't rendered on the netball live shell.
-// `LiveAdminUtilityRow` accepts the button as its `settings` slot.
+// `LiveGameMenu` takes the settings as its `settings` slot.
 //
 // Soccer's family and basketball pass the sub interval alone (UX audit
 // 23 Oct 2026): players on field is AFL's lineup store, so it shows

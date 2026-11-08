@@ -77,7 +77,7 @@ export interface LiveChrome {
   namedScoreKey: string | null;
   /** The last score was taken back: the strip stops flashing. */
   undone(): void;
-  /** The undo strip, for LiveStickyScoreBar (null when `show` is false). */
+  /** The undo strip, for LiveShell's `undo` slot (null when `show` is false). */
   undoStrip(opts: { show: boolean; onUndo: () => void; disabled?: boolean; target?: string | null; plain?: boolean }): ReactNode;
   /**
    * A sub made by hand (tap-tap, a bench kid into an empty spot): it

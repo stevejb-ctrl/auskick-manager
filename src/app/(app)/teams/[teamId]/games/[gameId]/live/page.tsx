@@ -1135,8 +1135,8 @@ async function LivePageBody({ params }: LivePageProps) {
     // Page-level clearance exists ONLY for the Q-break's fixed
     // "Ready for Q{n+1}" CTA, which reserves no flow space of its
     // own (Steve 2026-10-16: "the scroll goes too low, big gaps").
-    //   - Live play is NOT here: the shared LiveStickyScoreBar
-    //     renders a measured in-flow spacer of the bar's height.
+    //   - Live play is NOT here: the live v3 shell (LiveShell)
+    //     pins its own score bar and keeps the page from scrolling.
     //   - Pre-kickoff is NOT here: the picker's Save/Start footer
     //     is sticky — in flow at the end of the picker — so there
     //     is nothing to clear (mirrors the AFL branch, which never
@@ -1326,9 +1326,8 @@ async function LivePageBody({ params }: LivePageProps) {
     //   - Q-break    → "Ready for Q{n+1}" CTA (QuarterKickoffBar,
     //                  fixed on phones, no spacer of its own)
     //   - finalised  → "Finish game" CTA (same)
-    // Live play is NOT here: LiveStickyScoreBar renders a measured
-    // in-flow spacer of exactly the bar's height, so a page pb on
-    // top of it was pure dead scroll (~144px of it).
+    // Live play is NOT here: the live v3 shell (LiveShell) pins its
+    // own score bar, so a page pb on top of it was pure dead scroll.
     // FT review (post-Q4, pre-finalise) is intentionally excluded —
     // the user is still reconciling scores there and we don't want
     // a competing CTA at the bottom.

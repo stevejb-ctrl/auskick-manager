@@ -9,7 +9,7 @@
 // follow-up that owes it; the test fails when a gap closes too, so the
 // list only ever shrinks.
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ALL_SPORT_IDS } from "@/lib/sports";
@@ -91,11 +91,9 @@ const PIECES: Record<Piece, (s: string) => boolean> = {
     !/<SwapConfirmDialog\b/.test(s) &&
     !/confirmSwap/.test(s) &&
     (!/useLiveChrome\(/.test(s) || /\.overlays\}/.test(s)),
-  // Game settings (the sub interval) is a standard slot of the row, or,
-  // on live v3's shell (AFL first), of the ⋯ game menu.
-  settingsInRow: (s) =>
-    blocks(s, "LiveAdminUtilityRow").some((b) => /settings=\{/.test(b)) ||
-    blocks(s, "LiveGameMenu").some((b) => /settings=\{/.test(b)),
+  // Game settings (the sub interval) is a standard slot of the ⋯ game
+  // menu (live v3; the utility row it sat in is gone).
+  settingsInRow: (s) => blocks(s, "LiveGameMenu").some((b) => /settings=\{/.test(b)),
   // Score, undo and swap show at once: the AFL store, or optimistic
   // events over the replay — never a wait on the server first. League
   // reads the AFL store for its plan pin only, so the store alone
@@ -112,11 +110,11 @@ const PIECES: Record<Piece, (s: string) => boolean> = {
   // The summary after Finish opens at the top (round 2).
   summaryAtTop: (s) => /useScrollToTopOnFinish\(/.test(s),
   // One Scores and fixes sheet (live/ScoresSheet) for whoever runs the
-  // game, opened from the utility row: the shared chrome's, or AFL's and
-  // netball's own with their Q-by-Q table (live v3, Steve 8 Nov 2026).
-  // On v3's shell the ⋯ menu and the score header open it.
+  // game: the shared chrome's, or AFL's and netball's own with their
+  // Q-by-Q table (live v3, Steve 8 Nov 2026). The ⋯ menu and the score
+  // header open it.
   scoresSheet: (s) =>
-    blocks(s, "LiveAdminUtilityRow").every((b) => /onScores=\{/.test(b)) &&
+    blocks(s, "LiveGameMenu").length > 0 &&
     blocks(s, "LiveGameMenu").every((b) => /onScores=\{/.test(b)) &&
     // (Before kickoff a shell screen has nothing to fix: rugby passes
     // "onScores={!preKickoff ? chrome.openScores : undefined}".)
@@ -164,6 +162,66 @@ describe("the live chrome contract", () => {
       expect(missing).toEqual(PICKER_GAPS[path] ?? []);
     });
   }
+});
+
+/**
+ * The old live chrome, gone with live v3 (Phase 12, Nov 2026): the sub
+ * card, the due banner, the utility row, the sticky score bar and its
+ * goal dock, and the zone-time legend the live screens no longer show.
+ */
+const RETIRED = [
+  "NextSubCard",
+  "SubDue",
+  "SubDueBanner",
+  "LiveAdminUtilityRow",
+  "LiveStickyScoreBar",
+  "ScoreRecordingDock",
+  "ZoneTimePercents",
+] as const;
+
+describe("the live v3 shell", () => {
+  // Every sport's game in play is the same screen (live v3, Steve 8 Nov
+  // 2026): the shell, its top bar, the ⋯ menu, a score bug on the shared
+  // frame split into a header and a bar, the one info line and the kid
+  // bar. Only the field and the scoring buttons are the sport's own.
+  for (const path of Array.from(new Set(Object.values(LIVE_SCREEN)))) {
+    it(`${path} is on the shell`, () => {
+      const source = src(path);
+      for (const tag of ["LiveShell", "LiveTopBar", "LiveGameMenu", "InfoLine", "KidBar"]) {
+        expect(source, `${path} renders <${tag}>`).toMatch(new RegExp(`<${tag}\\b`));
+      }
+      // The score bug's header (score and clock) and bar (the buttons).
+      const bugs = new Set<string>();
+      for (const part of ["header", "bar"]) {
+        const at = source.indexOf(`part="${part}"`);
+        expect(at, `${path} has a part="${part}" score bug`).toBeGreaterThan(-1);
+        const tag = /<([A-Z]\w*)\b[^<]*$/.exec(source.slice(0, at))?.[1];
+        expect(tag, `${path} part="${part}"`).toBeDefined();
+        bugs.add(tag!);
+      }
+      expect(bugs.size, `${path}: header and bar are one score bug`).toBe(1);
+      const [bug] = Array.from(bugs);
+      // …drawn on the shared ScoreBugFrame, in the screen or its own file.
+      const from = new RegExp(`import \\{[^}]*\\b${bug}\\b[^}]*\\} from "([^"]+)"`).exec(source)?.[1];
+      const bugSource = from
+        ? src(`${from.replace(/^@\//, "src/").replace(/^\.\//, `${path.slice(0, path.lastIndexOf("/") + 1)}`)}.tsx`)
+        : source;
+      expect(bugSource, `${bug} draws on ScoreBugFrame`).toMatch(/<ScoreBugFrame\b/);
+    });
+
+    it(`${path} imports none of the retired chrome`, () => {
+      const source = src(path);
+      for (const name of [...RETIRED, "ZoneTimeLegend"]) {
+        expect(source, `${path} imports ${name}`).not.toMatch(new RegExp(`from "[^"]*/${name}"`));
+      }
+    });
+  }
+
+  it("the retired chrome stays deleted", () => {
+    for (const name of RETIRED) {
+      expect(existsSync(join(process.cwd(), `src/components/live/${name}.tsx`)), name).toBe(false);
+    }
+  });
 });
 
 describe("hand subs", () => {
@@ -230,8 +288,8 @@ describe("shared sheets", () => {
     ).toBe(true);
   });
 
-  it("the utility row hides late arrivals once the game is finished", () => {
-    expect(src("src/components/live/LiveAdminUtilityRow.tsx")).toMatch(/showLate = candidates\.length > 0 && !finished/);
+  it("the ⋯ menu hides late arrivals once the game is finished", () => {
+    expect(src("src/components/live/LiveGameMenu.tsx")).toMatch(/if \(!finished && lateCandidates\.length > 0 && onLateArrival\)/);
   });
 });
 

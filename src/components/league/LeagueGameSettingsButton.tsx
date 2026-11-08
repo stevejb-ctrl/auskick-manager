@@ -2,8 +2,8 @@
 
 // ─── LeagueGameSettingsButton ───────────────────────────────
 // Mid-game settings affordance for Rugby League — sits in the
-// `LiveAdminUtilityRow` alongside "+ Add late arrival" and
-// "Restart game". Matches AFL's `LiveGameSettingsButton` in both
+// live screen's ⋯ menu (LiveGameMenu) alongside the late arrival
+// and "Restart game". Matches AFL's `LiveGameSettingsButton` in both
 // visual style (SFButton ghost) and modal shape.
 //
 // Three knobs in the modal, and the grade's §6 rule stated:

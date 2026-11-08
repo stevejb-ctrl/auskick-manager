@@ -339,7 +339,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
           keeperPrefs={howWePlay.prefs}
           seasonLoanMinutes={seasonLoanMinsS}
           // A runner token can run the whole game, as in the other sports
-          // (not restart it: LiveAdminUtilityRow never offers Restart on a
+          // (not restart it: the ⋯ menu never offers Restart on a
           // game-day link).
           isAdmin
           exitHref={exitHref}
@@ -909,7 +909,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
           chipModes={teamChipModes}
           leaguePlaybook={leaguePlaybook}
           // A runner token can run the whole game (not restart it:
-          // LiveAdminUtilityRow never offers Restart on a game-day link).
+          // the ⋯ menu never offers Restart on a game-day link).
           isAdmin
           exitHref={exitHref}
         />
@@ -1109,7 +1109,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
           clockMultiplier={g.clock_multiplier ?? 1}
           initialDraft={netballDraft}
           // A runner token can run the whole game (not restart it:
-          // LiveAdminUtilityRow never offers Restart on a game-day link).
+          // the ⋯ menu never offers Restart on a game-day link).
           isAdmin
           allowMidQuarterSubs={allowMidQuarterSubs}
           teamAllowMidQuarterSubs={teamAllowMidQuarterSubs}
@@ -1223,7 +1223,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
           quarterMs={quarterMs}
           ageGroup={ageCfgSport}
           // A runner token can run the whole game (not restart it:
-          // LiveAdminUtilityRow never offers Restart on a game-day link).
+          // the ⋯ menu never offers Restart on a game-day link).
           isAdmin
         />
         {g.status === "completed" && <RunnerAllDone className="pb-6 pt-2" />}

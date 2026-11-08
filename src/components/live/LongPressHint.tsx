@@ -106,8 +106,8 @@ export function LongPressHint({ enabled = true }: { enabled?: boolean }) {
   }, [show]);
 
   // While it shows, the page leaves room for it above the score bar
-  // (LiveStickyScoreBar's spacer adds this), so the last control on the
-  // page scrolls clear of the hint as well as the bar.
+  // (LiveShell pads the field by this), so the last row of the field
+  // scrolls clear of the hint as well as the bar.
   const chipRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const root = document.documentElement;

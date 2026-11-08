@@ -129,7 +129,6 @@ import { useEventPeriodPause } from "@/lib/live/useClockPause";
 import { netballPositionLocks, replayLocks, type PlayerLock } from "@/lib/live/locks";
 import { Button } from "@/components/ui/Button";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
-import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import {

@@ -7,8 +7,8 @@ import { ScoreBugFrame, type ScoreChipSpec } from "@/components/live/ScoreBugFra
 import { ClockPillReadout } from "@/components/live/ClockPillReadout";
 
 // ─── LeagueScoreBug ──────────────────────────────────────────
-// Rugby's scorebug (league and union), inside the shared
-// LiveStickyScoreBar, on the same layout as AFL's GameHeader and every
+// Rugby's scorebug (league and union), on the shared live v3
+// shell, on the same layout as AFL's GameHeader and every
 // sport's bug (UI polish round 2, Steve 23 Oct 2026):
 //
 //   Left  : team name (wraps rather than cuts off), the 44px total

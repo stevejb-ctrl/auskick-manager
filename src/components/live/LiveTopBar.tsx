@@ -35,8 +35,8 @@ interface LiveTopBarProps {
   onHelp?: () => void;
   /**
    * A strip under the bar, inside its sticky container, so it stays on
-   * screen without covering the field or the score bar: the shared
-   * SubDueBanner while a sub is due, in every sport.
+   * screen without covering the field or the score bar: a screen's
+   * own notice.
    */
   banner?: ReactNode;
   /**

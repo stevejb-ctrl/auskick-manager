@@ -3,8 +3,8 @@
 import { ClockPillReadout } from "@/components/live/ClockPillReadout";
 
 // ─── SoccerScoreBug ──────────────────────────────────────────
-// Football (soccer)'s scorebug, rendered inside the shared
-// LiveStickyScoreBar. Mirrors AFL's GameHeader (the reference) column
+// Football (soccer)'s scorebug, on the shared live v3 shell.
+// Mirrors AFL's GameHeader (the reference) column
 // for column: our total and +G on the left, the dark clock pill in the
 // centre (period, live dot, countdown; at the hooter it widens amber and
 // names the break), the opponent's mirror on the right. Soccer scores
