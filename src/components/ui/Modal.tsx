@@ -3,6 +3,7 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDialogFocus } from "@/components/ui/useDialogFocus";
+import { SHEET_CARD, SheetGrab } from "@/components/ui/sheetChrome";
 
 type ModalSize = "xs" | "sm" | "md" | "lg" | "xl";
 
@@ -21,8 +22,9 @@ interface ModalProps {
   /** Extra classes for the card (e.g. scrolling, padding tweaks). */
   className?: string;
   /**
-   * "center" (default) is a dialog; "sheet" rises from the bottom on a
-   * phone and centres on wider screens — for pickers and longer forms.
+   * Both rise from the bottom on a phone as the v3 sheet (live v3, Nov
+   * 2026: one sheet look everywhere). From sm up, "center" (default)
+   * and "sheet" both centre. Kept so callers can say which they meant.
    */
   placement?: "center" | "sheet";
   /**
@@ -33,12 +35,13 @@ interface ModalProps {
   padding?: string;
 }
 
+// Widths from sm up; on a phone the sheet runs edge to edge.
 const sizeClasses: Record<ModalSize, string> = {
-  xs: "max-w-xs",
-  sm: "max-w-sm",
-  md: "max-w-md",
-  lg: "max-w-xl",
-  xl: "max-w-2xl",
+  xs: "sm:max-w-xs",
+  sm: "sm:max-w-sm",
+  md: "sm:max-w-md",
+  lg: "sm:max-w-xl",
+  xl: "sm:max-w-2xl",
 };
 
 export function Modal({
@@ -51,7 +54,9 @@ export function Modal({
   placement = "center",
   padding = "p-[20px]",
 }: ModalProps) {
-  const sheet = placement === "sheet";
+  // Every dialog is the bottom sheet on a phone now; `placement` is
+  // kept for callers (see the prop).
+  void placement;
   // Portal-mount at document.body so `position: fixed` is always
   // anchored to the viewport regardless of ancestor stacking contexts.
   //
@@ -89,12 +94,14 @@ export function Modal({
     // this padded box — Steve 2026-06-02: the Plan-Ahead planner was
     // extending above the top bar on iPhone.
     <div
-      className={`fixed inset-0 z-50 flex justify-center ${sheet ? "items-end sm:items-center" : "items-center"}`}
+      className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:pb-[16px]"
+      // On a phone the sheet sits on the bottom edge and runs edge to
+      // edge; a spacer inside it clears the home indicator. The top
+      // keeps the notch clear, the sides a landscape notch.
       style={{
         paddingTop: "max(16px, env(safe-area-inset-top))",
-        paddingBottom: "max(16px, env(safe-area-inset-bottom))",
-        paddingLeft: "max(16px, env(safe-area-inset-left))",
-        paddingRight: "max(16px, env(safe-area-inset-right))",
+        paddingLeft: "env(safe-area-inset-left)",
+        paddingRight: "env(safe-area-inset-right)",
       }}
     >
       {/* Backdrop: fades in over 350ms (existing `fade-in` keyframe).
@@ -150,9 +157,12 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={labelledBy}
         aria-label={labelledBy ? undefined : label}
-        className={`relative z-10 flex max-h-full w-full ${sizeClasses[size]} flex-col border border-hairline bg-surface ${padding} shadow-modal outline-none motion-safe:animate-sheet-up ${sheet ? "rounded-t-2xl sm:rounded-2xl" : "rounded-lg"} ${className}`}
+        className={`relative z-10 flex max-h-full w-full ${sizeClasses[size]} flex-col ${SHEET_CARD} ${padding} outline-none motion-safe:animate-sheet-up ${className}`}
       >
+        <SheetGrab />
         {children}
+        {/* Clears the home indicator on a phone, under any padding. */}
+        <span aria-hidden className="block h-[env(safe-area-inset-bottom)] shrink-0 sm:hidden" />
       </div>
     </div>,
     document.body,
