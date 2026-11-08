@@ -173,6 +173,24 @@
     font-feature-settings: "tnum" 1;
   }
 
+  /* Headings take the display face (Archivo), as the v3 sheets and
+     screens do; body copy stays Atkinson Hyperlegible. A heading with
+     its own font class (font-serif numerals, the wordmark) keeps it. */
+  h1,
+  h2,
+  h3 {
+    font-family: theme("fontFamily.display");
+  }
+}
+
+/* `font-mono` was JetBrains Mono, whose digits are one width. It is
+   Archivo now (tailwind.config.ts), whose default digits are
+   proportional, so the labels, minutes, scores and clocks that used it
+   keep their tabular digits here. */
+@layer utilities {
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────

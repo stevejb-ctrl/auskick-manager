@@ -35,6 +35,18 @@ const themes = plugin(({ addBase }) => {
   });
 });
 
+// Archivo's width axis: `stretch-62` (the score, the clock), `-72` (kid
+// names), `-85` (buttons), and the steps the v3 design uses between.
+// Only Archivo (font-display / font-mono) has the axis; on Atkinson
+// the property does nothing.
+const stretch = plugin(({ addUtilities }) => {
+  addUtilities(
+    Object.fromEntries(
+      [62, 68, 72, 75, 80, 85, 100, 125].map((w) => [`.stretch-${w}`, { "font-stretch": `${w}%` }]),
+    ),
+  );
+});
+
 // Design tokens from the "Field Sunday" direction
 // (see design_handoff_junior_afl_manager/README.md).
 const config: Config = {
@@ -111,9 +123,15 @@ const config: Config = {
       divideColor: roleColors("line"),
       ringColor: roleColors("line"),
       outlineColor: roleColors("line"),
+      // Chalk on grass (live v3): Atkinson Hyperlegible for words,
+      // Archivo (its width axis, 62–125) for display: names, scores, the
+      // clock, small caps labels. `font-mono` was JetBrains Mono for the
+      // labels and numbers; it is Archivo now, so the ~290 uses take the
+      // display face, and `.nums` / tabular-nums keep digits one width.
       fontFamily: {
-        sans: ["var(--font-geist)", "system-ui", "sans-serif"],
-        mono: ["var(--font-geist-mono)", "ui-monospace", "SFMono-Regular", "monospace"],
+        sans: ["var(--font-body)", "Verdana", "Segoe UI", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "Arial Narrow", "Roboto Condensed", "Helvetica Neue", "Arial", "sans-serif"],
+        mono: ["var(--font-display)", "Arial Narrow", "Roboto Condensed", "Helvetica Neue", "Arial", "sans-serif"],
         // Decorative serif for round numerals on the Games list and game
         // heroes — used italic only. Falls back to Georgia which has a
         // similar warm, slightly editorial flavour.
@@ -125,15 +143,23 @@ const config: Config = {
         md: "12px",
         lg: "16px",
         xl: "22px",
+        // The v3 bottom sheet's top corners.
+        sheet: "28px",
       },
       boxShadow: {
-        card: "0 1px 2px rgba(26,30,26,0.06)",
-        pop:  "0 4px 12px rgba(26,30,26,0.08)",
-        modal:"0 12px 32px rgba(26,30,26,0.12)",
+        // Live v3: no cards. A card is a flat surface with a hairline;
+        // `raised` (SFCard) or shadow-pop lifts the rare one that floats.
+        card: "none",
+        pop:  "0 4px 12px rgba(6,24,14,0.10)",
+        modal:"0 12px 32px rgba(6,24,14,0.22)",
+        // The v3 bottom sheet: a long soft shadow cast upwards.
+        sheet: "0 -18px 40px -16px rgba(0,0,0,0.5)",
         // Elevation for cards that sit ON a playing surface — a
-        // hairline border vanishes on green / blue, a lift doesn't.
-        "lift-field": "0 1px 0 rgba(0,0,0,0.12), 0 2px 6px rgba(15,45,25,0.18)",
-        "lift-court": "0 1px 0 rgba(0,0,0,0.12), 0 4px 10px rgba(8,40,70,0.28)",
+        // hairline border vanishes on green / blue, a lift doesn't. The
+        // first layer is the tile's edge (palette tile-edge): white on a
+        // white tile in light, a chalk grey round the dark tile at night.
+        "lift-field": "0 0 0 1px rgb(var(--c-tile-edge)), 0 1px 0 rgba(0,0,0,0.12), 0 2px 6px rgba(6,24,14,0.22)",
+        "lift-court": "0 0 0 1px rgb(var(--c-tile-edge)), 0 1px 0 rgba(0,0,0,0.12), 0 4px 10px rgba(8,30,50,0.30)",
       },
       transitionTimingFunction: {
         // Also the re-skin's --ease-snap.
@@ -371,7 +397,7 @@ const config: Config = {
       },
     },
   },
-  plugins: [themes],
+  plugins: [themes, stretch],
 };
 
 export default config;
