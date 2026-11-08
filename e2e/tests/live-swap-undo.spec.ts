@@ -5,8 +5,8 @@
 // written), so a reload shows the lineup Undo put back, and with no
 // signal the swap and its undo save in order once it's back.
 //
-// AFL (the reference): tap-tap bench ↔ field, the dock's "Swap
-// player" picker, and a bench kid into an empty spot (instant; there's
+// AFL (the reference): tap-tap bench ↔ field, a field kid's kid bar
+// ("Tap another kid to swap with …"), and a bench kid into an empty spot (instant; there's
 // nobody to bring back, so no Undo). Soccer stands in for the sports on
 // the shared chrome (useLiveChrome.manualSwap). Touch and Oztag still ask
 // before a swap that breaks the mixed rule (touch-mixed-playthrough).
@@ -138,7 +138,7 @@ test("AFL: a tap-tap sub happens at once, Undo puts it back, and a reload agrees
   await expect(benchGroup.getByTestId(`player-tile-${on.id}`)).toBeVisible();
 });
 
-test("AFL: the dock's Swap player makes the sub at once, with Undo", async ({ page }) => {
+test("AFL: from a field kid's kid bar, tapping a bench kid makes the sub at once, with Undo", async ({ page }) => {
   const admin = createAdminClient();
   const { team, game, field, bench, zoneOf } = await aflInQ1(admin);
   const off = field[1];
@@ -147,8 +147,10 @@ test("AFL: the dock's Swap player makes the sub at once, with Undo", async ({ pa
   await openAfl(page, team.id, game.id);
 
   await page.getByTestId(`player-tile-${off.id}`).click();
-  await page.getByRole("button", { name: "Swap player" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: new RegExp(on.full_name) }).click();
+  // The kid bar says what a second tap does (the dock's "Swap player"
+  // picker went with the dock, live v3).
+  await expect(page.getByTestId("dock-swap-hint")).toContainText("Tap another kid to swap with");
+  await page.getByTestId(`player-tile-${on.id}`).click();
   await expect(page.getByTestId("swap-toast")).toContainText(`${off.full_name} → ${on.full_name}`, { timeout: 3_000 });
   await expect(noConfirm(page)).toHaveCount(0);
   await expect(zone.getByTestId(`player-tile-${on.id}`)).toBeVisible();

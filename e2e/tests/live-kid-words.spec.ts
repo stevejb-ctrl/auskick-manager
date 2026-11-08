@@ -1,0 +1,141 @@
+// ─── The words under a kid (live v3, Phase 6) ───────────────
+// AFL's live screen says what happens next under each kid, in plain
+// words, and numbers the pairs on the kids themselves, so a coach reads
+// the sub off the field without opening anything:
+//
+//   - before the sub: the kids coming off say "Off next", the bench kids
+//     going on say "On next → FWD" (the line they go to);
+//   - each pair's two kids carry the same numeral badge, visible
+//     without a tap;
+//   - when it's due: "Off now" / "On now → FWD", and the bar is "Make
+//     all N swaps";
+//   - tapping a kid opens their kid bar, with minutes and % of game.
+//
+// Covers: src/components/live/KidTile.tsx, KidBench.tsx, FieldLines.tsx,
+// InfoLine.tsx, KidBar.tsx, lib/live/kidWords.ts, LiveGame.tsx.
+
+import { test, expect, type Locator, type Page } from "@playwright/test";
+import { createAdminClient } from "../fixtures/supabase";
+import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { coachId } from "../helpers/people";
+import { skipHints } from "../helpers/a11y";
+import { waitForHydration } from "../helpers/navigation";
+import { subDueAlert } from "../helpers/liveShell";
+
+test.describe.configure({ mode: "parallel" });
+test.use({ viewport: { width: 390, height: 844 } });
+
+const SHORT: Record<string, string> = { Back: "BCK", Centre: "CEN", Forward: "FWD" };
+
+/** AFL U10, 12 on and 3 on the bench, 30 s subs, `secondsIn` into Q1. */
+async function aflSubGame(secondsIn: number) {
+  const admin = createAdminClient();
+  const ownerId = await coachId(admin);
+  const team = await makeTeam(admin, { ownerId, sport: "afl", ageGroup: "U10", name: `KIDWORDS ${Date.now() % 100000}-${Math.random().toString(36).slice(2, 6)}` });
+  await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Kookas" });
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  const ids = players.map((p) => p.id);
+  const lineup = { back: ids.slice(0, 4), hback: [], mid: ids.slice(4, 8), hfwd: [], fwd: ids.slice(8, 12), bench: ids.slice(12) };
+  const at = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString();
+  const { error } = await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup }, created_at: at(secondsIn + 1) },
+      { type: "quarter_start", metadata: { quarter: 1 }, created_at: at(secondsIn) },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  if (error) throw new Error(error.message);
+  await admin.from("games").update({ status: "in_progress", sub_interval_seconds: 30, clock_multiplier: 1 }).eq("id", game.id);
+  return { url: `/teams/${team.id}/games/${game.id}/live`, ids };
+}
+
+async function open(page: Page, url: string) {
+  await skipHints(page);
+  await page.goto(url);
+  await waitForHydration(page);
+  await expect(page.getByRole("button", { name: /^clock — q1/i })).toBeVisible({ timeout: 15_000 });
+}
+
+type Kid = { badge: string; words: string; line: string | null; name: string };
+
+/** Each kid with a pair badge: its number, its words, and its line (null on the bench). */
+async function paired(page: Page): Promise<Kid[]> {
+  const out: Kid[] = [];
+  const read = async (scope: Locator, line: string | null) => {
+    const tiles = scope.locator('[data-testid^="player-tile-"]');
+    for (let i = 0; i < (await tiles.count()); i++) {
+      const tile = tiles.nth(i);
+      const badge = tile.getByTestId("pair-badge");
+      if ((await badge.count()) === 0) continue;
+      await expect(badge).toBeVisible();
+      out.push({
+        badge: (await badge.innerText()).trim(),
+        words: (await tile.innerText()).split("\n").map((s) => s.trim()).filter(Boolean).at(-1) ?? "",
+        line,
+        name: (await tile.getAttribute("aria-label")) ?? "",
+      });
+    }
+  };
+  for (const line of ["Forward", "Centre", "Back"]) await read(page.getByRole("group", { name: line, exact: true }), line);
+  await read(page.getByRole("group", { name: "Bench", exact: true }), null);
+  return out;
+}
+
+function expectPairsMatch(kids: Kid[], off: RegExp, on: (to: string) => RegExp) {
+  const field = kids.filter((k) => k.line);
+  const bench = kids.filter((k) => !k.line);
+  expect(bench.length, "every bench kid is in a pair").toBe(3);
+  expect(field.map((k) => k.badge).sort()).toEqual(bench.map((k) => k.badge).sort());
+  for (const b of bench) {
+    const f = field.find((k) => k.badge === b.badge)!;
+    expect(f.words, `${f.name}`).toMatch(off);
+    // The bench kid goes on where their pair's field kid comes off.
+    expect(b.words, `${b.name}`).toMatch(on(SHORT[f.line!]));
+    // A screen reader hears it too, with the pair's number.
+    expect(b.name).toMatch(new RegExp(`, On (next|now) to ${SHORT[f.line!]}, pair ${b.badge}`));
+  }
+}
+
+test("before the sub: Off next / On next → line, the pairs' badges match and show without a tap", async ({ page }) => {
+  const { url } = await aflSubGame(3);
+  await open(page, url);
+  await expect(page.getByTestId("info-line")).toContainText(/Next sub \d:\d\d · 3 swaps/);
+  // Nothing tapped, nothing open.
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByTestId("kid-bar")).toHaveCount(0);
+  expectPairsMatch(await paired(page), /^Off next$/, (to) => new RegExp(`^On next → ${to}$`));
+});
+
+test("when due: Off now / On now → line, and the bar makes all the swaps", async ({ page }) => {
+  test.setTimeout(90_000);
+  const { url } = await aflSubGame(20);
+  await open(page, url);
+  await expect(subDueAlert(page)).toContainText("Sub due — 3 swaps", { timeout: 30_000 });
+  await expect(page.getByRole("button", { name: "Make all 3 swaps" })).toBeVisible();
+  expectPairsMatch(await paired(page), /^Off now$/, (to) => new RegExp(`^On now → ${to}$`));
+  // Badges go hi-vis when due: the same badge, still on every pair.
+  const kids = await paired(page);
+  expect(kids.filter((k) => k.line).length).toBe(3);
+});
+
+test("tapping a kid opens their kid bar with minutes and % of game", async ({ page }) => {
+  const { url, ids } = await aflSubGame(40);
+  await open(page, url);
+  await page.getByTestId(`player-tile-${ids[4]}`).click();
+  const bar = page.getByTestId("kid-bar");
+  await expect(bar).toBeVisible();
+  await expect(bar).toContainText(/Centre · \d+′ this game · \d+% of game/);
+  await expect(bar.getByRole("button", { name: /^\+ goal$/i })).toBeVisible();
+  await expect(bar.getByRole("button", { name: /^injured$/i })).toBeVisible();
+  await expect(bar.getByRole("button", { name: /^more$/i })).toBeVisible();
+  // The same kid again puts them down; so does Escape.
+  await page.getByTestId(`player-tile-${ids[4]}`).click();
+  await expect(bar).toHaveCount(0);
+  await page.getByTestId(`player-tile-${ids[12]}`).click();
+  await expect(bar).toContainText(/Bench · \d+′ this game · \d+% of game/);
+  await page.keyboard.press("Escape");
+  await expect(bar).toHaveCount(0);
+});

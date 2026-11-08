@@ -107,10 +107,12 @@ async function expectOneVoice(page: Page, chip: string | RegExp) {
 }
 
 
-// AFL: one event, one voice (design session 17 Oct 2026). The swap card
-// IS the sub-due alert — amber ring, SUB DUE eyebrow, role="alert" — and
-// the separate banner is gone, so exactly one alert is on screen. It
-// still beeps, nothing modal covers the chips, and Collapse folds it.
+// AFL: one event, one voice (design session 17 Oct 2026). Live v3: the
+// info line IS the sub-due alert ("Sub due — 3 swaps · rotate a player
+// off", role="alert"), the kids say "Off now" / "On now", and the bar
+// becomes MAKE ALL N SWAPS. Exactly one alert, it still beeps, nothing
+// modal covers the field, and a goal can still be recorded: tap the kid,
+// + Goal in their kid bar. The info line opens the pairs.
 async function expectCardIsTheAlert(page: Page) {
   const alerts = page.getByRole("alert");
   await expect(alerts.filter({ hasText: /sub due/i })).toBeVisible({ timeout: 20_000 });
@@ -119,16 +121,18 @@ async function expectCardIsTheAlert(page: Page) {
   const spoken = alerts.filter({ hasText: /\S/ });
   await expect(spoken).toHaveCount(1);
   const card = spoken.first();
-  await expect(card).toContainText("Rotate a player off");
-  await expect(card.getByTestId("swapcard-apply-all")).toBeVisible();
+  await expect(card).toContainText(/rotate a player off/i);
+  await expect(page.getByRole("button", { name: /^make (all \d+ swaps|this swap)$/i })).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as unknown as { __beeps: number }).__beeps)).toBeGreaterThan(0);
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByRole("button", { name: /^add goal, /i }).first().click({ trial: true, timeout: 5_000 });
-  await card.getByRole("button", { name: "Collapse" }).click();
-  await expect(card.getByTestId("swapcard-apply-all")).toHaveCount(0);
+  await page.locator('[data-testid^="player-tile-"]').first().click();
+  await page.getByRole("button", { name: /^\+ goal$/i }).click({ trial: true, timeout: 5_000 });
+  await page.keyboard.press("Escape");
+  await card.getByTestId("info-line").click();
+  await expect(page.getByRole("dialog").getByTestId("swapcard-apply-all")).toBeVisible();
 }
 
-test("AFL: sub due is the swap card, and +G still takes the tap", async ({ page }) => {
+test("AFL: sub due is the info line, and a kid's + Goal still takes the tap", async ({ page }) => {
   test.setTimeout(90_000);
   await page.goto((await subDueGame("afl")).coach);
   await waitForHydration(page);
@@ -138,7 +142,7 @@ test("AFL: sub due is the swap card, and +G still takes the tap", async ({ page 
 // The siren ends the quarter: no sub is due any more. The quarter-end
 // modal waits on the coach, and the card behind it still said "Sub due"
 // through quarter time and full time (audit, 23 Oct 2026).
-test("AFL: the swap card stops saying Sub due when the siren goes", async ({ page }) => {
+test("AFL: the info line stops saying Sub due when the siren goes", async ({ page }) => {
   test.setTimeout(120_000);
   // 95 s in at 6×: 9:30 of 12:00, a sub due within 5 s, the siren ~20 s later.
   await page.goto((await subDueGame("afl", 95)).coach);
@@ -148,9 +152,9 @@ test("AFL: the swap card stops saying Sub due when the siren goes", async ({ pag
   await expect(page.getByText(/sub due/i)).toHaveCount(0);
 });
 
-// The runner link gets the same live screen (and so the same card) as
-// the coach.
-test("AFL runner: sub due is the same card", async ({ page }) => {
+// The runner link gets the same live screen (and so the same info line)
+// as the coach.
+test("AFL runner: sub due is the same info line", async ({ page }) => {
   test.setTimeout(90_000);
   await page.goto((await subDueGame("afl")).runner);
   await waitForHydration(page);
@@ -182,6 +186,11 @@ for (const { sport, rows } of [
     test.setTimeout(90_000);
     await page.goto((await subDueGame(sport)).coach);
     await waitForHydration(page);
+    // AFL's pairs are on the pairs sheet (live v3): the info line opens it.
+    if (sport === "afl") {
+      await expect(page.getByRole("alert").filter({ hasText: /sub due/i })).toBeVisible({ timeout: 20_000 });
+      await page.getByTestId("info-line").click();
+    }
     await expect(page.locator(rows).first()).toBeVisible({ timeout: 20_000 });
     const clipped = await page.evaluate((selector) => {
       // League rows truncate a name span; AFL's name buttons ARE the names.
