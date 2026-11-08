@@ -65,7 +65,8 @@ test("AFL: scoring off is said in the live score header, and turns on from ⋯ w
   expect(t?.track_scoring).toBe(true);
 });
 
-test("league: scoring off is said on the live score bar", async ({ page }) => {
+// League is on the v3 shell too (Phase 8): the header says it.
+test("league: scoring off is said in the live score header", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
   const team = await makeTeam(admin, { ownerId, ageGroup: "U9", sport: "rugby_league" });
@@ -90,6 +91,8 @@ test("league: scoring off is said on the live score bar", async ({ page }) => {
   });
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.getByText("Scoring is off")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole("button", { name: "Turn it on" })).toBeVisible();
+  await expect(page.getByTestId("scores-not-kept")).toHaveText("No score kept", { timeout: 15_000 });
+  // No score chips in the bar; a team admin turns it on from ⋯.
+  await expect(page.getByRole("button", { name: "Record a try for our team" })).toHaveCount(0);
+  await expect((await openGameMenu(page)).getByRole("button", { name: "Turn scoring on" })).toBeVisible();
 });

@@ -16,6 +16,7 @@ import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { playerMsOnField, replayLeagueGame } from "../../src/lib/sports/rugby_league/fairness";
 import type { GameEvent } from "../../src/lib/types";
 import { openGameSettings, pickBreakStrategy, startFromBreak } from "../helpers/break";
+import { waitForHydration } from "../helpers/navigation";
 
 test("rugby league: lend a forward, fill the gap, a back is hurt and replaced, then the lent kid comes back", async ({
   page,
@@ -269,6 +270,9 @@ test("rugby league: the kickoff picker offers only kids on the field who can pla
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
+  await waitForHydration(page);
+  // Live v3: the Kickoff prompt under the top bar opens the picker's sheet.
+  await page.getByTestId("kickoff-prompt").getByRole("button", { name: "Pick" }).click({ timeout: 15_000 });
   const picker = page.locator("section").filter({ has: page.getByRole("heading", { name: /^kickoff$/i }) });
   await expect(picker).toBeVisible({ timeout: 15_000 });
   await expect(picker.getByRole("button", { name: new RegExp(players[1].full_name) })).toBeVisible();

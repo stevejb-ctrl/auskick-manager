@@ -4,6 +4,11 @@
 // sport uses the 68px card tile. The scorebug cut long team names off,
 // had its own clock pill with "OF 2 HALVES" under it, and stacked the
 // chips in two columns. Now rugby uses the shared pieces.
+//
+// Live v3 (Phase 8): the shared pieces are v3's. The kids are KidTiles on
+// FieldLines (a name on a plate, at least 44 px), the "11/11" count chip
+// is each line's margin label ("FORWARDS 5/5"), and the score is the
+// light header over the field with the chips in the bar at the foot.
 
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
@@ -42,10 +47,16 @@ test("rugby league: card tiles in Forwards and Backs, and the shared scorebug", 
   const field = page.getByRole("region", { name: "On field" });
   await expect(field.getByRole("group", { name: "Forwards" }).locator("[data-testid^='league-player-tile-']")).toHaveCount(5, { timeout: 15_000 });
   await expect(field.getByRole("group", { name: "Backs" }).locator("[data-testid^='league-player-tile-']")).toHaveCount(6);
-  // The shared card: 68px tall, the line in row 1.
+  // The v3 kid: a tap target at least 44 px, its line in its name.
   const first = field.getByTestId(`league-player-tile-${ids[0]}`);
-  expect((await first.boundingBox())!.height).toBeGreaterThanOrEqual(68);
-  await expect(first).toContainText("FWD");
+  expect((await first.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await expect(first).toHaveAttribute("aria-label", /, Forwards, /);
+  // The count chip is the line's label now.
+  await expect(field.getByRole("group", { name: "Forwards" })).toContainText("5/5");
+  await expect(field.getByRole("group", { name: "Backs" })).toContainText("6/6");
+
+  // The whistle's kick-off pick sits in the bar until it's made or skipped.
+  await page.getByRole("button", { name: /^skip$/i }).click();
 
   // The scorebug: names whole, no "of 2 halves", chips one row a side.
   const names = page.getByTestId("scorebug-team-name");

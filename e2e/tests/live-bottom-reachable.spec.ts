@@ -12,7 +12,7 @@
 // scroll, the field scrolls inside the screen, and Restart is in ⋯. So
 // there the last control is the field's last kid, scrolled to the end
 // of the field, clear of the bench and the bar; and ⋯'s Restart is
-// on top too.
+// on top too. Rugby league joined it in Phase 8.
 
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
@@ -56,13 +56,16 @@ for (const sport of ["afl", "netball", "rugby_league"] as const) {
     });
     await page.goto(`/teams/${team.id}/games/${game.id}/live`);
     const field = page.getByTestId("live-field");
+    const shell = sport !== "netball";
     const last =
       sport === "afl"
         ? field.locator('[data-testid^="player-tile-"]').last()
+        : sport === "rugby_league"
+          ? field.locator('[data-testid^="league-player-tile-"]').last()
         : page.getByRole("button", { name: /^restart game$/i });
     await expect(last).toBeAttached({ timeout: 15_000 });
     await page.waitForLoadState("networkidle");
-    if (sport === "afl") await field.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    if (shell) await field.evaluate((el) => el.scrollTo(0, el.scrollHeight));
     else await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     await page.waitForTimeout(300);
     const onTop = await last.evaluate((el) => {
@@ -71,7 +74,7 @@ for (const sport of ["afl", "netball", "rugby_league"] as const) {
       return !!hit && (hit === el || el.contains(hit));
     });
     expect(onTop).toBe(true);
-    if (sport === "afl") {
+    if (shell) {
       await page.getByRole("button", { name: "Game menu" }).click();
       const restart = page.getByRole("dialog", { name: "Game menu" }).getByRole("button", { name: /^restart game$/i });
       await expect(restart).toBeVisible();

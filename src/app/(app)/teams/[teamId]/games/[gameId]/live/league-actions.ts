@@ -64,6 +64,7 @@ import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
 import type { PlaybookSnapshot } from "@/lib/playbook/types";
 import { gameWriteError } from "@/lib/games/gameWriteError";
+import { reopenLineup } from "./actions";
 
 // ─── Internal helpers (shape-matched to netball-actions) ──────
 
@@ -451,6 +452,31 @@ export async function startLeagueGame(
   }
   revalidatePath(`/run/${auth.token}`, "layout");
   return { success: true };
+}
+
+// ─── reopenLeagueLineup ──────────────────────────────────────
+// ⋯ → Edit lineup before the first whistle (live v3): the picker comes
+// back with the lineup as set. AFL's reopenLineup moves the lineup into
+// the draft and takes the lineup_set out; rugby's kickoff also wrote the
+// vest plan (vest_assigned for each half), which goes with it, so the
+// next Ready writes the plan the coach picks then and only that.
+export async function reopenLeagueLineup(auth: LiveAuth, gameId: string): Promise<ActionResult> {
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+  const admin = createAdminClient();
+  const { data: started, error: readError } = await admin
+    .from("game_events")
+    .select("id")
+    .eq("game_id", gameId)
+    .in("type", ["quarter_start", "game_finalised"])
+    .limit(1);
+  if (readError) return { success: false, error: readError.message };
+  // Under way: reopenLineup refuses it, in its words.
+  if ((started ?? []).length === 0) {
+    const { error: vestError } = await admin.from("game_events").delete().eq("game_id", gameId).eq("type", "vest_assigned");
+    if (vestError) return { success: false, error: vestError.message };
+  }
+  return reopenLineup(auth, gameId);
 }
 
 // ─── saveLeagueLineupDraft ───────────────────────────────────

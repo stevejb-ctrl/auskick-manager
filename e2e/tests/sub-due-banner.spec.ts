@@ -113,7 +113,11 @@ async function expectOneVoice(page: Page, chip: string | RegExp) {
 // becomes MAKE ALL N SWAPS. Exactly one alert, it still beeps, nothing
 // modal covers the field, and a goal can still be recorded: tap the kid,
 // + Goal in their kid bar. The info line opens the pairs.
-async function expectCardIsTheAlert(page: Page) {
+async function expectCardIsTheAlert(
+  page: Page,
+  // Rugby's shell (live v3, Phase 8) is the same: its kid bar's + TRY.
+  kid: { tiles: string; score: RegExp } = { tiles: '[data-testid^="player-tile-"]', score: /^\+ goal$/i },
+) {
   const alerts = page.getByRole("alert");
   await expect(alerts.filter({ hasText: /sub due/i })).toBeVisible({ timeout: 20_000 });
   // Next's route announcer is an empty role="alert"; count the ones
@@ -125,8 +129,8 @@ async function expectCardIsTheAlert(page: Page) {
   await expect(page.getByRole("button", { name: /^make (all \d+ swaps|this swap)$/i })).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as unknown as { __beeps: number }).__beeps)).toBeGreaterThan(0);
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.locator('[data-testid^="player-tile-"]').first().click();
-  await page.getByRole("button", { name: /^\+ goal$/i }).click({ trial: true, timeout: 5_000 });
+  await page.locator(kid.tiles).first().click();
+  await page.getByRole("button", { name: kid.score }).click({ trial: true, timeout: 5_000 });
   await page.keyboard.press("Escape");
   await card.getByTestId("info-line").click();
   await expect(page.getByRole("dialog").getByTestId("swapcard-apply-all")).toBeVisible();
@@ -162,8 +166,15 @@ test("AFL runner: sub due is the same info line", async ({ page }) => {
   await expectCardIsTheAlert(page);
 });
 
+// Union is on the v3 shell (Phase 8): the info line is the alert, as AFL's.
+test("rugby_union: sub due is the info line, and a kid's + Try still takes the tap", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto((await subDueGame("rugby_union")).coach);
+  await waitForHydration(page);
+  await expectCardIsTheAlert(page, { tiles: '[data-testid^="league-player-tile-"]', score: /^\+ try$/i });
+});
+
 for (const { sport, chip } of [
-  { sport: "rugby_union" as const, chip: "Record a try for our team" },
   { sport: "basketball" as const, chip: /^add 2 points, /i },
   { sport: "soccer" as const, chip: /^add goal, /i },
 ]) {
@@ -180,20 +191,19 @@ for (const { sport, chip } of [
 // union's to "Bren… → Qu…". Make swap now wraps to its own line first.
 for (const { sport, rows } of [
   { sport: "afl" as const, rows: '[data-testid^="swap-pair-"][data-testid$="-off"], [data-testid^="swap-pair-"][data-testid$="-on"]' },
-  { sport: "rugby_union" as const, rows: '[data-testid^="league-swap-pair-"]' },
+  { sport: "rugby_union" as const, rows: '[data-testid^="swap-pair-"][data-testid$="-off"], [data-testid^="swap-pair-"][data-testid$="-on"]' },
 ]) {
   test(`${sport}: at 375 px the sub card's swap rows show whole names`, async ({ page }) => {
     test.setTimeout(90_000);
     await page.goto((await subDueGame(sport)).coach);
     await waitForHydration(page);
-    // AFL's pairs are on the pairs sheet (live v3): the info line opens it.
-    if (sport === "afl") {
-      await expect(page.getByRole("alert").filter({ hasText: /sub due/i })).toBeVisible({ timeout: 20_000 });
-      await page.getByTestId("info-line").click();
-    }
+    // The pairs are on the pairs sheet (live v3, AFL and union): the info
+    // line opens it.
+    await expect(page.getByRole("alert").filter({ hasText: /sub due/i })).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("info-line").click();
     await expect(page.locator(rows).first()).toBeVisible({ timeout: 20_000 });
     const clipped = await page.evaluate((selector) => {
-      // League rows truncate a name span; AFL's name buttons ARE the names.
+      // The pairs sheet's name buttons ARE the names (any truncating span inside counts instead).
       const names = Array.from(document.querySelectorAll(selector)).flatMap((row) => {
         const spans = Array.from(row.querySelectorAll("span.truncate"));
         return spans.length > 0 ? spans : [row];

@@ -6,6 +6,10 @@
 // The league view now shows an always-visible "Lent" recall strip sourced
 // from the whole squad; "Bring back" un-loans them and the replay lands them
 // on the bench.
+//
+// Live v3 (Phase 8): the strip is the kid themself, a LENT tile at the end
+// of the bench (as a kid lent mid-game sits); tap it for their sheet, whose
+// "Bring them back" puts them on the bench.
 
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
@@ -94,10 +98,13 @@ test("rugby league: a player lent before kickoff can be recalled during the game
   await suppressWalkthrough(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  const recall = page.getByTestId(`league-recall-lent-${lent.id}`);
+  const bench = page.getByRole("group", { name: "Bench", exact: true });
+  const recall = bench.getByTestId(`league-player-tile-${lent.id}`);
   await expect(recall).toBeVisible({ timeout: 15_000 });
+  await expect(recall).toContainText("LENT");
 
   await recall.click();
+  await page.getByRole("button", { name: /^bring .+ back/i }).click();
 
   // A recall event (player_loan, loaned:false) lands.
   await expect
@@ -117,5 +124,6 @@ test("rugby league: a player lent before kickoff can be recalled during the game
     )
     .toBe(true);
 
-  await expect(recall).toBeHidden({ timeout: 10_000 });
+  // Back on the bench, ready to come on: no longer lent.
+  await expect(recall).not.toContainText("LENT", { timeout: 10_000 });
 });

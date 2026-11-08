@@ -8,7 +8,7 @@
 // page "Copy for group chat" ran off the right edge.
 
 import { test, expect } from "@playwright/test";
-import { boxOf, largeText, liveChrome, openLive, skipHints, unionGame } from "../helpers/a11y";
+import { boxOf, largeText, openLive, skipHints, unionGame } from "../helpers/a11y";
 import { finishedGame, fullTime, playPeriod } from "../helpers/finished-game";
 import { waitForHydration } from "../helpers/navigation";
 
@@ -22,9 +22,13 @@ for (const percent of [175, 200]) {
     await openLive(page, team.id, game.id);
     await largeText(page, percent);
 
-    const { top, bottom, viewport } = await liveChrome(page);
+    // Live v3 (Phase 8): union is on the shell. The score is the header up
+    // top, the chips the bar at the foot (the "Scores" region); only the
+    // field between them scrolls.
+    const viewport = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
+    const bar = await boxOf(page.getByRole("region", { name: "Scores" }));
     // The score bar takes under half the screen (it took 62%).
-    expect(bottom.height / viewport.height).toBeLessThanOrEqual(0.45);
+    expect(bar.height / viewport.height).toBeLessThanOrEqual(0.45);
 
     // Every chip, both teams', can be seen and tapped without sideways scroll.
     for (const name of [
@@ -46,18 +50,16 @@ for (const percent of [175, 200]) {
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
 
-    // A kid shows between the bars once the field is scrolled up.
-    const field = page.getByRole("region", { name: "On field" });
-    await field.evaluate((el, t) => window.scrollBy(0, el.getBoundingClientRect().top - t), top.bottom);
-    const after = await liveChrome(page);
-    const inView = await page.evaluate(
-      ([t, b]) =>
-        Array.from(document.querySelectorAll("[data-testid^='league-player-tile-']")).filter((el) => {
-          const r = el.getBoundingClientRect();
-          return r.height > 0 && r.top >= t - 1 && r.bottom <= b + 1;
-        }).length,
-      [after.top.bottom, after.bottom.top],
-    );
+    // A kid shows in the field, between the header and the bench.
+    const field = page.getByTestId("live-field");
+    await field.evaluate((el) => el.scrollTo(0, 0));
+    const inView = await field.evaluate((el) => {
+      const f = el.getBoundingClientRect();
+      return Array.from(el.querySelectorAll("[data-testid^='league-player-tile-']")).filter((t) => {
+        const r = t.getBoundingClientRect();
+        return r.height > 0 && r.top >= f.top - 1 && r.bottom <= f.bottom + 1;
+      }).length;
+    });
     expect(inView).toBeGreaterThanOrEqual(1);
   });
 }

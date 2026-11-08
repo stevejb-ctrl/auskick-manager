@@ -1,8 +1,8 @@
 "use client";
 
 // ─── UnbrokenPeriodWarning ───────────────────────────────────
-// Live-game note on Junior Laws §6 (unbroken periods), under the bench
-// so the coach sees it while making sub decisions. It names only kids
+// Live-game note on Junior Laws §6 (unbroken periods): a sun banner under
+// the top bar (live v3), so the coach sees it while making sub decisions. It names only kids
 // the coach can still do something for (UX audit, 23 Oct 2026: it was
 // never shown):
 //
@@ -75,7 +75,7 @@ export function UnbrokenPeriodWarning({
     <section
       aria-label="Unbroken periods"
       data-testid="unbroken-period-warning"
-      className="rounded-md border border-warn/40 bg-warn-soft/60 px-3 py-2 text-xs text-warn-ink"
+      className="rounded-[12px] bg-sun-soft px-3 py-2 text-[0.8125rem] leading-snug text-ink"
     >
       <p className="font-semibold">
         §6: everyone plays {required} unbroken {required === 1 ? periodNoun : periodNounPlural}
@@ -83,7 +83,7 @@ export function UnbrokenPeriodWarning({
       {rows
         .filter((r) => r.kids.length > 0)
         .map((r) => (
-          <p key={r.key} data-testid={`unbroken-${r.key}`} className="mt-0.5 text-warn/90">
+          <p key={r.key} data-testid={`unbroken-${r.key}`} className="mt-0.5">
             <span className="font-semibold">{r.title}:</span> {r.kids.map((p) => p.full_name).join(", ")}
           </p>
         ))}

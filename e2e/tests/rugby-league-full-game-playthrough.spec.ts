@@ -247,8 +247,9 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
     )
     .toBeGreaterThanOrEqual(1);
   await expect(strip).toContainText(`${teamName} conversion — ${kicker.full_name}`);
-  // The kid who isn't here yet can be added late.
-  await expect(page.getByRole("button", { name: "+ Add late arrival" })).toBeVisible();
+  // The kid who isn't here yet can be added late: "+ Late" at the foot
+  // of the bench (live v3; it's in ⋯ too).
+  await expect(page.getByRole("button", { name: /^\+ Late arrival: / })).toBeVisible();
 
   // ─── Phase 3b: A tap-tap sub happens at once, then toasts ─────
   // Bench kid, then a back: no confirm (live v3), Undo on the toast.
@@ -301,9 +302,9 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
 
   // ─── Phase 5: Start H2, end via manual hooter ─────────────
   await startFromBreak(page, /^start 2nd half/i);
-  // H2 now active. Same clock-menu flow as Phase 4. An inline
-  // KickoffPicker may render for H2, but it's a non-blocking
-  // <section> (not an overlay), so it never covers the clock pill.
+  // H2 now active. Same clock-menu flow as Phase 4. The Kickoff prompt
+  // may show for H2, but it's a line under the top bar (its picker is a
+  // sheet it opens), so it never covers the clock.
   await page.getByRole("button", { name: /^clock — h2, running$/i }).click();
   await expect(page.getByRole("button", { name: /^end h2 now$/i })).toBeVisible({
     timeout: 10_000,
@@ -327,7 +328,7 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
       expect((await add.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     }
   }
-  await expect(page.getByRole("button", { name: "+ Add late arrival" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^\+ Late arrival: / })).toHaveCount(0);
 
   // Pre-finalise the game must still be in_progress — coach hasn't
   // tapped Finalise yet.

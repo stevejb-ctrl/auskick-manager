@@ -90,12 +90,17 @@ test("#2 a live game's badge and Back to live game button, and the stats notice,
   expect(await contrastOf(page.getByTestId("stats-unfinished-games").getByRole("link").first())).toBeGreaterThanOrEqual(4.5);
 });
 
-test("#2 league: the next-sub card's position labels read at AA on the dark card", async ({ browser }) => {
+// Live v3 (Phase 8): the pairs are on the pairs sheet (the info line opens
+// it), each labelled by its spot.
+test("#2 league: the planned sub's position labels read at AA", async ({ browser }) => {
   const { game } = await inFirstPeriod("rugby_league", { secs: 120, subIntervalSeconds: 60 });
   const { context, page } = await parentPhone(browser);
   await openLive(page, `/run/${game.share_token}`);
-  const label = page.getByTestId("league-swap-pair-0").locator("span").first();
+  await page.getByTestId("info-line").click({ timeout: 15_000 });
+  const label = page.getByTestId("swap-pair-0-where");
   await expect(label).toBeVisible({ timeout: 15_000 });
+  // The sheet has slid and faded in.
+  await page.waitForTimeout(600);
   expect(await contrastOf(label)).toBeGreaterThanOrEqual(4.5);
   await context.close();
 });

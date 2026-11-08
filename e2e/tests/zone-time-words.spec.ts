@@ -7,12 +7,17 @@
 //   - Union: key is Fwd / Back; neither settings surface names a vest.
 //   - League U10 (FR and DH vests): Fwd / Centre / Back, and the vest
 //     is still explained.
+//
+// Live v3 (Phase 8): the colour key over the field went with the old
+// tiles. A kid's split is in their kid bar (tap them), and Game settings
+// is in the ⋯ game menu.
 
 import { test, expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
+import { openGameMenu } from "../helpers/liveShell";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -69,8 +74,15 @@ async function gameUnderWay(admin: SupabaseClient, sport: "rugby_union" | "rugby
   return { team, game };
 }
 
+/** A field kid's kid bar shows their time split (the bar is on). */
+async function expectSplitInKidBar(page: Page) {
+  await page.getByRole("region", { name: "On field" }).locator("[data-testid^='league-player-tile-']").first().click({ timeout: 15_000 });
+  await expect(page.getByTestId("kid-bar").getByTestId("time-split")).toBeAttached();
+  await page.getByRole("button", { name: /^put .+ down$/i }).click();
+}
+
 async function settingsSheetText(page: Page): Promise<string> {
-  await page.getByRole("button", { name: "Game settings", exact: true }).click();
+  await (await openGameMenu(page)).getByRole("button", { name: "Game settings", exact: true }).click();
   const row = page.getByRole("dialog").getByText("Track forward and back time", { exact: true }).locator("..");
   await expect(row).toBeVisible();
   return row.innerText();
@@ -83,7 +95,7 @@ test("union: the zone-time bar is forwards and backs, and no setting names a ves
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  await expect(page.getByRole("group", { name: "Colour key: Fwd, Back" })).toBeVisible({ timeout: 15_000 });
+  await expectSplitInKidBar(page);
   const sheet = await settingsSheetText(page);
   expect(sheet).not.toMatch(/vest|centre|F\/C\/B/i);
 
@@ -101,7 +113,7 @@ test("league U10: the centre segment is still the FR or DH vest", async ({ page 
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  await expect(page.getByRole("group", { name: "Colour key: Fwd, Centre, Back" })).toBeVisible({ timeout: 15_000 });
+  await expectSplitInKidBar(page);
   expect(await settingsSheetText(page)).toMatch(/Centre = time wearing the FR or DH vest/);
 
   await page.goto(`/teams/${team.id}/settings`);

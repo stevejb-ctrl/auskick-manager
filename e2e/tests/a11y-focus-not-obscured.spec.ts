@@ -30,15 +30,31 @@ test("live: every field and bench tile, focused, shows between the top bar and t
   const { team, game, lineup } = await unionGame({ name: "A11Y-FNO-LIVE" });
   await skipHints(page);
   await openLive(page, team.id, game.id);
-  const exit = page.getByRole("button", { name: "Exit live game" });
-  const clock = page.getByRole("button", { name: /^clock — /i });
+  // Live v3 (Phase 8): union is on the shell. The field scrolls between
+  // the header (and the info line stuck to the field's top) and the bench
+  // and bar at the foot, which are always on screen; a focused field kid
+  // shows inside the field, a bench kid above the bar.
+  const fieldBox = await boxOf(page.getByTestId("live-field"));
+  const info = page.getByTestId("info-line");
+  const fieldTop = (await info.count()) > 0 ? Math.max(fieldBox.top, (await boxOf(info)).bottom) : fieldBox.top;
+  const bar = await boxOf(page.getByRole("region", { name: "Scores" }));
 
   // Down the field and onto the bench, then back up.
   const ids = [...lineup.forwards, ...lineup.backs, ...lineup.bench];
+  const onBench = new Set(lineup.bench);
   for (const id of [...ids, ...ids.slice().reverse()]) {
-    const r = await focusedClear(page, page.getByTestId(`league-player-tile-${id}`), exit, clock);
-    expect(r.clearOfBottom, `tile ${ids.indexOf(id) + 1} (bottom ${r.box.bottom}) under the score bar (top ${r.bottom})`).toBe(true);
-    expect(r.clearOfTop, `tile ${ids.indexOf(id) + 1} (top ${r.box.top}) under the top bar (bottom ${r.top})`).toBe(true);
+    const tile = page.getByTestId(`league-player-tile-${id}`);
+    await tile.focus();
+    await expect(tile).toBeFocused();
+    await page.waitForTimeout(150);
+    const box = await boxOf(tile);
+    const n = ids.indexOf(id) + 1;
+    if (onBench.has(id)) {
+      expect(box.bottom, `bench tile ${n} (bottom ${box.bottom}) under the score bar (top ${bar.top})`).toBeLessThanOrEqual(bar.top + 1);
+    } else {
+      expect(box.bottom, `tile ${n} (bottom ${box.bottom}) under the field's foot (${fieldBox.bottom})`).toBeLessThanOrEqual(fieldBox.bottom + 1);
+      expect(box.top, `tile ${n} (top ${box.top}) under the header (${fieldTop})`).toBeGreaterThanOrEqual(fieldTop - 1);
+    }
   }
 });
 

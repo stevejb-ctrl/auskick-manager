@@ -57,13 +57,19 @@ test("basketball's sub card: bench pair badges pass AA and Make swap is a 44 px 
   }
 });
 
-test("union's sub card: Make swap is a 44 px target", async ({ page }) => {
+// Live v3 (Phase 8): union's sub card is the bar's "Make all 3 swaps" and
+// the pairs sheet's Make on each pair.
+test("union's planned sub: Make all and each pair's Make are 44 px targets", async ({ page }) => {
   // 18 here, 15 on: three on the bench, due 2 minutes in.
   const { team, game } = await unionGame({ name: "A11Y-CON-RU", count: 18, subIntervalSec: 120, elapsedSec: 130 });
   await skipHints(page);
   await openLive(page, team.id, game.id);
-  const make = page.locator("button", { hasText: /^Make swap$/ });
-  await expect(make.first()).toBeVisible({ timeout: 15_000 });
+  const all = page.getByTestId("bar-make-all");
+  await expect(all).toBeVisible({ timeout: 15_000 });
+  expect((await boxOf(all)).height).toBeGreaterThanOrEqual(44);
+  await page.getByRole("button", { name: /^pairs/i }).click();
+  const make = page.getByRole("dialog").locator("button", { hasText: /^Make$/ });
+  await expect(make.first()).toBeVisible();
   for (const b of await make.all()) expect((await boxOf(b)).height).toBeGreaterThanOrEqual(44);
 });
 
