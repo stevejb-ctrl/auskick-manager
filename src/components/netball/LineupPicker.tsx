@@ -86,6 +86,13 @@ interface LineupPickerProps {
     onFieldSize?: number,
   ) => void | Promise<void>;
   confirmLabel?: string;
+  /**
+   * Live v3 (Ready, Phase 7): the button sets the lineup and the live
+   * screen opens before the first whistle, where the bar starts Q1. No
+   * "Start Q1?" confirm here then. Default true: the confirm, then
+   * onConfirm (the kickoff in one go).
+   */
+  startModal?: boolean;
   disabled?: boolean;
   /**
    * Optional href for a "Back to availability" breadcrumb above the
@@ -211,6 +218,7 @@ export function NetballLineupPicker({
   defaultQuarterSeconds,
   onConfirm,
   confirmLabel = "Confirm lineup",
+  startModal = true,
   disabled,
   availabilityHref,
   walkthroughOffer,
@@ -751,6 +759,11 @@ export function NetballLineupPicker({
         );
         return;
       }
+    }
+    // Ready (live v3): no confirm; the live screen starts Q1.
+    if (!startModal) {
+      void handleConfirmStart();
+      return;
     }
     setStartModalOpen(true);
   };

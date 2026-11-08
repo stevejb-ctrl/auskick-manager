@@ -1036,6 +1036,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
         opponent={g.opponent}
         trackScoring={trackScoring}
         firstPeriod="Q1"
+        cta="Ready"
         availability={needsAvailabilityStep || wantsAvailability ? "list" : "link"}
       />
     );
