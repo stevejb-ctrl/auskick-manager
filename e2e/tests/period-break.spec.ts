@@ -637,8 +637,10 @@ test.describe("AFL", () => {
     await waitForHydration(page);
     const clockPill = page.getByRole("button", { name: /^clock — q1, running$/i });
     await expect(clockPill).toBeVisible({ timeout: 20_000 });
+    // Live v3's shell: the page itself never scrolls, the field does.
+    // Scroll it to its end (and try the page too) before the siren.
+    await page.getByTestId("live-field").evaluate((el) => el.scrollTo(0, el.scrollHeight));
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
 
     await clockPill.click();
     await page.getByRole("button", { name: /^end q1 now$/i }).click();

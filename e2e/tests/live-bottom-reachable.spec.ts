@@ -8,7 +8,7 @@
 // Restart game, on the coach's page (a game-day link no longer offers
 // Restart: UX round 2, 24 Oct 2026).
 //
-// AFL's live v3 shell (Phase 5) has no admin row: the page doesn't
+// AFL's live v3 shell (Phase 5; netball's from Phase 7) has no admin row: the page doesn't
 // scroll, the field scrolls inside the screen, and Restart is in ⋯. So
 // there the last control is the field's last kid, scrolled to the end
 // of the field, clear of the bench and the bar; and ⋯'s Restart is
@@ -57,12 +57,12 @@ for (const sport of ["afl", "netball", "rugby_league"] as const) {
     await page.goto(`/teams/${team.id}/games/${game.id}/live`);
     const field = page.getByTestId("live-field");
     const last =
-      sport === "afl"
+      sport === "afl" || sport === "netball"
         ? field.locator('[data-testid^="player-tile-"]').last()
         : page.getByRole("button", { name: /^restart game$/i });
     await expect(last).toBeAttached({ timeout: 15_000 });
     await page.waitForLoadState("networkidle");
-    if (sport === "afl") await field.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    if (sport === "afl" || sport === "netball") await field.evaluate((el) => el.scrollTo(0, el.scrollHeight));
     else await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     await page.waitForTimeout(300);
     const onTop = await last.evaluate((el) => {
@@ -71,7 +71,7 @@ for (const sport of ["afl", "netball", "rugby_league"] as const) {
       return !!hit && (hit === el || el.contains(hit));
     });
     expect(onTop).toBe(true);
-    if (sport === "afl") {
+    if (sport === "afl" || sport === "netball") {
       await page.getByRole("button", { name: "Game menu" }).click();
       const restart = page.getByRole("dialog", { name: "Game menu" }).getByRole("button", { name: /^restart game$/i });
       await expect(restart).toBeVisible();
