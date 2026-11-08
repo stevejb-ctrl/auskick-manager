@@ -28,37 +28,37 @@ export function buildNetballWalkthroughSteps(opts: {
     {
       emoji: "⏱️",
       title: "Starting the game",
-      body: "Tap Start Q1, then confirm when the umpire calls play — the clock starts then. It counts down and ends the quarter automatically when it hits zero. Tap the clock pill to pause if there's a stoppage in play, then tap it again to resume.",
+      body: "Tap Start Q1 on the bar at the bottom, then Start Q1 now when the umpire calls play. The clock counts down and ends the quarter at zero. Tap it to pause for a stoppage, then again to go on.",
     },
     {
       emoji: "🏐",
       title: "Court & bench",
-      body: "The court runs top-to-bottom: attack third (GS, GA), centre third (WA, C, WD), defence third (GD, GK). Anyone not on the court sits in the bench strip below.",
+      body: "The court runs top to bottom: attack third (GS, GA), centre third (WA, C, WD), defence third (GD, GK). Anyone not on the court is on the bench underneath.",
     },
     {
       emoji: "🔁",
-      title: "Substitutions are period-break-only",
-      body: "Netball doesn't allow rolling subs — players can only be swapped between quarters. At each break the suggester offers a fair next-quarter lineup based on minutes-played, position rotation, and friend pairs from last quarter. Tap two players to swap them, or tap a bench player and then an empty slot to fill it.",
+      title: "Subs happen at the break",
+      body: "Netball subs happen at the break, so bench kids say On at the break (unless your team allows subs mid-quarter). At each break Siren suggests a fair lineup for the next quarter from minutes, positions and who played together. Tap two kids to swap them, or a bench kid then an empty bib to fill it.",
     },
     {
-      emoji: "👇",
-      title: "Tap for player actions",
-      body: "Tap a player to open the actions sheet (for GS or GA with scoring on, tap Player actions under the goal button). From here you can Mark injured, Lend to opposition, or 🔒 Keep at this position next break (a soft signal the suggester respects across all subsequent quarters).",
+      emoji: "👆",
+      title: "Tap a kid for their bar",
+      body: "Tapping a kid opens their bar at the bottom, with their minutes this game. GS and GA get + Goal. Then Injured, or More to Lend them to the other team or 🔒 Keep them at this position next break. Tap × to put them down.",
     },
     {
       emoji: "🏥",
       title: "Mid-quarter injuries & loans",
-      body: "If a player is injured or lent during a quarter, their slot empties and a picker pops to choose a bench replacement. You can also tap an empty slot at any time to fill it — useful if you cancelled the picker earlier and want to bring someone in later in the quarter.",
+      body: "If a kid is hurt or lent during a quarter, Siren asks who comes on at their bib (or go without). Tap an empty bib any time to fill it later.",
     },
     {
       emoji: "↩️",
-      title: "Bringing a sidelined player back",
-      body: "At the next Q-break, the Sidelined strip shows everyone with INJ or LENT. Long-press their tile to Mark recovered or Bring back from loan — they default to the bench so you decide if and when to bring them on.",
+      title: "Bringing someone back",
+      body: "Injured and lent kids sit on the bench marked INJ or LENT. Tap them to Mark recovered or Bring back; they stay on the bench until you put them on.",
     },
     {
-      emoji: "👋",
-      title: "Late arrivals & fill-ins",
-      body: "If a regular squad member shows up after the umpire's first whistle, tap + Add late arrival under the bench strip to slot them in. Fill-ins (someone who isn't on the permanent squad but joins for the day) are added on the game-detail page before the game starts.",
+      emoji: "⋯",
+      title: "The ⋯ menu",
+      body: "Late arrivals, scores and fixes, this tour and the game-day link (so another parent can run the clock) are under ⋯ at the top. Fill-ins who aren't in the squad are added on the game page before the game.",
     },
   ];
 
@@ -66,14 +66,14 @@ export function buildNetballWalkthroughSteps(opts: {
     steps.push({
       emoji: "🥅",
       title: "Recording scores",
-      body: "Only GS and GA can score in netball. Tap their token, confirm the goal sheet, and the score updates. For an opposition goal, tap +G beside their score in the header. An Undo chip appears for 8 seconds after every score; tap it to roll back the last goal.",
+      body: "Only GS and GA can score. Tap + Goal on the bar and pick the shooter, or tap GS or GA first. For the other team, tap their +G. Undo under the score takes back the latest; tap the score to fix any of them, quarter by quarter.",
     });
   }
 
   steps.push({
     emoji: "🏁",
     title: "Ending a quarter & the post-game summary",
-    body: "When the clock hits zero the Q-break screen appears with the suggested next-quarter lineup. After Q4, check the full-time review and tap Finish game; a summary card then shows — total minutes per player, per-third %, top scorers, and a Copy for group chat button so you can paste it into the team thread.",
+    body: "When the clock hits zero the break shows the suggested lineup for the next quarter. After Q4, check the full-time review and tap Finish game. The summary shows minutes per kid, time in each third, top scorers, and Copy for group chat to paste into the team thread.",
   });
 
   return steps;
