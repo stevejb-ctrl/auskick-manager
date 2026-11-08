@@ -6,8 +6,9 @@
 // score stayed 0. And the chips wrapped 2 + 1 under each score.
 //
 // Pinned on a 375 px touch screen, first visit (the hint showing): every
-// chip is the topmost thing at its own centre, the three sit in one row
-// at 44 pt or more, and +2, +3, +1 read 2, 5, 6 on the scorebug.
+// chip is the topmost thing at its own centre, each team's three sit in
+// one row (live v3's two-row bar, a row a team) at 44 pt or more, and
+// +2, +3, +1 read 2, 5, 6 on the scorebug.
 
 import { test, expect, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
@@ -64,7 +65,8 @@ test("basketball's +1 / +2 / +3 sit in one row, aren't covered, and score on a p
   // The hint sits wholly above the score bar, on any phone.
   const overlap = await page.evaluate(() => {
     const hint = Array.from(document.querySelectorAll("[role=status]")).find((e) => /tap a player for actions/i.test(e.textContent ?? ""))!;
-    const bar = document.querySelector("[aria-label^='Clock']")!.closest(".fixed")!;
+    // Live v3: the score bar is the shell's bar (#live-scores), under the bench.
+    const bar = document.getElementById("live-scores")!;
     return hint.getBoundingClientRect().bottom - bar.getBoundingClientRect().top;
   });
   expect(overlap, "the hint overlaps the score bar").toBeLessThanOrEqual(0);

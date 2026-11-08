@@ -162,7 +162,7 @@ async function clockSeconds(page: Page): Promise<number> {
 
 /**
  * What a kid's tile says they've played, in seconds. Live v3's kid
- * (AFL, netball, the soccer family) keeps the time off the face of the tile; it's in the
+ * (AFL, netball, the soccer family and basketball) keeps the time off the face of the tile; it's in the
  * tile's name ("Mia Park, Centre, #5, 2:14"), which the old tiles also said.
  */
 async function kidSeconds(page: Page, sport: Sport, kid: { id: string; full_name: string }): Promise<number> {
@@ -170,7 +170,7 @@ async function kidSeconds(page: Page, sport: Sport, kid: { id: string; full_name
     sport === "netball"
       ? page.getByRole("button", { name: new RegExp(`^${kid.full_name}, `) }).first()
       : page.getByTestId(`player-tile-${kid.id}`).first();
-  if (sport === "afl" || sport === "netball" || sport === "soccer") return mmss(await tile.getAttribute("aria-label"));
+  if (sport === "afl" || sport === "netball" || sport === "soccer" || sport === "basketball") return mmss(await tile.getAttribute("aria-label"));
   return mmss(await tile.getByText(/^\s*\d+:\d{2}\s*$/).first().textContent());
 }
 

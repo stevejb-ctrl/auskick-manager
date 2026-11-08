@@ -65,6 +65,9 @@ test("basketball's half-time break has the other sports' shape", async ({ page }
   // Start the 2nd half from the shared footer, as AFL's Start Q2.
   await startFromBreak(page, /^start 2nd half/i);
   await expect(page.getByRole("button", { name: /^clock — h2, running$/i })).toBeVisible({ timeout: 15_000 });
-  // On court a guard's line label is the same green.
-  await expect(page.locator("[data-testid^='player-tile-']").getByText("G", { exact: true }).first()).toHaveCSS("color", zoneC);
+  // On court (live v3) the guards are a line of their own on the wood,
+  // named in the margin: the court draws no line colours at all, so
+  // there's no second green to drift from the break's.
+  const guards = page.getByRole("region", { name: "On court" }).getByRole("group", { name: "Guards", exact: true });
+  await expect(guards.locator("[data-testid^='player-tile-']")).toHaveCount(2);
 });

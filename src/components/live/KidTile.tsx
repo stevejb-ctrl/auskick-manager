@@ -34,6 +34,19 @@ import type { KidWords } from "@/lib/live/kidWords";
 /** Why a kid is out of the rotation: their badge's colour. */
 export type KidOutKind = "injured" | "home" | "lent" | "sit" | "fouledOut";
 
+/** A small figure after a kid's name (KidTile `figures`). */
+export interface KidFigure {
+  key: string;
+  text: string;
+  /** Its label (aria-label on the figure). */
+  label?: string;
+  testId?: string;
+  /** Close to a limit: full strength, bold. */
+  strong?: boolean;
+  /** At (or one short of) a limit: underlined as well. */
+  underline?: boolean;
+}
+
 export interface KidTileProps {
   /** The tile's test id ("player-tile-<id>"); its key for the swap fade too. */
   testId: string;
@@ -70,6 +83,13 @@ export interface KidTileProps {
    * Seen only: say it in `spoken.states`.
    */
   flag?: string | null;
+  /**
+   * More small figures after the name, before the score: basketball's
+   * fouls ("F3", underlined at the limit) and points ("8 PTS"). Each can
+   * carry its own label and test id; seen only otherwise, so say them
+   * in `spoken.states` too.
+   */
+  figures?: KidFigure[] | null;
   onClick?: () => void;
   onLongPress?: () => void;
 }
@@ -107,6 +127,7 @@ export function KidTile({
   out = null,
   dense = false,
   flag = null,
+  figures = null,
   onClick,
   onLongPress,
 }: KidTileProps) {
@@ -171,6 +192,8 @@ export function KidTile({
             ? "text-mark/[0.84]"
             : "text-ink-mute";
 
+  // INJ, HOME, LENT sit beside the name; anything longer goes under it.
+  const outBelow = !!out && !!words && words.text.length > 5;
   const outTone =
     selected ? "opacity-75" : field ? "text-mark/[0.72]" : out === "injured" ? "text-blood" : "text-ink-mute";
 
@@ -234,16 +257,33 @@ export function KidTile({
         >
           {name}
         </span>
+        {!out && figures?.map((f) => (
+          <span
+            key={f.key}
+            data-testid={f.testId}
+            aria-label={f.label}
+            className={`min-w-0 flex-none overflow-hidden text-[0.71875rem] font-extrabold ${f.strong || f.underline ? "" : "opacity-[0.72]"} ${
+              f.underline ? "underline decoration-[1.5px] underline-offset-[2px]" : ""
+            }`}
+          >
+            {f.text}
+          </span>
+        ))}
         {score && !out && <span className="min-w-0 flex-shrink-[2] overflow-hidden text-[0.71875rem] font-extrabold opacity-[0.72]">{score.text}</span>}
         {locked && !out && (
           <span aria-label={lockLabel ?? undefined} className="inline-flex flex-none opacity-70">
             {LOCK}
           </span>
         )}
-        {out && words && (
+        {out && words && !outBelow && (
           <span className={`ml-auto flex-none text-[0.625rem] font-black tracking-[0.1em] ${outTone}`}>{words.text}</span>
         )}
       </span>
+      {/* A long out badge (basketball's FOULED OUT, SIT 4:12) goes under
+          the name, so a bench tile three across keeps the name whole. */}
+      {out && words && outBelow && (
+        <span className={`block min-w-0 truncate font-display text-[0.625rem] font-black tracking-[0.1em] ${outTone}`}>{words.text}</span>
+      )}
       {words && !out && (
         <span className={`block min-w-0 truncate font-display stretch-72 text-[0.75rem] font-bold leading-[1.15] ${wordsClass}`}>
           {words.text}

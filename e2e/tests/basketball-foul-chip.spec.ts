@@ -1,7 +1,8 @@
 // Steve 2026-10-21: "I'd like to show a chip in basketball to simply show
 // how many fouls a player has." Every tile (on court and on the bench)
-// carries an nF chip while the foul tally is on and the kid has a foul:
-// muted early, amber two short of fouling out, solid amber one short.
+// carries the fouls while the foul tally is on and the kid has a foul
+// (live v3: "F3" after the name): quiet early, full strength two short of
+// fouling out, underlined one short.
 // (UX audit 23 Oct 2026: a "0F" on every tile was clutter, so a kid
 // with no fouls has no chip.) The dock steps fouls up
 // and down; the long-press menu adds, takes back, or clears them.
@@ -43,35 +44,40 @@ test("basketball tiles show each kid's fouls, coloured by how close they are to 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
   const chip = (pid: string) => page.getByTestId(`fouls-${pid}`);
-  await expect(chip(k[1])).toHaveText("3F", { timeout: 15_000 });
+  await expect(chip(k[1])).toHaveText("F3", { timeout: 15_000 });
   await expect(chip(k[0])).toHaveCount(0);
-  await expect(chip(k[2])).toHaveText("4F");
+  await expect(chip(k[2])).toHaveText("F4");
   // On the bench too: fouls carry through the game.
-  await expect(page.getByRole("group", { name: "Bench" }).getByTestId(`fouls-${k[5]}`)).toHaveText("2F");
+  await expect(page.getByRole("group", { name: "Bench" }).getByTestId(`fouls-${k[5]}`)).toHaveText("F2");
 
-  const bg = (pid: string) => chip(pid).evaluate((el) => getComputedStyle(el).backgroundColor);
-  // Sub-due hi-vis (palette due): the fill, and its deeper word tone.
-  const dueFill = "rgb(212, 64, 12)";
-  const dueText = "rgb(184, 54, 10)";
-  expect(await bg(k[2])).toBe(dueFill);
-  expect(await bg(k[1])).not.toBe(dueFill);
-  expect(await bg(k[1])).not.toBe(await bg(k[5]));
-  await expect(chip(k[1])).toHaveCSS("color", dueText);
+  // Live v3: the fouls are a small figure after the name ("F3"), quiet
+  // early, full strength two short of fouling out, and underlined one
+  // short (it was an amber chip, solid one short).
+  const look = (pid: string) =>
+    chip(pid).evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return { underline: cs.textDecorationLine.includes("underline"), opacity: Number(cs.opacity) };
+    });
+  expect(await look(k[2])).toEqual({ underline: true, opacity: 1 });
+  expect(await look(k[1])).toEqual({ underline: false, opacity: 1 });
+  expect((await look(k[5])).underline).toBe(false);
+  expect((await look(k[5])).opacity).toBeLessThan(1);
 
   // Long-press: add a foul.
   await page.getByTestId(`player-tile-${k[0]}`).click({ delay: 600 });
   await page.getByTestId("basketball-add-foul").click({ timeout: 5_000 });
-  await expect(chip(k[0])).toHaveText("1F", { timeout: 10_000 });
+  await expect(chip(k[0])).toHaveText("F1", { timeout: 10_000 });
 
   // Steve 2026-10-22: "Need to be able to undo fouls in basketball."
   // The dock steps a kid's fouls back down.
   await page.getByTestId(`player-tile-${k[1]}`).click();
   await page.getByTestId("basketball-unfoul").click();
-  await expect(chip(k[1])).toHaveText("2F", { timeout: 10_000 });
+  await expect(chip(k[1])).toHaveText("F2", { timeout: 10_000 });
   // Nothing to take back at 0F.
   await page.getByTestId(`player-tile-${k[3]}`).click();
   await expect(page.getByTestId("basketball-unfoul")).toBeDisabled();
-  await page.getByRole("button", { name: /^cancel$/i }).first().click();
+  // The kid bar's × puts the kid down.
+  await page.getByTestId("kid-bar").getByRole("button", { name: /^put .+ down$/i }).click();
   // The long-press menu clears them all.
   await page.getByTestId(`player-tile-${k[2]}`).click({ delay: 600 });
   await page.getByTestId("basketball-clear-fouls").click({ timeout: 5_000 });
@@ -117,9 +123,11 @@ test("a mistaken fifth foul can be taken back, and the kid is back in the game",
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
   const tile = page.getByRole("group", { name: "Bench" }).getByTestId(`player-tile-${k[5]}`);
-  // The bench tile's fouled-out badge fits inside the tile.
-  const out = tile.getByLabel("Fouled out");
-  await expect(out).toHaveText("OUT", { timeout: 15_000 });
+  // The bench tile says FOULED OUT (kidWords), inside the tile, and a
+  // screen reader hears "Fouled out".
+  const out = tile.getByText("FOULED OUT", { exact: true });
+  await expect(out).toBeVisible({ timeout: 15_000 });
+  await expect(tile).toHaveAccessibleName(/Fouled out/);
   const [outBox, tileBox] = [await out.boundingBox(), await tile.boundingBox()];
   expect(outBox!.x + outBox!.width).toBeLessThanOrEqual(tileBox!.x + tileBox!.width - 4);
 
@@ -128,9 +136,9 @@ test("a mistaken fifth foul can be taken back, and the kid is back in the game",
   await expect(actions).toContainText(/fouled out/i);
   await actions.getByRole("button", { name: /take back the last foul/i }).click();
 
-  // The foul is undone and the foul-out lifted: 4F, no OUT, back in play.
-  await expect(page.getByTestId(`fouls-${k[5]}`)).toHaveText("4F", { timeout: 15_000 });
-  await expect(tile.getByLabel("Fouled out")).toHaveCount(0);
+  // The foul is undone and the foul-out lifted: F4, no FOULED OUT, back in play.
+  await expect(page.getByTestId(`fouls-${k[5]}`)).toHaveText("F4", { timeout: 15_000 });
+  await expect(tile).not.toContainText("FOULED OUT");
   // The take-back is optimistic (live-chrome): the screen moves first and
   // the save lands a moment later, so wait for the lift to reach the DB.
   await expect
@@ -206,15 +214,15 @@ test("cancelling the foul-out sheet takes the fifth foul back", async ({ page })
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  await expect(page.getByTestId(`fouls-${k[0]}`)).toHaveText("4F", { timeout: 15_000 });
+  await expect(page.getByTestId(`fouls-${k[0]}`)).toHaveText("F4", { timeout: 15_000 });
   await page.getByTestId(`player-tile-${k[0]}`).click();
   await page.getByTestId("basketball-foul").click();
   const sheet = page.getByRole("dialog");
   await expect(sheet).toContainText(/has fouled out/i, { timeout: 10_000 });
   await sheet.getByRole("button", { name: /^cancel, and take back the foul$/i }).click();
 
-  await expect(page.getByTestId(`fouls-${k[0]}`)).toHaveText("4F", { timeout: 10_000 });
-  await expect(page.getByTestId(`player-tile-${k[0]}`).getByLabel("Fouled out")).toHaveCount(0);
+  await expect(page.getByTestId(`fouls-${k[0]}`)).toHaveText("F4", { timeout: 10_000 });
+  await expect(page.getByTestId(`player-tile-${k[0]}`)).not.toContainText("FOULED OUT");
   // Saved: the fifth foul and its take-back, and no foul-out.
   await expect
     .poll(
@@ -244,10 +252,11 @@ test("a kid on five fouls can't be given a sixth", async ({ page }) => {
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  await expect(page.getByTestId(`fouls-${k[1]}`)).toHaveText("5F", { timeout: 15_000 });
+  await expect(page.getByTestId(`fouls-${k[1]}`)).toHaveText("F5", { timeout: 15_000 });
   await page.getByTestId(`player-tile-${k[1]}`).click();
   await expect(page.getByTestId("basketball-foul")).toBeDisabled();
-  await page.getByRole("button", { name: /^cancel$/i }).first().click();
+  // The kid bar's × puts the kid down.
+  await page.getByTestId("kid-bar").getByRole("button", { name: /^put .+ down$/i }).click();
   // The long-press menu doesn't offer one either.
   await page.getByTestId(`player-tile-${k[1]}`).click({ delay: 600 });
   await expect(page.getByRole("dialog")).toBeVisible();

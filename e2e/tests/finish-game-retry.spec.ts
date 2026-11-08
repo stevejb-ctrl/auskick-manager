@@ -107,6 +107,9 @@ for (const c of CASES) {
         for (const k of ["gm-walkthrough-seen", "nb-walkthrough-seen", "league-walkthrough-seen"]) localStorage.setItem(k, "1");
       } catch {}
     });
+    // Basketball's full time (live v3) has no sticky score bar under the
+    // review, so it's shorter: a shorter phone still has it scroll.
+    if (c.sport === "basketball") await page.setViewportSize({ width: 390, height: 600 });
     await page.goto(`/teams/${team.id}/games/${game.id}/live`);
     const finish = page.getByRole("button", { name: /^finish game$/i });
     await expect(finish).toBeVisible({ timeout: 30_000 });

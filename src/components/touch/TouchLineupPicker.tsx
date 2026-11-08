@@ -6,7 +6,8 @@
 // panel, a collapsible "Game settings" card, the field and bench drawn
 // as the live game draws them, tap a kid then a second to swap,
 // long-press for the shared player actions, and the shared footer with
-// Save plan and "Start H1", which opens the shared StartQuarterModal.
+// Save plan and Ready, which sets the side and opens the live screen
+// before the start (its bar's Start H1 starts the clock).
 //
 // The suggestion comes from the touch engine (suggestTouchLineup), by
 // the team's How we play rotation. A mixed team (its rule) gets more:
@@ -34,7 +35,6 @@ import { Label } from "@/components/ui/Label";
 import { RadioChips } from "@/components/ui/RadioChips";
 import { SFButton } from "@/components/sf";
 import { LockModal } from "@/components/live/LockModal";
-import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { SUB_MINUTES_MAX, SUB_MINUTES_MIN, subMinutesFrom } from "@/lib/live/subCadence";
@@ -69,7 +69,7 @@ import { touchLineupRuleItems } from "@/lib/sports/touch/ruleCheck";
 import { TouchField } from "./TouchField";
 import { TouchBench } from "./TouchBench";
 import { TOUCH_LINE_LABEL, TOUCH_LINE_ONE, touchStrategyLabel } from "./touchWords";
-import { getSportConfig, type TouchSport } from "@/lib/sports/registry";
+import type { TouchSport } from "@/lib/sports/registry";
 import { squadLoanAverage } from "@/lib/live/liveChrome";
 import { noteLiveResult } from "@/lib/live/liveSync";
 
@@ -126,8 +126,6 @@ export function TouchLineupPicker({
   const [error, setError] = useState<string | null>(null);
   const [loanedIds, setLoanedIds] = useState<Set<string>>(() => new Set(initialLoanedIds));
   const playerById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
-  const onePeriod = ageGroup.periodCount === 1;
-  const periodLetter = onePeriod ? "P" : "H";
 
   // Who counts as a girl or a boy, as the coach answers the prompt.
   const [groups, setGroups] = useState<Record<string, MixedGroup | null>>(initialGroups);
@@ -170,7 +168,6 @@ export function TouchLineupPicker({
   const [fillLine, setFillLine] = useState<TouchLine | null>(null);
   const [actionPlayerId, setActionPlayerId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [startModalOpen, setStartModalOpen] = useState(false);
   const [savePending, setSavePending] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(initialDraft?.updated_at ?? null);
   const [subMinInput, setSubMinInput] = useKeptSetting(gameId, "subMinutes", String(defaultSubMinutes));
@@ -270,19 +267,17 @@ export function TouchLineupPicker({
     }
     window.scrollTo({ top: 0, behavior: "auto" });
     setError(null);
-    setStartModalOpen(true);
-  }
-
-  function handleConfirmStart() {
-    setError(null);
+    // Ready sets the lineup; Start H1 is on the live screen's bar (live
+    // v3, as AFL's, netball's and rugby's pickers). It used to open "Start
+    // H1?" here and write the lineup and the first whistle at once.
+    // Until it starts, ⋯ → Edit lineup brings this picker back.
     startTransition(async () => {
-      const result = await startTouchGame(auth, gameId, lineup, onFieldSize, true, subIntervalSeconds);
+      // startPeriodToo=false: the lineup, no whistle. The team page
+      // redirects to the live screen; the game-day link's page re-renders.
+      const result = await startTouchGame(auth, gameId, lineup, onFieldSize, false, subIntervalSeconds);
       // Refused because another phone already started: say so over the page.
       noteLiveResult(result);
-      if (!result.success) {
-        setError(result.error ?? "Couldn't start the game.");
-        setStartModalOpen(false);
-      }
+      if (result && !result.success) setError(result.error ?? "Couldn't set the lineup.");
     });
   }
 
@@ -503,7 +498,7 @@ export function TouchLineupPicker({
         savedAt={savedAt}
         savePlanDisabled={fieldIds.length === 0 || isPending}
         onConfirm={handleStartGame}
-        confirmLabel={`Start ${periodLetter}1`}
+        confirmLabel="Ready"
         confirmDisabled={fieldIds.length === 0 || isPending}
         confirmLoading={isPending}
       />
@@ -561,17 +556,6 @@ export function TouchLineupPicker({
         />
       )}
 
-      {startModalOpen && (
-        <StartQuarterModal
-          quarter={1}
-          periodLabel={onePeriod ? "period" : "half"}
-          shortSide={{ playing: fieldIds.length, size: initialSize, min: ageGroup.minOnFieldSize }}
-          cue={getSportConfig(sport).words.startCue}
-          loading={isPending}
-          onStart={handleConfirmStart}
-          onCancel={() => setStartModalOpen(false)}
-        />
-      )}
     </div>
   );
 }

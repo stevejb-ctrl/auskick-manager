@@ -6,8 +6,10 @@
 // would) the header, the bench and the bar stay put and only the field
 // scrolls, so the score and + GOAL are always a glance and a thumb away.
 //
-// Covers: src/components/live/LiveShell.tsx, LiveGame.tsx's shell, and
-// NetballLiveGame.tsx's (Phase 7).
+// Covers: src/components/live/LiveShell.tsx, LiveGame.tsx's shell,
+// NetballLiveGame.tsx's (Phase 7), LeagueLiveGame.tsx's (Phase 8),
+// SoccerLiveGame.tsx's (Phase 9), and BasketballLiveGame.tsx's and
+// TouchLiveGame.tsx's (Phase 10).
 
 import { test, expect, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
@@ -262,6 +264,164 @@ for (const side of [
     expect(theirs!.y, "theirs under ours").toBeGreaterThan(ours!.y + ours!.height - 1);
     for (const name of [/^record a penalty goal for our team$/i, /^record opponent (drop|field) goal$/i]) {
       await onScreen(page, String(name), await page.getByRole("button", { name }).boundingBox());
+    }
+  });
+}
+
+// ─── Basketball and the touch family (live v3, Phase 10) ─────────
+// Basketball's five on the wood (forwards over guards) with the bench and
+// the two-row bar (+1 +2 +3 a side); touch's six and Oztag's eight in
+// lanes on the grass, with their benches and the one-row bar (+ TRY,
+// theirs +T and "+2 girl"). Still no page scroll at 390×844, every kid
+// and both bar rows on screen, every tap target 44 px or more.
+
+/** A basketball or touch-family side mid-H1, scoring on. */
+async function courtSide(opts: {
+  sport: "basketball" | "touch" | "oztag";
+  ageGroup: string;
+  onField: number;
+  bench: number;
+  lineup: (ids: string[]) => Record<string, unknown>;
+  mixed?: boolean;
+}) {
+  const admin = createAdminClient();
+  const ownerId = await coachId(admin);
+  const team = await makeTeam(admin, { ownerId, sport: opts.sport, ageGroup: opts.ageGroup, name: `Fit ${opts.sport} ${Date.now() % 100000}` });
+  await admin
+    .from("teams")
+    .update({ track_scoring: true, ...(opts.mixed ? { mixed_max_boys: 4, mixed_min_girls: 1, mixed_min_boys: 0 } : {}) })
+    .eq("id", team.id);
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: opts.onField + opts.bench, ageGroup: opts.ageGroup });
+  if (opts.mixed) {
+    for (let i = 0; i < players.length; i++) {
+      await admin.from("players").update({ mixed_group: i % 2 === 0 ? "girl" : "boy" }).eq("id", players[i].id);
+    }
+  }
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Kookas" });
+  await admin.from("games").update({ on_field_size: opts.onField, status: "in_progress", sub_interval_seconds: 600 }).eq("id", game.id);
+  const ids = players.map((p) => p.id);
+  const lineup = opts.lineup(ids);
+  const at = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString();
+  const { error } = await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup, sport: opts.sport }, created_at: at(90) },
+      { type: "quarter_start", metadata: { quarter: 1, sport: opts.sport }, created_at: at(60) },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  if (error) throw new Error(`seed: ${error.message}`);
+  return { team, game, ids };
+}
+
+for (const side of [
+  {
+    name: "basketball U12, 5 + 5",
+    sport: "basketball" as const,
+    age: "U12",
+    onField: 5,
+    bench: 5,
+    region: "On court",
+    lines: { Forwards: 3, Guards: 2 },
+    lineup: (k: string[]) => ({ lines: { guard: k.slice(0, 2), forward: k.slice(2, 5), court: [] }, bench: k.slice(5) }),
+    ours: /^add 1 point, fit/i,
+    theirs: ["Add 1 point, Kookas", "Add 3 points, Kookas"],
+    twoRows: true,
+  },
+  {
+    name: "basketball U12, 5 + 7 (the most it takes)",
+    sport: "basketball" as const,
+    age: "U12",
+    onField: 5,
+    bench: 7,
+    region: "On court",
+    lines: { Forwards: 3, Guards: 2 },
+    lineup: (k: string[]) => ({ lines: { guard: k.slice(0, 2), forward: k.slice(2, 5), court: [] }, bench: k.slice(5) }),
+    ours: /^add 1 point, fit/i,
+    theirs: ["Add 1 point, Kookas", "Add 3 points, Kookas"],
+    twoRows: true,
+  },
+  {
+    name: "touch U12, 6 + 8 (a full squad of 14)",
+    sport: "touch" as const,
+    age: "U12",
+    onField: 6,
+    bench: 8,
+    region: "On field",
+    lines: { Middles: 2, Links: 2, Wings: 2 },
+    lineup: (k: string[]) => ({ lines: { middle: k.slice(0, 2), link: k.slice(2, 4), wing: k.slice(4, 6), field: [] }, bench: k.slice(6) }),
+    ours: /^add a try, fit/i,
+    theirs: ["Add a try, Kookas"],
+    twoRows: false,
+  },
+  {
+    name: "Oztag U12 mixed, 8 + 8 (a full squad of 16)",
+    sport: "oztag" as const,
+    age: "U12",
+    onField: 8,
+    bench: 8,
+    region: "On field",
+    lines: { Middles: 2, Links: 4, Wings: 2 },
+    lineup: (k: string[]) => ({ lines: { middle: k.slice(0, 2), link: k.slice(2, 6), wing: k.slice(6, 8), field: [] }, bench: k.slice(8) }),
+    ours: /^add a try, fit/i,
+    theirs: ["Add a try, Kookas", "Add a girl's try, 2 points, Kookas"],
+    twoRows: false,
+    mixed: true,
+  },
+]) {
+  test(`${side.name} at 390×844: no page scroll; every kid, the bench and the bar on screen`, async ({ page }) => {
+    const { team, game, ids } = await courtSide({
+      sport: side.sport,
+      ageGroup: side.age,
+      onField: side.onField,
+      bench: side.bench,
+      lineup: side.lineup,
+      mixed: side.mixed,
+    });
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem("basketball-walkthrough-seen", "1");
+        localStorage.setItem("touch-walkthrough-seen", "1");
+        localStorage.setItem("siren-longpress-seen-v1", "true");
+      } catch {}
+    });
+    await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+    await waitForHydration(page);
+    await expect(page.getByRole("button", { name: /^clock — h1, running/i })).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(400);
+
+    const s = await scrolls(page);
+    expect(s.page, "the page scrolls").toBeLessThanOrEqual(0);
+    expect(s.pageX, "the page scrolls sideways").toBeLessThanOrEqual(0);
+    expect(s.shell, "the shell scrolls").toBeLessThanOrEqual(1);
+    expect(s.field, "the field scrolls").toBeLessThanOrEqual(1);
+
+    // Every kid in their line, on screen and a tap target.
+    const field = page.getByRole("region", { name: side.region });
+    for (const [line, n] of Object.entries(side.lines)) {
+      await expect(field.getByRole("group", { name: line, exact: true }).locator("[data-testid^='player-tile-']")).toHaveCount(n);
+    }
+    for (const id of ids.slice(0, side.onField)) {
+      const box = await field.getByTestId(`player-tile-${id}`).boundingBox();
+      await onScreen(page, `field ${id}`, box);
+      expect(box!.height, "a tap target").toBeGreaterThanOrEqual(44);
+    }
+    const bench = page.getByRole("group", { name: "Bench", exact: true });
+    for (const id of ids.slice(side.onField)) {
+      const box = await bench.getByTestId(`player-tile-${id}`).boundingBox();
+      await onScreen(page, `bench ${id}`, box);
+      expect(box!.height, "a tap target").toBeGreaterThanOrEqual(44);
+    }
+
+    // The bar: ours and theirs on screen, 44 px or more; basketball's two
+    // rows, theirs under ours.
+    const ours = await page.getByRole("button", { name: side.ours }).boundingBox();
+    await onScreen(page, "our first", ours);
+    expect(ours!.height).toBeGreaterThanOrEqual(44);
+    for (const name of side.theirs) {
+      const box = await page.getByRole("button", { name }).boundingBox();
+      await onScreen(page, name, box);
+      expect(box!.height, name).toBeGreaterThanOrEqual(44);
+      expect(box!.width, name).toBeGreaterThanOrEqual(44);
+      if (side.twoRows) expect(box!.y, `${name} under ours`).toBeGreaterThan(ours!.y + ours!.height - 1);
     }
   });
 }
