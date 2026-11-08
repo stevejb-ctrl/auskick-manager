@@ -151,7 +151,8 @@ test("#9 netball's player sheet says subs happen at the break", async ({ browser
   const { game } = await inFirstPeriod("netball");
   const { context, page } = await parentPhone(browser);
   await openLive(page, `/run/${game.share_token}`);
-  await page.getByRole("button", { name: /^Goal Shooter,/ }).click({ delay: 600 });
+  // The kid's name comes first, then the bib (tileName, #169).
+  await page.getByRole("button", { name: /^[^,]+, Goal Shooter\b/ }).click({ delay: 600 });
   await expect(page.getByTestId("lock-modal-note")).toContainText("Netball subs happen at the break");
   await context.close();
 });
@@ -168,7 +169,8 @@ test("#12 the availability link can clear a wrong answer", async ({ browser }) =
   await waitForHydration(page);
   const kid = players[0];
   const label = kidLabel(kid.full_name);
-  await page.getByRole("group", { name: `${label} availability` }).getByRole("button", { name: /^in$/i }).click();
+  // In / Out is a radio group (keyboard and screen-reader pass, #169).
+  await page.getByRole("radiogroup", { name: `${label} availability` }).getByRole("radio", { name: /^in$/i }).click();
   const status = async () =>
     (await admin.from("game_availability").select("status, replied_at").eq("game_id", game.id).eq("player_id", kid.id).maybeSingle()).data;
   await expect.poll(async () => (await status())?.status, { timeout: 10_000 }).toBe("available");
@@ -219,7 +221,7 @@ test("#10 at 200% text a netball court name isn't cut to a letter, and the hint 
     }),
   );
   await openLive(page, `/run/${game.share_token}`);
-  const token = page.getByRole("button", { name: /^Goal Shooter,/ });
+  const token = page.getByRole("button", { name: /^[^,]+, Goal Shooter\b/ });
   const name = token.getByText(players[0].full_name.split(" ")[0], { exact: false }).first();
   const cut = await name.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
   expect(cut).toBe(false);

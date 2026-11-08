@@ -194,9 +194,10 @@ test("live AFL: the scorer sheet", async ({ page }, testInfo) => {
   await open(page, url);
   await page.getByTestId(`player-tile-${players[9].id}`).click();
   await expect(page.getByRole("button", { name: /\+ goal/i })).toBeVisible();
-  // The dock's words; the field behind it is dimmed on purpose.
+  // The dock's words (its heading is the kid's name now, #169); the
+  // field behind it is dimmed on purpose.
   await page
-    .getByText(/^Record score for/)
+    .getByRole("button", { name: /\+ goal/i })
     .locator("xpath=ancestor::div[contains(@class, 'shadow-modal')][1]")
     .evaluate((el) => el.setAttribute("data-e2e-sample", ""));
   await expectDarkAndReadable(page, testInfo, "live-afl-scorer", "[data-e2e-sample]");
