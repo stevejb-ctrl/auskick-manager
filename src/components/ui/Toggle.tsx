@@ -32,12 +32,14 @@ export function Toggle({ checked, onChange, disabled, label }: ToggleProps) {
           "group-focus-visible:ring-2 group-focus-visible:ring-brand-600 group-focus-visible:ring-offset-2",
           // Pressed feedback (UX plan Phase 6: active states on chips).
           "motion-safe:group-active:scale-[0.97]",
-          checked ? "bg-brand-600" : "bg-surface-alt",
+          // Off is ink-mute, not a pale track, so the switch shows on the
+          // page (3:1) without a shadow; the knob is chalk in both themes.
+          checked ? "bg-brand-600" : "bg-ink-mute",
         ].join(" ")}
       >
         <span
           className={[
-            "absolute h-4 w-4 rounded-full bg-surface shadow-card transition-all duration-base ease-out-quart",
+            "absolute h-4 w-4 rounded-full bg-mark transition-all duration-base ease-out-quart",
             checked ? "left-6" : "left-1",
           ].join(" ")}
         />

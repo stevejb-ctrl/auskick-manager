@@ -47,8 +47,9 @@ const HEIGHT: Record<Size, string> = {
  *   2. **Routed nav** — pass `href` on each option; the active option
  *      is determined by the parent (typically via `usePathname`).
  *
- * Colour: active tab is `surface` on a `surface-alt` track, with
- * `shadow-card`. Inactive tabs are `text-ink-dim`.
+ * Colour: the active tab is the filled primary (ink on the chalk page,
+ * chalk at night) on a `surface-alt` track, as the v3 segmented control
+ * draws it. Inactive tabs are `text-ink-dim`.
  */
 export function SegTabs({
   options,
@@ -99,7 +100,7 @@ export function SegTabs({
           ${HEIGHT[size]}
           ${full ? "flex-1" : ""}
           ${active
-            ? "bg-surface text-ink shadow-card"
+            ? "bg-primary text-on-primary"
             : "bg-transparent text-ink-dim hover:text-ink"
           }
         `;
