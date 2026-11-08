@@ -15,6 +15,7 @@ import { gotoStable, waitForHydration } from "../helpers/navigation";
 import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
 import { aflPositionModel, getAgeGroupConfig } from "../../src/lib/sports";
 import type { Lineup } from "../../src/lib/types";
+import { openScoresFromHeader } from "../helpers/liveShell";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -72,7 +73,8 @@ test("AFL: a game manager takes off a wrong goal mid-quarter and the score on th
     await waitForHydration(page);
     await expect(ourTotal(page)).toHaveText("122·0", { timeout: 15_000 });
 
-    await page.getByTestId("live-fix-scores").click({ timeout: 15_000 });
+    // AFL's live v3 header: tap the score for Scores and fixes.
+    await openScoresFromHeader(page);
     const sheet = page.getByRole("dialog", { name: "Scores and fixes" });
     // Q-by-Q first: two goals in the quarter in play.
     await expect(sheet.getByRole("table")).toContainText("2.0");

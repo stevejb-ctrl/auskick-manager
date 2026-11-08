@@ -4,10 +4,15 @@
 // (it was a link to team settings, which left the game: usability pass,
 // 26 Oct 2026); runners on a share link just get the note. Netball's
 // case is in netball-live-flow.spec.ts (NETBALL-04).
+//
+// AFL's live v3 shell (Phase 5) says it in the score header ("No score
+// kept", where the score would be), and a team admin turns it on from
+// the ⋯ menu, still in the game.
 
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { openGameMenu } from "../helpers/liveShell";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -16,7 +21,7 @@ async function superAdminId(admin: ReturnType<typeof createAdminClient>) {
   return data.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
 }
 
-test("AFL: scoring off is said on the live score bar, and turns on without leaving the game", async ({ page }) => {
+test("AFL: scoring off is said in the live score header, and turns on from ⋯ without leaving the game", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
   const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
@@ -37,19 +42,23 @@ test("AFL: scoring off is said on the live score bar, and turns on without leavi
   });
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.getByText("Scoring is off")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("scores-not-kept")).toHaveText("No score kept", { timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^add goal, /i })).toHaveCount(0);
   const live = page.url();
 
-  // A runner on the share link sees the note, not the button.
+  // A runner on the share link sees the note, not the switch.
   const { data: g } = await admin.from("games").select("share_token").eq("id", game.id).single();
   await page.goto(`/run/${g!.share_token}`);
-  await expect(page.getByText("Scoring is off")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole("button", { name: "Turn it on" })).toHaveCount(0);
+  await expect(page.getByTestId("scores-not-kept")).toBeVisible({ timeout: 15_000 });
+  const runnerMenu = await openGameMenu(page);
+  await expect(runnerMenu.getByRole("button", { name: "How the live screen works" })).toBeVisible();
+  await expect(runnerMenu.getByRole("button", { name: "Turn scoring on" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
 
   // The coach turns it on, and stays in the game.
   await page.goto(live);
-  await page.getByRole("button", { name: "Turn it on" }).click({ timeout: 15_000 });
-  await expect(page.getByText("Scoring is off")).toHaveCount(0, { timeout: 15_000 });
+  await (await openGameMenu(page)).getByRole("button", { name: "Turn scoring on" }).click();
+  await expect(page.getByTestId("scores-not-kept")).toHaveCount(0, { timeout: 15_000 });
   await expect(page.getByRole("button", { name: /^add goal, /i }).first()).toBeVisible();
   expect(page.url()).toBe(live);
   const { data: t } = await admin.from("teams").select("track_scoring").eq("id", team.id).single();

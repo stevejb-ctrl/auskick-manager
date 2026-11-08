@@ -91,8 +91,11 @@ const PIECES: Record<Piece, (s: string) => boolean> = {
     !/<SwapConfirmDialog\b/.test(s) &&
     !/confirmSwap/.test(s) &&
     (!/useLiveChrome\(/.test(s) || /\.overlays\}/.test(s)),
-  // Game settings (the sub interval) is a standard slot of the row.
-  settingsInRow: (s) => blocks(s, "LiveAdminUtilityRow").some((b) => /settings=\{/.test(b)),
+  // Game settings (the sub interval) is a standard slot of the row, or,
+  // on live v3's shell (AFL first), of the ⋯ game menu.
+  settingsInRow: (s) =>
+    blocks(s, "LiveAdminUtilityRow").some((b) => /settings=\{/.test(b)) ||
+    blocks(s, "LiveGameMenu").some((b) => /settings=\{/.test(b)),
   // Score, undo and swap show at once: the AFL store, or optimistic
   // events over the replay — never a wait on the server first. League
   // reads the AFL store for its plan pin only, so the store alone
@@ -111,8 +114,10 @@ const PIECES: Record<Piece, (s: string) => boolean> = {
   // One Scores and fixes sheet (live/ScoresSheet) for whoever runs the
   // game, opened from the utility row: the shared chrome's, or AFL's and
   // netball's own with their Q-by-Q table (live v3, Steve 8 Nov 2026).
+  // On v3's shell the ⋯ menu and the score header open it.
   scoresSheet: (s) =>
     blocks(s, "LiveAdminUtilityRow").every((b) => /onScores=\{/.test(b)) &&
+    blocks(s, "LiveGameMenu").every((b) => /onScores=\{/.test(b)) &&
     (/<ScoresSheet\b/.test(s) || /onScores=\{chrome\.openScores\}/.test(s)),
 };
 

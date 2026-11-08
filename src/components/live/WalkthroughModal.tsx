@@ -106,7 +106,7 @@ export function buildWalkthroughSteps(trackScoring: boolean): WalkthroughStep[] 
     steps.push({
       emoji: "⚽",
       title: "Recording scores",
-      body: "Tap a field player, then tap + GOAL or + BEHIND at the bottom to credit them — their score appears on their tile. For the opposition, tap the + beside their score in the header. Made a mistake? Tap Undo on the strip above the scoreboard to take back the latest score.",
+      body: "Tap + GOAL at the bottom and pick who scored (or tap a field player first) — their score appears on their tile. For the opposition, tap their +G or +B at the bottom right. Made a mistake? Tap Undo on the line under the score, or tap the score itself to fix any of them.",
     });
   }
 

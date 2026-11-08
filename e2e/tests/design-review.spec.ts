@@ -79,9 +79,13 @@ test("04: our score buttons are filled and theirs outlined", async ({ browser })
   const ours = await bg(`Add goal, ${teamName}`);
   const theirs = await bg("Add goal, Sharks");
   expect(ours).not.toBe(theirs);
-  // Theirs is the surface white; ours is the brand fill.
-  expect(theirs).toBe("rgb(255, 255, 255)");
-  await expect(page.getByRole("button", { name: "Scores by quarter" })).toContainText("Scores");
+  // Live v3's bar: ours is the one filled primary; theirs are text
+  // buttons, nothing behind them.
+  expect(ours).not.toBe("rgba(0, 0, 0, 0)");
+  expect(theirs).toBe("rgba(0, 0, 0, 0)");
+  // The score itself opens Scores and fixes (it was a "Scores" button
+  // under the clock).
+  await expect(page.getByRole("button", { name: /^Scores and fixes\./ }).first()).toBeVisible();
   await context.close();
 });
 

@@ -67,108 +67,90 @@ export function QuarterEndModal({
 }: QuarterEndModalProps) {
   const isLastQuarter = quarter >= periodCount;
   const { endCue } = getSportConfig(SPORT).words;
+  // Live v3's siren sheet: a hi-vis rule across its top (it's forced: it
+  // waits on the coach), the score on the field green, then "Score on
+  // the siren?" with each side's +G / +B, and the one way on, hi-vis.
+  const lateButton =
+    "inline-flex min-h-[46px] flex-1 items-center justify-center rounded-[12px] bg-transparent font-display text-[1.0625rem] font-extrabold text-ink shadow-[inset_0_0_0_1.5px_rgb(var(--l-hairline))] transition-colors duration-fast ease-out-quart hover:bg-surface-alt disabled:pointer-events-none disabled:opacity-60";
+  const side = "min-w-0 rounded-[14px] bg-surface p-[6px] shadow-[inset_0_0_0_1.5px_rgb(var(--l-hairline))]";
+  const sideLabel = "mb-[4px] ml-[4px] block truncate font-display text-[0.65625rem] font-extrabold uppercase tracking-[0.1em] text-ink-mute";
   return (
-    <Modal>
-      <h2 className="text-center text-lg font-bold text-ink">
+    <Modal className="border-t-[5px] border-hivis" label={`Quarter ${quarter} complete`}>
+      <p className="font-display text-micro font-extrabold uppercase tracking-[0.14em] text-ink-mute">The {endCue}</p>
+      <h2 className="font-display stretch-75 text-[1.5625rem] font-black uppercase leading-[1.02] text-ink">
         Quarter {quarter} complete
       </h2>
-      <p className="mt-1 text-center text-sm text-ink-dim">
-        {periodEndLine(SPORT, "quarter", quarter, periodCount)}
-      </p>
+      <p className="mt-1 text-[0.8125rem] text-ink-dim">{periodEndLine(SPORT, "quarter", quarter, periodCount)}</p>
 
-      {/* Embedded mini-scorebug — mirrors the in-play GameHeader
-          rhythm (small team label, big total + small G·B, +G/+B
-          chips below) but in a card-on-modal layout. Both teams
-          have full +G/+B chips so a "goal on the siren" can be
-          attributed for either side without leaving this modal. */}
-      <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-start gap-2 rounded-md bg-surface-alt px-3 py-3">
-        {/* Home team */}
-        <div className="min-w-0">
-          <p className="truncate font-mono text-nano font-bold uppercase tracking-micro text-ink-dim">
-            {teamName}
-          </p>
-          <p className="nums mt-0.5 flex items-baseline gap-1.5 font-mono leading-none text-ink">
-            <span className="text-sm font-semibold text-ink-dim">
-              {teamScore.goals}
-              <span className="text-ink-mute">·</span>
-              {teamScore.behinds}
-            </span>
-            <span className="text-2xl font-bold tracking-tightest">
-              {points(teamScore)}
-            </span>
-          </p>
-          {trackScoring && onTeamLateScore && (
-            <div className="mt-1.5 flex gap-1.5">
-              <button
-                type="button"
-                onClick={() => onTeamLateScore("goal")}
-                disabled={loading}
-                className="rounded-md bg-surface px-2.5 py-1.5 font-mono text-xs font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
-              >
-                +G
-              </button>
-              <button
-                type="button"
-                onClick={() => onTeamLateScore("behind")}
-                disabled={loading}
-                className="rounded-md bg-surface px-2.5 py-1.5 font-mono text-xs font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
-              >
-                +B
-              </button>
+      {trackScoring ? (
+        <>
+          {/* The score as the siren went: on the field's green. */}
+          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-[6px] rounded-[16px] bg-field px-[12px] py-[10px] text-mark">
+            <div className="min-w-0">
+              <span className="block truncate font-display text-[0.75rem] font-extrabold uppercase tracking-[0.06em] text-mark/85">{teamName}</span>
+              <b className="nums block font-display stretch-62 text-[34px] font-black leading-[0.95] text-sun">{points(teamScore)}</b>
+              <span className="nums font-display text-[0.75rem] font-extrabold text-mark/85">
+                {teamScore.goals}.{teamScore.behinds}
+              </span>
             </div>
-          )}
-        </div>
-
-        {/* Center label: indicates the quarter just ended. */}
-        <div className="flex flex-col items-center justify-center self-center px-1">
-          <span className="font-mono text-nano font-bold uppercase tracking-micro text-ink-mute">
-            on the
-          </span>
-          <span className="font-mono text-nano font-bold uppercase tracking-micro text-ink">
-            {endCue}
-          </span>
-        </div>
-
-        {/* Opponent — mirror of home */}
-        <div className="min-w-0 text-right">
-          <p className="truncate font-mono text-nano font-bold uppercase tracking-micro text-ink-dim">
-            {opponentName}
-          </p>
-          <p className="nums mt-0.5 flex items-baseline justify-end gap-1.5 font-mono leading-none text-ink">
-            <span className="text-2xl font-bold tracking-tightest">
-              {points(opponentScore)}
-            </span>
-            <span className="text-sm font-semibold text-ink-dim">
-              {opponentScore.goals}
-              <span className="text-ink-mute">·</span>
-              {opponentScore.behinds}
-            </span>
-          </p>
-          {trackScoring && onOpponentLateScore && (
-            <div className="mt-1.5 flex justify-end gap-1.5">
-              <button
-                type="button"
-                onClick={() => onOpponentLateScore("goal")}
-                disabled={loading}
-                className="rounded-md bg-surface px-2.5 py-1.5 font-mono text-xs font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
-              >
-                +G
-              </button>
-              <button
-                type="button"
-                onClick={() => onOpponentLateScore("behind")}
-                disabled={loading}
-                className="rounded-md bg-surface px-2.5 py-1.5 font-mono text-xs font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-hairline hover:text-ink disabled:pointer-events-none disabled:opacity-60"
-              >
-                +B
-              </button>
+            <em className="text-center font-display text-[0.6875rem] font-extrabold uppercase not-italic leading-tight tracking-[0.12em] text-hivis">
+              on the
+              <br />
+              {endCue}
+            </em>
+            <div className="min-w-0 text-right">
+              <span className="block truncate font-display text-[0.75rem] font-extrabold uppercase tracking-[0.06em] text-mark/85">{opponentName}</span>
+              <b className="nums block font-display stretch-62 text-[34px] font-black leading-[0.95] text-mark">{points(opponentScore)}</b>
+              <span className="nums font-display text-[0.75rem] font-extrabold text-mark/85">
+                {opponentScore.goals}.{opponentScore.behinds}
+              </span>
             </div>
+          </div>
+
+          {(onTeamLateScore || onOpponentLateScore) && (
+            <>
+              <p className="mx-[2px] mb-[5px] mt-[12px] font-display text-[0.65625rem] font-extrabold uppercase tracking-[0.14em] text-ink-mute">
+                Score on the {endCue}?
+              </p>
+              <div className="grid grid-cols-2 gap-[8px]">
+                <div className={side}>
+                  <span className={sideLabel}>{teamName}</span>
+                  {onTeamLateScore && (
+                    <div className="flex gap-[6px]">
+                      <button type="button" onClick={() => onTeamLateScore("goal")} disabled={loading} className={lateButton} aria-label={`Goal on the ${endCue}, ${teamName}`}>
+                        +G
+                      </button>
+                      <button type="button" onClick={() => onTeamLateScore("behind")} disabled={loading} className={lateButton} aria-label={`Behind on the ${endCue}, ${teamName}`}>
+                        +B
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div className={side}>
+                  <span className={sideLabel}>{opponentName}</span>
+                  {onOpponentLateScore && (
+                    <div className="flex gap-[6px]">
+                      <button type="button" onClick={() => onOpponentLateScore("goal")} disabled={loading} className={lateButton} aria-label={`Goal on the ${endCue}, ${opponentName}`}>
+                        +G
+                      </button>
+                      <button type="button" onClick={() => onOpponentLateScore("behind")} disabled={loading} className={lateButton} aria-label={`Behind on the ${endCue}, ${opponentName}`}>
+                        +B
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
           )}
-        </div>
-      </div>
+        </>
+      ) : (
+        <p className="mt-3 rounded-[12px] bg-surface-alt px-[10px] py-[8px] text-[0.8125rem] text-ink-dim">
+          Q{quarter} is over. No score kept.
+        </p>
+      )}
 
       <div className="mt-4">
-        <Button className="w-full" size="lg" onClick={onConfirm} loading={loading}>
+        <Button className="w-full !bg-hivis !text-hivis-ink hover:!bg-hivis/90" size="lg" onClick={onConfirm} loading={loading}>
           {isLastQuarter ? "End game" : `Select team for Q${quarter + 1}`}
         </Button>
       </div>

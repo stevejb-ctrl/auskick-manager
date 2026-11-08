@@ -17,6 +17,7 @@ import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
 import { finishedGame, playPeriod, fullTime } from "../helpers/finished-game";
+import { openScoresFromHeader } from "../helpers/liveShell";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -178,7 +179,8 @@ test("a game-day link is titled with the game, and can fix scores while it's on"
   await openLive(page, `/run/${owner!.share_token}`);
   await expect(page).toHaveTitle(/ v Sharks · Siren$/);
 
-  await page.getByTestId("live-fix-scores").click();
+  // Live v3: the runner taps the score too.
+  await openScoresFromHeader(page);
   const dialog = page.getByRole("dialog", { name: "Scores and fixes" });
   await expect(dialog.getByTestId("fix-scores-total")).toContainText("12 – 0");
   await context.close();

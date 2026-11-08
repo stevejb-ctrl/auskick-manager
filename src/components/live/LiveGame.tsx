@@ -1,6 +1,6 @@
 "use client";
 
-import { SFButton, SFIcon } from "@/components/sf";
+import { SFButton } from "@/components/sf";
 import { useOtherPhoneScores } from "@/components/live/useOtherPhoneScores";
 import { WENT_HOME_REASON } from "@/lib/live/wentHome";
 import { useRouter } from "next/navigation";
@@ -8,6 +8,7 @@ import { startTransition, useEffect, useMemo, useRef, useState, useTransition } 
 import dynamic from "next/dynamic";
 import {
   clockElapsedMs,
+  formatClock,
   useLiveGame,
 } from "@/lib/stores/liveGameStore";
 import { enqueueLiveAction, pendingWriteCount } from "@/lib/live/registerLiveActions";
@@ -24,10 +25,13 @@ import { SwapDoneToast } from "@/components/live/SwapDoneToast";
 import { undoSwaps } from "@/lib/live/liveChrome";
 import { useSquadNames } from "@/components/live/SquadNames";
 import { SwapCard } from "@/components/live/SwapCard";
-import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
-import { LiveGameSettingsButton } from "@/components/live/LiveGameSettingsButton";
 import { DOCK_SWAP_HINT, ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
-import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
+import { LiveShell } from "@/components/live/LiveShell";
+import { LiveGameMenu, settingsSummary } from "@/components/live/LiveGameMenu";
+import { StartQuarterModal } from "@/components/live/StartQuarterModal";
+import { AflWalkthroughOffer } from "@/components/live/WalkthroughOffer";
+import { reopenLineup } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
+import { emptyLineup } from "@/lib/types";
 import { QuarterBreak } from "@/components/live/QuarterBreak";
 import { buildWalkthroughSteps } from "@/components/live/WalkthroughModal";
 import { ClockMenu } from "@/components/live/ClockMenu";
@@ -137,7 +141,7 @@ import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
 import { UndoStrip } from "@/components/live/UndoStrip";
 import { AFL_SCORE_TYPES, stackIds, stackRef, undoStack, type StackScore } from "@/lib/live/undoStack";
-import { requestLiveSync } from "@/lib/live/liveSync";
+import { noteLiveResult, requestLiveSync } from "@/lib/live/liveSync";
 // YT IFrame API + playSong logic lives in `@/lib/live/useHypeSong`
 // since 2026-05-16 (extracted for AFL/netball parity). The hook
 // owns the refs, lifecycle, and trigger function.
@@ -416,6 +420,10 @@ export function LiveGame({
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   // The clock pill opens the clock menu (pause / resume / end now).
   const [clockMenuOpen, setClockMenuOpen] = useState(false);
+  // Live v3: the ⋯ game menu (LiveGameMenu), and Start Q1's confirm on
+  // the pre-kickoff bar.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [startQ1Open, setStartQ1Open] = useState(false);
 
   const [hydrated, setHydrated] = useState(false);
   // Tracks whether the init effect has populated the store for this
@@ -1298,13 +1306,45 @@ export function LiveGame({
     ]);
   }
 
-  // handleStartFirstQuarter removed (Steve 2026-05-13): the kickoff
-  // modal that called it now lives inside LineupPicker, which
-  // commits lineup_set + quarter_start atomically via
-  // startGame(..., startQuarterToo=true). When LiveGame mounts
-  // afterwards, init()'s fresh-mount auto-resume branch picks up
-  // the quarter_start timestamp and starts the clock. No
-  // separate handler needed here.
+  // Start Q1 from the pre-kickoff bar (live v3, B4): the lineup picker's
+  // Ready set the lineup and brought the coach here; the confirm's
+  // "Start Q1 now" is the siren. As the break's Start does: the write
+  // goes on the queue (no signal, it sends later), the quarter starts on
+  // this phone at once, and the page refreshes once it's saved.
+  function handleStartFirstQuarter() {
+    setStartQ1Open(false);
+    setError(null);
+    // Unlock audio inside this tap, before any await (the team song).
+    primeSong();
+    const { flushed } = enqueueLiveAction("startQuarter", [auth, gameId, 1]);
+    if (useLiveGame.getState().currentQuarter < 1) beginNextQuarter();
+    startClock();
+    void hapticTap("medium");
+    flushed
+      .then(() => startTransition(() => router.refresh()))
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Couldn't start Q1."));
+  }
+
+  // ⋯ → Edit lineup, before kickoff: back to the picker with the lineup
+  // as set (reopenLineup). The store goes back to its defaults, as
+  // Restart's does, so the next Ready starts clean.
+  function handleEditLineup() {
+    setError(null);
+    startTransition(async () => {
+      const result = await reopenLineup(auth, gameId).catch(() => ({
+        success: false as const,
+        error: "Couldn't open the lineup — try again.",
+      }));
+      noteLiveResult(result);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      useLiveGame.getState().init({ activeGameId: gameId, currentQuarter: 0, lineup: emptyLineup() });
+      if (auth.kind === "token") window.location.assign(`/run/${auth.token}/lineup`);
+      else router.refresh();
+    });
+  }
 
   // A pause or resume is saved (clock_pause), so a reload or another
   // phone keeps it (lib/live/clockPause).
@@ -1829,32 +1869,421 @@ export function LiveGame({
     />
   );
 
+  // ─── Live v3's shell (Phase 5) ─────────────────────────────
+  // Before kickoff and through the quarter the screen is LiveShell: top
+  // bar, the light score header, the undo line, the next sub, the field
+  // (the part that scrolls), the bench, and the bar. The old Field,
+  // Bench, SwapCard and the kid's dock sit inside it for now (Phase 6
+  // replaces them). Full time and the finished game keep their page.
+  const swapOffs = new Map<string, number>();
+  const swapOns = new Map<string, { pair: number; zone: Zone }>();
+  if (!selected) {
+    suggestions.forEach((s, i) => {
+      if (s.off_player_id) swapOffs.set(s.off_player_id, i + 1);
+      swapOns.set(s.on_player_id, { pair: i + 1, zone: s.zone });
+    });
+  }
+  const totalPairs = suggestions.length;
+
+  const swapCard =
+    !isPreGame && !isFinished ? (
+      <SwapCard
+        suggestions={suggestions}
+        autoSuggestions={rawSuggestions}
+        playersById={playersById}
+        lineup={lineup}
+        injuredIds={injuredIds}
+        loanedIds={loanedIds}
+        lockedIds={lockedIds}
+        pending={isPending}
+        subState={subState}
+        forceOpen={subDueOpen}
+        msUntilDue={msUntilDue}
+        subIntervalMs={subIntervalMs}
+        pastHooterCarry={pastHooterCarry}
+        onOverride={(nextSwaps) => {
+          // Inline override → SAME pin wire as the Plan-Ahead
+          // planner. When the edit matches the engine pick again
+          // (e.g. the coach reverted every chip), drop the pin so
+          // the live suggester takes back over. Otherwise pin the
+          // edited array, preserving any F2 next-period plan on
+          // the shared slice.
+          if (swapsEqual(nextSwaps, rawSuggestions)) {
+            setPlannedRotation(withoutSubPin(pinForThisGame));
+            return;
+          }
+          setPlannedRotation({
+            ...(pinForThisGame ?? {}),
+            gameId,
+            pinnedForPeriod: currentQuarter,
+            pinnedSwaps: nextSwaps,
+          });
+        }}
+        onApply={() => {
+          for (const s of suggestions) {
+            persistSwap(s.off_player_id, s.on_player_id, s.zone);
+          }
+          // The toast's Undo puts them back, last first, without
+          // restarting the sub clock again (undoSwaps).
+          const undo = undoSwaps(
+            suggestions.map((s) => ({ off: s.off_player_id, on: s.on_player_id, zone: s.zone })),
+            (s) => persistSwap(s.off, s.on, s.zone, false, 0, true),
+          );
+          if (suggestions.length === 1) {
+            const s = suggestions[0];
+            showSwapToast(`${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`, undo);
+          } else if (suggestions.length > 1) {
+            showSwapToast(`${suggestions.length} subs made`, undo);
+          }
+          // The pinned plan-ahead sub (if any) has now been
+          // applied — consume it so it can't re-fire next window.
+          // Planned periods stay.
+          setPlannedRotation(withoutSubPin(pinForThisGame));
+          handleSubDueAcknowledge();
+        }}
+        onApplyOne={(s) => {
+          // One of a due batch: the rest stay due until they're
+          // made (the sub clock holds; soccer's rule).
+          persistSwap(s.off_player_id, s.on_player_id, s.zone, true, subState === "due" ? suggestions.length - 1 : 0);
+          showSwapToast(`${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`);
+        }}
+      />
+    ) : null;
+
+  // Plan Q{n+1} (F2 / ROTPLAN-02): offered once the rest of this period
+  // won't churn the lineup (canPlanNextPeriod). It's in ⋯ too; here it's
+  // the small chip at the end of the info line, as v3 draws it, with the
+  // "ready" badge and Clear once a plan's pinned.
+  const planLabel = hasPinnedNextPeriod ? `Edit Q${currentQuarter + 1} plan` : `Plan Q${currentQuarter + 1}`;
+  const planRow = showPlanNextPeriod ? (
+    <div className="flex items-center justify-end gap-2 px-1 pt-[4px]">
+      {hasPinnedNextPeriod && (
+        <span className="mr-auto flex items-center gap-1 rounded-[11px] px-[8px] py-[4px] text-brand-700 shadow-[inset_0_0_0_1.5px_currentColor]">
+          <span
+            data-testid="planned-next-period-badge"
+            className="font-display text-[0.78125rem] font-extrabold"
+          >
+            Next period ready
+          </span>
+          <button
+            type="button"
+            data-testid="plan-next-clear"
+            onClick={() => setPlannedRotation(consumePeriodPin(pinForThisGame, currentQuarter))}
+            className="inline-flex min-h-[28px] items-center px-1 font-display text-[0.75rem] font-extrabold underline underline-offset-2"
+          >
+            Clear
+          </button>
+        </span>
+      )}
+      <button
+        type="button"
+        data-testid="plan-next-period-entry"
+        onClick={() => setPlanNextOpen(true)}
+        className="inline-flex min-h-[36px] items-center rounded-[11px] px-[10px] font-display text-[0.78125rem] font-extrabold text-ink shadow-[inset_0_0_0_1.5px_rgb(var(--l-hairline))] hover:bg-surface-alt"
+      >
+        {planLabel}
+      </button>
+    </div>
+  ) : null;
+
+  // No colour key here (UI polish audit §13): zone identity is told in
+  // place on the live screen (Steve 2026-06-29).
+  const fieldEl = (
+    <Field
+      playersById={playersById}
+      onTapField={handleTapField}
+      swapOffs={swapOffs}
+      swapDue={subState === "due"}
+      totalMsByPlayer={totalMsByPlayer}
+      zoneMsByPlayer={zoneMsByPlayer}
+      displayZoneCaps={displayZoneCaps}
+      chipModeByKey={chipModeByKey}
+      injuredIds={injuredIds}
+      lockedIds={lockedIds}
+      zoneLockedPlayers={zoneLockedPlayers}
+      onLongPress={handleLongPress}
+      zoneCaps={zoneCaps}
+      positionModel={positionModel}
+      wakeUpKey={fieldWakeUpKey}
+      playerScores={playerScores}
+      totalPairs={totalPairs}
+      positionLabels={assignPositionLabels(lineup, aflPlaybook)}
+    />
+  );
+  const benchEl = (
+    <Bench
+      playersById={playersById}
+      onTapBench={handleTapBench}
+      swapOns={swapOns}
+      totalMsByPlayer={totalMsByPlayer}
+      zoneMsByPlayer={zoneMsByPlayer}
+      injuredIds={injuredIds}
+      wentHomeIds={wentHomeSet}
+      loanedIds={loanedIds}
+      lockedIds={lockedIds}
+      zoneLockedPlayers={zoneLockedPlayers}
+      onLongPress={handleLongPress}
+      playerScores={playerScores}
+      totalPairs={totalPairs}
+    />
+  );
+
+  // A kid picked: the dock takes the bar's place (v3's kid bar, Phase 6).
+  const dock =
+    selected && !isPreGame && !isFinished
+      ? (() => {
+          const pid = selected.playerId;
+          const p = playersById.get(pid);
+          const name = p ? `${p.jersey_number != null ? `#${p.jersey_number} ` : ""}${p.full_name}` : "player";
+          return (
+            <ScoreRecordingDock
+              inline
+              swapHint={DOCK_SWAP_HINT}
+              heading={<span className="text-ink">{name}</span>}
+              onCancel={() => clearSelection()}
+              onPlayerActions={() => {
+                clearSelection();
+                handleLongPress(pid);
+              }}
+              actions={
+                <>
+                  {canScore && (
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleScore("goal")}
+                        disabled={isPending}
+                        className="min-h-[48px] flex-1 rounded-[14px] bg-primary font-display stretch-75 text-base font-extrabold uppercase text-on-primary transition-colors duration-fast ease-out-quart hover:bg-primary/90 disabled:opacity-60"
+                      >
+                        + Goal
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleScore("behind")}
+                        disabled={isPending}
+                        className="min-h-[48px] flex-1 rounded-[14px] bg-transparent font-display stretch-75 text-base font-extrabold uppercase text-ink shadow-[inset_0_0_0_1.5px_rgb(var(--l-hairline))] transition-colors duration-fast ease-out-quart hover:bg-surface-alt disabled:opacity-60"
+                      >
+                        + Behind
+                      </button>
+                    </div>
+                  )}
+                  {selected.kind === "bench" && (
+                    <p className="text-xs text-ink-dim">Tap a field player to swap {p ? names.first(p) : "them"} on.</p>
+                  )}
+                  {/* Swap player: a bench kid (a sub) or a field kid in
+                      another zone (a rotation), from one list. */}
+                  {selected.kind === "field" && (
+                    <button
+                      type="button"
+                      onClick={() => setSubOffSelected({ playerId: selected.playerId, zone: selected.zone })}
+                      disabled={isPending}
+                      className={`${canScore ? "mt-2 " : ""}min-h-[44px] w-full rounded-[14px] bg-transparent text-sm font-semibold text-ink shadow-[inset_0_0_0_1.5px_rgb(var(--l-hairline))] transition-colors duration-fast ease-out-quart hover:bg-surface-alt disabled:opacity-60`}
+                    >
+                      Swap player
+                    </button>
+                  )}
+                </>
+              }
+            />
+          );
+        })()
+      : null;
+
+  // The pre-kickoff bar: the first-visit tour offer, then Start Q1, the
+  // same place every sport starts from. Hi-vis: it's the "act now".
+  const preKickoffBar = (
+    <div className="flex flex-col gap-[6px]">
+      <AflWalkthroughOffer trackScoring={trackScoring} />
+      <button
+        type="button"
+        onClick={() => setStartQ1Open(true)}
+        disabled={isPending}
+        aria-label="Start Q1"
+        className="flex min-h-[58px] w-full flex-col items-center justify-center gap-[3px] rounded-[16px] bg-hivis px-[8px] font-display stretch-75 text-[1.1875rem] font-extrabold uppercase leading-none text-hivis-ink transition-[background-color,transform] duration-tap ease-out-quart hover:bg-hivis/90 motion-safe:active:scale-[0.98] disabled:opacity-60"
+      >
+        Start Q1
+        <span className="font-sans text-[0.6875rem] font-normal normal-case opacity-80">the clock starts when you confirm</span>
+      </button>
+    </div>
+  );
+  const onFieldNow = ALL_ZONES.reduce((n, z) => n + lineup[z].length, 0);
+  // Scoring off: nothing to score, so the bar just says where things are.
+  const scoringOffBar = (
+    <p className="flex min-h-[58px] items-center px-[2px] text-[0.8125rem] text-ink-mute">
+      <span>
+        <b className="block font-display stretch-75 text-[1.125rem] font-extrabold text-ink">{teamName}</b>
+        Tap any kid for swaps and player actions.
+      </span>
+    </p>
+  );
+  const shellBar = isPreGame
+    ? preKickoffBar
+    : dock ??
+      (trackScoring ? (
+        <GameHeader
+          part="bar"
+          teamName={teamName}
+          opponentName={opponentName}
+          trackScoring={trackScoring}
+          onTeam={(kind) => setPickScorerKind(kind)}
+          onOpponent={handleOpponent}
+          running={running}
+          isPreGame={isPreGame}
+          isFinished={isFinished}
+          clockMultiplier={clockMultiplier}
+          quarterMs={quarterMs}
+          periodCount={ageGroup.periodCount}
+          isPending={isPending}
+        />
+      ) : (
+        scoringOffBar
+      ));
+
+  const shellHeader = (
+    <GameHeader
+      part="header"
+      teamName={teamName}
+      opponentName={opponentName}
+      trackScoring={trackScoring}
+      onClockTap={handleClockTap}
+      running={running}
+      isPreGame={isPreGame}
+      isFinished={isFinished}
+      clockMultiplier={clockMultiplier}
+      quarterMs={quarterMs}
+      periodCount={ageGroup.periodCount}
+      isPending={isPending}
+      clockPulseKey={clockPulseKey}
+      subDue={subState === "due"}
+      // Tap the score: Scores and fixes, for whoever's running the game.
+      onScores={trackScoring && !isPreGame ? () => setScoresOpen(true) : undefined}
+    />
+  );
+
+  const lateCandidates = !isFinished
+    ? squadPlayers.filter((p) => !lineup.bench.includes(p.id) && !ALL_ZONES.some((z) => lineup[z].includes(p.id)))
+    : [];
+  const roundWord = game.round_number != null ? `Round ${game.round_number}` : null;
+  const topSubline = isPreGame
+    ? [roundWord, game.location].filter(Boolean).join(" · ") || `${getSportConfig("afl").shortName} ${ageGroup.id}`
+    : [roundWord, `${getSportConfig("afl").shortName} ${ageGroup.id}`].filter(Boolean).join(" · ");
+  const whoRuns = auth.kind === "token" ? "Game-day link" : isAdmin ? "Team admin" : "Game manager";
+
   return (
-    // 16px section rhythm on the 4/8/16/24/32 scale (design session
-    // 17 Oct 2026; was 12).
     <div className="ui-nonselect space-y-4">
-      {/* Sub due: the swap card is the one alert (design session 17
-          Oct 2026 — one event, one voice). The banner under the bar
-          shows only in the rare due moment with no card on screen
-          (no renderable suggestion), so there's always exactly one. */}
-      {exitHref ? (
-        <LiveTopBar
-          exitHref={exitHref}
-          game={game}
-          isLive={!isPreGame}
-          onHelp={handleOpenWalkthrough}
-          banner={
-            subDueBannerShows(subDueOpen, suggestions.length, hasSwappableBench) ? (
-              <SubDueBanner onAcknowledge={handleSubDueAcknowledge} />
+      {isFinished ? (
+        <>
+          {/* Full time and the finished game keep their page: the
+              review, then the summary. */}
+          {exitHref ? <LiveTopBar exitHref={exitHref} game={game} isLive onHelp={handleOpenWalkthrough} /> : null}
+          {gameHeader}
+          {isAtFullTime && (
+            <FullTimeReview
+              auth={auth}
+              gameId={gameId}
+              trackScoring={trackScoring}
+              players={squadPlayers}
+              finalisedElapsedMs={accumulatedMs}
+            />
+          )}
+          {error && (
+            <p className="rounded-sm bg-warn-soft px-3 py-2 text-sm text-warn-ink" role="alert">
+              {error}
+            </p>
+          )}
+        </>
+      ) : (
+        <LiveShell
+          top={
+            <LiveTopBar
+              exitHref={exitHref ?? "/"}
+              game={game}
+              isLive={!isPreGame}
+              onMenu={() => setMenuOpen(true)}
+              subline={topSubline}
+              // Sub due: the swap card is the one alert (design session
+              // 17 Oct 2026); the banner shows only in the rare due
+              // moment with no card on screen.
+              banner={
+                subDueBannerShows(subDueOpen, suggestions.length, hasSwappableBench) ? (
+                  <SubDueBanner onAcknowledge={handleSubDueAcknowledge} />
+                ) : null
+              }
+            />
+          }
+          banners={
+            error ? (
+              <p className="rounded-[12px] bg-blood-soft px-3 py-2 text-[0.8125rem] font-bold text-blood" role="alert">
+                {error}
+              </p>
+            ) : null
+          }
+          header={shellHeader}
+          undo={
+            undoTop && !isPreGame ? (
+              <UndoStrip plain flashing={undoToastVisible} message={undoScoreMessage(undoTop)} onUndo={handleUndo} disabled={isPending} />
+            ) : null
+          }
+          info={
+            swapCard || planRow ? (
+              <>
+                {swapCard}
+                {planRow}
+              </>
+            ) : null
+          }
+          field={fieldEl}
+          bench={benchEl}
+          bar={shellBar}
+          toast={
+            swapToast ? (
+              <SwapDoneToast
+                look="ink"
+                text={swapToast}
+                durationMs={swapToastUndo ? 6000 : 2500}
+                undoLabel={swapToast.endsWith(" subs made") ? "Undo swaps" : "Undo"}
+                onUndo={
+                  swapToastUndo
+                    ? () => {
+                        swapToastUndo.run();
+                        showSwapToast("Swaps undone");
+                      }
+                    : undefined
+                }
+              />
             ) : null
           }
         />
-      ) : null}
+      )}
 
-      {/* Top-anchored scorebug — only when NOT in live play. During
-          live play it gets re-rendered as a fixed bottom bar below
-          (search for `isLivePlay && gameHeader`). */}
-      {!isLivePlay && gameHeader}
+      {/* ⋯: late arrival, settings, scores, the plan, the tour, feedback,
+          the game-day link, Restart and (before kickoff) Edit lineup. */}
+      <LiveGameMenu
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        auth={auth}
+        gameId={gameId}
+        game={game}
+        isAdmin={isAdmin}
+        subline={[roundWord, whoRuns].filter(Boolean).join(" · ")}
+        finished={finalised}
+        lateCandidates={lateCandidates}
+        onLateArrival={handleLateArrival}
+        latePending={isPending}
+        settings={{
+          summary: settingsSummary(subIntervalSeconds, currentOnFieldSize),
+          subIntervalSeconds,
+          currentOnFieldSize,
+          minOnFieldSize,
+          maxOnFieldSize,
+          playersById,
+        }}
+        trackScoring={trackScoring}
+        onScores={!isPreGame ? () => setScoresOpen(true) : undefined}
+        planNext={showPlanNextPeriod ? { label: planLabel, onOpen: () => setPlanNextOpen(true) } : undefined}
+        onWalkthrough={handleOpenWalkthrough}
+        onEditLineup={isPreGame && !isFinished ? handleEditLineup : undefined}
+      />
 
       {/* Scores and fixes: the Q-by-Q table (the store's numbers, so
           it's there before the log loads), then the fix list. */}
@@ -1875,359 +2304,18 @@ export function LiveGame({
         />
       )}
 
-      {/* Swap-done toast — flashes briefly after a substitution lands
-          (the shared SwapDoneToast, an overlay that doesn't push the
-          field down). */}
-      {swapToast && !isPreGame && !isFinished && (
-        <SwapDoneToast
-          text={swapToast}
-          undoLabel={swapToast.endsWith(" subs made") ? "Undo swaps" : "Undo"}
-          onUndo={
-            swapToastUndo
-              ? () => {
-                  swapToastUndo.run();
-                  showSwapToast("Swaps undone");
-                }
-              : undefined
-          }
+      {/* Start Q1's confirm: "Start Q1 now" when the siren goes. Back
+          leaves the lineup on screen; ⋯ → Edit lineup reopens the picker. */}
+      {startQ1Open && isPreGame && (
+        <StartQuarterModal
+          quarter={1}
+          cue={getSportConfig("afl").words.startCue}
+          shortSide={{ playing: onFieldNow, size: defaultOnFieldSize, min: minOnFieldSize }}
+          loading={isPending}
+          onStart={handleStartFirstQuarter}
+          onCancel={() => setStartQ1Open(false)}
         />
       )}
-
-      {/* Undo strip is rendered inside the sticky-bottom bar
-          during live play (Steve 2026-05-13). The undoTop +
-          isPreGame/isFinished gates apply down there too — when
-          conditions fail the strip just doesn't render and the
-          sticky bar is shorter. */}
-
-      {isAtFullTime && (
-        <FullTimeReview
-          auth={auth}
-          gameId={gameId}
-          trackScoring={trackScoring}
-          players={squadPlayers}
-          finalisedElapsedMs={accumulatedMs}
-        />
-      )}
-
-      {error && (
-        <p className="rounded-sm bg-warn-soft px-3 py-2 text-sm text-warn-ink" role="alert">
-          {error}
-        </p>
-      )}
-
-      {/* Field + Bench layout — hidden at full time (Steve
-          2026-05-13: the post-Q4 FullTimeReview + GameSummaryCard
-          surfaces don't need the on-court layout, it just pads the
-          screen with stale state). The IIFE early-returns null
-          when isFinished so the SwapCard + Field + Bench fragment
-          stays off the FT review and finalised game-summary
-          views. Live play and Q-break still get the field. */}
-      {!isFinished && (() => {
-        const swapOffs = new Map<string, number>();
-        const swapOns = new Map<string, { pair: number; zone: Zone }>();
-        if (!selected) {
-          suggestions.forEach((s, i) => {
-            if (s.off_player_id) swapOffs.set(s.off_player_id, i + 1);
-            swapOns.set(s.on_player_id, { pair: i + 1, zone: s.zone });
-          });
-        }
-        const totalPairs = suggestions.length;
-        return (
-          <>
-            {!isPreGame && !isFinished && (
-              <SwapCard
-                suggestions={suggestions}
-                autoSuggestions={rawSuggestions}
-                playersById={playersById}
-                lineup={lineup}
-                injuredIds={injuredIds}
-                loanedIds={loanedIds}
-                lockedIds={lockedIds}
-                pending={isPending}
-                subState={subState}
-                forceOpen={subDueOpen}
-                msUntilDue={msUntilDue}
-                subIntervalMs={subIntervalMs}
-                pastHooterCarry={pastHooterCarry}
-                onOverride={(nextSwaps) => {
-                  // Inline override → SAME pin wire as the Plan-Ahead
-                  // planner. When the edit matches the engine pick again
-                  // (e.g. the coach reverted every chip), drop the pin so
-                  // the live suggester takes back over. Otherwise pin the
-                  // edited array, preserving any F2 next-period plan on
-                  // the shared slice.
-                  if (swapsEqual(nextSwaps, rawSuggestions)) {
-                    setPlannedRotation(withoutSubPin(pinForThisGame));
-                    return;
-                  }
-                  setPlannedRotation({
-                    ...(pinForThisGame ?? {}),
-                    gameId,
-                    pinnedForPeriod: currentQuarter,
-                    pinnedSwaps: nextSwaps,
-                  });
-                }}
-                onApply={() => {
-                  for (const s of suggestions) {
-                    persistSwap(s.off_player_id, s.on_player_id, s.zone);
-                  }
-                  // The toast's Undo puts them back, last first, without
-                  // restarting the sub clock again (undoSwaps).
-                  const undo = undoSwaps(
-                    suggestions.map((s) => ({ off: s.off_player_id, on: s.on_player_id, zone: s.zone })),
-                    (s) => persistSwap(s.off, s.on, s.zone, false, 0, true),
-                  );
-                  if (suggestions.length === 1) {
-                    const s = suggestions[0];
-                    showSwapToast(
-                      `${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`,
-                      undo,
-                    );
-                  } else if (suggestions.length > 1) {
-                    showSwapToast(`${suggestions.length} subs made`, undo);
-                  }
-                  // The pinned plan-ahead sub (if any) has now been
-                  // applied — consume it so it can't re-fire next window.
-                  // Planned periods stay.
-                  setPlannedRotation(withoutSubPin(pinForThisGame));
-                  handleSubDueAcknowledge();
-                }}
-                onApplyOne={(s) => {
-                  // One of a due batch: the rest stay due until they're
-                  // made (the sub clock holds; soccer's rule).
-                  persistSwap(
-                    s.off_player_id,
-                    s.on_player_id,
-                    s.zone,
-                    true,
-                    subState === "due" ? suggestions.length - 1 : 0,
-                  );
-                  showSwapToast(
-                    `${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`
-                  );
-                }}
-              />
-            )}
-
-            {/* No colour key here (UI polish audit §13): on the live
-                screen zone identity is already told three ways in
-                place — each tile's zone label sits in the zone colour
-                directly above its bar, and the field rails name the
-                lines. The key stays on the quarter-break and picker
-                screens, where bare bars are the decision aid
-                (Steve 2026-06-29). */}
-            <Field
-              playersById={playersById}
-              onTapField={handleTapField}
-              swapOffs={swapOffs}
-              swapDue={subState === "due"}
-              totalMsByPlayer={totalMsByPlayer}
-              zoneMsByPlayer={zoneMsByPlayer}
-              displayZoneCaps={displayZoneCaps}
-              chipModeByKey={chipModeByKey}
-              injuredIds={injuredIds}
-              lockedIds={lockedIds}
-              zoneLockedPlayers={zoneLockedPlayers}
-              onLongPress={handleLongPress}
-              zoneCaps={zoneCaps}
-              positionModel={positionModel}
-              wakeUpKey={fieldWakeUpKey}
-              playerScores={playerScores}
-              totalPairs={totalPairs}
-              positionLabels={assignPositionLabels(lineup, aflPlaybook)}
-            />
-            <Bench
-              playersById={playersById}
-              onTapBench={handleTapBench}
-              swapOns={swapOns}
-              totalMsByPlayer={totalMsByPlayer}
-              zoneMsByPlayer={zoneMsByPlayer}
-              injuredIds={injuredIds}
-              wentHomeIds={wentHomeSet}
-              loanedIds={loanedIds}
-              lockedIds={lockedIds}
-              zoneLockedPlayers={zoneLockedPlayers}
-              onLongPress={handleLongPress}
-              playerScores={playerScores}
-              totalPairs={totalPairs}
-            />
-          </>
-        );
-      })()}
-
-      {/* Rotation-planning row — sits next to Game Settings (the gear
-          icon below), keeping the on-field area uncluttered. The
-          upcoming-sub override (F1) now happens INLINE on the SwapCard
-          (tap a chip in the suggested-swap section), so the old "Plan
-          ahead" button is gone (issue 6); only "Plan Q/H X" (F2) lives
-          here now. */}
-      {showPlanNextPeriod && (
-        <div className="space-y-2">
-          {/* Plan-NEXT-period entry (F2 / ROTPLAN-02): offered once the
-              rest of this period won't churn the lineup — the final sub
-              window, or any time in a no-subs game (canPlanNextPeriod).
-              Opens the SAME shared planner on the NEXT period's tab so
-              the break opens with a plan in place. A "Next period ready"
-              badge + Clear appears once pinned. */}
-          {showPlanNextPeriod && (
-            <div className="flex items-center justify-between gap-2 px-1">
-              <SFButton
-                variant="ghost"
-                size="md"
-                data-testid="plan-next-period-entry"
-                onClick={() => setPlanNextOpen(true)}
-                icon={<SFIcon.whistle />}
-              >
-                {hasPinnedNextPeriod
-                  ? `Edit Q${currentQuarter + 1} plan`
-                  : `Plan Q${currentQuarter + 1}`}
-              </SFButton>
-              {hasPinnedNextPeriod && (
-                <div className="flex items-center gap-2">
-                  <span
-                    data-testid="planned-next-period-badge"
-                    className="font-mono text-nano font-bold uppercase tracking-micro text-brand-700"
-                  >
-                    Next period ready
-                  </span>
-                  <button
-                    type="button"
-                    data-testid="plan-next-clear"
-                    onClick={() => setPlannedRotation(consumePeriodPin(pinForThisGame, currentQuarter))}
-                    className="font-mono text-nano font-bold uppercase tracking-micro text-ink-dim transition-colors hover:text-ink"
-                  >
-                    Clear
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Admin / utility action row — chrome owned by the shared
-          LiveAdminUtilityRow (Phase 5b). Candidates filtering stays
-          here (sport-specific: AFL filters against ALL_ZONES). The
-          shell hides itself when there's nothing to show. */}
-      {(() => {
-        const lateCandidates = !isFinished
-          ? squadPlayers.filter((p) => {
-              const inBench = lineup.bench.includes(p.id);
-              const inField = ALL_ZONES.some((z) => lineup[z].includes(p.id));
-              return !inBench && !inField;
-            })
-          : [];
-        return (
-          <LiveAdminUtilityRow
-            trackScoring={trackScoring}
-            onScores={() => setScoresOpen(true)}
-            candidates={lateCandidates}
-            onLateArrival={handleLateArrival}
-            lateArrivalPending={isPending}
-            auth={auth}
-            gameId={gameId}
-            isAdmin={isAdmin}
-            finished={finalised}
-            // Steve 2026-05-20: mid-game settings affordance —
-            // the sub interval and players on field. The row's
-            // standard settings slot; every sport with a sub
-            // interval passes one (netball has none).
-            settings={
-              <LiveGameSettingsButton
-                auth={auth}
-                gameId={gameId}
-                subIntervalSeconds={subIntervalSeconds}
-                currentOnFieldSize={currentOnFieldSize}
-                minOnFieldSize={minOnFieldSize}
-                maxOnFieldSize={maxOnFieldSize}
-                playersById={playersById}
-              />
-            }
-          />
-        );
-      })()}
-
-      {selected && !isPreGame && !isFinished && (() => {
-        const pid = selected.playerId;
-        const p = playersById.get(pid);
-        const name = p
-          ? `${p.jersey_number != null ? `#${p.jersey_number} ` : ""}${p.full_name}`
-          : "player";
-        // Floating record-score card — chrome owned by the shared
-        // ScoreRecordingDock (Phase 5c). The dock pins to bottom-
-        // viewport, owns the heading row + Cancel chip + the
-        // pointer-events isolation that lets background field
-        // taps fall through. Action buttons here are AFL-specific
-        // (+Goal/+Behind side-by-side, plus the Swap-player
-        // affordance when a field player is selected).
-        return (
-          <ScoreRecordingDock
-            swapHint={DOCK_SWAP_HINT}
-            heading={<span className="text-brand-700">{name}</span>}
-            onCancel={() => clearSelection()}
-            onPlayerActions={() => {
-              clearSelection();
-              handleLongPress(pid);
-            }}
-            actions={
-              <>
-                {canScore && (
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleScore("goal")}
-                    disabled={isPending}
-                    className="flex-1 rounded-sm bg-brand-600 py-3 font-mono text-base font-bold uppercase tracking-micro text-white shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
-                  >
-                    + Goal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleScore("behind")}
-                    disabled={isPending}
-                    className="flex-1 rounded-sm bg-warn py-3 font-mono text-base font-bold uppercase tracking-micro text-white shadow-card transition-colors duration-fast ease-out-quart hover:opacity-90 disabled:opacity-60"
-                  >
-                    + Behind
-                  </button>
-                </div>
-                )}
-                {selected.kind === "bench" && (
-                  <p className="text-xs text-ink-dim">
-                    Tap a field player to swap {p ? names.first(p) : "them"} on.
-                  </p>
-                )}
-                {/* Swap player — covers both cases:
-                      1. Sub off (pick a bench player → field-to-bench)
-                      2. Rotate position (pick another field player in
-                         a different zone → field-to-field zone swap)
-                    Stagehand 2026-05-09 (afl-u8-auskick) initially
-                    surfaced this button as "Sub off" only — but Steve
-                    flagged the gap: a coach often wants to rotate a
-                    forward to back without subbing them off. The
-                    picker now lists both bench AND other-zone field
-                    players, with the chosen player's location
-                    deciding which swap action fires. */}
-                {selected?.kind === "field" && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSubOffSelected({
-                        playerId: selected.playerId,
-                        zone: selected.zone,
-                      })
-                    }
-                    disabled={isPending}
-                    className={`${canScore ? "mt-2 " : ""}min-h-[44px] w-full rounded-sm border border-hairline bg-surface-alt text-sm font-semibold text-ink transition-colors duration-fast ease-out-quart hover:bg-hairline disabled:opacity-60`}
-                  >
-                    Swap player
-                  </button>
-                )}
-              </>
-            }
-          />
-        );
-      })()}
-
 
       {fillZone && (
         <SlotFillSheet
@@ -2292,6 +2380,8 @@ export function LiveGame({
             !isPreGame && !isFinished ? () => setShowManualEndConfirm(true) : undefined
           }
           onClose={() => setClockMenuOpen(false)}
+          // The v3 clock sheet: "Running · 7:40 left".
+          remaining={formatClock(Math.max(0, quarterMs - displayNowMs))}
         />
       )}
 
@@ -2977,33 +3067,6 @@ export function LiveGame({
       {/* The game-day link's "All done" is the page's shared
           RunnerAllDone, as every other sport's; a second copy here sat
           fixed under it (design review, Oct 2026). */}
-
-      {/* Sticky-bottom scorebug + undo strip — chrome owned by
-          the shared LiveStickyScoreBar (Phase 5d). Wrapper does
-          the bottom-pin, safe-area padding, slide-in-bottom-fast
-          entrance (P1-14), and the mx-auto max-w-4xl inner
-          constraint. The scorebug + the undo strip (gated on
-          lastScore + !isPreGame + !isFinished here) are passed in. */}
-      {isLivePlay && (
-        <LiveStickyScoreBar
-          scorebug={gameHeader}
-          scoringOff={
-            !trackScoring
-              ? { teamId: auth.kind === "team" && isAdmin ? auth.teamId : null }
-              : undefined
-          }
-          undoStrip={
-            undoTop && !isPreGame && !isFinished ? (
-              <UndoStrip
-                flashing={undoToastVisible}
-                message={undoScoreMessage(undoTop)}
-                onUndo={handleUndo}
-                disabled={isPending}
-              />
-            ) : null
-          }
-        />
-      )}
 
       {/* First-time onboarding hint for the long-press affordance.
           Self-dismisses on first long-press / Got-it tap / 12s. The

@@ -278,6 +278,86 @@ export async function startGame(
 }
 
 
+// ─── Edit lineup: back to the picker before kickoff ──────────
+// Live v3: the picker's Ready sets the lineup (lineup_set) and the live
+// screen waits on its bar's Start Q1. Until that's tapped, "Edit lineup"
+// in the ⋯ menu goes back to the picker with the lineup as it was.
+//
+// This is the way back the old flow didn't have (LineupPicker.tsx: in
+// May 2026 the lineup was committed before the "Start Q1?" confirm, and
+// that confirm's "Back to lineup" was a dead end). The lineup goes back
+// into the game's draft, which the picker opens with, and the kickoff
+// lineup_set comes out of the log, so the picker's Ready passes the
+// kickoff guard again. Coaches can't delete events (RLS), so the service
+// role does, as kickoffRaceRefusal does. Refused once Q1 has started:
+// from then on the lineup changes by subs, and the break.
+export async function reopenLineup(auth: LiveAuth, gameId: string): Promise<ActionResult> {
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+
+  const admin = createAdminClient();
+  const { data: events, error: readError } = await admin
+    .from("game_events")
+    .select("id, type, metadata, created_at")
+    .eq("game_id", gameId)
+    .in("type", ["lineup_set", "quarter_start", "game_finalised"])
+    .order("created_at", { ascending: true });
+  if (readError) return { success: false, error: readError.message };
+  const rows = (events ?? []) as { id: string; type: string; metadata: unknown }[];
+  if (rows.some((e) => e.type !== "lineup_set")) {
+    return staleRefusal(auth, w.teamId, gameId, "Q1 has started, so the lineup changes with subs now.");
+  }
+  const lineups = rows.filter((e) => e.type === "lineup_set");
+  const last = lineups.at(-1);
+  if (!last) {
+    // Nothing to take back (another phone already did): the picker is up.
+    revalidateLivePage(auth, w.teamId, gameId);
+    return { success: true };
+  }
+
+  const { data: game } = await w.supabase
+    .from("games")
+    .select("sub_interval_seconds, on_field_size")
+    .eq("id", gameId)
+    .maybeSingle();
+  const lineup = ((last.metadata ?? {}) as { lineup?: Lineup }).lineup;
+  if (lineup) {
+    const { error: draftError } = await w.supabase.from("game_lineup_drafts").upsert(
+      {
+        game_id: gameId,
+        lineup,
+        on_field_size: (game as { on_field_size?: number } | null)?.on_field_size,
+        sub_interval_seconds: (game as { sub_interval_seconds?: number } | null)?.sub_interval_seconds,
+        updated_by: w.userId,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "game_id" },
+    );
+    if (draftError) return { success: false, error: draftError.message };
+  }
+
+  const { error: deleteError } = await admin
+    .from("game_events")
+    .delete()
+    .eq("game_id", gameId)
+    .in(
+      "id",
+      lineups.map((e) => e.id),
+    );
+  if (deleteError) return { success: false, error: deleteError.message };
+  // Not under way any more: the game page and lists say Upcoming again.
+  await updateLiveGame(w.supabase, gameId, { status: "upcoming" });
+  invalidateSeasonEvents(w.teamId);
+
+  if (auth.kind === "team") {
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}`);
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
+  } else {
+    revalidatePath(`/run/${auth.token}`, "layout");
+  }
+  return { success: true };
+}
+
 // ─── Pre-game lineup draft ───────────────────────────────────
 // Save / load the night-before plan. One row per game keyed by
 // game_id. Auth: writes are admin/game_manager (resolveWriter
@@ -544,6 +624,14 @@ export async function startQuarter(
     { kind: "period_start", period: quarter },
   );
   if (!result.success) return result;
+
+  // Q1 starts from the live screen's bar now (live v3: the lineup
+  // picker's Ready only sets the lineup), so the kickoff ping goes here,
+  // as startGame's did. Fire-and-forget.
+  if (quarter === 1) {
+    const w = await resolveWriter(auth, gameId);
+    if (!w.error) notifyGameStarted(w.supabase, w.teamId, gameId, w.userId).catch(() => {});
+  }
 
   if (auth.kind === "team") {
     revalidatePath(`/teams/${auth.teamId}/games/${gameId}/live`);

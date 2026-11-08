@@ -7,6 +7,12 @@
 // for it. Checked with the last thing on the page, the admin row's
 // Restart game, on the coach's page (a game-day link no longer offers
 // Restart: UX round 2, 24 Oct 2026).
+//
+// AFL's live v3 shell (Phase 5) has no admin row: the page doesn't
+// scroll, the field scrolls inside the screen, and Restart is in ⋯. So
+// there the last control is the field's last kid, scrolled to the end
+// of the field, clear of the bench and the bar; and ⋯'s Restart is
+// on top too.
 
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
@@ -49,10 +55,15 @@ for (const sport of ["afl", "netball", "rugby_league"] as const) {
       } catch {}
     });
     await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-    const last = page.getByRole("button", { name: /^restart game$/i });
+    const field = page.getByTestId("live-field");
+    const last =
+      sport === "afl"
+        ? field.locator('[data-testid^="player-tile-"]').last()
+        : page.getByRole("button", { name: /^restart game$/i });
     await expect(last).toBeAttached({ timeout: 15_000 });
     await page.waitForLoadState("networkidle");
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    if (sport === "afl") await field.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    else await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     await page.waitForTimeout(300);
     const onTop = await last.evaluate((el) => {
       const b = el.getBoundingClientRect();
@@ -60,6 +71,19 @@ for (const sport of ["afl", "netball", "rugby_league"] as const) {
       return !!hit && (hit === el || el.contains(hit));
     });
     expect(onTop).toBe(true);
+    if (sport === "afl") {
+      await page.getByRole("button", { name: "Game menu" }).click();
+      const restart = page.getByRole("dialog", { name: "Game menu" }).getByRole("button", { name: /^restart game$/i });
+      await expect(restart).toBeVisible();
+      await restart.scrollIntoViewIfNeeded();
+      expect(
+        await restart.evaluate((el) => {
+          const b = el.getBoundingClientRect();
+          const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+          return !!hit && (hit === el || el.contains(hit));
+        }),
+      ).toBe(true);
+    }
     await context.close();
   });
 }

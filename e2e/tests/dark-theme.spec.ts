@@ -158,7 +158,8 @@ for (const sport of ALL_SPORTS) {
   test(`lineup: ${sport}`, async ({ page }, testInfo) => {
     const { team, game } = await lineupGame(sport);
     await open(page, `/teams/${team.id}/games/${game.id}/live`);
-    await expect(page.getByRole("button", { name: /^start /i }).first()).toBeVisible({ timeout: 20_000 });
+    // AFL's picker sets the lineup with Ready (live v3); the rest Start.
+    await expect(page.getByRole("button", { name: /^(start |ready$)/i }).first()).toBeVisible({ timeout: 20_000 });
     await expectDarkAndReadable(page, testInfo, `lineup-${sport}`);
   });
 }
@@ -198,7 +199,8 @@ test("live AFL: the scorer sheet", async ({ page }, testInfo) => {
   // field behind it is dimmed on purpose.
   await page
     .getByRole("button", { name: /\+ goal/i })
-    .locator("xpath=ancestor::div[contains(@class, 'shadow-modal')][1]")
+    // The dock's card (in the bar's place on AFL's v3 shell).
+    .locator("xpath=ancestor::div[@data-score-dock][1]")
     .evaluate((el) => el.setAttribute("data-e2e-sample", ""));
   await expectDarkAndReadable(page, testInfo, "live-afl-scorer", "[data-e2e-sample]");
 });

@@ -11,6 +11,7 @@ import { waitForHydration } from "../helpers/navigation";
 import { contrastOf, skipHints } from "../helpers/a11y";
 import { newPerson, signedInPhone } from "../helpers/people";
 import { deleteTestUser } from "../fixtures/supabase";
+import { openGameMenu, openScoresFromHeader } from "../helpers/liveShell";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -107,13 +108,13 @@ test("#3 Escape closes Scores and fixes and Game settings", async ({ page }) => 
   await openLive(page, `/teams/${team.id}/games/${game.id}/live`);
   const dialog = page.getByRole("dialog");
 
-  await page.getByRole("button", { name: "Scores by quarter" }).click();
-  await expect(dialog).toBeVisible();
+  // Live v3: the score opens Scores and fixes; Game settings is in ⋯.
+  await openScoresFromHeader(page);
   await expect(dialog.getByRole("heading", { name: "Scores and fixes" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
 
-  await page.getByRole("button", { name: /^game settings$/i }).click();
+  await (await openGameMenu(page)).getByRole("button", { name: /^game settings$/i }).click();
   await expect(dialog.getByRole("heading", { name: "Game settings" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
@@ -149,7 +150,10 @@ test("#6 Ask parents who's in: the message has the game's time and venue", async
 
 // ─── #4 The laptop's last row clear of the hint and score bar ────
 
-test("#4 on a laptop, the live page's last row scrolls clear of the tap hint and the score bar", async ({ browser }) => {
+// Live v3 (Phase 5): AFL's live page doesn't scroll; its field does, and
+// the field's last row is the one that has to scroll clear of the hint
+// (which floats over the field's foot) and the bench and bar under it.
+test("#4 on a laptop, the live field's last row scrolls clear of the tap hint and the score bar", async ({ browser }) => {
   const { team, game } = await inFirstPeriod("afl");
   // A laptop: a mouse, no touch (the suite's default is a Pixel 7).
   const context = await browser.newContext({
@@ -169,16 +173,14 @@ test("#4 on a laptop, the live page's last row scrolls clear of the tap hint and
   await expect(hint).toBeVisible();
   // The rows under the field settle in after the clock shows.
   await page.waitForTimeout(1500);
-  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  const field = page.getByTestId("live-field");
+  await field.evaluate((el) => el.scrollTo(0, el.scrollHeight));
   await page.waitForTimeout(500);
-  const restart = page.getByRole("button", { name: /^restart game$/i });
-  const r = (await restart.boundingBox())!;
+  const lastRow = field.locator('[data-testid^="player-tile-"]').last();
+  const r = (await lastRow.boundingBox())!;
   const h = (await hint.boundingBox())!;
-  const bar = (await page.getByRole("button", { name: /^clock — /i }).first().evaluate((el) => {
-    let n: HTMLElement | null = el as HTMLElement;
-    while (n && getComputedStyle(n).position !== "sticky" && getComputedStyle(n).position !== "fixed") n = n.parentElement;
-    return n!.getBoundingClientRect().top;
-  }));
+  // The bench and the bar, stuck under the field.
+  const bar = (await page.getByRole("group", { name: "Bench", exact: true }).boundingBox())!.y;
   expect(r.y + r.height).toBeLessThanOrEqual(h.y);
   expect(r.y + r.height).toBeLessThanOrEqual(bar);
   await context.close();
