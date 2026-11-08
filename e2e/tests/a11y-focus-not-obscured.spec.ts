@@ -50,7 +50,7 @@ test("lineup: netball's GD and GK, focused, sit above the Start Q1 footer", asyn
   const start = page.getByRole("button", { name: /^start q1$/i });
   await expect(start).toBeVisible({ timeout: 15_000 });
   await page.evaluate(() => window.scrollTo(0, 0));
-  for (const pos of [/^goal defence/i, /^goal keeper/i]) {
+  for (const pos of [/(^|, )goal defence(,|$)/i, /(^|, )goal keeper(,|$)/i]) {
     const r = await focusedClear(page, page.getByRole("button", { name: pos }).first(), start, start);
     expect(r.clearOfBottom, `${pos} (bottom ${r.box.bottom}) under the footer (top ${r.bottom})`).toBe(true);
   }

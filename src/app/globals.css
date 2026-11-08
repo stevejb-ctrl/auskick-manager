@@ -2,58 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── Brand theming via CSS variables ────────────────────────
- * The `brand.*` Tailwind colours below all reference these
- * variables. Default values (the AFL field-green ladder) live on
- * `:root` so the AFL marketing site keeps its existing look with
- * zero changes. The `[data-brand="netball"]` block redefines the
- * same vars to the community-court sky-blue ladder; middleware
- * resolves the inbound host and `app/layout.tsx` writes the
- * matching `data-brand` attribute onto `<html>`. Every component
- * that uses `bg-brand-600`, `text-brand-700`, etc. flips palette
- * automatically — no per-component changes.
+/* ─── Colour tokens ────────────────────────────────────────────
+ * Every semantic colour (surfaces, ink, signals, zones, the brand
+ * ladder) lives in src/lib/theme/palette.ts. The Tailwind config emits
+ * them as CSS variables, light on :root and dark under
+ * prefers-color-scheme or <html data-theme="dark">, with
+ * `[data-brand="netball"]` swapping the field-green ladder for court
+ * blue. Middleware resolves the inbound host and app/layout.tsx writes
+ * `data-brand` onto <html>. Components keep `bg-brand-600`,
+ * `text-ink` and so on; the values flip underneath them.
  *
- * `field` / `court` / `third-*` / `bib-*` are additive (not
- * renames). The AFL `PlayerTile` and the existing netball
- * `PositionToken` keep their `bg-zone-*` references untouched —
- * that migration is out of scope for the marketing-site swap.
- *
- * The Siren wordmark dot also flips: `--siren-mark` is the dot
- * fill, and `--siren-pulse-from / --siren-pulse-to` are the rgba
- * stops the halo keyframe interpolates between. Both AFL alarm-
- * orange and netball court-blue fall out of one brand block.
+ * What stays here is sport-stable and marketing-only: the court's
+ * lines, the netball thirds and bibs (marketing illustration), and the
+ * Siren wordmark dot.
  */
 :root {
-  /* AFL field-green ladder — values unchanged from the previous
-     hard-coded Tailwind config; just promoted to variables. */
-  --brand-50:  #E4EEE4;
-  --brand-100: #CDDFCD;
-  --brand-200: #A7C7A7;
-  --brand-300: #7CAA7D;
-  --brand-400: #568C57;
-  --brand-500: #357840;
-  --brand-600: #2F6B3E;
-  --brand-700: #275834;
-  --brand-800: #1F4528;
-  --brand-900: #183420;
-
-  /* Domain-specific surface fills. `field` is AFL oval green;
-     `court` is the netball community-court sky blue; `court-line`
-     paints the thirds + goal semicircles + centre circle white. */
-  --field: #3C8050;
-  /* In-game re-skin (17 Oct 2026): a saturated court so white tokens
-     pop, the same logic as the AFL oval; lines at 70% white. */
-  --court: #2A74A8;
-  --court-mid: #2F7AAF;
+  /* Lines on the court: 70% white, in both themes. */
   --court-line: rgba(255, 255, 255, 0.7);
 
-  /* Thirds palette (netball domain language). Centre is violet
-     (#7B5AA6) — kept distinct from court-blue + defensive royal-
-     blue so a netball coach can tell thirds apart at thumbnail
-     size on a phone. AFL's `zone-c` lives on its own token
-     (now emerald, Steve 2026-05-23 — see tailwind.config.ts
-     for the rationale) so AFL Field/PlayerTile colours track
-     the AFL design language independently. */
+  /* Thirds palette (netball domain language, marketing). Centre is
+     violet (#7B5AA6) so a netball coach can tell thirds apart at
+     thumbnail size. AFL's `zone-c` has its own token (emerald). */
   --third-a: #B83A2E;
   --third-c: #7B5AA6;
   --third-d: #1F5BAE;
@@ -81,44 +50,23 @@
   --siren-pulse-from: rgba(217, 68, 45, 0.55);
   --siren-pulse-to:   rgba(217, 68, 45, 0);
 
-  /* The keyboard focus ring: a brand shade at least 3:1 against both
-     white and the near-black ink (the clock pill, the sub card), so
-     one ring reads on either. AFL's 600 is 2.8:1 on ink; its 500 is
-     3.2:1 on ink and 5.4:1 on white. */
-  --focus-ring: var(--brand-500);
+  /* The keyboard focus ring: at least 3:1 on white, the page and the
+     near-black chrome (the clock pill, the sub card), so one ring reads
+     on all of them (R6). Per brand and theme; see FOCUS in palette.ts. */
+  --focus-ring: rgb(var(--l-focus));
 
-  /* Light only: Chrome's auto-dark and Samsung Internet's dark mode
-     leave the page alone (UX round 3, e4: they inverted it and the
-     dark sub card and clock pill sank into the darkened page). The
-     root layout's color-scheme meta says the same. */
-  color-scheme: only light;
+  /* No `color-scheme: only light` any more (R6 set it while the app had
+     no dark palette, so Chrome's auto-dark wouldn't invert the page).
+     The palette sets `color-scheme` per theme, so form controls and
+     scrollbars follow it. */
 }
 
-/* Netball brand override — only the brand ladder + Siren-mark
-   colours flip. `field`, `third-*`, and `bib-*` are sport-stable
-   so they don't need a per-brand block. */
+/* Netball: the wordmark dot follows the brand identity (court blue).
+   0x4A 0x9F 0xD1 = rgb(74, 159, 209). */
 [data-brand="netball"] {
-  --brand-50:  #EAF4FB;
-  --brand-100: #CFE6F4;
-  --brand-200: #A6D0EA;
-  --brand-300: #7BB8DD;
-  --brand-400: #5BA5D7;
-  --brand-500: #4A9FD1;
-  --brand-600: #2E7FB8;
-  --brand-700: #236397;
-  --brand-800: #194B76;
-  --brand-900: #0F3357;
-
-  /* Wordmark dot follows the brand identity (court blue) on the
-     netball domain. Halo keyframe interpolates the same hue.
-     0x4A 0x9F 0xD1 = rgb(74, 159, 209). */
   --siren-mark: #4A9FD1;
   --siren-pulse-from: rgba(74, 159, 209, 0.55);
   --siren-pulse-to:   rgba(74, 159, 209, 0);
-
-  /* Court blue's 600 is 4.3:1 on white and 3.9:1 on ink (its 500 is
-     under 3:1 on white). */
-  --focus-ring: var(--brand-600);
 }
 
 @layer base {

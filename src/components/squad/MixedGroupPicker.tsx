@@ -9,6 +9,9 @@
 // nowhere else (not on tiles, parent views or exports).
 
 import type { MixedGroup } from "@/lib/types";
+import { useRadioGroup } from "@/components/ui/useRadioGroup";
+
+const GROUPS = ["girl", "boy"] as const;
 
 interface MixedGroupPickerProps {
   value: MixedGroup | null;
@@ -21,6 +24,7 @@ interface MixedGroupPickerProps {
 }
 
 export function MixedGroupPicker({ value, onChange, disabled = false, playerName, compact = false }: MixedGroupPickerProps) {
+  const { radioProps } = useRadioGroup<MixedGroup>({ values: GROUPS, value, onChange, disabled });
   return (
     <span className="inline-flex items-center gap-2">
       {!compact && <span className="text-xs text-ink-dim">For the mixed rule, counts as:</span>}
@@ -29,9 +33,10 @@ export function MixedGroupPicker({ value, onChange, disabled = false, playerName
         aria-label={playerName ? `${playerName} counts as` : "For the mixed rule, counts as"}
         className="inline-flex gap-1"
       >
-        {(["girl", "boy"] as const).map((g) => (
+        {GROUPS.map((g) => (
           <button
             key={g}
+            {...radioProps(g)}
             type="button"
             role="radio"
             aria-checked={value === g}

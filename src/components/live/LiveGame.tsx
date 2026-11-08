@@ -1244,6 +1244,8 @@ export function LiveGame({
     zone: Zone,
     resetSubTimer = true,
     batchLeft = 0,
+    /** "Undo swaps" putting one back: it nets to zero subs (replayGame's subCount). */
+    undo = false,
   ) {
     setError(null);
     const quarter = Math.max(1, currentQuarter);
@@ -1272,6 +1274,7 @@ export function LiveGame({
         elapsed_ms,
         ...(resetSubTimer ? {} : { manual: true }),
         ...(resetSubTimer && batchLeft > 0 ? { batch_left: batchLeft } : {}),
+        ...(undo ? { undo: true } : {}),
       },
     ]);
   }
@@ -1955,7 +1958,7 @@ export function LiveGame({
                   // restarting the sub clock again (undoSwaps).
                   const undo = undoSwaps(
                     suggestions.map((s) => ({ off: s.off_player_id, on: s.on_player_id, zone: s.zone })),
-                    (s) => persistSwap(s.off, s.on, s.zone, false),
+                    (s) => persistSwap(s.off, s.on, s.zone, false, 0, true),
                   );
                   if (suggestions.length === 1) {
                     const s = suggestions[0];

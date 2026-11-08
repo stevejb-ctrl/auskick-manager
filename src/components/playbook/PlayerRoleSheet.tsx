@@ -18,6 +18,7 @@ import {
   type RoleView,
 } from "@/lib/playbook/roles";
 import type { ActionResult } from "@/lib/types";
+import { useRadioGroup, type RadioProps } from "@/components/ui/useRadioGroup";
 
 interface PlayerRoleSheetProps {
   playerName: string;
@@ -34,14 +35,18 @@ function OptionChip({
   active,
   role,
   onClick,
+  radio,
 }: {
   option: RoleOption;
   active: boolean;
   role: "radio" | "checkbox";
   onClick: () => void;
+  /** A radio's roving tabindex and arrow keys (useRadioGroup). */
+  radio?: RadioProps;
 }) {
   return (
     <button
+      {...radio}
       type="button"
       role={role}
       aria-checked={active}
@@ -146,6 +151,12 @@ export function PlayerRoleSheet({ playerName, model, initial, onSave, onClose, t
       return { ...v, plays: keys.filter((k) => plays.includes(k)), main };
     });
   const mainChoices = model.options.filter((o) => view.plays.length === 0 || view.plays.includes(o.key));
+  // Arrow keys choose a main spot; a tap on the chosen one still clears it.
+  const mainRadio = useRadioGroup({
+    values: mainChoices.map((o) => o.key),
+    value: view.main,
+    onChange: (key) => setView((v) => ({ ...v, main: key })),
+  });
   const keepOn = model.keeper ? keeperRole.keepOn : view.keepOn;
   const setKeepOn = (on: boolean) =>
     model.keeper ? setKeeperRole((r) => ({ ...r, keepOn: on })) : setView((v) => ({ ...v, keepOn: on }));
@@ -239,6 +250,7 @@ export function PlayerRoleSheet({ playerName, model, initial, onSave, onClose, t
                   key={o.key}
                   option={o}
                   role="radio"
+                  radio={mainRadio.radioProps(o.key)}
                   active={view.main === o.key}
                   onClick={() => setView((v) => ({ ...v, main: v.main === o.key ? null : o.key }))}
                 />

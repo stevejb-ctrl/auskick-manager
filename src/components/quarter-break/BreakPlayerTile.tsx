@@ -12,6 +12,7 @@
 // (UX round 3, e4: at 200% px names stayed small and cut to "Leo…").
 
 import { useLongPress } from "@/lib/live/useLongPress";
+import { tileName } from "@/components/live/tileName";
 import { ZONE_SWATCH, ZONE_TEXT, type BreakColor } from "@/components/quarter-break/breakZoneTokens";
 
 export interface BreakTileModel {
@@ -78,6 +79,15 @@ export function BreakPlayerTile({ tile, testId, selected, target, onTap, onLongP
       }}
       {...longPress.handlers}
       aria-pressed={selected}
+      // The kid first, as every tile reads (tileName): name, bib or
+      // number, time, then where they've come from and any notes.
+      aria-label={tileName({
+        name: tile.name,
+        place: tile.tagIsBib ? tile.tag : null,
+        number: tile.tagIsBib ? null : tile.tag || null,
+        time: tile.time,
+        states: [tile.movement, ...(tile.tags ?? []), tile.score?.label, tile.lowTime && "Low game time"],
+      })}
       disabled={tile.sidelined}
       className={`flex min-h-[56px] w-full min-w-0 flex-col justify-center gap-[3px] rounded-[12px] border-2 px-[10px] py-[8px] text-left text-ink transition-colors duration-fast ease-out-quart disabled:cursor-not-allowed disabled:opacity-55 ${border} ${
         longPress.arming ? "ring-2 ring-brand-300" : ""

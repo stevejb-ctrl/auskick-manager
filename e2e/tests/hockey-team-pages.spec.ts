@@ -19,7 +19,7 @@ test("hockey: the wizard makes a U13 team in quarters, every page opens, and the
 
   await gotoStable(page, "/teams/new");
   await waitForHydration(page);
-  const pill = page.getByRole("button", { name: "Junior Hockey" });
+  const pill = page.getByRole("radio", { name: "Junior Hockey" });
   // Every sport left beta with the ten-sport homepage.
   await expect(pill).not.toContainText("Beta");
   await pill.click();

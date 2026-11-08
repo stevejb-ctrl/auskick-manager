@@ -12,6 +12,9 @@ import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { finishedGame, playPeriod, fullTime } from "../helpers/finished-game";
 import { waitForHydration } from "../helpers/navigation";
+import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
+import { aflPositionModel, getAgeGroupConfig } from "../../src/lib/sports";
+import type { Lineup } from "../../src/lib/types";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -251,6 +254,8 @@ test("last week's unplayed game leaves Next up; mark it played or delete it", as
   await expect(notPlayed).toContainText("Didn't play? Delete it, or mark it played.");
 
   await notPlayed.locator("li", { hasText: "Washed Out Wolves" }).getByRole("button", { name: "Mark played" }).click();
+  // Nobody kept the score.
+  await page.getByRole("dialog", { name: "Mark played" }).getByRole("button", { name: "No score kept" }).click();
   await expect.poll(async () => (await admin.from("games").select("status").eq("id", missed.id).single()).data?.status).toBe("completed");
   await expect(notPlayed).not.toContainText("Washed Out Wolves");
   // Played without the app: counted, but not a 0–0 draw.
@@ -263,6 +268,54 @@ test("last week's unplayed game leaves Next up; mark it played or delete it", as
   await listed.locator("li", { hasText: "Forgotten Foxes" }).getByRole("button", { name: "Delete" }).click();
   await page.getByRole("button", { name: /yes, delete this game/i }).click();
   await expect.poll(async () => (await admin.from("games").select("id").eq("id", missed2.id)).data?.length).toBe(0);
+});
+
+test("a game marked played takes its final score, and counts as a result", async ({ page }) => {
+  // Round 3 follow-up: Mark played couldn't take a score, so the game
+  // never counted in the record or Stats. AFL's in goals and behinds.
+  const ownerId = await ownerIdOf();
+  const admin = createAdminClient();
+  const team = await makeTeam(admin, { ownerId, sport: "afl", name: `R7 Scored ${tag()}` });
+  await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+  await makePlayers(admin, { teamId: team.id, ownerId, count: 12 });
+  const missed = await makeGame(admin, {
+    teamId: team.id,
+    ownerId,
+    opponent: "Rained Off Rovers",
+    scheduledAt: new Date(Date.now() - 8 * 86_400_000).toISOString(),
+  });
+
+  await page.goto(`/teams/${team.id}/games/${missed.id}`);
+  await waitForHydration(page);
+  await page.getByTestId("not-played").getByRole("button", { name: "Mark played" }).click();
+  const dialog = page.getByRole("dialog", { name: "Mark played" });
+  // Half a score isn't taken.
+  await dialog.getByLabel(`${team.name} goals`).fill("5");
+  await dialog.getByRole("button", { name: "Save score" }).click();
+  await expect(dialog).toContainText("Enter goals and behinds for both teams");
+  await dialog.getByLabel(`${team.name} behinds`).fill("4");
+  await dialog.getByLabel("Rained Off Rovers goals").fill("3");
+  await dialog.getByLabel("Rained Off Rovers behinds").fill("2");
+  await dialog.getByRole("button", { name: "Save score" }).click();
+  await expect(dialog).toBeHidden();
+
+  // Stored on the game, and the summary says it.
+  await expect
+    .poll(async () => (await admin.from("games").select("status, played_score").eq("id", missed.id).single()).data)
+    .toMatchObject({ status: "completed", played_score: { us: 34, them: 20, usGoals: 5, usBehinds: 4, themGoals: 3, themBehinds: 2 } });
+  await expect(page.getByTestId("played-score")).toContainText(`${team.name} 5.4 (34) – 3.2 (20) Rained Off Rovers`, { timeout: 15_000 });
+  await expect(page.getByTestId("played-score")).toContainText("Won.");
+
+  // Today: the last result and the season record count it.
+  await page.goto(`/teams/${team.id}`);
+  await expect(page.getByRole("region", { name: "Last result" })).toContainText("34–20");
+  await expect(page.getByRole("region", { name: /^season$/i })).toContainText("1 played · 1 won · 0 lost");
+
+  // Stats: a completed game, and a win against them.
+  await page.goto(`/teams/${team.id}/stats`);
+  await expect(page.getByText("Rained Off Rovers").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("1W").first()).toBeVisible();
+  await expect(page.getByText("5.4").first()).toBeVisible();
 });
 
 // ─── Deleting a live game ───────────────────────────────────────────
@@ -461,4 +514,63 @@ test("'Make all swaps' can be undone from the toast", async ({ page }) => {
   for (let i = 0; i < n; i++) {
     expect(swaps[n + i]).toMatchObject({ off_player_id: swaps[n - 1 - i].on_player_id, on_player_id: swaps[n - 1 - i].off_player_id });
   }
+});
+
+test("AFL: a batch of swaps and its Undo aren't subs at full time", async ({ page }) => {
+  // The undo wrote the batch back as more swaps, so full time's share
+  // text said "4 subs" for a game with none. A swap and its undo net to
+  // zero (replayGame's subCount; the undo's swaps are marked `undo`).
+  test.setTimeout(90_000);
+  const ownerId = await ownerIdOf();
+  const admin = createAdminClient();
+  const team = await makeTeam(admin, { ownerId, sport: "afl", ageGroup: "U10", name: `R7 Undo AFL ${tag()}` });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  const ids = players.map((p) => p.id);
+  await allIn(game.id, ids, ownerId);
+  // A two-minute sub clock, three minutes into Q1: subs are due.
+  await admin.from("games").update({ sub_interval_seconds: 120 }).eq("id", game.id);
+  const caps = zoneCapsFor(game.on_field_size, aflPositionModel(getAgeGroupConfig("afl", "U10")));
+  const lineup: Lineup = { back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [] };
+  let cursor = 0;
+  for (const z of ALL_ZONES) for (let i = 0; i < caps[z]; i++) lineup[z].push(ids[cursor++]);
+  lineup.bench = ids.slice(cursor);
+  const at = (ms: number) => new Date(Date.now() - 180_000 + ms).toISOString();
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "lineup_set", metadata: { lineup }, created_at: at(-2000), created_by: ownerId },
+    { game_id: game.id, type: "quarter_start", metadata: { quarter: 1 }, created_at: at(-1000), created_by: ownerId },
+  ]);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  const makeAll = page.getByRole("button", { name: /^Make all \d+ swaps$/ });
+  await expect(makeAll).toBeVisible({ timeout: 20_000 });
+  const n = Number((await makeAll.innerText()).match(/\d+/)![0]);
+  await makeAll.click();
+  const toast = page.getByTestId("swap-toast");
+  await expect(toast).toContainText(`${n} subs made`);
+  const undo = toast.getByRole("button", { name: "Undo swaps" });
+  await expect(undo).toBeVisible();
+  await page.waitForTimeout(400);
+  await undo.click({ force: true });
+  await expect(toast).toContainText("Swaps undone");
+
+  const swapRows = async () =>
+    ((await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "swap").order("created_at")).data ?? []).map(
+      (r) => r.metadata as { undo?: boolean },
+    );
+  await expect.poll(async () => (await swapRows()).length, { timeout: 20_000 }).toBe(2 * n);
+  expect((await swapRows()).map((m) => m.undo === true)).toEqual([...Array(n).fill(false), ...Array(n).fill(true)]);
+
+  // Full time, then the game page's share text.
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 200_000 }, created_by: ownerId },
+    { game_id: game.id, type: "game_finalised", metadata: { quarter: 1, elapsed_ms: 200_000 }, created_by: ownerId },
+  ]);
+  await admin.from("games").update({ status: "completed" }).eq("id", game.id);
+  await page.goto(`/teams/${team.id}/games/${game.id}`);
+  const shareText = page.locator("#game-summary-text");
+  await expect(shareText).toContainText("Game time", { timeout: 15_000 });
+  await expect(shareText).not.toContainText(/\bsubs?\b/);
 });

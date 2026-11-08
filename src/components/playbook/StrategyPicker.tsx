@@ -1,6 +1,7 @@
 "use client";
 
 import type { StrategyDef } from "@/lib/playbook/types";
+import { useRadioGroup } from "@/components/ui/useRadioGroup";
 
 interface StrategyPickerProps {
   strategies: StrategyDef[];
@@ -26,6 +27,7 @@ export function StrategyPicker({
   disabled = false,
   onChange,
 }: StrategyPickerProps) {
+  const { radioProps } = useRadioGroup({ values: strategies.map((s) => s.id), value, onChange, disabled });
   return (
     <div role="radiogroup" aria-label="How kids rotate" className="space-y-2">
       {strategies.map((s) => {
@@ -33,6 +35,7 @@ export function StrategyPicker({
         return (
           <button
             key={s.id}
+            {...radioProps(s.id)}
             type="button"
             role="radio"
             aria-checked={active}

@@ -15,6 +15,7 @@ import { NativeAuthBridge } from "@/components/auth/NativeAuthBridge";
 import { NativeCookieBridge } from "@/components/native/NativeCookieBridge";
 import { NativeSplashHide } from "@/components/native/NativeSplashHide";
 import { A11yRoot } from "@/components/ui/A11yRoot";
+import { THEME_BOOT_SCRIPT } from "@/lib/themePreference";
 import "./globals.css";
 
 const sans = Inter({
@@ -102,12 +103,17 @@ export function generateViewport(): Viewport {
     width: "device-width",
     initialScale: 1,
     viewportFit: "cover",
-    themeColor,
-    // Light only, so Chrome's auto-dark and Samsung Internet's dark
-    // mode leave the page alone (UX round 3, e4: they inverted it, and
-    // the dark sub card and clock pill sank into the darkened page).
-    // A real dark theme would be a design job of its own.
-    colorScheme: "only light",
+    // The brand colour on a light phone; the dark page colour (the
+    // palette's dark `warm`) on a dark one.
+    themeColor: [
+      { media: "(prefers-color-scheme: light)", color: themeColor },
+      { media: "(prefers-color-scheme: dark)", color: "#0F1311" },
+    ],
+    // Siren has its own dark theme (src/lib/theme/palette.ts), so it
+    // says so: Chrome's auto-dark and Samsung Internet's dark mode leave
+    // it to paint its own, and form controls and scrollbars follow. R6
+    // had `only light` while there was no dark palette.
+    colorScheme: "light dark",
   };
 }
 
@@ -127,8 +133,11 @@ export default function RootLayout({
   const gaId = gaMeasurementId();
   const posthog = posthogSettings();
   return (
+    // suppressHydrationWarning: the boot script below may add
+    // data-theme to <html> before React hydrates.
     <html
       lang="en-AU"
+      suppressHydrationWarning
       data-brand={brand.brand.id}
       className={`${sans.variable} ${mono.variable} ${GeistSans.variable} ${instrumentSerif.variable}`}
     >
@@ -142,6 +151,12 @@ export default function RootLayout({
           page (the call stack points at
           tryToClaimNextHydratableSuspenseInstance). Keeping them
           inside <body> avoids the parser fix-up entirely. */}
+      <head>
+        {/* Account → Theme (Light / Dark) onto <html> before the body
+            paints, so a coach who chose Light on a dark phone sees no
+            dark flash. System leaves it to prefers-color-scheme. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body className="font-sans">
         {/* Capacitor JS bridge. Slice 7 fix for the
             `disallowed_useragent` OAuth error in the native shell.

@@ -3,6 +3,10 @@
 // One segmented control for choosing between a few options (UX plan
 // Phase 6: 44 pt targets, radio semantics). SegTabs stays for tab-like
 // navigation; this is for settings ("Off · Light · Balanced · Strong").
+// The keyboard is the radio group's (useRadioGroup): one Tab stop, the
+// arrow keys move and select.
+
+import { useRadioGroup } from "@/components/ui/useRadioGroup";
 
 export interface SegmentedOption<T extends string> {
   id: T;
@@ -33,6 +37,7 @@ export function SegmentedControl<T extends string>({
   className = "",
   compact = false,
 }: SegmentedControlProps<T>) {
+  const { radioProps } = useRadioGroup({ values: options.map((o) => o.id), value, onChange, disabled });
   return (
     <div
       role="radiogroup"
@@ -44,6 +49,7 @@ export function SegmentedControl<T extends string>({
         return (
           <button
             key={opt.id}
+            {...radioProps(opt.id)}
             type="button"
             role="radio"
             aria-checked={active}

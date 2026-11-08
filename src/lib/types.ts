@@ -303,6 +303,11 @@ export interface Game {
   clock_multiplier: number;
   /** How we play at kickoff (migration 0053); null for games not yet started. */
   playbook_snapshot?: import("@/lib/playbook/types").PlaybookSnapshot | null;
+  /**
+   * The final score of a game marked played without Siren (migration
+   * 0076); null otherwise. lib/games/playedScore reads it.
+   */
+  played_score?: import("@/lib/games/playedScore").PlayedScore | null;
   external_source: string | null;
   external_id: string | null;
   created_by: string;

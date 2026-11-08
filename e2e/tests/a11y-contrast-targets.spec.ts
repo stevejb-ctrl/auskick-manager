@@ -72,7 +72,7 @@ test("netball: the scorer dock's Cancel is a 44 px target", async ({ page }) => 
   await skipHints(page);
   await openLive(page, team.id, game.id);
 
-  await page.getByRole("button", { name: /^goal shooter, /i }).click();
+  await page.getByRole("button", { name: /^[^,]+, goal shooter(,|$)/i }).click();
   await expect(page.getByText(/^Record goal for/)).toBeVisible();
   const cancel = await boxOf(page.getByRole("button", { name: "Cancel", exact: true }));
   expect(cancel.height).toBeGreaterThanOrEqual(44);

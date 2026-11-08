@@ -13,6 +13,7 @@ import {
 } from "@/components/sf";
 import { getSeasonEvents } from "@/lib/season";
 import { finalScoresByGame, outcomeOf, seasonRecord, type GameScore } from "@/lib/results";
+import { finalScoreOf } from "@/lib/games/playedScore";
 import type { Game, GameEvent, Sport } from "@/lib/types";
 import { getSportConfig, teamSport, type SurfaceArt } from "@/lib/sports";
 import { SurfaceMotif } from "@/components/brand/SurfaceMotif";
@@ -21,7 +22,7 @@ import { teamSportById } from "@/lib/sports/teamSportById";
 import { notFound } from "next/navigation";
 import { emptyHeroCopy } from "@/lib/teamHome/emptyHero";
 import { NotPlayedGames } from "@/components/games/NotPlayedGames";
-import { notPlayedCutoffIso, playedInSiren } from "@/lib/games/notPlayed";
+import { notPlayedCutoffIso } from "@/lib/games/notPlayed";
 
 interface TeamDashboardProps {
   params: { teamId: string };
@@ -95,13 +96,13 @@ export default async function TeamDashboardPage({ params, searchParams }: TeamDa
 
     supabase
       .from("teams")
-      .select("sport, track_scoring")
+      .select("sport, track_scoring, name")
       .eq("id", params.teamId)
       .single(),
 
     supabase
       .from("games")
-      .select("id, opponent, scheduled_at, round_number, playbook_snapshot")
+      .select("id, opponent, scheduled_at, round_number, playbook_snapshot, played_score")
       .eq("team_id", params.teamId)
       .eq("status", "completed")
       .order("scheduled_at", { ascending: false }),
@@ -116,15 +117,17 @@ export default async function TeamDashboardPage({ params, searchParams }: TeamDa
   const trackScoring = teamRow?.track_scoring === true;
   const finals = (finalGames ?? []) as Pick<
     Game,
-    "id" | "opponent" | "scheduled_at" | "round_number" | "playbook_snapshot"
+    "id" | "opponent" | "scheduled_at" | "round_number" | "playbook_snapshot" | "played_score"
   >[];
   // Scores come from each final game's events (one cached read for the
   // whole season — the same cache the lineup suggester uses), for the
   // games that kept score: each game's own record, not the switch today
-  // (UX round 3, 24 Oct 2026: an unscored game read as a draw).
+  // (UX round 3, 24 Oct 2026: an unscored game read as a draw). A game
+  // marked played counts with the score it was given; without one it has
+  // no result, not a 0–0 (lib/games/playedScore).
   const scoresById: Map<string, GameScore> =
     finals.length > 0
-      ? finalScoresByGame(sport, trackScoring, finals, await getSeasonEvents(params.teamId), playedInSiren)
+      ? finalScoresByGame(sport, trackScoring, finals, await getSeasonEvents(params.teamId), finalScoreOf)
       : new Map();
   const lastFinal = finals[0] ?? null;
   const { data: notPlayedRaw } = await supabase
@@ -204,7 +207,13 @@ export default async function TeamDashboardPage({ params, searchParams }: TeamDa
         />
       )}
 
-      <NotPlayedGames teamId={params.teamId} games={notPlayedRaw ?? []} canEdit={isAdmin} />
+      <NotPlayedGames
+        teamId={params.teamId}
+        sport={sport}
+        teamName={(teamRow as { name?: string } | null)?.name ?? "Us"}
+        games={notPlayedRaw ?? []}
+        canEdit={isAdmin}
+      />
 
       {todos.length > 0 && <TodoList todos={todos} />}
 

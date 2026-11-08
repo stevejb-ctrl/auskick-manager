@@ -226,18 +226,20 @@ export function liveStatusFromEvents(events: GameEvent[]): LiveStatus {
 }
 
 /**
- * Each finished game's score, keyed by game id, for the games that
- * kept score and were run in Siren (a game marked played has no score,
- * not a 0–0). Today's last result and the Games list both read it, so a
- * result says the same thing in both places (design review, Oct 2026:
- * the list showed no result at all).
+ * Each finished game's result, keyed by game id. Today's last result and
+ * the Games list both read it, so a result says the same thing in both
+ * places (design review, Oct 2026: the list showed no result at all).
+ * `scoreOf` is lib/games/playedScore's finalScoreOf: a game run in Siren
+ * is its events' score (if it kept score), and a game marked played is
+ * the score it was given (0076); with neither it has no result, not a
+ * 0–0. It's passed in because playedScore reads this module.
  */
-export function finalScoresByGame(
+export function finalScoresByGame<G extends { id: string; playbook_snapshot?: unknown; played_score?: unknown }>(
   sport: Sport,
   teamTrackScoring: boolean,
-  finals: { id: string; playbook_snapshot?: unknown }[],
+  finals: G[],
   seasonEvents: GameEvent[],
-  playedInSiren: (events: GameEvent[]) => boolean,
+  scoreOf: (sport: Sport, game: G, events: GameEvent[], teamTrackScoring: boolean) => GameScore | null,
 ): Map<string, GameScore> {
   const byGame = new Map<string, GameEvent[]>();
   for (const ev of seasonEvents) {
@@ -247,8 +249,8 @@ export function finalScoresByGame(
   }
   const scores = new Map<string, GameScore>();
   for (const g of finals) {
-    const events = byGame.get(g.id) ?? [];
-    if (playedInSiren(events) && scoresKept(sport, g, teamTrackScoring, events)) scores.set(g.id, scoreFromEvents(sport, events));
+    const score = scoreOf(sport, g, byGame.get(g.id) ?? [], teamTrackScoring);
+    if (score) scores.set(g.id, score);
   }
   return scores;
 }

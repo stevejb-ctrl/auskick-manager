@@ -30,6 +30,16 @@ interface PlayerKickBadgeProps {
   dimmed?: boolean;
 }
 
+/** What the badge says to a screen reader (the tile's name reads it too); null when it's hidden. */
+export function kickBadgeLabel(conversion: PlayerConversionStatus | null | undefined, kickedOff: boolean | undefined): string | null {
+  const parts: string[] = [];
+  if (conversion && conversion.attemptsInCycle > 0) {
+    parts.push(`Made ${conversion.madeInCycle} of ${conversion.attemptsInCycle} conversions in this cycle`);
+  }
+  if (kickedOff) parts.push("Has taken a kickoff this game");
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
 export function PlayerKickBadge({
   conversion,
   kickedOff,

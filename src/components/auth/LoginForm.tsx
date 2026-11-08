@@ -255,7 +255,7 @@ export function LoginForm({ join = null }: { join?: JoinStory | null }) {
         )}
       </form>
 
-      <div className="mt-5 flex items-baseline justify-between border-t border-hairline pt-4 text-xs text-ink-dim">
+      <div className="mt-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-3 border-t border-hairline pt-4 text-xs text-ink-dim">
         <button
           type="button"
           onClick={() => {

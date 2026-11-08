@@ -7,7 +7,7 @@ import { splitByNotPlayed } from "@/lib/games/notPlayed";
 import { availableCountsByGame } from "@/lib/games/availableCounts";
 import { finalScoresByGame } from "@/lib/results";
 import { getSeasonEvents } from "@/lib/season";
-import { playedInSiren } from "@/lib/games/notPlayed";
+import { finalScoreOf } from "@/lib/games/playedScore";
 import { teamSport } from "@/lib/sports";
 
 interface GameListProps {
@@ -37,7 +37,9 @@ export async function GameList({ teamId, filter = "all", canEdit = false }: Game
       .eq("team_id", teamId)
       .order("scheduled_at", { ascending: false }),
     supabase.from("players").select("id").eq("team_id", teamId).eq("is_active", true),
-    supabase.from("teams").select("sport, track_scoring").eq("id", teamId).maybeSingle(),
+    // The sport scores the list; Mark played's score is in the sport's
+    // words, beside the team's name.
+    supabase.from("teams").select("sport, track_scoring, name").eq("id", teamId).maybeSingle(),
   ]);
 
   const all = (games ?? []) as Game[];
@@ -79,7 +81,7 @@ export async function GameList({ teamId, filter = "all", canEdit = false }: Game
           (teamRow as { track_scoring: boolean | null }).track_scoring === true,
           completed,
           await getSeasonEvents(teamId),
-          playedInSiren,
+          finalScoreOf,
         )
       : new Map();
 
@@ -114,7 +116,13 @@ export async function GameList({ teamId, filter = "all", canEdit = false }: Game
       )}
 
       {showCompleted && (
-        <NotPlayedGames teamId={teamId} games={[...notPlayed].reverse()} canEdit={canEdit} />
+        <NotPlayedGames
+          teamId={teamId}
+          sport={teamRow ? teamSport((teamRow as { sport: string }).sport) : "afl"}
+          teamName={(teamRow?.name as string | undefined) ?? "Us"}
+          games={[...notPlayed].reverse()}
+          canEdit={canEdit}
+        />
       )}
 
       {showCompleted && completed.length > 0 && (

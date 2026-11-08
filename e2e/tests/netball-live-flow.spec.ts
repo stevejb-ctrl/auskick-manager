@@ -394,7 +394,7 @@ test("the live court hydrates cleanly on a slow phone, so the first tap works", 
     await route.continue();
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  const gs = page.getByRole("button", { name: new RegExp(`^Goal Shooter,\\s*${players[0].full_name}`, "i") });
+  const gs = page.getByRole("button", { name: new RegExp(`^${players[0].full_name}, Goal Shooter`, "i") });
   await expect(gs).toBeVisible({ timeout: 15_000 });
   // Hydrated once the live clock button responds to the app's code.
   await page.waitForFunction(() => {
@@ -425,13 +425,14 @@ test("NETBALL-03: tapping GS opens confirm sheet, confirming records goal + 8s u
   // (PositionToken.tsx:84+157) resolves `pos.label` via
   // netballSport.allPositions.find(...).label — for "gs" that's the
   // FULL name "Goal Shooter" (not the "GS" shortLabel). So the
-  // court-tile aria-label is "Goal Shooter, ${playerName}", which
+  // court-tile aria-label is "${playerName}, Goal Shooter, …" (the kid
+  // first, as every tile reads since the R6 follow-up), which
   // also nicely disambiguates from the bench tile
   // (NetballBenchStrip aria-label = "${name} (${status})").
   const gsPlayer = players[0];
   await page
     .getByRole("button", {
-      name: new RegExp(`^Goal Shooter,\\s*${gsPlayer.full_name}`, "i"),
+      name: new RegExp(`^${gsPlayer.full_name}, Goal Shooter`, "i"),
     })
     .click();
 
@@ -497,7 +498,7 @@ test.skip("NETBALL-03: undo writes score_undo event after a goal", async ({ page
   const gsPlayer = players[0];
   await page
     .getByRole("button", {
-      name: new RegExp(`^Goal Shooter,\\s*${gsPlayer.full_name}`, "i"),
+      name: new RegExp(`^${gsPlayer.full_name}, Goal Shooter`, "i"),
     })
     .click();
   await page
@@ -570,7 +571,7 @@ test("NETBALL-03: scorebug + GS chip update after a goal without manual refresh"
   const gsPlayer = players[0];
   await page
     .getByRole("button", {
-      name: new RegExp(`^Goal Shooter,\\s*${gsPlayer.full_name}`, "i"),
+      name: new RegExp(`^${gsPlayer.full_name}, Goal Shooter`, "i"),
     })
     .click();
   await page
@@ -583,7 +584,7 @@ test("NETBALL-03: scorebug + GS chip update after a goal without manual refresh"
   // this assertion fails red within the timeout.
   await expect(
     page.getByRole("button", {
-      name: new RegExp(`^Goal Shooter,\\s*${gsPlayer.full_name}, 1 goal$`, "i"),
+      name: new RegExp(`^${gsPlayer.full_name}, Goal Shooter(, \\d+:\\d\\d)?, 1 goal$`, "i"),
     }),
   ).toBeVisible({ timeout: 3_000 });
 
@@ -624,7 +625,7 @@ test("NETBALL-08: long-press on a court player opens the shared player actions (
   // pattern at e2e/tests/injury-replacement.spec.ts:85-87.
   await page
     .getByRole("button", {
-      name: new RegExp(`^Goal Shooter,\\s*${players[0].full_name}`, "i"),
+      name: new RegExp(`^${players[0].full_name}, Goal Shooter`, "i"),
     })
     .click({ delay: 600 });
 
@@ -663,7 +664,7 @@ test("NETBALL-08: marking a court player injured prompts replacement and writes 
   // injury-replacement.spec.ts pattern (600ms > 500ms threshold).
   await page
     .getByRole("button", {
-      name: new RegExp(`^Goal Shooter,\\s*${players[0].full_name}`, "i"),
+      name: new RegExp(`^${players[0].full_name}, Goal Shooter`, "i"),
     })
     .click({ delay: 600 });
   await page.getByRole("button", { name: /mark injured/i }).click();
@@ -683,7 +684,7 @@ test("NETBALL-08: marking a court player injured prompts replacement and writes 
     .getByRole("button", { name: new RegExp(`^${benchPlayer.full_name}\\b`, "i") })
     .click({ timeout: 5_000 });
   await expect(
-    page.getByRole("button", { name: new RegExp(`^Goal Shooter,\\s*${benchPlayer.full_name}`, "i") }),
+    page.getByRole("button", { name: new RegExp(`^${benchPlayer.full_name}, Goal Shooter`, "i") }),
   ).toBeVisible();
 
   // injury event landed (markInjury server action writes
@@ -733,7 +734,7 @@ test("NETBALL-08: long-press → Switch swaps a court player for a bench player 
   // Open the actions modal for GS via long-press.
   await page
     .getByRole("button", {
-      name: new RegExp(`^Goal Shooter,\\s*${players[0].full_name}`, "i"),
+      name: new RegExp(`^${players[0].full_name}, Goal Shooter`, "i"),
     })
     .click({ delay: 600 });
 
@@ -761,7 +762,7 @@ test("NETBALL-08: long-press → Switch swaps a court player for a bench player 
   // in the Goal Shooter aria-label.
   await expect(
     page.getByRole("button", {
-      name: new RegExp(`^Goal Shooter,\\s*${benchPlayer.full_name}`, "i"),
+      name: new RegExp(`^${benchPlayer.full_name}, Goal Shooter`, "i"),
     }),
   ).toBeVisible({ timeout: 3_000 });
 
@@ -1027,7 +1028,7 @@ test("netball undo names the score it takes back, and the break's review agrees 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
   // Live: a goal, then Undo. The undo names that goal.
-  await page.getByRole("button", { name: new RegExp(`^Goal Shooter,\\s*${players[0].full_name}`, "i") }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: new RegExp(`^${players[0].full_name}, Goal Shooter`, "i") }).click({ timeout: 15_000 });
   await page.getByRole("button", { name: /^(\+\s*goal|record goal|confirm goal)$/i }).click({ timeout: 5_000 });
   await page.getByRole("button", { name: /^undo$/i }).click({ timeout: 5_000 });
   const scoring = async () => {
@@ -1068,7 +1069,7 @@ test("a mid-quarter replacement survives a reload, and a cancelled one leaves no
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
   const token = (position: string, name: string) =>
-    page.getByRole("button", { name: new RegExp(`^${position},\\s*${name}`, "i") });
+    page.getByRole("button", { name: new RegExp(`^${name}, ${position}`, "i") });
 
   // GS injured, replaced from the bench.
   await token("Goal Shooter", players[0].full_name).click({ delay: 600 });
@@ -1113,7 +1114,7 @@ test("a Q4 replacement is saved when the game is finished", async ({ page }) => 
   await suppressWalkthrough(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  const gs = (name: string) => page.getByRole("button", { name: new RegExp(`^Goal Shooter,\\s*${name}`, "i") });
+  const gs = (name: string) => page.getByRole("button", { name: new RegExp(`^${name}, Goal Shooter`, "i") });
   await gs(players[0].full_name).click({ delay: 600 });
   await page.getByRole("button", { name: /mark injured/i }).click();
   await page.getByRole("dialog").getByRole("button", { name: new RegExp(`^${players[7].full_name}\\b`, "i") }).click();
@@ -1145,7 +1146,7 @@ test("sideline story: lend GA, GS hurt, then the lent kid comes back on at the b
   const [gs, ga] = [players[0], players[1]];
   const [bench1, bench2] = [players[7], players[8]];
   const token = (position: string, name: string) =>
-    page.getByRole("button", { name: new RegExp(`^${position},\\s*${name}`, "i") });
+    page.getByRole("button", { name: new RegExp(`^${name}, ${position}`, "i") });
   const replaceDialog = page.getByRole("dialog");
 
   // Q1: lend GA; a bench kid comes on.
@@ -1227,7 +1228,7 @@ test("the bench is AFL's: INJ once, no eyebrow, everyone's time", async ({ page 
   await suppressWalkthrough(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  await page.getByRole("button", { name: new RegExp(`^Goal Shooter,\\s*${players[0].full_name}`, "i") }).click({ delay: 600 });
+  await page.getByRole("button", { name: new RegExp(`^${players[0].full_name}, Goal Shooter`, "i") }).click({ delay: 600 });
   await page.getByRole("button", { name: /mark injured/i }).click();
   await page
     .getByRole("dialog", { name: "Who comes on at GS?" })
@@ -1275,7 +1276,7 @@ test("a benched kid's summary says they're on the bench, not a ticking On time",
   await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
 
   // The kid who came on at the break: on since Q2 began.
-  await page.getByRole("button", { name: new RegExp(`^Goal Shooter,\\s*${players[7].full_name}`, "i") }).click({ delay: 600 });
+  await page.getByRole("button", { name: new RegExp(`^${players[7].full_name}, Goal Shooter`, "i") }).click({ delay: 600 });
   await expect(page.getByRole("dialog").getByTestId("player-insight-ingame")).toContainText(/On [12]:\d\d/);
 });
 

@@ -84,7 +84,7 @@ function TimerRing({ msUntilDue, subIntervalMs }: { msUntilDue: number; subInter
           cy="20"
           r={r}
           fill="none"
-          stroke={due ? "#F2A65A" : "#9ACC9B"}
+          stroke={due ? "rgb(var(--c-due-dark))" : "rgb(var(--c-mint))"}
           strokeWidth="3"
           strokeDasharray={circ}
           strokeDashoffset={offset}
