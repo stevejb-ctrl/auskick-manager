@@ -54,6 +54,7 @@ import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
 import type { PlaybookSnapshot } from "@/lib/playbook/types";
 import { gameWriteError } from "@/lib/games/gameWriteError";
+import { reopenLineup } from "./actions";
 
 interface Writer {
   supabase: SupabaseClient;
@@ -295,6 +296,32 @@ export async function startTouchGame(
   }
   revalidatePath(`/run/${auth.token}`, "layout");
   return { success: true };
+}
+
+// ─── reopenTouchLineup ───────────────────────────────────────
+// ⋯ → Edit lineup before the first whistle (live v3): the picker comes
+// back with the side as set. AFL's reopenLineup moves the lineup into the
+// draft and takes the lineup_set out; a mixed team short of girls also
+// started on the field its rule allows (a roster_shrink before the
+// start), which goes with it, so the next Ready works the size out again
+// from who's here then.
+export async function reopenTouchLineup(auth: LiveAuth, gameId: string): Promise<ActionResult> {
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+  const admin = createAdminClient();
+  const { data: started, error: readError } = await admin
+    .from("game_events")
+    .select("id")
+    .eq("game_id", gameId)
+    .in("type", ["quarter_start", "game_finalised"])
+    .limit(1);
+  if (readError) return { success: false, error: readError.message };
+  // Under way: reopenLineup refuses it, in its words.
+  if ((started ?? []).length === 0) {
+    const { error: shrinkError } = await admin.from("game_events").delete().eq("game_id", gameId).eq("type", "roster_shrink");
+    if (shrinkError) return { success: false, error: shrinkError.message };
+  }
+  return reopenLineup(auth, gameId);
 }
 
 // ─── saveTouchLineupDraft ────────────────────────────────────
