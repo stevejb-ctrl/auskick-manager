@@ -80,6 +80,16 @@ interface GameHeaderProps {
    * (current behaviour everywhere else).
    */
   flat?: boolean;
+  /**
+   * Live v3 (AFL's shell): just the header (names, big totals, the clock
+   * between; tap a side for Scores and fixes) or just the bar (+ GOAL,
+   * + BEHIND, theirs as text buttons). Omitted: the one-piece bug.
+   */
+  part?: "header" | "bar";
+  /** The header: a sub is due, so the clock goes hi-vis. */
+  subDue?: boolean;
+  /** The header: tap the score for Scores and fixes. */
+  onScores?: () => void;
 }
 
 function points(s: { goals: number; behinds: number }) {
@@ -109,7 +119,11 @@ export function GameHeader({
   clockPulseKey = null,
   onShowQuarterScores,
   flat = false,
+  part,
+  subDue = false,
+  onScores,
 }: GameHeaderProps) {
+  const v3 = part !== undefined;
   const team = useLiveGame((s) => s.teamScore);
   const opp = useLiveGame((s) => s.opponentScore);
   const startedAt = useLiveGame((s) => s.clockStartedAt);
@@ -128,8 +142,12 @@ export function GameHeader({
   const remaining = Math.max(0, quarterMs - elapsed);
   const overtime = elapsed > quarterMs;
 
+  // Before kickoff the v3 header shows the first quarter, full length
+  // ("Q1 12:00"), as the clock will read when the siren goes.
   const quarterLabel = isPreGame
-    ? "Pre"
+    ? v3
+      ? "Q1"
+      : "Pre"
     : isFinished || quarter > periodCount
       ? "FT"
       : `Q${quarter}`;
@@ -163,24 +181,35 @@ export function GameHeader({
   // The rows are the shared ScoreBugFrame's (UX round 3, e4): the same
   // in every sport, compact on a short screen, chips wrapping at 320 px
   // and at large text.
+  // v3: the clock sits on the chalk in ink, and goes hi-vis only when it
+  // needs the coach: a sub due, or the siren.
+  const hot = v3 && !isPreGame && !isFinished && (atHooter || subDue);
+  const v3Pill = `flex min-w-[92px] flex-col items-center justify-center rounded-[12px] px-[10px] py-[6px] transition-colors duration-move ease-out-quart bigtext:min-w-0 bigtext:px-[6px] ${
+    hot ? "bg-hivis text-hivis-ink" : "bg-transparent text-ink enabled:hover:bg-surface-alt"
+  }`;
+  const clockSaid = isPreGame && v3
+    ? "not started"
+    : atHooter
+      ? breakName(quarter, periodCount)
+      : `${running ? "running" : "paused"}${hot && subDue ? ", sub due" : ""}`;
   const pill = (
     <SirenPulseHalo triggerKey={clockPulseKey} size="md" className="rounded-md">
       <button
         type="button"
         onClick={onClockTap}
         disabled={isPreGame || isFinished || !onClockTap}
-        className={`flex flex-col items-center justify-center rounded-md px-4 pb-2.5 pt-2 text-warm shadow-[0_6px_16px_rgba(26,30,26,0.18)] transition-[min-width,background-color] duration-move ease-out-quart ${isFinished ? "" : "disabled:opacity-80"} ${
+        className={v3 ? v3Pill : `flex flex-col items-center justify-center rounded-md px-4 pb-2.5 pt-2 text-warm shadow-[0_6px_16px_rgba(26,30,26,0.18)] transition-[min-width,background-color] duration-move ease-out-quart ${isFinished ? "" : "disabled:opacity-80"} ${
           atHooter ? "min-w-[168px] bg-due" : "min-w-[104px] bg-ink hover:bg-ink/90 bigtext:min-w-0 bigtext:px-2"
         }`}
-        aria-label={`Clock — ${quarterLabel}, ${atHooter ? breakName(quarter, periodCount) : running ? "running" : "paused"}`}
+        aria-label={`Clock — ${quarterLabel}, ${clockSaid}`}
       >
         {atHooter ? (
           // Label crossfades to the break: END Q2 / Half time.
           <span key="hooter" className="flex flex-col items-center motion-safe:animate-xfade-in motion-reduce:animate-xfade-in">
-            <span className="font-mono text-nano font-bold uppercase leading-3 tracking-micro text-white/[0.85]">
+            <span className={`font-mono text-nano font-bold uppercase leading-3 tracking-micro ${v3 ? "text-hivis-ink" : "text-white/[0.85]"}`}>
               End {quarterLabel}
             </span>
-            <span className="mt-0.5 whitespace-nowrap text-xl font-bold leading-7 tracking-[-0.01em] text-white">
+            <span className={`mt-0.5 whitespace-nowrap text-xl font-bold leading-7 tracking-[-0.01em] ${v3 ? "text-hivis-ink" : "text-white"}`}>
               {breakName(quarter, periodCount)}
             </span>
           </span>
@@ -188,12 +217,14 @@ export function GameHeader({
           <ClockPillReadout
             key={`q-${quarter}`}
             animateClassName={quarterChanged ? "motion-safe:animate-rise-in motion-reduce:animate-xfade-in" : ""}
-            periodTag={quarterLabel}
-            live={live}
+            // A sub due: the pill says so, over the time (v3).
+            periodTag={hot && subDue ? "Sub due" : quarterLabel}
+            live={live && !(hot && subDue)}
             pausedIcon={pausedIcon}
             readout={formatClock(remaining)}
             overtime={overtime}
             finished={isFinished || quarter > periodCount}
+            tone={v3 ? (hot ? "hot" : "ink") : "warm"}
           />
         )}
       </button>
@@ -202,21 +233,30 @@ export function GameHeader({
   const chips = (name: string, on?: (kind: "goal" | "behind") => void) =>
     on && trackScoring
       ? [
-          { key: "g", text: "+G", label: `Add goal, ${name}`, onTap: () => on("goal") },
-          { key: "b", text: "+B", label: `Add behind, ${name}`, onTap: () => on("behind") },
+          // The bar's words (v3): "+ GOAL / who scored?", "+ BEHIND / Roos +1".
+          { key: "g", text: "+G", word: "Goal", hint: "who scored?", label: `Add goal, ${name}`, onTap: () => on("goal") },
+          { key: "b", text: "+B", word: "Behind", hint: `${name} +1`, label: `Add behind, ${name}`, onTap: () => on("behind") },
         ]
       : [];
+  // The header's totals take the header's type; the "+6" rises there, not
+  // off the bar as well.
+  const totalClass = v3 ? "" : TOTAL;
+  const tallyClass = v3 ? "" : TALLY;
+  const ghosts = part !== "bar";
 
   return (
     <ScoreBugFrame
       card={!flat}
+      part={part}
+      onScores={onScores}
+      scoringOff={v3 && !trackScoring}
       ours={{
         name: teamName,
         // The total rolls up one slot on a score; the tally trails it by 40ms.
-        total: <RollingNumber value={points(team)} className={TOTAL} />,
-        tally: <RollingNumber value={`${team.goals}·${team.behinds}`} className={TALLY} delayMs={40} />,
+        total: <RollingNumber value={points(team)} className={totalClass} />,
+        tally: <RollingNumber value={`${team.goals}·${team.behinds}`} className={tallyClass} delayMs={40} />,
         chips: chips(teamName, onTeam),
-        ghost: teamGhost && (
+        ghost: ghosts && teamGhost && (
           <span key={teamGhost.key} aria-hidden className={`${SCORE_GHOST} left-3`}>
             {teamGhost.text}
           </span>
@@ -224,10 +264,10 @@ export function GameHeader({
       }}
       theirs={{
         name: opponentName,
-        total: <RollingNumber value={points(opp)} className={TOTAL} />,
-        tally: <RollingNumber value={`${opp.goals}·${opp.behinds}`} className={TALLY} delayMs={40} />,
+        total: <RollingNumber value={points(opp)} className={totalClass} />,
+        tally: <RollingNumber value={`${opp.goals}·${opp.behinds}`} className={tallyClass} delayMs={40} />,
         chips: chips(opponentName, onOpponent),
-        ghost: oppGhost && (
+        ghost: ghosts && oppGhost && (
           <span key={oppGhost.key} aria-hidden className={`${SCORE_GHOST} right-3`}>
             {oppGhost.text}
           </span>
@@ -237,7 +277,7 @@ export function GameHeader({
       // Scores: a 44pt text button under the pill (the old 9px bordered
       // pill was a ~20px target). Tap → the Scores and fixes sheet.
       underClock={
-        onShowQuarterScores && (
+        !v3 && onShowQuarterScores && (
           <ScoresButton onClick={onShowQuarterScores} />
         )
       }

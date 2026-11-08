@@ -48,6 +48,14 @@ interface LiveTopBarProps {
   subtitle?: string;
   /** The feedback (chat) icon. Default on; the period break hides it. */
   feedback?: boolean;
+  /**
+   * Live v3 (AFL's shell): "‹ Exit", "vs X" over `subline`, and ⋯ on the
+   * right, which opens the game menu. The "?" and feedback icons move
+   * into that menu, so they don't show here.
+   */
+  onMenu?: () => void;
+  /** Live v3: the quiet line under "vs X" ("Round 6 · AFL U10"). */
+  subline?: string;
 }
 
 /**
@@ -70,6 +78,8 @@ export function LiveTopBar({
   title,
   subtitle,
   feedback = true,
+  onMenu,
+  subline,
 }: LiveTopBarProps) {
   // Steve 2026-05-14: switched Exit from `<Link>` to an imperative
   // button + router.push because `<Link>` was silently no-op-ing on
@@ -96,6 +106,64 @@ export function LiveTopBar({
       router.push(exitHref);
     });
   };
+  if (onMenu) {
+    // Live v3's top bar: on the chalk, no rule under it, inside the shell
+    // (LiveShell), so it isn't pulled out to the page's edges. Sticky so
+    // the bar-finding checks still find it as the top bar.
+    return (
+      <div ref={barRef} className="sticky top-0 z-20 bg-warm pt-[env(safe-area-inset-top)]">
+        <div className="grid min-h-[46px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[6px] px-[8px]">
+          <a
+            href="#live-scores"
+            className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-ink focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-warm"
+          >
+            Skip to scores
+          </a>
+          <button
+            type="button"
+            onClick={handleExit}
+            disabled={exiting}
+            aria-label="Exit live game"
+            className="inline-flex min-h-[44px] min-w-[48px] items-center justify-center gap-[2px] rounded-[12px] px-[8px] font-display text-[0.9375rem] font-extrabold text-ink transition-colors hover:bg-surface-alt active:bg-surface-alt disabled:opacity-60"
+          >
+            {exiting ? "Exiting…" : (
+              <>
+                <span aria-hidden>‹</span> Exit
+              </>
+            )}
+          </button>
+          <div className="min-w-0 text-center">
+            {title ? (
+              <h1 tabIndex={-1} className="truncate font-display stretch-75 text-[1.125rem] font-extrabold leading-tight text-ink outline-none">
+                {title}
+              </h1>
+            ) : (
+              <p className="truncate font-display stretch-75 text-[1.125rem] font-extrabold leading-tight text-ink bigtext:line-clamp-2 bigtext:whitespace-normal bigtext:break-words">
+                vs {game.opponent}
+              </p>
+            )}
+            {whose ? (
+              <p data-testid="run-whose" className="truncate text-[0.71875rem] leading-4 text-ink-mute bigtext:hidden">
+                {runWhoseLine(whose)}
+              </p>
+            ) : (subtitle ?? subline) ? (
+              <p className="truncate text-[0.71875rem] leading-4 text-ink-mute bigtext:hidden">{subtitle ?? subline}</p>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={onMenu}
+            aria-label="Game menu"
+            aria-haspopup="dialog"
+            className="inline-flex min-h-[44px] w-[48px] items-center justify-center rounded-[12px] text-[1.375rem] font-bold leading-none tracking-[0.06em] text-ink transition-colors hover:bg-surface-alt active:bg-surface-alt"
+          >
+            <span aria-hidden>⋯</span>
+          </button>
+        </div>
+        {banner}
+      </div>
+    );
+  }
   return (
     // Re-skin (design session 17 Oct 2026): a 48px bar, EXIT and the
     // icon rings in ink-dim (the old #8A948C was 3.0:1), the live title

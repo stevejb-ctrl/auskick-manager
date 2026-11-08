@@ -27,11 +27,28 @@ import { useScoringFor } from "@/components/live/ScoringFor";
 //
 // It also says what changes to a screen reader: the score after a
 // score (or an undo, or another phone's), and the end of the period.
+//
+// Live v3 (AFL's shell, Phase 5) splits the bug in two with `part`:
+//
+//   - "header": the names and big totals in ink on the chalk, the clock
+//     between. Tapping either side opens Scores and fixes. With scoring
+//     off it says "No score kept". It's the one that speaks: the score
+//     and the end of the period go to a screen reader from here only.
+//   - "bar": the chips as the action bar's buttons. Our first chip is
+//     the one filled primary (+ GOAL, "who scored?" under it), our others
+//     outlined, theirs plain text buttons at least 44 px tall. Same
+//     labels ("Add goal, Roos"), so a screen reader hears no change.
+//
+// Without `part` it's the one-piece bug every other sport still uses.
 
 export interface ScoreChipSpec {
   key: string;
   /** "+G", "+T", "+3". */
   text: string;
+  /** The bar's word for it, "Goal" (live v3's part="bar"): "+ GOAL". */
+  word?: string;
+  /** The bar's line under it: "who scored?", "Roos +1". */
+  hint?: string;
   /** A word stacked under the text (touch's "+2" over "girl"). */
   sub?: string;
   /** What a screen reader calls it: "Add goal, Roos". */
@@ -67,6 +84,12 @@ interface ScoreBugFrameProps {
   periodOverSaid?: string | null;
   /** Card chrome around the bug (off inside the sticky score bar). */
   card?: boolean;
+  /** Live v3: the header (names, totals, clock) or the bar (the chips). */
+  part?: "header" | "bar";
+  /** The header: tap a side for Scores and fixes. */
+  onScores?: () => void;
+  /** The header: scoring is off, so no totals; "No score kept". */
+  scoringOff?: boolean;
 }
 
 const TOTAL_ROW = "nums mt-1 flex flex-wrap items-baseline gap-x-[8px] font-mono tabular-nums text-ink";
@@ -81,19 +104,91 @@ export function ScoreBugFrame({
   scoreSaid = null,
   periodOverSaid = null,
   card = false,
+  part,
+  onScores,
+  scoringOff = false,
 }: ScoreBugFrameProps) {
   // A double tap on one chip is one score (lib/live/repeatTap).
   const gate = useRef(repeatTapGate());
   // On a game-day link, our name says it is the parent's team.
   const scoringFor = useScoringFor();
+  // The bar half never speaks: the header says the score, once.
+  const speaks = part !== "bar";
   const said = useRef(scoreSaid);
   useEffect(() => {
+    if (!speaks) return;
     if (scoreSaid && said.current !== scoreSaid) announce(scoreSaid);
     said.current = scoreSaid;
-  }, [scoreSaid]);
+  }, [scoreSaid, speaks]);
   useEffect(() => {
-    if (periodOverSaid) announce(periodOverSaid, { priority: 2 });
-  }, [periodOverSaid]);
+    if (speaks && periodOverSaid) announce(periodOverSaid, { priority: 2 });
+  }, [periodOverSaid, speaks]);
+
+  if (part === "header") {
+    return (
+      <HeaderPart
+        ours={ours}
+        theirs={theirs}
+        clock={clock}
+        onScores={onScores}
+        scoringOff={scoringOff}
+        scoreSaid={scoreSaid}
+        yours={scoringFor}
+      />
+    );
+  }
+  if (part === "bar") {
+    const tap = (side: "ours" | "theirs", c: ScoreChipSpec) => () => {
+      if (gate.current(`${side}:${c.key}`, Date.now())) c.onTap();
+    };
+    const ourChips = ours.chips ?? [];
+    const theirChips = theirs.chips ?? [];
+    return (
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(88px,100px)] items-stretch gap-[8px] bigtext:grid-cols-2">
+        {ourChips.map((c, i) => (
+          <button
+            key={c.key}
+            type="button"
+            onClick={tap("ours", c)}
+            onPointerDown={onChipPointerDown}
+            disabled={chipsDisabled}
+            aria-label={c.label}
+            className={`${i === 0 ? BAR_PRIMARY : BAR_OUTLINED} ${ourChips.length === 1 ? "col-span-2" : ""}`}
+          >
+            <span className="whitespace-nowrap">+ {c.word ?? c.text.replace(/^\+/, "")}</span>
+            {c.hint && (
+              <span className="font-sans text-[0.6875rem] font-normal normal-case tracking-normal opacity-80 bigtext:hidden">
+                {c.hint}
+              </span>
+            )}
+            {i === 0 && ours.ghost}
+          </button>
+        ))}
+        {theirChips.length > 0 && (
+          // Large text: their name and buttons on one row, under ours.
+          <div className="relative grid min-w-0 grid-cols-2 grid-rows-[auto_1fr] text-center bigtext:col-span-2 bigtext:grid-cols-[minmax(0,1fr)_auto_auto] bigtext:grid-rows-1 bigtext:items-center bigtext:gap-x-[8px] bigtext:text-left">
+            <span className="col-span-2 truncate font-display text-[0.625rem] font-extrabold uppercase tracking-[0.1em] text-ink-mute bigtext:col-span-1">
+              {theirs.name}
+            </span>
+            {theirChips.map((c) => (
+              <button
+                key={c.key}
+                type="button"
+                onClick={tap("theirs", c)}
+                onPointerDown={onChipPointerDown}
+                disabled={chipsDisabled}
+                aria-label={c.label}
+                className={BAR_TEXT}
+              >
+                {c.text}
+              </button>
+            ))}
+            {theirs.ghost}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   const chipRow = (chips: ScoreChipSpec[] | undefined, side: "ours" | "theirs", ghost: ReactNode) =>
     chips && chips.length > 0 ? (
@@ -174,6 +269,112 @@ export function ScoreBugFrame({
           {chipRow(theirs.chips, "theirs", theirs.ghost)}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Live v3's two halves ─────────────────────────────────────
+
+const BAR_BUTTON =
+  "relative flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-[3px] rounded-[16px] px-[4px] py-[4px] " +
+  "font-display stretch-75 text-[1.0625rem] font-extrabold uppercase leading-none " +
+  "transition-[background-color,transform] duration-tap ease-out-quart motion-safe:active:scale-[0.97] " +
+  "disabled:pointer-events-none disabled:opacity-60 short:min-h-[44px]";
+/** The bar's one filled primary: + GOAL, "who scored?" under it. */
+const BAR_PRIMARY = BAR_BUTTON + " bg-primary text-on-primary hover:bg-primary/90";
+/** Our other chips: outlined on the chalk. */
+const BAR_OUTLINED =
+  BAR_BUTTON + " bg-transparent text-ink shadow-[inset_0_0_0_1.5px_rgb(var(--l-hairline))] hover:bg-surface-alt";
+/** Theirs: text buttons, 44 px tall, underlined so they read as buttons. */
+const BAR_TEXT =
+  "inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md font-display text-base font-extrabold text-ink-dim " +
+  "underline decoration-hairline underline-offset-[3px] hover:bg-surface-alt disabled:pointer-events-none disabled:opacity-60";
+
+const HEADER_TOTAL = "nums font-display stretch-62 text-[40px] font-extrabold leading-none text-ink tabular-nums";
+const HEADER_NAME =
+  // Three lines before it clips: a long club name in the narrow column
+  // beside a two-digit total ("Northcote Kangaroos 868" at 375 px).
+  "line-clamp-3 break-words font-display text-[0.75rem] font-bold uppercase leading-tight tracking-[0.04em] text-ink-mute bigtext:line-clamp-2";
+const HEADER_SMALL = "text-[0.75rem] font-semibold text-ink-mute";
+
+function HeaderPart({
+  ours,
+  theirs,
+  clock,
+  onScores,
+  scoringOff,
+  scoreSaid,
+  yours,
+}: {
+  ours: ScoreBugSide;
+  theirs: ScoreBugSide;
+  clock: ReactNode;
+  onScores?: () => void;
+  scoringOff: boolean;
+  scoreSaid: string | null;
+  yours: boolean;
+}) {
+  // One side of the header. The name's paragraph and the total's stay
+  // siblings (specs and the two-phone checks read the total as the
+  // name's next <p>); the total's <p> is `contents`, so its pieces sit
+  // in the side's grid: the name over the tally, the big total beside.
+  const side = (s: ScoreBugSide, right: boolean) => {
+    const cls = `relative grid min-w-0 items-center gap-x-[6px] rounded-[14px] px-[4px] py-[4px] ${
+      right ? "grid-cols-[auto_minmax(0,1fr)] text-right" : "grid-cols-[minmax(0,1fr)_auto] text-left"
+    }`;
+    // Scoring off: our side stays out of the way (the clock, then the
+    // words on the right), and there's nothing to tap.
+    if (scoringOff) {
+      return right ? (
+        <div className="min-w-0 px-[4px] text-right">
+          <p data-testid="scorebug-team-name" className={HEADER_NAME}>
+            {s.name}
+          </p>
+          <p data-testid="scores-not-kept" className="text-[0.75rem] text-ink-mute">
+            No score kept
+          </p>
+        </div>
+      ) : (
+        <div aria-hidden className="invisible" />
+      );
+    }
+    const body = (
+      <>
+        <p data-testid="scorebug-team-name" className={`${right ? "col-start-2" : "col-start-1"} row-start-1 self-end ${HEADER_NAME}`}>
+          {s.name}
+          {!right && yours && (
+            <span data-testid="scorebug-yours" className="font-normal normal-case tracking-normal">
+              {" "}
+              (you)
+            </span>
+          )}
+        </p>
+        <p className="contents">
+          {right && s.tally && <span className={`col-start-2 row-start-2 self-start ${HEADER_SMALL} bigtext:hidden`}>{s.tally}</span>}
+          <span className={`${right ? "col-start-1" : "col-start-2"} row-span-2 row-start-1 self-center ${HEADER_TOTAL}`}>{s.total}</span>
+          {!right && s.tally && <span className={`col-start-1 row-start-2 self-start ${HEADER_SMALL} bigtext:hidden`}>{s.tally}</span>}
+        </p>
+        {s.ghost}
+      </>
+    );
+    return onScores ? (
+      <button
+        type="button"
+        onClick={onScores}
+        aria-label={`Scores and fixes. ${scoreSaid ?? ""}`.trim()}
+        className={`${cls} transition-colors duration-fast ease-out-quart hover:bg-surface-alt active:bg-surface-alt`}
+      >
+        {body}
+      </button>
+    ) : (
+      <div className={cls}>{body}</div>
+    );
+  };
+  return (
+    <div className="grid min-h-[58px] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-[4px] px-[12px] short:min-h-0">
+      {side(ours, false)}
+      <div className="flex flex-col items-center">{clock}</div>
+      {side(theirs, true)}
     </div>
   );
 }

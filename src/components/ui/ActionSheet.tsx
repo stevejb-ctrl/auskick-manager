@@ -3,7 +3,13 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDialogFocus } from "@/components/ui/useDialogFocus";
-import { SHEET_CANCEL, SHEET_CARD, SHEET_OPTION, SHEET_TITLE, SheetGrab } from "@/components/ui/sheetChrome";
+import { SHEET_CANCEL, SHEET_CARD, SHEET_EYEBROW, SHEET_OPTION, SHEET_TITLE, SheetGrab } from "@/components/ui/sheetChrome";
+
+// A filled row: the sheet's one primary.
+const FILLED: Record<string, string> = {
+  ink: "!bg-ink !text-mark !shadow-none hover:!bg-ink/90",
+  oval: "!bg-brand-600 !text-mark !shadow-none hover:!bg-brand-700",
+};
 
 // ─── ActionSheet ─────────────────────────────────────────────
 // The one "pick an action" surface: a bottom sheet on phones (thumb
@@ -23,7 +29,13 @@ export interface ActionSheetAction {
   /** One line under the label, e.g. what a destructive action wipes. */
   description?: string;
   icon?: ReactNode;
-  tone?: "default" | "danger";
+  /**
+   * danger: red words. ink and oval: a filled row, the sheet's one
+   * primary (the v3 clock sheet's Pause, Resume).
+   */
+  tone?: "default" | "danger" | "ink" | "oval";
+  /** A test hook on the row. */
+  testId?: string;
   disabled?: boolean;
   onSelect: () => void;
 }
@@ -33,11 +45,15 @@ interface ActionSheetProps {
   title: string;
   /** Optional line under the heading (player name, game, etc.). */
   subtitle?: ReactNode;
+  /** Small caps over the heading ("GAME MENU", "Q2 CLOCK"). */
+  eyebrow?: string;
+  /** The dialog's accessible name when it isn't the heading. */
+  label?: string;
   actions: ActionSheetAction[];
   onClose: () => void;
 }
 
-export function ActionSheet({ title, subtitle, actions, onClose }: ActionSheetProps) {
+export function ActionSheet({ title, subtitle, eyebrow, label, actions, onClose }: ActionSheetProps) {
   const [mounted, setMounted] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const idBase = useId();
@@ -64,11 +80,12 @@ export function ActionSheet({ title, subtitle, actions, onClose }: ActionSheetPr
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-label={label ?? title}
         className={`relative z-10 max-h-[calc(100dvh-16px)] w-full max-w-md overflow-y-auto overscroll-contain ${SHEET_CARD} outline-none motion-safe:animate-sheet-up sm:m-4`}
       >
         <SheetGrab />
         <div className="px-5 pb-2 pt-6 sm:pt-5">
+          {eyebrow && <p className={SHEET_EYEBROW}>{eyebrow}</p>}
           <p className={SHEET_TITLE}>{title}</p>
           {subtitle && <div className="mt-1 text-sm text-ink-dim">{subtitle}</div>}
         </div>
@@ -81,6 +98,7 @@ export function ActionSheet({ title, subtitle, actions, onClose }: ActionSheetPr
                 disabled={a.disabled}
                 aria-label={a.label}
                 aria-describedby={a.description ? `${idBase}-${a.id}` : undefined}
+                data-testid={a.testId}
                 onClick={() => {
                   onClose();
                   a.onSelect();
@@ -88,7 +106,7 @@ export function ActionSheet({ title, subtitle, actions, onClose }: ActionSheetPr
                 className={[
                   SHEET_OPTION,
                   "disabled:opacity-50",
-                  a.tone === "danger" ? "text-danger" : "text-ink",
+                  a.tone === "danger" ? "text-danger" : a.tone === "ink" || a.tone === "oval" ? FILLED[a.tone] : "text-ink",
                 ].join(" ")}
               >
                 {a.icon && <span className="shrink-0" aria-hidden>{a.icon}</span>}
@@ -97,7 +115,7 @@ export function ActionSheet({ title, subtitle, actions, onClose }: ActionSheetPr
                   {a.description && (
                     <span
                       id={`${idBase}-${a.id}`}
-                      className="mt-0.5 block text-xs font-normal text-ink-dim"
+                      className={`mt-0.5 block text-xs font-normal ${a.tone === "ink" || a.tone === "oval" ? "text-mark/80" : "text-ink-dim"}`}
                     >
                       {a.description}
                     </span>

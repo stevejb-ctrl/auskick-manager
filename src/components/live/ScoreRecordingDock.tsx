@@ -59,6 +59,11 @@ interface ScoreRecordingDockProps {
    * 8, #11). Where tap-to-swap works; netball's mid-quarter has none.
    */
   swapHint?: string;
+  /**
+   * Live v3 (AFL's shell): in the shell's bar slot, in place of the score
+   * bar while a kid is picked, rather than floating over the screen.
+   */
+  inline?: boolean;
 }
 
 /**
@@ -75,13 +80,21 @@ export function ScoreRecordingDock({
   cancelLabel = "Cancel",
   onPlayerActions,
   swapHint,
+  inline = false,
 }: ScoreRecordingDockProps) {
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-2 pt-2"
-      style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))" }}
+      className={inline ? "" : "pointer-events-none fixed inset-x-0 bottom-0 z-40 px-2 pt-2"}
+      style={inline ? undefined : { paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))" }}
     >
-      <div className="pointer-events-auto mx-auto max-w-xl rounded-md border-2 border-brand-500 bg-surface p-3 shadow-modal">
+      <div
+        data-score-dock=""
+        className={
+          inline
+            ? "border-t border-hairline px-[2px] pt-[8px]"
+            : "pointer-events-auto mx-auto max-w-xl rounded-md border-2 border-brand-500 bg-surface p-3 shadow-modal"
+        }
+      >
         <div className="mb-2 flex items-center gap-2">
           <p className="flex-1 truncate text-sm font-semibold text-ink">
             {heading}

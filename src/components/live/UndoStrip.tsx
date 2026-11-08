@@ -14,6 +14,12 @@ interface UndoStripProps {
   message: string;
   onUndo: () => void;
   disabled?: boolean;
+  /**
+   * Live v3 (AFL's shell): a plain line on the chalk, the Undo an
+   * underlined word, tinted for a moment after a score (the filled Undo
+   * then). Omitted: the grey strip in every other sport's score bar.
+   */
+  plain?: boolean;
 }
 
 /**
@@ -21,13 +27,37 @@ interface UndoStripProps {
  * undo toast for every sport). Flashes for a few seconds after a score
  * with what was recorded, then settles quietly, still naming it.
  */
-export function UndoStrip({ flashing, message, onUndo, disabled = false }: UndoStripProps) {
+export function UndoStrip({ flashing, message, onUndo, disabled = false, plain = false }: UndoStripProps) {
   // Said into the page's one live region as it flashes (UX round 3, e4:
   // a status mounted already holding its text is often skipped). Ahead
   // of the new score, which the scorebug says.
   useEffect(() => {
     if (flashing && message) announce(message, { priority: 1 });
   }, [flashing, message]);
+  if (plain) {
+    return (
+      <div
+        className={`mx-[12px] flex min-h-[36px] items-center gap-[8px] rounded-[12px] pl-[4px] transition-colors duration-300 ${
+          flashing ? "bg-surface-alt text-ink-dim" : "bg-transparent text-ink-mute"
+        }`}
+        data-testid="undo-strip"
+      >
+        <span className={`min-w-0 flex-1 truncate text-[0.8125rem] ${flashing ? "font-bold text-ink" : ""}`}>
+          {message ? (flashing ? message : `Undo takes back: ${message}`) : "Undo last score"}
+        </span>
+        <button
+          type="button"
+          onClick={onUndo}
+          disabled={disabled}
+          className={`inline-flex min-h-[36px] flex-shrink-0 items-center rounded-[9px] px-[10px] font-display text-[0.84375rem] font-extrabold transition-colors disabled:opacity-60 motion-safe:active:scale-[0.97] ${
+            flashing ? "bg-ink text-mark" : "text-ink underline decoration-hairline underline-offset-[3px]"
+          }`}
+        >
+          Undo
+        </button>
+      </div>
+    );
+  }
   return (
     <div
       className={`mx-4 mb-1 flex items-center justify-between rounded-sm px-3 py-1.5 transition-colors ${

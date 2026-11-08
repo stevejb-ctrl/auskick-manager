@@ -347,6 +347,12 @@ html[data-motion="reduce"] *::after {
   to   { opacity: 1; }
 }
 
+/* Live v3's swap toast: the sun bar along its foot runs out over the
+   toast's six seconds (SwapDoneToast look="ink"). */
+@keyframes toast-drain {
+  to { transform: scaleX(0); }
+}
+
 /* ────────────────────────────────────────────────────────────────
    Hero-watermark field strokes.
 
