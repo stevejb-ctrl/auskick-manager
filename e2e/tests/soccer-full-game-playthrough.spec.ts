@@ -5,7 +5,8 @@
 // Flow:
 //   1. Pre-kickoff: the picker draws seven on the pitch, a keeper in
 //      goal and three on the bench, and names who starts in goal.
-//   2. Start H1 (two-step: the picker, then the whistle modal).
+//   2. Ready, then Start H1 (live v3: the picker's Ready sets the
+//      lineup; the live screen's bar starts the half, after its confirm).
 //   3. A goal for us from the player's dock, one for them from the
 //      scorebug (the undo strip says what each was), and a rolling sub
 //      (bench tap, then field tap, then AFL's confirm and toast).
@@ -22,6 +23,8 @@ import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
 import { startFromBreak } from "../helpers/break";
+import { readySoccer } from "../helpers/kickoff";
+import { openGameMenu } from "../helpers/liveShell";
 
 test.describe.configure({ mode: "serial" });
 
@@ -83,7 +86,11 @@ test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top change
   await expect(page.getByRole("group", { name: "Bench" }).locator("[data-testid^='player-tile-']")).toHaveCount(3);
   await expect(page.getByRole("region", { name: "Keeper" })).toContainText(/starts in goal/i);
 
-  // ─── 2. Start H1 ───────────────────────────────────────────────
+  // ─── 2. Ready, then Start H1 ──────────────────────────────────
+  // Ready writes the lineup only: no half started until the bar's Start.
+  await readySoccer(page);
+  expect(await count("lineup_set")).toBe(1);
+  expect(await count("quarter_start")).toBe(0);
   await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
   await page.getByRole("button", { name: /^start h1 now$/i }).click({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: /^clock — h1, running$/i })).toBeVisible({ timeout: 15_000 });
@@ -108,8 +115,13 @@ test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top change
   await page.getByRole("button", { name: "Add goal, Coogee Crabs" }).click({ timeout: 5_000 });
   await expect(strip).toContainText("Coogee Crabs goal");
   await expect.poll(() => count("opponent_goal")).toBe(1);
-  // The kid who isn't here yet can be added late.
-  await expect(page.getByRole("button", { name: "+ Add late arrival" })).toBeVisible();
+  // The kid who isn't here yet can be added late: "+ Late" on the
+  // bench, and in ⋯ (live v3).
+  await expect(page.getByRole("group", { name: "Bench" }).getByRole("button", { name: /^\+ late arrival/i })).toBeVisible();
+  const menu = await openGameMenu(page);
+  await expect(menu.getByRole("button", { name: /add late arrival/i })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
 
   const [benchKid] = h1.bench;
   const offKid = h1.lines.def[0];
@@ -125,9 +137,10 @@ test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top change
   // ─── 4. End H1; half-time hands the keeper top on ─────────────
   // From a scrolled live view: the break still opens at the top (audit,
   // 23 Oct 2026: it kept the live view's offset, the score off-screen).
+  // Live v3's shell: the page itself never scrolls, the field does.
   await page.setViewportSize({ width: 412, height: 640 });
+  await page.getByTestId("live-field").evaluate((el) => el.scrollTo(0, el.scrollHeight));
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   await page.getByRole("button", { name: /^clock — h1, running$/i }).click();
   await page.getByRole("button", { name: /^end h1 now$/i }).click();
   await page.getByRole("button", { name: /^end\s*h\s*1$/i }).click();
@@ -191,7 +204,7 @@ test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top change
   await expect(summary).toContainText("Coogee Crabs", { timeout: 15_000 });
   await expect(summary).toContainText(/in goal/);
   // The game's over: no one can arrive late now.
-  await expect(page.getByRole("button", { name: "+ Add late arrival" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /add late arrival|^\+ late arrival/i })).toHaveCount(0);
 
   // ─── 6. Soccer's events carry the team's sport ────────────────
   const { data: events } = await admin
@@ -290,9 +303,11 @@ test("soccer: one of two due swaps leaves the other due, and the clock waits for
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  // Both bench kids are due on.
+  // Both bench kids are due on. The pairs sheet (the due bar's Pairs)
+  // makes one of them.
   await expect(page.getByText(/^sub due — 2 swaps$/i)).toBeVisible({ timeout: 20_000 });
-  await page.getByTestId("soccer-swap-pair-0").getByRole("button", { name: /^swap .+ off, .+ on$/i }).click();
+  await page.getByRole("button", { name: /^pairs/i }).click();
+  await page.getByRole("dialog").getByRole("button", { name: /^swap .+ off, .+ on$/i }).first().click();
   await expect.poll(async () => (await swaps()).length).toBe(1);
   // The swap says one of its batch is still to make…
   expect((await swaps())[0].metadata.batch_left).toBe(1);
@@ -300,9 +315,8 @@ test("soccer: one of two due swaps leaves the other due, and the clock waits for
   await expect(page.getByText(/^sub due — 1 swap$/i)).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText(/^suggested — 1 swap$/i)).toHaveCount(0);
 
-  // The last of the batch restarts the clock.
-  await page.getByText(/^sub due — 1 swap$/i).click();
-  await page.getByTestId("soccer-swap-pair-0").getByRole("button", { name: /^swap .+ off, .+ on$/i }).click();
+  // The last of the batch restarts the clock (the sheet's "Make this swap").
+  await page.getByTestId("swapcard-apply-all").click();
   await expect.poll(async () => (await swaps()).length).toBe(2);
   expect((await swaps())[1].metadata.batch_left).toBeUndefined();
   await expect(page.getByText(/^sub due —/i)).toHaveCount(0, { timeout: 15_000 });

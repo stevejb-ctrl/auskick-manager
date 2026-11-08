@@ -22,7 +22,7 @@ import { createAdminClient } from "../fixtures/supabase";
 import { makeGame, makePlayers, makeTeam } from "../fixtures/factories";
 import { finishedGame, fullTime, playPeriod } from "../helpers/finished-game";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
-import { readyAfl } from "../helpers/kickoff";
+import { readyAfl, readySoccer } from "../helpers/kickoff";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -61,9 +61,11 @@ test("futsal: kicking off 3 a side puts the game in progress", async ({ page }) 
   await skipWalkthroughs(page);
   await gotoStable(page, `/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  await expect(page.getByRole("button", { name: /^start h1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: /game settings/i }).click();
   await page.locator("#soccer-on-field-size").selectOption("3");
+  // Live v3: the picker's Ready, then Start H1 on the live screen's bar.
+  await readySoccer(page);
   await page.getByRole("button", { name: /^start h1$/i }).click();
   await page.getByRole("button", { name: /^start h1 now$/i }).click({ timeout: 10_000 });
 

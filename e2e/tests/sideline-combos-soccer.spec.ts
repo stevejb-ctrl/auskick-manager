@@ -21,6 +21,7 @@ import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
 import type { GameEvent } from "../../src/lib/types";
 import { closeGameSettings, openGameSettings, startFromBreak } from "../helpers/break";
+import { openGameMenu } from "../helpers/liveShell";
 
 interface Seeded {
   team: { id: string };
@@ -285,7 +286,9 @@ test("soccer: a tap-tap sub is made at once and toasts; a goal, its undo and the
   await openLive(page, team.id, game.id);
   await slowSaves(page, game.id);
 
-  const theirs = page.getByTestId("scorebug-team-name").last().locator("xpath=..");
+  // Their total: the paragraph after their name (live v3's header,
+  // where the "+1" that rises off it is beside, not in, the total).
+  const theirs = page.getByTestId("scorebug-team-name").last().locator("xpath=following-sibling::p[1]");
   await page.getByRole("button", { name: "Add goal, Coogee Crabs" }).click();
   await expect(theirs).toContainText("1", { timeout: 1500 });
   const strip = page.getByTestId("undo-strip");
@@ -319,7 +322,7 @@ test("soccer: a tap-tap sub is made at once and toasts; a goal, its undo and the
   await expect(theirs).toContainText("0");
 });
 
-test("soccer: long-press knows an on-field kid's line and lent minutes; Game settings sits in the row", async ({ page }) => {
+test("soccer: long-press knows an on-field kid's line and lent minutes; Game settings is in the game menu", async ({ page }) => {
   const admin = createAdminClient();
   // p3 (midfield) was lent for 6 minutes in last week's game.
   const { team, game, players } = await soccerGame(admin, { count: 8, available: 8, name: "SOC-LONGP", lentBefore: { 3: 6 } });
@@ -333,8 +336,9 @@ test("soccer: long-press knows an on-field kid's line and lent minutes; Game set
   await sheet.getByRole("button", { name: "Cancel" }).click();
   await expect(sheet).toHaveCount(0);
 
-  // Game settings: the sub interval, mid-game, as AFL's.
-  await page.getByRole("button", { name: "Game settings", exact: true }).click();
+  // Game settings: the sub interval, mid-game, in ⋯ as AFL's (live v3).
+  const menu = await openGameMenu(page);
+  await menu.getByRole("button", { name: /^game settings/i }).click();
   const settings = page.getByRole("dialog").filter({ hasText: "Sub interval" });
   await expect(settings).toBeVisible();
   await expect(settings.getByText(/players on field/i)).toHaveCount(0);

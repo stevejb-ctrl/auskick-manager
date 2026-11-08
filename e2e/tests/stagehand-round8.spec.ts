@@ -238,7 +238,8 @@ test("#11 tapping a player says a second tap swaps, not just how to score", asyn
   const { context, page } = await parentPhone(browser);
   await openLive(page, `/run/${game.share_token}`);
   await page.getByTestId(`player-tile-${ids[4]}`).click();
-  await expect(page.getByTestId("dock-swap-hint")).toHaveText("Tap anyone, on the field or the bench, to swap them.");
+  // Live v3's kid bar says it with the kid's name.
+  await expect(page.getByTestId("dock-swap-hint")).toHaveText(/^Tap another kid to swap with \S+\.$/);
   // One swap line (design review, Oct 2026): not a second one under + Goal.
   await expect(page.getByText(/Or tap a bench player to swap/)).toHaveCount(0);
   await context.close();
@@ -259,11 +260,13 @@ test("#14 AFL: two quick taps that swap field kids can be undone from the toast"
   await context.close();
 });
 
-test("#14 football's live screen has a ? that ends on the words you'll see", async ({ browser }) => {
+test("#14 football's live screen has a tour that ends on the words you'll see", async ({ browser }) => {
   const { game } = await inFirstPeriod("soccer");
   const { context, page } = await parentPhone(browser);
   await openLive(page, `/run/${game.share_token}`);
-  await page.getByRole("button", { name: "Open walkthrough" }).click();
+  // Live v3: the tour is in ⋯ (How the live screen works), for every sport.
+  await page.getByRole("button", { name: "Game menu" }).click();
+  await page.getByRole("dialog", { name: "Game menu" }).getByRole("button", { name: /how the live screen works/i }).click();
   const dialog = page.getByRole("dialog");
   for (let i = 0; i < 8 && !(await dialog.getByText("Words you'll see").isVisible()); i++) {
     await dialog.getByRole("button", { name: "Next" }).click();

@@ -130,8 +130,8 @@ test("soccer: a game manager adds a missed goal mid-half and the score on the li
     await expect(page.getByRole("button", { name: /^clock — h1, running$/i })).toBeVisible({ timeout: 15_000 });
     await expect(ourTotal(page)).toHaveText("0");
 
-    await page.getByTestId("live-fix-scores").click({ timeout: 15_000 });
-    const sheet = page.getByRole("dialog", { name: "Scores and fixes" });
+    // Live v3's shell (Phase 9): tap the score for Scores and fixes.
+    const sheet = await openScoresFromHeader(page);
     await expect(sheet.getByTestId("fix-scores-total")).toHaveText(/0 – 0/, { timeout: 15_000 });
     await sheet.getByRole("button", { name: "+ Add a missed score" }).click();
     await sheet.getByRole("combobox", { name: "Who scored" }).selectOption({ label: players[6].full_name });

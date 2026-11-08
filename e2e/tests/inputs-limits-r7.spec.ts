@@ -383,6 +383,8 @@ test.describe("kicking off short", () => {
     await allIn(game.id, players.map((p) => p.id), ownerId);
 
     await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+    // Live v3: the confirm is on the live screen, after the picker's Ready.
+    await page.getByRole("button", { name: /^ready$/i }).click({ timeout: 15_000 });
     await page.getByRole("button", { name: /^start (h|q)1$/i }).click({ timeout: 15_000 });
     await expect(page.getByTestId("short-side")).toHaveText(/^Playing 2 of \d+, under the 3 this age group plays with/);
   });

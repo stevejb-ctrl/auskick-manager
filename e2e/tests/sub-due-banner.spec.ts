@@ -174,9 +174,16 @@ test("rugby_union: sub due is the info line, and a kid's + Try still takes the t
   await expectCardIsTheAlert(page, { tiles: '[data-testid^="league-player-tile-"]', score: /^\+ try$/i });
 });
 
+// The soccer family is on the v3 shell (Phase 9): the info line is the alert, as AFL's.
+test("soccer: sub due is the info line, and a kid's + Goal still takes the tap", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto((await subDueGame("soccer")).coach);
+  await waitForHydration(page);
+  await expectCardIsTheAlert(page);
+});
+
 for (const { sport, chip } of [
   { sport: "basketball" as const, chip: /^add 2 points, /i },
-  { sport: "soccer" as const, chip: /^add goal, /i },
 ]) {
   test(`${sport}: sub due is the sub card alone, and the score chip still takes the tap`, async ({ page }) => {
     test.setTimeout(90_000);

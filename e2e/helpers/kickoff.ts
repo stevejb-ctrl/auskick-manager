@@ -55,3 +55,24 @@ export async function startRugbyFirst(page: Page, tag = "H1", timeout = 15_000):
   await page.getByRole("button", { name: new RegExp(`^start ${tag} now$`, "i") }).click({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: new RegExp(`^clock — ${tag}, running$`, "i") })).toBeVisible({ timeout });
 }
+
+// The soccer family's kickoff on live v3 (Phase 9), the same way: the
+// picker's Ready sets the lineup, the live screen opens before the
+// whistle, and its bar's Start H1 (hockey's quarters: Start Q1) asks
+// "Start H1 now".
+
+/** The soccer / futsal / hockey picker's Ready: the live screen, the first period not started. */
+export async function readySoccer(page: Page, tag = "H1", timeout = 15_000): Promise<void> {
+  await readyRugby(page, tag, timeout);
+}
+
+/** From the soccer family's live screen before the whistle: Start H1, then "Start H1 now". */
+export async function startSoccerFirst(page: Page, tag = "H1", timeout = 15_000): Promise<void> {
+  await startRugbyFirst(page, tag, timeout);
+}
+
+/** The picker's Ready, then Start H1 on the live screen: the clock runs. */
+export async function kickOffSoccer(page: Page, tag = "H1", timeout = 15_000): Promise<void> {
+  await readySoccer(page, tag, timeout);
+  await startSoccerFirst(page, tag, timeout);
+}

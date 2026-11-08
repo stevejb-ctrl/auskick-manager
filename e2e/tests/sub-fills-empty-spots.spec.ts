@@ -114,11 +114,16 @@ test("hockey: the keeper hurt with nobody on — 'No keeper', and the card fills
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
   await expect(page.getByTestId("no-keeper")).toContainText("No keeper: put someone in goal", { timeout: 15_000 });
-  await openSubCard(page);
-  const pair = page.getByTestId("soccer-swap-pair-0");
+  // Live v3 (Phase 9): the info line opens the pairs; the goal's is first.
+  await page.getByTestId("info-line").click({ timeout: 15_000 });
+  const sheet = page.getByRole("dialog").filter({ has: page.getByTestId("swapcard-apply-all") });
+  const pair = sheet.locator("li").first();
   await expect(pair).toContainText("GK");
   await expect(pair).toContainText("Empty spot");
-  await pair.getByRole("button", { name: /^Put .+ on$/ }).click();
+  // One pair: the sheet's "Make this swap"; more: that pair's own Put … on.
+  const putOn = pair.getByRole("button", { name: /^Put .+ on$/ });
+  if ((await sheet.locator("li").count()) > 1) await putOn.click();
+  else await sheet.getByTestId("swapcard-apply-all").click();
   await expect.poll(async () => (await lastSwap(admin, game.id))?.line, { timeout: 15_000 }).toBe("gk");
   const fill = await lastSwap(admin, game.id);
   expect(fill?.off_player_id ?? null).toBeNull();

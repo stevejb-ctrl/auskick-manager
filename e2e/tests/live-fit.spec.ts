@@ -265,3 +265,86 @@ for (const side of [
     }
   });
 }
+
+// ─── The soccer family (live v3, Phase 9) ──────────────────────────
+// Football's eleven (keeper and 4-3-3) with a bench of five, and
+// futsal's five with three on the bench, on the same shell: no page
+// scroll at 390×844, every kid and the bench on screen at a thumb's
+// size, attack at the top and the keeper at the foot, + GOAL and their
+// +G in reach.
+
+/** A soccer-family side mid-H1, scoring on. */
+async function soccerSide(sport: "soccer" | "futsal", ageGroup: string, lines: { def: number; mid: number; att: number }, bench: number) {
+  const admin = createAdminClient();
+  const ownerId = await coachId(admin);
+  const team = await makeTeam(admin, { ownerId, sport, ageGroup, name: `Fit ${sport} ${Date.now() % 100000}` });
+  await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+  const onField = 1 + lines.def + lines.mid + lines.att;
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: onField + bench });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Kookas" });
+  await admin.from("games").update({ on_field_size: onField, status: "in_progress", sub_interval_seconds: 600 }).eq("id", game.id);
+  const ids = players.map((p) => p.id);
+  let i = 1;
+  const take = (n: number) => ids.slice(i, (i += n));
+  const lineup = { keeper: ids[0], lines: { def: take(lines.def), mid: take(lines.mid), att: take(lines.att), field: [] }, bench: ids.slice(onField) };
+  const at = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString();
+  const { error } = await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup, sport }, created_at: at(90) },
+      { type: "quarter_start", metadata: { quarter: 1, sport }, created_at: at(60) },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  if (error) throw new Error(`seed: ${error.message}`);
+  return { team, game, ids, onField };
+}
+
+for (const side of [
+  { name: "football U14, 11 + 5", sport: "soccer" as const, age: "U14", lines: { def: 4, mid: 3, att: 3 }, bench: 5, surface: "On field", top: "Attack" },
+  { name: "futsal U10, 5 + 3", sport: "futsal" as const, age: "U10", lines: { def: 2, mid: 0, att: 2 }, bench: 3, surface: "On court", top: "Front" },
+]) {
+  test(`${side.name} at 390×844: no page scroll; every kid, the bench and the bar on screen`, async ({ page }) => {
+    const { team, game, ids, onField } = await soccerSide(side.sport, side.age, side.lines, side.bench);
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem("soccer-walkthrough-seen", "1");
+        localStorage.setItem("siren-longpress-seen-v1", "true");
+      } catch {}
+    });
+    await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+    await waitForHydration(page);
+    await expect(page.getByRole("button", { name: /^clock — h1, running/i })).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(400);
+
+    const s = await scrolls(page);
+    expect(s.page, "the page scrolls").toBeLessThanOrEqual(0);
+    expect(s.pageX, "the page scrolls sideways").toBeLessThanOrEqual(0);
+    expect(s.shell, "the shell scrolls").toBeLessThanOrEqual(1);
+    expect(s.field, "the field scrolls").toBeLessThanOrEqual(1);
+
+    const field = page.getByRole("region", { name: side.surface });
+    await expect(field.locator("[data-testid^='player-tile-']")).toHaveCount(onField);
+    for (const id of ids.slice(0, onField)) {
+      const box = await field.getByTestId(`player-tile-${id}`).boundingBox();
+      await onScreen(page, `field ${id}`, box);
+      expect(box!.height, "a tap target").toBeGreaterThanOrEqual(44);
+      expect(box!.width, "a tap target").toBeGreaterThanOrEqual(44);
+    }
+    // The keeper wears the GK flag, in the Keeper line at the foot.
+    await expect(field.getByRole("group", { name: "Keeper" }).getByTestId(`player-tile-${ids[0]}`).getByTestId("kid-flag")).toHaveText("GK");
+    const top = await field.getByRole("group", { name: side.top, exact: true }).boundingBox();
+    const keeper = await field.getByRole("group", { name: "Keeper", exact: true }).boundingBox();
+    expect(top!.y, "attack at the top").toBeLessThan(keeper!.y);
+    for (const id of ids.slice(onField)) {
+      const box = await page.getByRole("group", { name: "Bench", exact: true }).getByTestId(`player-tile-${id}`).boundingBox();
+      await onScreen(page, `bench ${id}`, box);
+      expect(box!.height, "a tap target").toBeGreaterThanOrEqual(44);
+    }
+    await onScreen(page, "clock", await page.getByRole("button", { name: /^clock — /i }).boundingBox());
+    const goal = await page.getByRole("button", { name: /^add goal, fit/i }).boundingBox();
+    await onScreen(page, "+ GOAL", goal);
+    expect(goal!.height).toBeGreaterThanOrEqual(44);
+    const theirs = await page.getByRole("button", { name: "Add goal, Kookas" }).boundingBox();
+    await onScreen(page, "their +G", theirs);
+    expect(theirs!.height).toBeGreaterThanOrEqual(44);
+  });
+}

@@ -8,6 +8,7 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
+import { readySoccer } from "../helpers/kickoff";
 
 async function soccerTeam(ageGroup: string, count: number, name: string) {
   const admin = createAdminClient();
@@ -39,6 +40,8 @@ test("soccer U6: 4 a side with no keeper and no lines, and no scoreboard", async
   await expect(field.getByRole("group", { name: "Keeper" })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Keeper" })).toHaveCount(0);
 
+  // Live v3: the picker's Ready, then Start H1 on the live screen's bar.
+  await readySoccer(page);
   await page.getByRole("button", { name: /^start h1$/i }).click();
   await page.getByRole("button", { name: /^start h1 now$/i }).click({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: /^clock — h1, running$/i })).toBeVisible({ timeout: 15_000 });
@@ -70,6 +73,7 @@ test.describe("on a 375 px phone", () => {
     const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(await overflow()).toBeLessThanOrEqual(0);
 
+    await readySoccer(page);
     await page.getByRole("button", { name: /^start h1$/i }).click();
     await page.getByRole("button", { name: /^start h1 now$/i }).click({ timeout: 10_000 });
     await expect(page.getByRole("button", { name: /^clock — h1, running$/i })).toBeVisible({ timeout: 15_000 });

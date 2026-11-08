@@ -62,17 +62,17 @@ for (const c of CASES) {
     try {
       await page.addInitScript(() => {
         try {
-          for (const k of ["gm-walkthrough-seen", "nb-walkthrough-seen", "league-walkthrough-seen", "rl-walkthrough-seen"]) {
+          for (const k of ["gm-walkthrough-seen", "nb-walkthrough-seen", "league-walkthrough-seen", "rl-walkthrough-seen", "soccer-walkthrough-seen"]) {
             localStorage.setItem(k, "1");
           }
         } catch {}
       });
       await page.goto(`/teams/${team.id}/games/${game.id}/live`);
       await waitForHydration(page);
-      // AFL's, netball's and rugby's pickers set the lineup with Ready; the
-      // live screen's bar holds Start Q1 / H1 (live v3). The other sports
-      // start from the picker.
-      if (c.sport === "afl" || c.sport === "netball" || c.sport === "rugby_league" || c.sport === "rugby_union")
+      // AFL's, netball's, rugby's and the soccer family's pickers set the
+      // lineup with Ready; the live screen's bar holds Start Q1 / H1 (live
+      // v3). The other sports start from the picker.
+      if (["afl", "netball", "rugby_league", "rugby_union", "soccer", "futsal", "hockey"].includes(c.sport))
         await page.getByRole("button", { name: /^ready$/i }).click({ timeout: 20_000 });
       await page.getByRole("button", { name: FIRST }).click({ timeout: 20_000 });
       await page.getByRole("button", { name: /^start [qh]\d+ now$|^start anyway$/i }).click({ timeout: 10_000 });
