@@ -104,12 +104,12 @@ export default function TrackScoringPage() {
             <strong className="text-ink">+ Drop goal</strong> sit beside it.
           </li>
           <li>
-            Each player&apos;s tile shows a small chip with their tally for
-            the game (in league and union, their tries).
+            Each kid&apos;s tally for the game shows small after their name
+            (in league and union, their tries).
           </li>
           <li>
-            Score buttons appear beside each team&apos;s score in the
-            scoreboard: AFL <strong className="text-ink">+G</strong> and{" "}
+            The score buttons sit on the bar at the bottom, the other
+            team&apos;s on the right: AFL <strong className="text-ink">+G</strong> and{" "}
             <strong className="text-ink">+B</strong>; netball{" "}
             <strong className="text-ink">+G</strong>; league{" "}
             <strong className="text-ink">+T</strong> and{" "}
@@ -131,16 +131,16 @@ export default function TrackScoringPage() {
             and field or drop goals once there are some).
           </li>
           <li>
-            An <strong className="text-ink">Undo</strong> strip sits just
-            above the scoreboard so you can take back the latest score. In AFL
-            and netball it flashes the score you just recorded for 8 seconds.
+            An <strong className="text-ink">Undo</strong> line sits under the
+            score so you can take back the latest score; it names the score.
+            Tap the score itself to fix an earlier one.
           </li>
         </ul>
 
         <HelpFigure
           src="/help-screenshots/track-scoring-player-tile.png"
-          alt="An AFL player tile during a scored game showing a chip with the player's score tally"
-          caption="When scoring is tracked, each player tile shows their current tally."
+          alt="An AFL kid on the field during a scored game, with their tally after the name"
+          caption="When scoring is tracked, each kid shows their tally after their name."
         />
       </section>
 

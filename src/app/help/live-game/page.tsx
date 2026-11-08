@@ -28,14 +28,14 @@ export default function LiveGamePage() {
       </p>
       <p className="mt-2 text-sm leading-relaxed text-ink-dim">
         The exact controls vary by sport. AFL, league, union, football
-        (soccer) and basketball use rolling subs, so a sub timer and a swap card suggest who
-        comes on during play. Netball subs at the breaks, so it shows the
+        (soccer) and basketball use rolling subs, so a Next sub line counts down
+        and Siren suggests who comes on during play. Netball subs at the breaks, so it shows the
         next-quarter reshuffle at every break instead. League also tracks its
         junior laws: FR and DH vests, goal-kick turns and kickoff turns; union
         has none of them. Football keeps its keeper in goal for the whole
         half: at half-time Siren plans the next half, starting with who takes
         the keeper top, and <strong className="text-ink">Replace keeper</strong>{" "}
-        (tap the keeper, then Player actions) changes it mid-half. Basketball subs at a dead
+        (tap the keeper, then More) changes it mid-half. Basketball subs at a dead
         ball through the table, tracks each kid&apos;s fouls (five and
         they&apos;re out), and its clock waits at 0:00 for the real hooter,
         since the stadium clock stops in the last minutes. Touch football and
@@ -45,8 +45,9 @@ export default function LiveGamePage() {
         <Link href="/help/rotations#touch-and-oztag" className="text-brand-700 underline">
           Rotations
         </Link>
-        . Every sport has a lineup
-        picker, scoring buttons and a player-actions sheet.
+        . Every sport has the same live screen: the score and clock at the
+        top, the field, the bench, and a bar at the bottom for scoring and for
+        the kid you&apos;ve tapped.
       </p>
       <p className="mt-2 text-sm leading-relaxed text-ink-dim">
         Futsal runs on football&apos;s live screen, drawn on a court, with
@@ -79,8 +80,7 @@ export default function LiveGamePage() {
             and from the bench.
           </li>
           <li>
-            League from Under 8: tap a player on the field, then Player
-            actions, and tap{" "}
+            League from Under 8: long-press a player on the field and tap{" "}
             <strong className="text-ink">Make First Receiver</strong> (or{" "}
             <strong className="text-ink">Make Dummy Half</strong> from Under
             9) to pick who wears the vest first. The{" "}
@@ -88,10 +88,14 @@ export default function LiveGamePage() {
             the later periods for you.
           </li>
           <li>
-            When you&apos;re happy, tap{" "}
-            <strong className="text-ink">Start Q1</strong>. League teams from
-            Under 10 play halves, so their button reads{" "}
-            <strong className="text-ink">Start H1</strong>.
+            When you&apos;re happy, tap <strong className="text-ink">Ready</strong>.
+            The live screen opens with{" "}
+            <strong className="text-ink">Start Q1</strong> on the bar at the
+            bottom: tap it, then <strong className="text-ink">Start Q1 now</strong>{" "}
+            when the game starts. Sports in halves read{" "}
+            <strong className="text-ink">Start H1</strong>. Changed your mind
+            before then? <strong className="text-ink">⋯</strong> ›{" "}
+            <strong className="text-ink">Edit lineup</strong> takes you back.
           </li>
         </ol>
 
@@ -109,16 +113,16 @@ export default function LiveGamePage() {
         </p>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
-            <strong className="text-ink">Scoreboard</strong>: pinned to the
-            bottom of the screen. Your team&apos;s score is on the left, a
-            dark clock pill in the centre, and the opponent&apos;s score on
-            the right. Tap the clock to pause, resume or end the quarter (or
-            half) early.
+            <strong className="text-ink">The score</strong>, at the top: your
+            team on the left, the clock in the middle, the opponent on the
+            right. Tap the clock to pause, resume or end the quarter (or half)
+            early. Tap the score to fix it.
           </li>
           <li>
-            <strong className="text-ink">Swap card</strong> (AFL and league):
-            a dark card above the playing area showing suggested rotations
-            and a countdown ring. Tap it to expand the details. See{" "}
+            <strong className="text-ink">The Next sub line</strong> (rolling
+            subs): under the score, it counts down to the next sub and says
+            how many swaps (&quot;Next sub 2:10 · 3 swaps&quot;). Tap it to see
+            the pairs. See{" "}
             <Link href="/help/rotations" className="font-medium underline">
               Rotations
             </Link>{" "}
@@ -129,18 +133,30 @@ export default function LiveGamePage() {
             FORWARD at the top, CENTRE in the middle and BACK at the bottom.
             Netball shows the ATTACK, CENTRE and DEFENCE thirds. League shows
             a pitch with the Forwards at the top and the Backs at the bottom.
-            Each player is a tile with their name and, where your sport uses
-            them, a position label.
+            Each kid is their name in chalk, with at most one line of words
+            under it: their part in the next sub (&quot;Off next&quot;,
+            &quot;On next → FWD&quot;), or INJ or LENT.
           </li>
           <li>
-            <strong className="text-ink">Bench</strong>: players not currently
-            on the area, shown below.
+            <strong className="text-ink">Bench</strong>: kids not on the area,
+            under it, three across.
           </li>
           <li>
             <strong className="text-ink">League extras</strong> (Under 8 to
             Under 12): a <strong className="text-ink">Kickoff</strong> card
-            at the start of each period, and FR / DH badges on the players
+            at the start of each period, and small FR / DH flags on the players
             wearing the vests.
+          </li>
+          <li>
+            <strong className="text-ink">The bar</strong>, at the bottom: the
+            scoring buttons, or Start before a period, or{" "}
+            <strong className="text-ink">Make all swaps</strong> when a sub is
+            due. Tap a kid and it becomes their bar.
+          </li>
+          <li>
+            <strong className="text-ink">⋯</strong> at the top: late arrivals,
+            game settings, scores and fixes, the walkthrough, feedback and the
+            game-day link (so another parent can run the clock).
           </li>
         </ul>
 
@@ -162,12 +178,13 @@ export default function LiveGamePage() {
         </p>
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-ink-dim">
           <li>
-            Tap a scoring player on the playing area to select them. In AFL,
-            league and union this is any player on the field; in netball it&apos;s
-            only GS or GA (the shooter positions).
+            Tap the score button on the bar at the bottom and pick who scored,
+            or tap a kid first and score from their bar. In AFL, league and
+            union any player on the field can score; in netball only GS or GA
+            (the shooter positions).
           </li>
           <li>
-            Tap the scoring button that appears. AFL:{" "}
+            The buttons are your sport&apos;s. AFL:{" "}
             <strong className="text-ink">+ Goal</strong> or{" "}
             <strong className="text-ink">+ Behind</strong>. Netball:{" "}
             <strong className="text-ink">+ Goal</strong>. League:{" "}
@@ -186,10 +203,12 @@ export default function LiveGamePage() {
           </li>
           <li>
             Made a mistake? Tap <strong className="text-ink">Undo</strong> on
-            the strip just above the scoreboard to take back the latest score.
+            the line under the score to take back the latest score, or tap the
+            score itself to open <strong className="text-ink">Scores and fixes</strong>{" "}
+            and take off or add any score this game.
           </li>
           <li>
-            Each team also has small score buttons beside its score: AFL{" "}
+            The other team has small score buttons on the bar: AFL{" "}
             <strong className="text-ink">+G</strong> and{" "}
             <strong className="text-ink">+B</strong>, netball{" "}
             <strong className="text-ink">+G</strong>, league{" "}
@@ -200,16 +219,15 @@ export default function LiveGamePage() {
             <strong className="text-ink">+T</strong>,{" "}
             <strong className="text-ink">+C</strong>,{" "}
             <strong className="text-ink">+PG</strong> and{" "}
-            <strong className="text-ink">+DG</strong>. On your
-            side they ask who scored; on the opponent&apos;s side they add the
-            score straight away.
+            <strong className="text-ink">+DG</strong>. They add the score
+            straight away.
           </li>
         </ol>
 
         <HelpFigure
           src="/help-screenshots/live-game-scoring.png"
-          alt="A selected AFL player tile with scoring action buttons visible"
-          caption="Tap a player to select them, then tap the scoring action."
+          alt="An AFL live game with the score buttons on the bar at the bottom"
+          caption="Tap + Goal on the bar and pick who scored, or tap a kid first."
         />
 
         <HelpCallout type="tip">
@@ -226,15 +244,15 @@ export default function LiveGamePage() {
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Making a manual substitution</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          In AFL and league, to swap a player without waiting for a
-          suggestion:
+          In the sports with rolling subs, to swap a player without waiting
+          for a suggestion:
         </p>
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-ink-dim">
-          <li>Tap a player on the playing area. They get a selection ring.</li>
-          <li>Tap a player on the bench.</li>
+          <li>Tap a kid on the playing area. Their bar opens at the bottom.</li>
+          <li>Tap a kid on the bench (or another field kid to swap lines).</li>
           <li>
-            The swap happens straight away, and a note at the top says who
-            went off and who came on. Picked the wrong pair? Tap{" "}
+            The swap happens straight away, and a note says who went off and
+            who came on. Picked the wrong pair? Tap{" "}
             <strong className="text-ink">Undo</strong> on the note within a few
             seconds to put them back.
           </li>
@@ -242,10 +260,8 @@ export default function LiveGamePage() {
         <p className="mt-2 text-sm text-ink-dim">
           Netball subs at the quarter break. If your team has turned on{" "}
           <strong className="text-ink">Allow mid-quarter subs</strong> (Team ›
-          How we play), tap a player on court (for GS or GA with scoring on,
-          then Player actions), tap{" "}
-          <strong className="text-ink">Switch player</strong>, then pick who
-          comes on.
+          How we play), tap a player on court, then a bench player, and the
+          swap happens straight away, as in the other sports.
         </p>
         <HelpCallout type="tip">
           Touch and Oztag ask first when a swap would break your mixed
@@ -255,24 +271,27 @@ export default function LiveGamePage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">The Sub Due alert (rolling subs)</h2>
+        <h2 className="text-xl font-semibold text-ink">When a sub is due (rolling subs)</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          In AFL and league, when the sub interval timer reaches zero the swap
-          card shows <strong className="text-ink">NOW</strong> and expands
-          automatically to show the suggested swaps, and a banner under the
-          top bar reminds you it&apos;s time to rotate. It doesn&apos;t
-          block the screen, so you can still record a score; tap{" "}
-          <strong className="text-ink">Got it</strong> to clear it. The sub interval (1 to 10 minutes) is set
-          under <strong className="text-ink">Game settings</strong> on the
-          lineup screen, or with the Game settings button below the field
+          While the Next sub line counts down, the kids in the next sub say{" "}
+          <strong className="text-ink">Off next</strong> or{" "}
+          <strong className="text-ink">On next</strong>, with the same number
+          on both kids of a pair. When the countdown reaches zero the clock
+          turns orange, the kids say <strong className="text-ink">Off now</strong>{" "}
+          and <strong className="text-ink">On now</strong>, and the bar at the
+          bottom shows <strong className="text-ink">Make all N swaps</strong>{" "}
+          and <strong className="text-ink">Pairs</strong>. Nothing blocks the
+          screen, so you can still record a score. The sub interval (1 to 10
+          minutes) is set under <strong className="text-ink">Game settings</strong>{" "}
+          on the lineup screen, or under <strong className="text-ink">⋯</strong>{" "}
           during the game.
         </p>
         <p className="mt-2 text-sm text-ink-dim">
-          You can tap <strong className="text-ink">Make swap</strong> next to
-          any individual pair to apply just that one swap, or tap{" "}
-          <strong className="text-ink">Make all N swaps</strong> to apply
-          everything at once. After any swap is committed, the card collapses
-          automatically and the timer resets.
+          Tap <strong className="text-ink">Make all N swaps</strong> to do
+          everything at once, with Undo for a few seconds after. Tap{" "}
+          <strong className="text-ink">Pairs</strong> (or the Next sub line) to
+          see the pairs first: make just one, or change who comes on. The
+          timer then starts again.
         </p>
         <p className="mt-2 text-sm text-ink-dim">
           Netball doesn&apos;t use a rolling sub timer — rotations happen at
@@ -281,18 +300,19 @@ export default function LiveGamePage() {
 
         <HelpFigure
           src="/help-screenshots/live-game-sub-due.png"
-          alt="The AFL swap card expanded showing swap pairs with Make swap buttons and a Make all swaps button"
-          caption="The Sub Due state (AFL shown): the card expands with suggested pairs and a Make all swaps button."
+          alt="An AFL live game with a sub due: the kids say Off now and On now, and the bar shows Make all swaps"
+          caption="A sub due (AFL shown): the pairs are numbered on the kids, and Make all swaps is on the bar."
         />
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Player actions: keep on, injury, loan</h2>
+        <h2 className="text-xl font-semibold text-ink">Tap a kid: keep on, injury, loan</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          Tap a player, then <strong className="text-ink">Player actions</strong>{" "}
-          at the bottom of the screen, to open the player-actions sheet (in
-          netball, a tap opens it straight away). What&apos;s on it depends on
-          your sport:
+          Tap a kid and the bar at the bottom becomes theirs: their minutes
+          and share of the game, scoring for them,{" "}
+          <strong className="text-ink">Injured</strong>, and{" "}
+          <strong className="text-ink">More</strong> for the rest. Tap × to put
+          them down. What&apos;s under More depends on your sport:
         </p>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
@@ -321,18 +341,19 @@ export default function LiveGamePage() {
             the vest for the rest of the period.
           </li>
           <li>
-            <strong className="text-ink">Mark injured</strong>: takes the
-            player out of the rotation. If they&apos;re on the field, AFL and
+            <strong className="text-ink">Injured</strong> (on the kid&apos;s
+            bar) or <strong className="text-ink">Mark injured</strong>: takes
+            the player out of the rotation. If they&apos;re on the field, AFL and
             league ask who comes on in their place; in netball their position
-            empties and a picker asks who fills it. Their tile shows an{" "}
-            <strong className="text-ink">INJ</strong> badge. Tap{" "}
+            empties and a picker asks who fills it. Their name shows{" "}
+            <strong className="text-ink">INJ</strong>. Tap{" "}
             <strong className="text-ink">Back on</strong> to return them.
           </li>
           <li>
             <strong className="text-ink">Lend to opposition</strong>: marks
             the player as lent (common in junior teams when numbers are
-            uneven). Shows a <strong className="text-ink">LENT</strong>{" "}
-            badge. AFL shows each player&apos;s season total of loan minutes.
+            uneven). Their name shows <strong className="text-ink">LENT</strong>.
+            AFL shows each player&apos;s season total of loan minutes.
             Tap <strong className="text-ink">Bring back</strong> to return
             them.
           </li>
@@ -340,12 +361,10 @@ export default function LiveGamePage() {
         <HelpCallout type="note">
           Injured and lent players are parked on the bench and left out of the
           rotation suggestions, so they aren&apos;t auto-placed when a new
-          quarter or half starts. To bring a lent player back: in AFL, use the{" "}
-          <strong className="text-ink">Lent to the other team</strong> strip
-          at any quarter break or before the game in the lineup picker; in
-          league, the same strip stays on the live screen all game; in netball,
-          long-press them in the <strong className="text-ink">Sidelined</strong>{" "}
-          strip at the next break. They drop onto your bench, ready to field.
+          quarter or half starts. To bring one back, tap them on the bench and
+          tap <strong className="text-ink">Back on</strong> or{" "}
+          <strong className="text-ink">Bring back</strong>. They stay on your
+          bench, ready for the next sub.
         </HelpCallout>
       </section>
 
@@ -365,7 +384,7 @@ export default function LiveGamePage() {
           </li>
           <li>
             Tap <strong className="text-ink">End Q{"{n}"}</strong> (or{" "}
-            <strong className="text-ink">End H{"{n}"}</strong>) to confirm.
+            <strong className="text-ink">End H{"{n}"}</strong>) to make sure.
             Players on the field are credited the full period.
           </li>
           <li>
@@ -422,10 +441,10 @@ export default function LiveGamePage() {
           <strong className="text-ink">Start Q{"{n}"}</strong>.
         </p>
         <p className="mt-3 text-sm text-ink-dim">
-          League has no separate break screen. The live screen shows the score
-          and a <strong className="text-ink">Start Q{"{n}"}</strong> button
+          League&apos;s break shows the score and the next lineup, with{" "}
+          <strong className="text-ink">Start Q{"{n}"}</strong>{" "}
           (<strong className="text-ink">Start H{"{n}"}</strong> from Under
-          10). From
+          10) at the bottom. From
           Under 8 to Under 12, a vest card asks who wears the FR (and DH) vest
           next. Under <strong className="text-ink">Manage availability</strong>{" "}
           you can add a player who&apos;s turned up, mark a player out (a
@@ -447,9 +466,9 @@ export default function LiveGamePage() {
           the key features for your sport: positions, bench, making a sub,
           reading swap suggestions, scoring and the alerts that apply. League
           adds steps for vests, goal kicks and the unbroken-period rule where
-          they apply. You can skip it or step through it, and tap the{" "}
-          <strong className="text-ink">?</strong> at the top of the live
-          screen to open it again.
+          they apply. You can skip it or step through it, and open it again
+          from <strong className="text-ink">⋯</strong> ›{" "}
+          <strong className="text-ink">How the live screen works</strong>.
         </p>
       </section>
 

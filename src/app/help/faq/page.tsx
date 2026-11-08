@@ -41,13 +41,13 @@ const FAQ: FAQItem[] = [
     q: "How do I undo a score?",
     a: (
       <>
-        Tap <strong>Undo</strong> on the strip just above the scoreboard to
-        take back the latest score. In AFL and netball the strip flashes the
-        score you just recorded for 8 seconds. To fix an older score, use{" "}
-        <strong>Fix scores</strong> at the next quarter break or in the
-        full-time review (AFL and netball); league&apos;s full-time review
-        has the score buttons and Undo, so you can correct the result before
-        you tap <strong>Finish game</strong>.
+        Tap <strong>Undo</strong> on the line under the score to take back
+        the latest score; it names the score it takes back. To fix an older
+        one, tap the score itself (or <strong>⋯</strong> ›{" "}
+        <strong>Scores and fixes</strong>): take off any score this game, or
+        add one you missed. The full-time review has the score buttons and
+        Undo too, so you can correct the result before you tap{" "}
+        <strong>Finish game</strong>.
       </>
     ),
   },
@@ -79,12 +79,14 @@ const FAQ: FAQItem[] = [
     ),
   },
   {
-    q: "What do \"OFF 1\" and \"Stays\" mean?",
+    q: "What do \"Off next\", the numbers and \"Stays\" mean?",
     a: (
       <>
-        When subs are due, the next-sub card numbers each swap, and the player
-        going off wears the same number on their tile: <strong>OFF 1</strong>{" "}
-        comes off for the first swap on the card. At a break, each tile says
+        The kids in the next sub say <strong>Off next</strong> or{" "}
+        <strong>On next</strong>, and both kids of a pair carry the same
+        number: the kid with 1 who says Off next swaps with the kid with 1 who
+        says On next. When the sub is due they say <strong>Off now</strong>{" "}
+        and <strong>On now</strong>. At a break, each tile says
         where the player was last period: <strong>Stays</strong> means the same
         spot, otherwise it says where they come from (another line, or the
         bench).

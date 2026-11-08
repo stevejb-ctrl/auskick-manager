@@ -9,7 +9,7 @@ import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 export const metadata = {
   title: "Rotations · Help · Siren",
   description:
-    "How suggested rotations work in AFL, netball, league, union, football (soccer), basketball, touch football and Oztag: badges, position colours, keeping players on, the keeper, fouls, the mixed rule, and league's junior laws.",
+    "How suggested rotations work in AFL, netball, league, union, football (soccer), basketball, touch football and Oztag: the next sub, position colours, keeping players on, the keeper, fouls, the mixed rule, and league's junior laws.",
   alternates: { canonical: "/help/rotations" },
 };
 
@@ -82,59 +82,61 @@ export default function RotationsPage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">The swap card (AFL and league)</h2>
+        <h2 className="text-xl font-semibold text-ink">The next sub (rolling subs)</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          With rolling subs, suggested swaps appear in the dark{" "}
-          <strong className="text-ink">swap card</strong> above the
-          playing area. It has two states:
+          With rolling subs, Siren plans the next sub all the time. You see it
+          in two places:
         </p>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
-            <strong className="text-ink">Collapsed</strong>: shows a countdown
-            ring (or an icon when the timer isn&apos;t running), the number of
-            suggested swaps, and a one-line summary (e.g.{" "}
-            <em>Alex→Sam · Jordan→Blake</em>). Tap to expand.
+            <strong className="text-ink">The Next sub line</strong>, under the
+            score: a countdown and the number of swaps (e.g.{" "}
+            <em>Next sub 2:10 · 3 swaps</em>).
           </li>
           <li>
-            <strong className="text-ink">Expanded</strong>: shows each pair
-            in a row with its line label colour-coded, a{" "}
-            <strong className="text-ink">Make swap</strong> button per pair,
-            and a <strong className="text-ink">Make all N swaps</strong>{" "}
-            button at the bottom.
+            <strong className="text-ink">On the kids</strong>: the ones coming
+            off say <strong className="text-ink">Off next</strong>, the ones
+            coming on say <strong className="text-ink">On next → FWD</strong>{" "}
+            (where they&apos;re going), and both kids of a pair carry the same
+            number.
           </li>
         </ul>
         <p className="mt-3 text-sm text-ink-dim">
-          After you commit a swap (via <strong className="text-ink">Make swap</strong>{" "}
-          or <strong className="text-ink">Make all</strong>), the card collapses
-          automatically and the sub timer resets.
+          Tap the Next sub line to open the pairs: each pair with its line, a{" "}
+          <strong className="text-ink">Make</strong> button per pair, and{" "}
+          <strong className="text-ink">Make all N swaps</strong> at the bottom.
+          Tap a name to pick someone else for that side of a pair. After a
+          swap, Undo shows for a few seconds and the sub timer starts again.
         </p>
 
         <HelpFigure
           src="/help-screenshots/rotations-swap-card.png"
-          alt="The AFL swap card expanded showing two swap pairs with position labels, Make swap buttons, and a Make all 2 swaps button"
-          caption="The swap card expanded (AFL shown). Position labels are colour-coded — see the colour key below."
+          alt="The AFL pairs sheet showing two pairs with their lines, Make buttons, and a Make all 2 swaps button"
+          caption="The pairs (AFL shown), opened from the Next sub line."
         />
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">The countdown ring and NOW badge</h2>
+        <h2 className="text-xl font-semibold text-ink">When the sub is due</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          On rolling subs (AFL and league), the swap card header includes a
-          circular progress ring that fills as the sub interval counts down.
-          When it reaches zero:
+          When the countdown reaches zero:
         </p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
+          <li>The clock turns orange.</li>
           <li>
-            The ring turns orange and the counter displays{" "}
-            <strong className="text-ink">NOW</strong>.
+            The kids in the sub say <strong className="text-ink">Off now</strong>{" "}
+            and <strong className="text-ink">On now</strong>.
           </li>
-          <li>The card reads <strong className="text-ink">Sub due</strong>.</li>
-          <li>The card expands automatically to show the suggestions.</li>
+          <li>
+            The bar at the bottom shows{" "}
+            <strong className="text-ink">Make all N swaps</strong> and{" "}
+            <strong className="text-ink">Pairs</strong>. You can still score.
+          </li>
         </ul>
         <HelpCallout type="tip">
           You can make a swap at any time, not just when the timer fires. Tap
-          a player on the field, then one on the bench. AFL asks you to
-          confirm; league swaps straight away. Either way the timer resets.
+          a kid on the field, then one on the bench. The swap happens straight
+          away, with Undo for a few seconds, and the timer resets.
         </HelpCallout>
       </section>
 
@@ -153,10 +155,8 @@ export default function RotationsPage() {
         <p className="mt-2 text-sm text-ink-dim">
           Netball teams that prefer to sub mid-quarter can turn on{" "}
           <strong className="text-ink">Allow mid-quarter subs</strong> (Team ›
-          How we play). Then tap a player on court (for GS or GA with
-          scoring on, then Player actions) and tap{" "}
-          <strong className="text-ink">Switch player</strong> to bring someone
-          on.
+          How we play). Then tap a player on court, then a bench player, to
+          swap them straight away.
         </p>
       </section>
 
@@ -190,7 +190,7 @@ export default function RotationsPage() {
         <p className="mt-2 text-sm text-ink-dim">
           From Under 8 one kid keeps goal for the whole half. Rolling subs
           never take the keeper off; to change keeper mid-half, tap the
-          keeper, then Player actions, and tap{" "}
+          keeper, then More, and tap{" "}
           <strong className="text-ink">Replace keeper</strong>.
           At half-time Siren plans the next half, starting with who takes the
           keeper top. Choose how in <strong className="text-ink">How we play</strong>:
@@ -218,7 +218,7 @@ export default function RotationsPage() {
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           Futsal runs on football&apos;s engine: 5 a side with a keeper at
           every age, and flying subs, on and off through the sub zone at any
-          time. When the sub interval runs out, the swap card suggests a bench
+          time. When the sub interval runs out, Siren suggests a bench
           rotation that evens out everyone&apos;s minutes, and over the season
           Siren moves kids through the back, the wings and the front. Those
           are futsal&apos;s positions in plain words: the back is the fixo,
@@ -231,7 +231,7 @@ export default function RotationsPage() {
         <p className="mt-2 text-sm text-ink-dim">
           One kid keeps goal for the half. Futsal&apos;s laws let a sub swap
           with the keeper at any time, so to change keeper mid-half,
-          tap the keeper, then Player actions, and tap{" "}
+          tap the keeper, then More, and tap{" "}
           <strong className="text-ink">Replace keeper</strong>. At half-time
           Siren plans the next half, starting with who goes in goal.{" "}
           <strong className="text-ink">Everyone has a turn in goal</strong> is
@@ -258,13 +258,11 @@ export default function RotationsPage() {
         <h3 className="mt-5 font-semibold text-ink">The keeper changes at the break</h3>
         <p className="mt-2 text-sm text-ink-dim">
           Keeper kit takes a few minutes to put on, so in hockey goal changes
-          hands only at a break, and there&apos;s no Replace keeper during
-          play. Two minutes before the break Siren names who&apos;s in goal
+          hands only at a break: Replace keeper shows during play, but
+          can&apos;t be used, and says why. Two minutes before the break Siren names who&apos;s in goal
           next (&ldquo;Mia&apos;s in goal next half: start kitting
           up&rdquo;), and the break&apos;s plan starts with them. If the
-          keeper is hurt, tap them, then Player actions, and mark the
-          injury, then pick who
-          goes in.{" "}
+          keeper is hurt, tap them, then Injured, and pick who goes in.{" "}
           <strong className="text-ink">Everyone has a turn in goal</strong> is
           the default from Under 9 to Under 12, and{" "}
           <strong className="text-ink">Keepers</strong> (you name them) from
@@ -287,7 +285,7 @@ export default function RotationsPage() {
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           Five play from a squad of eight to ten, so up to half the team sits
           at any moment. Subs go at a dead ball, through the table: when the
-          sub interval runs out, the swap card names who goes to the table,
+          sub interval runs out, the Next sub line says send them to the table,
           and you tap them on when the whistle goes. Siren lines up the kids
           with the least time this game, and there&apos;s no sub prompt in the
           last minute of a half or quarter.
@@ -343,7 +341,7 @@ export default function RotationsPage() {
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           Subs roll on and off as often as you like: through the interchange in
           touch, from the sub box in Oztag. When the sub interval runs out the
-          swap card names who comes on for whom, and the banner says{" "}
+          kids say who comes on for whom, and the Next sub line says{" "}
           <strong className="text-ink">make the change next time you have the ball</strong>.
           Touch allows no interchange after an intercept or line break until the
           next touch (TFA rule 17.7), and Oztag&apos;s junior championships allow
@@ -442,8 +440,8 @@ export default function RotationsPage() {
         <h3 className="mt-5 font-semibold text-ink">Player rotation</h3>
         <p className="mt-2 text-sm text-ink-dim">
           Rolling subs, same model as AFL. Tap a player on the field, then a
-          bench player, to swap them. When the sub interval runs out, the
-          swap card suggests a full bench rotation. Players wearing the FR or
+          bench player, to swap them. When the sub interval runs out, Siren
+          suggests a full bench rotation. Players wearing the FR or
           DH vest are never suggested to come off.
         </p>
 
@@ -468,9 +466,9 @@ export default function RotationsPage() {
           goal, they can&apos;t kick again until everyone on the field at the
           time has had a turn. After a try, the conversion dialog disables
           players who&apos;ve already kicked this cycle and resets the
-          rotation once everyone&apos;s had a turn. A boot badge sits on each
-          on-field tile so you can see who&apos;s already kicked at a
-          glance, even before opening the dialog. The{" "}
+          rotation once everyone&apos;s had a turn. A small K1, K2 after a
+          kid&apos;s name shows who&apos;s already kicked at a glance, even
+          before the sheet opens. The{" "}
           <strong className="text-ink">Force</strong> toggle covers the
           fouled-in-act-of-scoring carve-out. Under 6 and Under 7 don&apos;t
           kick at all.
@@ -483,9 +481,7 @@ export default function RotationsPage() {
           field has had a turn. A <strong className="text-ink">Kickoff</strong> card appears
           at the start of each period, listing the players on the field;
           anyone who&apos;s already had a turn shows as{" "}
-          <strong className="text-ink">Done</strong>. A small &quot;K&quot;
-          chip on the player tile marks anyone who&apos;s kicked off this
-          game. Tap <strong className="text-ink">Skip</strong> if you&apos;re
+          <strong className="text-ink">Done</strong>. Tap <strong className="text-ink">Skip</strong> if you&apos;re
           not tracking it.
         </p>
 
@@ -496,9 +492,9 @@ export default function RotationsPage() {
           (U6–U9) or <strong className="text-ink">one unbroken half</strong>{" "}
           (U10–U12). &quot;Unbroken&quot; means on the field continuously
           from period kickoff to hooter — no swaps off. Siren always keeps
-          it: the sub card never takes off a player who needs this period
-          for it, the live screen names who must stay on or start the next
-          period, and the suggested starting lineup puts first any player
+          it: the planned sub never takes off a player who needs this period
+          for it, a note at the top of the live screen names who must stay
+          on or play all the next period, and the suggested starting lineup puts first any player
           who missed out in earlier games. The Stats tab
           shows how many games each player met the rule and lists any
           shortfalls, so you can plan next week&apos;s rotations accordingly.
@@ -506,52 +502,45 @@ export default function RotationsPage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Player tiles and badges</h2>
+        <h2 className="text-xl font-semibold text-ink">The kids on the live screen</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          Each player tile shows:
+          Each kid is their name, with at most one line of words under it:
         </p>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
-            <strong className="text-ink">Jersey number</strong> (AFL and
-            league — netball squads don&apos;t use them)
+            Their part in the next sub:{" "}
+            <strong className="text-ink">Off next</strong> or{" "}
+            <strong className="text-ink">On next → FWD</strong>, then{" "}
+            <strong className="text-ink">Off now</strong> and{" "}
+            <strong className="text-ink">On now</strong> when it&apos;s due.
+            Both kids of a pair carry the same number.
           </li>
           <li>
-            <strong className="text-ink">Name</strong> and their minutes on
+            <strong className="text-ink">Needs 6′ more</strong>: under the
+            game-time minimum.
           </li>
           <li>
-            <strong className="text-ink">Position label</strong> at the top
-            (e.g. FWD / CEN / BCK for AFL, GS / GA / WA / C / WD / GD / GK
-            for netball). League tiles show a named position when your team
-            uses Named positions, and an FR or DH badge on the vest wearers.
+            <strong className="text-ink">Sub after next</strong> (bench) or{" "}
+            <strong className="text-ink">On at the break</strong> (netball).
           </li>
           <li>
-            A <strong className="text-ink">time bar</strong> at the bottom: a
-            thin horizontal bar colour-coded by area showing how much time
-            this player has spent where. In league it only shows when{" "}
-            <strong className="text-ink">Track forward and back time</strong>{" "}
-            is on.
+            <strong className="text-ink">INJ</strong> or{" "}
+            <strong className="text-ink">LENT</strong> for a kid out of the
+            rotation.
           </li>
         </ul>
         <p className="mt-3 text-sm text-ink-dim">
-          When a player is part of a pending swap suggestion (AFL and league
-          rolling subs):
+          Netball names each bib before the name (GS, GA…), and league
+          shows a small FR or DH flag on the vest wearers. Tap a kid to see
+          their minutes, share of the game and time in each area (in league,
+          only when <strong className="text-ink">Track forward and back time</strong>{" "}
+          is on).
         </p>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
-          <li>
-            A <strong className="text-ink">↓</strong> badge marks the player
-            coming off
-          </li>
-          <li>
-            A <strong className="text-ink">↑</strong> badge marks the player
-            coming on from the bench
-          </li>
-          <li>Both tiles show a pair number so you can match them up</li>
-        </ul>
 
         <HelpFigure
           src="/help-screenshots/rotations-player-tile.png"
-          alt="An AFL player tile showing jersey number, name, position label, up/down badges, and a time bar at the bottom"
-          caption="Player tile anatomy (AFL shown): number (where used), position label, swap badges, and time bar."
+          alt="AFL kids on the field, with Off next and On next under their names and a numbered pair badge"
+          caption="Kids in the next sub (AFL shown): their part in it under the name, and the pair's number."
         />
       </section>
 
@@ -564,22 +553,21 @@ export default function RotationsPage() {
           netball Centre; in league, time wearing the FR or DH vest), and one
           for the defending end (AFL Back, netball Defence, league Backs).
           Within a sport the same colour means the same area everywhere — the
-          live tile, the time bar, the stats cards.
+          kid&apos;s time split, the stats cards.
         </p>
 
         <HelpFigure
           src="/help-screenshots/rotations-zone-bar.png"
-          alt="Time bars on several AFL player tiles showing the per-position colour coding"
-          caption="Time bars use the same colours across the playing area and the Stats tab."
+          alt="Time bars showing the per-position colour coding"
+          caption="Time bars use the same colours on the live screen and the Stats tab."
         />
       </section>
 
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Keeping a player on</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          Tap a player, then{" "}
-          <strong className="text-ink">Player actions</strong>, to open the
-          sheet:
+          Tap a kid, then <strong className="text-ink">More</strong> on their
+          bar:
         </p>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>

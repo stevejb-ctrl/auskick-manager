@@ -20,12 +20,12 @@ export default function TroubleshootingPage() {
 
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">
-          The Sub Due modal isn&apos;t firing
+          The sub-due alert isn&apos;t firing
         </h2>
         <p className="mt-3 text-sm text-ink-dim">
-          Sub Due alerts apply to rolling subs, so AFL and league only —
-          netball teams sub at the quarter break, so this alert never appears
-          for them. For AFL and league, the sub timer requires an active,
+          The sub-due alert (the clock turning orange and Make all swaps on
+          the bar) comes with rolling subs, so every sport but netball, whose
+          teams sub at the quarter break. The sub timer needs an active,
           running quarter or half. Check the following:
         </p>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
@@ -34,11 +34,11 @@ export default function TroubleshootingPage() {
             After a break, make sure you&apos;ve tapped{" "}
             <strong className="text-ink">Start Q{"{n}"}</strong> (league from
             Under 10: <strong className="text-ink">Start H{"{n}"}</strong>).
-            The Sub Due timer doesn&apos;t run during a break.
+            The sub timer doesn&apos;t run during a break.
           </li>
           <li>
             <strong className="text-ink">Clock is not paused.</strong> The
-            clock pill in the scoreboard shows a <em>▶</em> icon when paused.
+            clock at the top shows a <em>▶</em> icon when paused.
             Tap it to resume. The timer only counts while the clock runs.
           </li>
           <li>
@@ -139,16 +139,16 @@ export default function TroubleshootingPage() {
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
             Netball suggests a fresh lineup at each quarter break, not during
-            play, so there&apos;s no swap card mid-quarter.
+            play, so there&apos;s no Next sub line mid-quarter.
           </li>
           <li>
-            In AFL and league, the swap card only appears when there are bench
+            With rolling subs, the Next sub line only appears when there are bench
             players to swap in. If the whole squad is on the playing area, no
             suggestion can be generated.
           </li>
           <li>
             If all bench players are injured or lent, they&apos;re excluded
-            from rotation and the card will be empty.
+            from rotation and there&apos;s no one to plan in.
           </li>
           <li>
             All players on the playing area might be kept on: AFL players set
