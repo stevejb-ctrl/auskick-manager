@@ -35,7 +35,7 @@ export interface Pair {
 
 const WHITE = "#FFFFFF" as const;
 
-const pages = ["fill:warm", "fill:surface", "fill:surface-alt"] as const;
+const pages = ["fill:warm", "fill:surface", "fill:surface-alt", "fill:sheet"] as const;
 
 const textOn = (fg: Side, bgs: readonly Side[], where: string): Pair[] => bgs.map((bg) => ({ fg, bg, kind: "text", where }));
 const uiOn = (fg: Side, bgs: readonly Side[], where: string): Pair[] => bgs.map((bg) => ({ fg, bg, kind: "ui", where }));
@@ -77,6 +77,7 @@ export const PAIRS: Pair[] = [
   },
   ...textOn(WHITE, ["fill:due"], "sub-due chip, hooter scorebug"),
   ...textOn(WHITE, ["fill:danger"], "INJ chip, Fix button"),
+  ...textOn({ over: "text:warm", alpha: 0.9, under: "fill:danger" }, ["fill:danger"], "the line under Mark injured (LockModal)"),
   ...textOn(WHITE, ["fill:ink-dim"], "Unavailable chip (availability)"),
   ...textOn("text:warm", ["fill:brand-700"], "accent button hover"),
   {
@@ -120,7 +121,57 @@ export const PAIRS: Pair[] = [
 
   // ── Playing surfaces ──────────────────────────────────────────
   ...textOn(WHITE, ["fill:field", "fill:court"], "line headers on the field, court labels"),
-  ...uiOn("fill:surface", ["fill:field", "fill:court"], "a player tile against the field"),
+  // A tile is white in light; in dark it is the dark surface, edged in
+  // tile-edge (shadow-lift-field / -court) so it doesn't sink into the grass.
+  ...uiOn("fill:tile-edge", ["fill:field", "fill:court", "fill:wood"], "a player tile's edge against the field"),
+
+  // ── Chalk on grass (live v3) ──────────────────────────────────
+  // Names in chalk on the grass, court and boards, bare or on the
+  // faint chalk plate (`bg-mark/[0.07]`).
+  ...textOn("fill:mark", ["fill:field", "fill:court", "fill:wood"], "kid names on the field, court, boards"),
+  ...textOn("fill:mark", [
+    { over: "fill:mark", alpha: 0.07, under: "fill:field" },
+    { over: "fill:mark", alpha: 0.07, under: "fill:court" },
+    { over: "fill:mark", alpha: 0.07, under: "fill:wood" },
+  ], "kid names on their plate"),
+  // A selected kid: the plate fills with chalk, the name turns ink.
+  ...textOn("fill:mark-ink", ["fill:mark"], "selected kid on the grass (ink on chalk, both themes)"),
+  // Zone words on the grass.
+  ...textOn("fill:zone-f-on-field", ["fill:field", { over: "fill:mark", alpha: 0.07, under: "fill:field" }], "FWD on the grass"),
+  ...textOn("fill:zone-c-on-field", ["fill:field", { over: "fill:mark", alpha: 0.07, under: "fill:field" }], "CEN on the grass"),
+  ...textOn("fill:zone-b-on-field", ["fill:field", { over: "fill:mark", alpha: 0.07, under: "fill:field" }], "BACK on the grass"),
+  // The bench: ink on chalk on its plate (`bg-ink/[0.045]`).
+  ...textOn("text:ink", [{ over: "fill:ink", alpha: 0.045, under: "fill:warm" }], "bench kid names on their plate"),
+  ...textOn("text:ink-mute", [{ over: "fill:ink", alpha: 0.045, under: "fill:warm" }], "bench kid words"),
+  // The bright fills carry their own ink, in both themes.
+  ...textOn("fill:hivis-ink", ["fill:hivis"], "act now: due clock, \"On now\" chip, due badge"),
+  ...textOn("fill:sun-ink", ["fill:sun"], "under-minimum chip"),
+  ...textOn("fill:sky-ink", ["fill:sky"], "notice line"),
+  ...textOn(WHITE, ["fill:blood"], "injured chip"),
+  ...textOn("fill:mark", ["fill:blood"], "injured chip (chalk words)"),
+  // Words on the tints, which go dark at night: ink or the signal's
+  // own text tone (the *-ink colours are for the bright fills only).
+  ...textOn("text:ink", ["fill:hivis-soft", "fill:sun-soft", "fill:sky-soft", "fill:blood-soft"], "words on a signal tint"),
+  ...textOn("text:hivis", ["fill:warm", "fill:surface", "fill:hivis-soft"], "act-now words on the page"),
+  ...textOn("text:sun", ["fill:warm", "fill:surface", "fill:sun-soft"], "under-minimum words on the page"),
+  ...textOn("text:sky", ["fill:warm", "fill:surface", "fill:sky-soft"], "back-line words on the page"),
+  ...textOn("text:blood", ["fill:warm", "fill:surface", "fill:blood-soft"], "injured words"),
+  // The filled primary, and its inverse at night.
+  ...textOn("text:on-primary", ["fill:primary"], "the filled primary button"),
+  ...uiOn("fill:primary", ["fill:warm", "fill:surface", "fill:surface-alt"], "the filled primary, the selected segment on its track"),
+  // The switch (ui/Toggle): an ink-mute track when off, chalk knob.
+  ...uiOn("fill:ink-mute", ["fill:warm", "fill:surface", "fill:sheet"], "a switch that's off"),
+  ...uiOn("fill:mark", ["fill:ink-mute", "fill:brand-600"], "the switch's knob"),
+  // Ink-mute on the chalk page (about 6:1).
+  ...textOn("text:ink-mute", ["fill:well", "fill:brand-50"], "hints on a score button or a brand tint"),
+  // Rings on the grass and on the bench.
+  ...uiOn("fill:hivis", ["fill:field", "fill:court", "fill:wood"], "due kid's edge on the grass"),
+  ...uiOn("fill:mark", ["fill:field", "fill:court", "fill:wood"], "chalk pair badge, the dashed empty slot"),
+  ...uiOn("line:hivis", ["fill:warm", "fill:surface"], "due kid's edge on the bench"),
+  ...uiOn("line:sun", ["fill:warm", "fill:surface", { over: "fill:ink", alpha: 0.045, under: "fill:warm" }], "under-minimum ring on the bench"),
+  ...uiOn("fill:zone-f-on-field", ["fill:field"], "under-minimum ring on the grass"),
+  ...uiOn("line:blood", ["fill:warm", "fill:surface"], "injured outline"),
+  ...uiOn("fill:mint", ["fill:warm", "fill:surface"], "running-clock dot on the chalk header"),
 
   // ── Rings, bars and lines ─────────────────────────────────────
   {

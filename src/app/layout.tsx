@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono, Instrument_Serif } from "next/font/google";
+import { Archivo, Atkinson_Hyperlegible, Instrument_Serif } from "next/font/google";
 import { GeistSans } from "geist/font/sans";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import Script from "next/script";
@@ -18,19 +18,26 @@ import { A11yRoot } from "@/components/ui/A11yRoot";
 import { THEME_BOOT_SCRIPT } from "@/lib/themePreference";
 import "./globals.css";
 
-const sans = Inter({
+// Chalk on grass (live v3): Atkinson Hyperlegible for words (built for
+// low-vision reading, so a parent glancing at a phone in the sun gets
+// unambiguous letters), Archivo for display, with its width axis so
+// names, scores and the clock can run condensed (tailwind stretch-*).
+const body = Atkinson_Hyperlegible({
   subsets: ["latin"],
-  variable: "--font-geist",
+  weight: ["400", "700"],
+  style: ["normal", "italic"],
+  variable: "--font-body",
   display: "swap",
 });
-const mono = JetBrains_Mono({
+const display = Archivo({
   subsets: ["latin"],
-  variable: "--font-geist-mono",
+  axes: ["wdth"],
+  variable: "--font-display",
   display: "swap",
 });
 // GeistSans.variable is "--font-geist-sans". Used exclusively by the
 // SirenWordmark so the brand wordmark renders in Geist 900 (Black)
-// without switching the app-wide UI font away from Inter.
+// whatever the app-wide UI font is.
 
 // Instrument Serif italic — used decoratively for round numerals on the
 // Games list, the Home next-up hero, and the Game-detail upcoming hero.
@@ -98,16 +105,16 @@ export function generateMetadata(): Metadata {
 // are no-ops.
 export function generateViewport(): Viewport {
   const brand = getBrand();
-  const themeColor = brand.id === "netball" ? "#2E7FB8" : "#2F6B3E";
+  const themeColor = brand.id === "netball" ? "#2E7FB8" : "#17653A";
   return {
     width: "device-width",
     initialScale: 1,
     viewportFit: "cover",
-    // The brand colour on a light phone; the dark page colour (the
-    // palette's dark `warm`) on a dark one.
+    // The brand colour on a light phone (AFL: the oval); the dark page
+    // colour (the palette's dark `warm`) on a dark one.
     themeColor: [
       { media: "(prefers-color-scheme: light)", color: themeColor },
-      { media: "(prefers-color-scheme: dark)", color: "#0F1311" },
+      { media: "(prefers-color-scheme: dark)", color: "#0A1610" },
     ],
     // Siren has its own dark theme (src/lib/theme/palette.ts), so it
     // says so: Chrome's auto-dark and Samsung Internet's dark mode leave
@@ -139,7 +146,7 @@ export default function RootLayout({
       lang="en-AU"
       suppressHydrationWarning
       data-brand={brand.brand.id}
-      className={`${sans.variable} ${mono.variable} ${GeistSans.variable} ${instrumentSerif.variable}`}
+      className={`${body.variable} ${display.variable} ${GeistSans.variable} ${instrumentSerif.variable}`}
     >
 
       {/* Analytics components must live INSIDE <body>. Rendering

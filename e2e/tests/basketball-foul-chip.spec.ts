@@ -50,11 +50,13 @@ test("basketball tiles show each kid's fouls, coloured by how close they are to 
   await expect(page.getByRole("group", { name: "Bench" }).getByTestId(`fouls-${k[5]}`)).toHaveText("2F");
 
   const bg = (pid: string) => chip(pid).evaluate((el) => getComputedStyle(el).backgroundColor);
-  const amber = "rgb(168, 89, 15)";
-  expect(await bg(k[2])).toBe(amber);
-  expect(await bg(k[1])).not.toBe(amber);
+  // Sub-due hi-vis (palette due): the fill, and its deeper word tone.
+  const dueFill = "rgb(212, 64, 12)";
+  const dueText = "rgb(184, 54, 10)";
+  expect(await bg(k[2])).toBe(dueFill);
+  expect(await bg(k[1])).not.toBe(dueFill);
   expect(await bg(k[1])).not.toBe(await bg(k[5]));
-  await expect(chip(k[1])).toHaveCSS("color", amber);
+  await expect(chip(k[1])).toHaveCSS("color", dueText);
 
   // Long-press: add a foul.
   await page.getByTestId(`player-tile-${k[0]}`).click({ delay: 600 });

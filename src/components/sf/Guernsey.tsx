@@ -91,7 +91,7 @@ export function Guernsey({
         x="20"
         y="26"
         textAnchor="middle"
-        fontFamily="var(--font-geist-mono), ui-monospace, monospace"
+        fontFamily="var(--font-display), 'Arial Narrow', sans-serif"
         fontSize={fontSize}
         fontWeight="800"
         clipPath={`url(#${clipId})`}

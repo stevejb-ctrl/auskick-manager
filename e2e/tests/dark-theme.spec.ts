@@ -123,7 +123,7 @@ test.describe("signed out", () => {
     const shell = page.locator(".theme-light").first();
     await expect(shell).toHaveCSS("color-scheme", "light");
     // The heading is still dark ink on the light brand gradient.
-    await expect(page.locator("h1").first()).toHaveCSS("color", "rgb(26, 30, 26)");
+    await expect(page.locator("h1").first()).toHaveCSS("color", "rgb(11, 30, 21)");
     await page.screenshot({ path: `playwright/dark-theme/${testInfo.project.name}/marketing.png` });
   });
 });
@@ -312,7 +312,7 @@ test("Light on Account wins over a dark phone, from the first paint", async ({ p
   });
   await page.goto("/dashboard");
   const first = await page.evaluate(() => (window as unknown as { __firstBg: string }).__firstBg);
-  expect(first).toBe("rgb(247, 245, 241)");
+  expect(first).toBe("rgb(243, 246, 240)");
   // Back to System: the dark phone's setting again.
   await open(page, "/account");
   await page.getByRole("radio", { name: /^system/i }).check();
@@ -334,7 +334,7 @@ test.describe("a light phone", () => {
     });
     await page.goto("/dashboard");
     const first = await page.evaluate(() => (window as unknown as { __firstBg: string }).__firstBg);
-    expect(first).toBe("rgb(15, 19, 17)");
+    expect(first).toBe("rgb(10, 22, 16)");
     await page.evaluate(() => localStorage.removeItem("siren-theme-v1"));
   });
 });

@@ -637,7 +637,7 @@ test("NETBALL-08: long-press on a court player opens the shared player actions (
   await expect(actions).toBeVisible({ timeout: 5_000 });
   const injure = actions.getByRole("button", { name: /mark injured/i });
   await expect(injure).toContainText("Moves to the bench and skips the sub rotation");
-  await expect(injure).toHaveCSS("background-color", "rgb(180, 57, 58)");
+  await expect(injure).toHaveCSS("background-color", "rgb(185, 27, 50)");
   await expect(actions.getByRole("button", { name: /lend to opposition/i })).toBeVisible();
   await expect(actions.getByRole("button", { name: /keep in gs next break/i })).toBeVisible();
   // Mid-quarter subs are off for this team: no Switch.

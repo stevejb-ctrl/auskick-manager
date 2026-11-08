@@ -59,32 +59,42 @@ describe("palette contrast", () => {
 });
 
 describe("palette shape", () => {
-  it("light fills are the palette from before the dark theme", () => {
-    // tailwind.config.ts as of R6 (UX round 3). A light fill that moves
-    // is a visible change to the light theme; make it on purpose.
-    const before: Record<string, string> = {
-      warm: "#F7F5F1", surface: "#FFFFFF", "surface-alt": "#EFECE6", ink: "#1A1E1A", "ink-dim": "#5E6860",
-      "ink-mute": "#646D66", hairline: "#E3DFD7", alarm: "#D9442D", "alarm-soft": "#FBE7DF", warn: "#C8751F",
-      "warn-soft": "#F5E5D2", danger: "#B4393A", ok: "#4C8B63", win: "#2F6B3E", "win-soft": "#E4EEE4", loss: "#9A2B2B",
-      "loss-soft": "#F4DCDC", draw: "#8A6F2A", "draw-soft": "#F2E8C9", "zone-f": "#C2410C", "zone-c": "#047857",
-      "zone-b": "#1D4ED8", "zone-f-ink": "#7C2D12", "zone-c-ink": "#064E3B", "zone-b-ink": "#1E3A8A", "zone-k": "#7C3AED",
-      "zone-k-text": "#6D28D9", "zone-bench": "#8A857C", "zone-bench-text": "#4A463F", "zone-f-fill": "#F08A4B",
-      "zone-c-fill": "#047857", "zone-b-fill": "#1E3A8A", "bar-track": "#ECE8E1", "zone-f-dark": "#F08A4B",
-      "zone-c-dark": "#3FBF95", "zone-b-dark": "#8FA9F2", due: "#A8590F", "due-tint": "#FBF1E6", "due-dark": "#F2A65A",
-      well: "#F1EEE8", mint: "#9ACC9B", field: "#3C8050", court: "#2A74A8", "court-mid": "#2F7AAF",
+  it("light fills are the Chalk on grass palette", () => {
+    // Live v3 (Nov 2026), from the design's :root. A light fill that
+    // moves is a visible change to the light theme; make it on purpose.
+    const v3: Record<string, string> = {
+      warm: "#F3F6F0", surface: "#FFFFFF", "surface-alt": "#E4EAE2", hairline: "#D3DCD2", ink: "#0B1E15",
+      "ink-dim": "#2A3F34", "ink-mute": "#4E6257", field: "#0F4C2B", court: "#1E465F", wood: "#5A3820",
+      mark: "#F7FAF5", hivis: "#FF5A1F", "hivis-ink": "#1C0900", "hivis-soft": "#FFE3D6", sun: "#F6C445",
+      "sun-ink": "#3A2A00", "sun-soft": "#FCEFC4", sky: "#7CC0F4", "sky-ink": "#06263F", "sky-soft": "#DCEEFC",
+      blood: "#C81D36", "blood-soft": "#FBE3E6", danger: "#B91B32", primary: "#0B1E15", "on-primary": "#F7FAF5",
+      "zone-f-on-field": "#F6C445", "zone-c-on-field": "#FFFFFF", scrim: "#0B1E15", mint: "#2C7D4E",
+      "due-tint": "#FFE3D6",
+      // Kept: the colourblind-safe zones for light surfaces, the signals.
+      "zone-f": "#C2410C", "zone-c": "#047857", "zone-b": "#1D4ED8", alarm: "#D9442D", warn: "#C8751F", ok: "#4C8B63",
     };
-    for (const [name, hex] of Object.entries(before)) {
+    for (const [name, hex] of Object.entries(v3)) {
       expect(resolve((TOKENS as Record<string, Token>)[name], "light", "fill"), name).toBe(hex);
     }
-    expect(BRANDS.afl[600].light).toBe("#2F6B3E");
+    // The AFL ladder is the oval ramp; netball keeps court blue.
+    expect([BRANDS.afl[500].light, BRANDS.afl[600].light, BRANDS.afl[700].light, BRANDS.afl[800].light]).toEqual([
+      "#2C7D4E", "#17653A", "#0F4C2B", "#0A3620",
+    ]);
     expect(BRANDS.netball[600].light).toBe("#2E7FB8");
+    // The dark page is near-black green, and the field doesn't change.
+    expect(TOKENS.warm.dark).toBe("#0A1610");
+    expect(TOKENS.field.dark).toBe(TOKENS.field.light);
+    // The filled primary inverts at night: chalk fill, ink words.
+    expect([TOKENS.primary.dark, TOKENS["on-primary"].dark]).toEqual(["#F3F6F0", "#0B1E15"]);
   });
 
-  it("light text and lines differ from the fill only where a word or ring was under AA", () => {
+  it("light text and lines differ from the fill only where a word or ring would be under AA", () => {
     const split = Object.entries(TOKENS)
       .filter(([, t]) => resolve(t as Token, "light", "text") !== (t as Token).light || resolve(t as Token, "light", "line") !== (t as Token).light)
       .map(([n]) => n);
-    expect(split.sort()).toEqual(["alarm", "draw", "ok", "warn"]);
+    // The four old signals, due (hi-vis, too pale for words on white),
+    // the bright v3 fills, and mint (a dot; its words sit on the chrome).
+    expect(split.sort()).toEqual(["alarm", "draw", "due", "hivis", "mint", "ok", "sky", "sun", "warn"]);
   });
 
   it("the dark page and surfaces are dark, and dark text is light", () => {
@@ -98,8 +108,10 @@ describe("palette shape", () => {
 
   it("emits a variable for every role of every token", () => {
     const vars = themeVars("dark", "afl");
-    expect(vars["--c-ink"]).toBe("36 42 38");
-    expect(vars["--t-ink"]).toBe("238 236 230");
+    expect(vars["--c-ink"]).toBe("27 51 40");
+    expect(vars["--t-ink"]).toBe("243 246 240");
+    expect(vars["--c-primary"]).toBe("243 246 240");
+    expect(vars["--t-on-primary"]).toBe("11 30 21");
     expect(vars["--l-brand-600"]).toBeDefined();
     expect(vars["--c-focus"]).toBeDefined();
     expect(Object.keys(themeVars("light", "netball")).every((k) => /brand|focus/.test(k))).toBe(true);
