@@ -199,7 +199,8 @@ export function PairsSheet({
                           void hapticSuccess();
                           onMakeOne(p.index);
                         }}
-                        aria-label={swapPairLabel(p.offFull, p.onFull)}
+                        // An empty spot's pair (no offId) says "Put Ava on".
+                        aria-label={swapPairLabel(p.offId ? p.offFull : null, p.onFull)}
                         className={`min-h-[44px] flex-none rounded-[11px] px-[11px] font-display text-[0.84375rem] font-extrabold disabled:opacity-30 ${
                           due ? "bg-hivis text-hivis-ink" : "bg-primary text-on-primary"
                         }`}
