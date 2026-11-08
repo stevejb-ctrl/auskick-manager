@@ -1531,10 +1531,14 @@ export function SoccerLiveGame({
             setActionPlayerId(null);
             setSelectedId(actionPlayer.id);
           }}
-          // "Swap keeper" mid-period, where the sport allows it (hockey
-          // changes keepers at the break; an injury still replaces one).
-          vestReplaceLabel={actionIsKeeper && isPeriodActive && rules.keeperSwapMidPeriod ? "keeper" : undefined}
+          // "Swap keeper" mid-period, where the sport allows it. Hockey
+          // changes keepers at the break (an injury still replaces one):
+          // the button shows there, disabled, with why (live v3 design).
+          vestReplaceLabel={actionIsKeeper && isPeriodActive ? "keeper" : undefined}
           vestReplaceHint="Pick who goes in goal now"
+          vestReplaceDisabledReason={
+            rules.keeperSwapMidPeriod ? undefined : `Not mid-${periodWord}: the keeper's kitted up. They change at the break.`
+          }
           onReplaceVest={
             actionIsKeeper && isPeriodActive && rules.keeperSwapMidPeriod
               ? () => {

@@ -80,6 +80,12 @@ interface LockModalProps {
    */
   vestReplaceHint?: string;
   /**
+   * The replace can't be done now: the button shows, disabled, with
+   * this reason in place of the hint (hockey's keeper mid-period:
+   * they're kitted up). Needs `vestReplaceLabel`, not `onReplaceVest`.
+   */
+  vestReplaceDisabledReason?: string;
+  /**
    * Rugby league position override. When supplied, surfaces a
    * "Move to {moveToLabel}" button that flips the player between
    * the forwards and backs buckets without changing field
@@ -208,6 +214,7 @@ export function LockModal({
   vestReplaceLabel,
   onReplaceVest,
   vestReplaceHint = "Pick a different player to take the vest this period",
+  vestReplaceDisabledReason,
   moveToLabel,
   onMovePosition,
   onAssignFr,
@@ -448,6 +455,19 @@ export function LockModal({
                   </span>
                   <span className="mt-0.5 text-xs opacity-80">
                     {vestReplaceHint}
+                  </span>
+                </button>
+              )}
+              {!onReplaceVest && vestReplaceLabel && vestReplaceDisabledReason && (
+                <button
+                  type="button"
+                  disabled
+                  aria-describedby="lock-modal-replace-why"
+                  className="flex w-full cursor-not-allowed flex-col items-center rounded-md bg-surface-alt px-4 py-3 text-ink-mute"
+                >
+                  <span className="text-sm font-bold">Replace {vestReplaceLabel}</span>
+                  <span id="lock-modal-replace-why" className="mt-0.5 text-xs">
+                    {vestReplaceDisabledReason}
                   </span>
                 </button>
               )}

@@ -115,12 +115,15 @@ test("hockey U9: 7 a side in halves, keepers change only at the break, with a ki
   expect(h1Keeper).toBeTruthy();
 
   // ─── No mid-half keeper change ─────────────────────────────────
-  // The keeper's actions offer no "Replace keeper"…
+  // The keeper's actions show "Replace keeper" disabled, saying why
+  // (live v3: it was hidden, Phase 12)…
   await page.getByTestId(`player-tile-${h1Keeper}`).click({ timeout: 10_000 });
   await page.getByTestId("kid-bar").getByRole("button", { name: /^more$/i }).click({ timeout: 5_000 });
   const actions = page.getByRole("dialog");
   await expect(actions.getByRole("button", { name: /mark injured/i })).toBeVisible();
-  await expect(actions.getByRole("button", { name: /replace keeper/i })).toHaveCount(0);
+  const replace = actions.getByRole("button", { name: /replace keeper/i });
+  await expect(replace).toBeDisabled();
+  await expect(replace).toContainText(/not mid-half: the keeper's kitted up/i);
   await actions.getByRole("button", { name: /^(close|cancel)$/i }).first().click();
   await expect(actions).toHaveCount(0);
   // …and a tap-swap with the keeper is refused, with the reason.
