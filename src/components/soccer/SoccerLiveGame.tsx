@@ -97,6 +97,7 @@ import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { periodBreakName } from "@/lib/live/periodBreakName";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import { getSportConfig, periodLabels, type SoccerSport } from "@/lib/sports";
+import { endPeriodWords } from "@/lib/sports/words";
 import { soccerFormations } from "@/lib/sports/soccer";
 import { soccerFamilyRules } from "@/lib/sports/soccer/family";
 import { soccerLikelyScorers } from "@/lib/sports/soccer/scorers";
@@ -970,9 +971,25 @@ export function SoccerLiveGame({
   // ── The info line: the next sub ──
   const msUntil = subsDone ? null : subDue.msUntilDue;
   const subSoft = !infoDue && msUntil !== null && msUntil > 0 && msUntil <= 30_000 && swappableBench.length > 0;
+  // Ending the period: ⋯'s "End 1st half" (or "End Q2") row, and "Time's
+  // up: end 1st half" on the info line once the clock reads 0:00 and it's
+  // still open. Both open the clock's end confirm.
+  const periodTimeUp = isPeriodActive && atHooter;
+  const endWords = endPeriodWords({
+    sport: sport,
+    periodLabel: periodWord,
+    period: base.currentPeriod,
+    periodCount: ageGroup.periodCount,
+    timeUp: periodTimeUp,
+  });
+  const openEndPeriod = () => {
+    setSelectedId(null);
+    setEndConfirmOpen(true);
+  };
   const infoEl =
-    inPlay && benchIds.length > 0 ? (
+    inPlay && (benchIds.length > 0 || periodTimeUp) ? (
       <InfoLine
+        timeUp={periodTimeUp ? { prompt: endWords.prompt, onEnd: openEndPeriod } : undefined}
         state={infoDue ? "due" : subSoft ? "soft" : "idle"}
         msUntilDue={msUntil}
         subIntervalMs={subDue.spanMs ?? 0}
@@ -1377,6 +1394,7 @@ export function SoccerLiveGame({
         }
         onScores={!isPreKickoff ? chrome.openScores : undefined}
         trackScoring={trackScoring}
+        endPeriod={isPeriodActive ? { label: endWords.label, description: endWords.description, onSelect: openEndPeriod } : undefined}
         onWalkthrough={chrome.openHelp}
         onEditLineup={isPreKickoff ? handleEditLineup : undefined}
       />

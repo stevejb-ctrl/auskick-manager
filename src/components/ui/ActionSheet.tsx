@@ -3,6 +3,7 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDialogFocus } from "@/components/ui/useDialogFocus";
+import { SheetEntranceShield, useSheetTapGuard } from "@/components/ui/useSheetTapGuard";
 import { SHEET_CANCEL, SHEET_CARD, SHEET_EYEBROW, SHEET_OPTION, SHEET_TITLE, SheetGrab } from "@/components/ui/sheetChrome";
 
 // A filled row: the sheet's one primary.
@@ -59,6 +60,8 @@ export function ActionSheet({ title, subtitle, eyebrow, label, actions, onClose 
   const idBase = useId();
   useEffect(() => setMounted(true), []);
   useDialogFocus(dialogRef, mounted, onClose);
+  // No taps until the sheet has slid in (useSheetTapGuard).
+  const entering = useSheetTapGuard(dialogRef, mounted);
 
   if (!mounted) return null;
 
@@ -131,6 +134,7 @@ export function ActionSheet({ title, subtitle, eyebrow, label, actions, onClose 
           </button>
         </div>
       </div>
+      <SheetEntranceShield on={entering} />
     </div>,
     document.body,
   );

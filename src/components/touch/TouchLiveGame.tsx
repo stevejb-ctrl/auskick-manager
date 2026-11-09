@@ -76,6 +76,7 @@ import { liveEvents } from "@/lib/live/optimisticEvents";
 import { undoTargetText, UNDO_GONE_MESSAGE, UNDO_MISSING_MESSAGE, undoTap } from "@/lib/live/undoTarget";
 import { announceLiveNotice } from "@/lib/live/liveSync";
 import { getSportConfig } from "@/lib/sports/registry";
+import { endPeriodWords } from "@/lib/sports/words";
 import { isGirlsTry, TOUCH_SCORE_EVENT_TYPES, touchTryEventType, touchTryWhat } from "@/lib/sports/touch/scoreEvents";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
 import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
@@ -1080,9 +1081,25 @@ export function TouchLiveGame({
   // on) as "Sub due · rotate a player off". Nobody to bring on: not due.
   const subDueSaid = dueNow && (shownSubs.length > 0 || swappableBench.length > 0);
   const subSoft = !dueNow && msUntilDue !== null && msUntilDue > 0 && msUntilDue <= 30_000 && shownSubs.length > 0;
+  // Ending the period: ⋯'s "End 1st half" (or "End Q2") row, and "Time's
+  // up: end 1st half" on the info line once the clock reads 0:00 and it's
+  // still open. Both open the clock's end confirm.
+  const periodTimeUp = isPeriodActive && atHooter;
+  const endWords = endPeriodWords({
+    sport: sport,
+    periodLabel: periodLabel,
+    period: base.currentPeriod,
+    periodCount: ageGroup.periodCount,
+    timeUp: periodTimeUp,
+  });
+  const openEndPeriod = () => {
+    setSelectedId(null);
+    setEndConfirmOpen(true);
+  };
   const infoEl =
-    inPlay && benchIds.length > 0 ? (
+    inPlay && (benchIds.length > 0 || periodTimeUp) ? (
       <InfoLine
+        timeUp={periodTimeUp ? { prompt: endWords.prompt, onEnd: openEndPeriod } : undefined}
         state={subDueSaid ? "due" : subSoft ? "soft" : "idle"}
         msUntilDue={subsDone ? null : msUntilDue}
         subIntervalMs={subDue.spanMs ?? 0}
@@ -1465,6 +1482,7 @@ export function TouchLiveGame({
         }
         onScores={!isPreStart ? chrome.openScores : undefined}
         trackScoring={trackScoring}
+        endPeriod={isPeriodActive ? { label: endWords.label, description: endWords.description, onSelect: openEndPeriod } : undefined}
         onWalkthrough={chrome.openHelp}
         onEditLineup={isPreStart ? handleEditLineup : undefined}
       />

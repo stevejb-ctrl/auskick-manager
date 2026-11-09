@@ -19,6 +19,7 @@ import type { Game, LiveAuth, Player } from "@/lib/types";
 // utility row under the field and the top bar's icons used to hold,
 // found in one place (LiveAdminUtilityRow goes, for AFL first):
 //
+//   End Q2 / End 1st half        in play: the same confirm as the clock's
 //   + Add late arrival           who's not in the lineup yet
 //   Game settings                the sub interval, players on the field
 //   Scores and fixes             (or Turn scoring on, team admin only)
@@ -67,6 +68,12 @@ export interface LiveGameMenuProps {
   trackScoring: boolean;
   /** Opens Scores and fixes. Omit while there's nothing to fix (before kickoff). */
   onScores?: () => void;
+  /**
+   * "End Q2" / "End 1st half" (lib/sports/words endPeriodWords), while a
+   * period is in play: opens the sport's end confirm. Parents looked
+   * here for it and only found it behind the clock (Stagehand round 9).
+   */
+  endPeriod?: { label: string; description: string; onSelect: () => void };
   /** "Plan Q3", when the quarter's in its last sub window. */
   planNext?: { label: string; onOpen: () => void };
   onWalkthrough: () => void;
@@ -95,6 +102,7 @@ export function LiveGameMenu({
   trackScoring,
   onScores,
   planNext,
+  endPeriod,
   onWalkthrough,
   onEditLineup,
   settingsDialog,
@@ -122,6 +130,11 @@ export function LiveGameMenu({
   }
 
   const actions: ActionSheetAction[] = [];
+  // First: the game's next step. Still behind the confirm, so a stray
+  // tap ends nothing.
+  if (!finished && endPeriod) {
+    actions.push({ id: "end-period", label: endPeriod.label, description: endPeriod.description, testId: "menu-end-period", onSelect: endPeriod.onSelect });
+  }
   if (!finished && lateCandidates.length > 0 && onLateArrival) {
     const names = lateCandidates.map((p) => p.full_name.trim().split(/\s+/)[0]);
     actions.push({

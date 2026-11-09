@@ -145,6 +145,7 @@ import { NETBALL_SCORE_TYPES, savedScoreKeys, stackIds, stackRef, standingScores
 import { pairScoreUndos } from "@/lib/live/scoreUndo";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { periodLabels } from "@/lib/sports";
+import { endPeriodWords } from "@/lib/sports/words";
 import { ScoreBugFrame } from "@/components/live/ScoreBugFrame";
 
 interface NetballLiveGameProps {
@@ -2325,8 +2326,26 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     />
   ) : null;
   const STRONG = "font-bold text-ink";
+  // Ending the quarter: ⋯'s "End Q2" row, and "Time's up: end Q2" on the
+  // info line once the clock reads 0:00 and the quarter's still open
+  // (the hooter holds while a scorer is being picked). Both open the
+  // clock sheet's end confirm.
+  const canEndPeriod = currentQuarter >= 1 && !quarterEnded && !finalised;
+  const periodTimeUp = canEndPeriod && remainingMs <= 0;
+  const endWords = endPeriodWords({
+    sport: "netball",
+    periodLabel: "quarter",
+    period: currentQuarter,
+    periodCount: ageGroup.periodCount,
+    timeUp: periodTimeUp,
+  });
+  const openEndPeriod = () => {
+    setSelected(null);
+    setShowManualEndConfirm(true);
+  };
   const infoEl = inPlay ? (
     <InfoLine
+      timeUp={periodTimeUp ? { prompt: endWords.prompt, onEnd: openEndPeriod } : undefined}
       state="idle"
       msUntilDue={null}
       subIntervalMs={0}
@@ -2690,6 +2709,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         trackScoring={trackScoring}
         onScores={inPlay ? () => setScoresOpen(true) : undefined}
         planNext={showPlanNext ? { label: planLabel, onOpen: () => setPlanNextOpen(true) } : undefined}
+        endPeriod={canEndPeriod ? { label: endWords.label, description: endWords.description, onSelect: openEndPeriod } : undefined}
         onWalkthrough={handleOpenWalkthrough}
         onEditLineup={isPreGame ? handleEditLineup : undefined}
       />

@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef } from "react";
 import { markLostScore } from "@/lib/live/lostScore";
 import { useDialogFocus } from "@/components/ui/useDialogFocus";
+import { SheetEntranceShield, useSheetTapGuard } from "@/components/ui/useSheetTapGuard";
 import { SHEET_CANCEL, SHEET_CARD, SHEET_EYEBROW, SHEET_OPTION, SHEET_TITLE, SheetGrab } from "@/components/ui/sheetChrome";
 import { useSquadNames } from "@/components/live/SquadNames";
 
@@ -145,6 +146,11 @@ export function SlotFillSheet({
   // the backdrop and Escape did nothing).
   const sheetRef = useRef<HTMLDivElement>(null);
   useDialogFocus(sheetRef, true, onCancel);
+  // No taps until the sheet has risen: a tap aimed at Mia's row landed on
+  // the row above while it moved, and the goal went to the wrong kid
+  // (Stagehand round 9). And a moment's shield over the field once a
+  // pick closes it (useSheetTapGuard).
+  const entering = useSheetTapGuard(sheetRef, true);
   const titleId = useId();
   // Two kids with the same full name read "Jack Smith (1)" / "(2)" (or
   // their numbers), as their tiles do; any other label stays as given.
@@ -304,6 +310,7 @@ export function SlotFillSheet({
           </button>
         </div>
       </div>
+      <SheetEntranceShield on={entering} />
     </div>
   );
 }

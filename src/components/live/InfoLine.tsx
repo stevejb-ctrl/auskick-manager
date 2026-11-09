@@ -7,6 +7,7 @@
 //
 //   Next sub 2:10 · 3 swaps                    ›   Plan Q3
 //   ◯ Sub due — 3 swaps · rotate a player off  ›             (hi-vis ring)
+//   ◯ Time's up: end 1st half                  ›             (0:00, waiting)
 //
 // Plain text on the chalk. The ring shows only when the sub is close (the
 // last 30 s) or due; due, the ring goes hi-vis and the line is a
@@ -55,6 +56,13 @@ export interface InfoLineProps {
    * "rotate a player off": basketball's "send them to the table now".
    */
   dueHint?: string;
+  /**
+   * The period's time is up and it's waiting on the coach (basketball and
+   * touch wait at 0:00; the others when the clock was held): "Time's up:
+   * end Q2", in place of everything else. Tapping it opens the sport's end
+   * confirm (Stagehand round 9: parents couldn't find the way to end).
+   */
+  timeUp?: { prompt: string; onEnd: () => void };
 }
 
 function mmss(ms: number): string {
@@ -97,6 +105,7 @@ export function InfoLine({
   hint,
   softHint,
   dueHint,
+  timeUp,
 }: InfoLineProps) {
   const underText = under && under.count > 0 ? (
     <>
@@ -106,7 +115,21 @@ export function InfoLine({
   ) : null;
 
   let body: ReactNode;
-  if (state === "due") {
+  if (timeUp) {
+    const [head, ...rest] = timeUp.prompt.split(": ");
+    body = (
+      <div role="alert" className="flex min-w-0 flex-1">
+        <button type="button" data-testid="info-line-time-up" onClick={timeUp.onEnd} className={LINE}>
+          <Ring progress={1} hot />
+          <span className="min-w-0 flex-1 truncate">
+            <b className="font-bold text-ink">{head}</b>
+            {rest.length > 0 ? `: ${rest.join(": ")}` : null}
+          </span>
+          {CHEV}
+        </button>
+      </div>
+    );
+  } else if (state === "due") {
     const text = (
       <>
         <Ring progress={1} hot />
