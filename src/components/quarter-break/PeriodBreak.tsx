@@ -291,6 +291,7 @@ export function PeriodBreak(props: PeriodBreakProps) {
     { key: BENCH, label: "BENCH", color: "bench" as const },
   ];
 
+  const lentKids = props.settings.lent?.players ?? [];
   const brokenCount = issues.broken.length;
   const selectedName = selectedSlot?.playerId ? players.get(selectedSlot.playerId)?.name ?? "Player" : null;
   const selectedEmpty = selectedSlot && !selectedSlot.playerId ? selectedSlot.label ?? config.zones.find((z) => z.key === selectedSlot.zone)?.short : null;
@@ -409,6 +410,39 @@ export function PeriodBreak(props: PeriodBreakProps) {
         />
 
         <BreakIssuesCard issues={issues} onFix={fix} />
+
+        {/* Kids lent to the other team, each with a plain Bring back:
+            getting one back at the break was only in Game settings, as
+            a ×, and four coaches in Stagehand round 9 didn't find it.
+            Every sport hands over its lent kids with their writer. */}
+        {lentKids.length > 0 && (
+          <section
+            data-testid="break-lent"
+            aria-label="Lent to the other team"
+            className="rounded-md border border-hairline bg-surface px-4 py-3 shadow-card"
+          >
+            <p className="text-sm font-bold text-ink">Lent to the other team</p>
+            <p className="mt-0.5 text-xs text-ink-dim">Bring them back and they join the bench for {periodName}.</p>
+            <ul className="mt-2 space-y-1.5">
+              {lentKids.map((p) => (
+                <li key={p.id} className="flex min-h-[44px] items-center justify-between gap-2">
+                  <span className="min-w-0 truncate text-sm font-semibold text-ink">{p.name}</span>
+                  <SFButton
+                    variant="subtle"
+                    size="sm"
+                    data-testid={`break-bring-back-${p.id}`}
+                    aria-label={`Bring ${p.name} back`}
+                    disabled={props.settings.pending}
+                    onClick={() => props.settings.lent?.onToggle(p.id, false)}
+                    className="min-h-[44px] shrink-0"
+                  >
+                    Bring back
+                  </SFButton>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <p className="text-center text-xs text-ink-dim">Tap two players to swap — any position or bench</p>
         {props.banner}
