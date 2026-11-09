@@ -325,7 +325,10 @@ const HEADER_TOTAL = "nums font-display stretch-62 text-[40px] font-extrabold le
 const HEADER_NAME =
   // Three lines before it clips: a long club name in the narrow column
   // beside a two-digit total ("Northcote Kangaroos 868" at 375 px).
-  "line-clamp-3 break-words font-display text-[0.75rem] font-bold uppercase leading-tight tracking-[0.04em] text-ink-mute bigtext:line-clamp-2";
+  // Archivo's narrowest width (the score's), so a long word ("SANDRINGHAM")
+  // fits beside the break's name at 390 px rather than breaking inside
+  // itself (Stagehand, 9 Nov 2026).
+  "line-clamp-3 break-words font-display stretch-62 text-[0.75rem] font-bold uppercase leading-tight tracking-[0.02em] text-ink-mute bigtext:line-clamp-2";
 const HEADER_SMALL = "text-[0.75rem] font-semibold text-ink-mute";
 
 function HeaderPart({

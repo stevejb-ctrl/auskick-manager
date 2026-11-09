@@ -209,7 +209,16 @@ export function GameHeader({
             <span className={`font-mono text-nano font-bold uppercase leading-3 tracking-micro ${v3 ? "text-hivis-ink" : "text-white/[0.85]"}`}>
               End {quarterLabel}
             </span>
-            <span className={`mt-0.5 whitespace-nowrap text-xl font-bold leading-7 tracking-[-0.01em] ${v3 ? "text-hivis-ink" : "text-white"}`}>
+            {/* v3: "Three-quarter / time" on two lines, so the team names
+                beside it keep their words whole at 390 px (Stagehand,
+                9 Nov 2026). */}
+            <span
+              className={`mt-0.5 font-bold tracking-[-0.01em] ${
+                v3
+                  ? "max-w-[6.5rem] text-center text-base leading-[1.1] text-hivis-ink [text-wrap:balance]"
+                  : "whitespace-nowrap text-xl leading-7 text-white"
+              }`}
+            >
               {breakName(quarter, periodCount)}
             </span>
           </span>
