@@ -1588,7 +1588,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // long-press.
   const startLeaving = (playerId: string, positionId: string | null, reason: "injured" | "lent" | "subbed" | "went_home") => {
     closeActions();
-    if (positionId && benchCandidates.length > 0) {
+    // A lend always asks, as AFL's does: with nobody on the bench the
+    // sheet says so, never a silent empty bib (Stagehand round 9).
+    if (positionId && (benchCandidates.length > 0 || reason === "lent")) {
       setLeaving({ playerId, positionId, reason });
       return;
     }

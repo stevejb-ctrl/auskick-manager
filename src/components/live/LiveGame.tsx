@@ -3165,8 +3165,10 @@ export function LiveGame({
             onToggleLoan={() => {
               // Lending a kid off the field asks who comes on, as an injury
               // does; it left the spot empty with no word (Stagehand round 7).
+              // Nobody on the bench: the sheet still opens and says so, and
+              // the coach lends them to play one short (Stagehand round 9).
               const onFieldZone = !isLoaned && ALL_ZONES.find((z) => lineup[z].includes(lockModal.playerId));
-              if (onFieldZone && lineup.bench.some((id) => !injuredIds.includes(id) && !loanedIds.includes(id))) {
+              if (onFieldZone) {
                 setInjuryReplacementModal({ injuredId: lockModal.playerId, zone: onFieldZone, reason: "lent" });
                 setLockModal(null);
                 return;

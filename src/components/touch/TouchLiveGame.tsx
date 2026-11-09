@@ -196,7 +196,7 @@ export function TouchLiveGame({
   const [pickingScorer, setPickingScorer] = useState(false);
   const [actionPlayerId, setActionPlayerId] = useState<string | null>(null);
   const [fillLine, setFillLine] = useState<TouchLine | null>(null);
-  const [leaving, setLeaving] = useState<{ playerId: string; line: TouchLine; wentHome?: boolean } | null>(null);
+  const [leaving, setLeaving] = useState<{ playerId: string; line: TouchLine; wentHome?: boolean; lent?: boolean } | null>(null);
   const [subAckKey, setSubAckKey] = useState<string | null>(null);
   // Live v3's shell: the ⋯ game menu and the pairs sheet (one sheet at a time).
   const [menuOpen, setMenuOpen] = useState(false);
@@ -703,10 +703,11 @@ export function TouchLiveGame({
     }
     markInjured(pid, true, wentHome);
   }
-  function leaveAndReplace(pid: string, replacementId: string, line: TouchLine, wentHome = false) {
+  function leaveAndReplace(pid: string, replacementId: string, line: TouchLine, wentHome = false, lent = false) {
     setLeaving(null);
-    // In order, in the one game lane: the injury, then who comes on.
-    markInjured(pid, true, wentHome);
+    // In order, in the one game lane: the injury (or the loan), then who comes on.
+    if (lent) setLoan(pid, true);
+    else markInjured(pid, true, wentHome);
     sub(pid, replacementId, line);
     chrome.swapped(pid, replacementId);
   }
@@ -715,6 +716,16 @@ export function TouchLiveGame({
     const input = { player_id: pid, loaned, ...at() };
     write("markLoan", [auth, game.id, input], liveEvents.loan(input));
   };
+  /**
+   * Lending a kid off the field asks who comes on, as AFL's does. It left
+   * a gap with no word (Stagehand round 9); with nobody who keeps the
+   * mixed rule on the bench, the sheet says so and lends them short.
+   */
+  function startLend(pid: string) {
+    const line = state.lineup ? touchLineOf(state.lineup, pid) : null;
+    if (isPeriodActive && line) setLeaving({ playerId: pid, line, lent: true });
+    else setLoan(pid, true);
+  }
   const setHold = (pid: string, lock: { kind: "field" } | null) => {
     setError(null);
     const input = { player_id: pid, lock, ...at() };
@@ -1571,7 +1582,8 @@ export function TouchLiveGame({
           onToggleLoan={() => {
             const pid = actionPlayer.id;
             setActionPlayerId(null);
-            setLoan(pid, !loanedSet.has(pid));
+            if (loanedSet.has(pid)) setLoan(pid, false);
+            else startLend(pid);
           }}
           onSwitch={() => {
             setActionPlayerId(null);
@@ -1645,14 +1657,16 @@ export function TouchLiveGame({
           return (
             <InjuryReplacementModal
               injuredPlayer={who}
-              reason={leaving.wentHome ? "went_home" : "injured"}
+              reason={leaving.lent ? "lent" : leaving.wentHome ? "went_home" : "injured"}
               spotLabel={leaving.line === "field" ? "their spot" : TOUCH_LINE_ONE[leaving.line]}
               candidates={candidates}
-              onPickReplacement={(rid) => leaveAndReplace(leaving.playerId, rid, leaving.line, leaving.wentHome)}
+              emptyMessage={mixed && swappableBench.length > 0 ? "Nobody on the bench can come on under the mixed rule." : undefined}
+              onPickReplacement={(rid) => leaveAndReplace(leaving.playerId, rid, leaving.line, leaving.wentHome, leaving.lent)}
               onSkipReplacement={() => {
-                const { playerId, wentHome } = leaving;
+                const { playerId, wentHome, lent } = leaving;
                 setLeaving(null);
-                markInjured(playerId, true, wentHome);
+                if (lent) setLoan(playerId, true);
+                else markInjured(playerId, true, wentHome);
               }}
               onCancel={() => setLeaving(null)}
             />
