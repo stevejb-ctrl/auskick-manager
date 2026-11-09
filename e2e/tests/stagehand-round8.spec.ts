@@ -225,7 +225,8 @@ test("#10 at 200% text a netball court name isn't cut to a letter, and the hint 
   // Every kid on the court, from the Goal Shooter to the Goal Keeper,
   // shows their whole name.
   const bibs = ["Goal Shooter", "Goal Attack", "Wing Attack", "Centre", "Wing Defence", "Goal Defence", "Goal Keeper"];
-  for (const [i, bib] of bibs.entries()) {
+  for (let i = 0; i < bibs.length; i++) {
+    const bib = bibs[i];
     const token = page.getByRole("button", { name: new RegExp(`^[^,]+, ${bib},`) });
     const name = token.getByText(players[i].full_name.split(" ")[0], { exact: false }).first();
     const cut = await name.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
