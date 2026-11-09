@@ -350,6 +350,11 @@ async function seedTeam(admin, email, name, origin) {
   //              many kids weren't marked available (late arrivals),
   //              the clock speed (default 8), and goals/behinds per
   //              side as [[quarter, "goal" | "behind"], ...]
+  //   bigLive    AFL big field (18 a side), already under way at real
+  //              time: { quarter, minutesIn } — the quarters before ran
+  //              in full (20 minutes), this one is minutesIn in. Five
+  //              bench kids came on halfway through Q1; the last two
+  //              have sat since the first bounce.
   const SEEDS = {
     "afl-u12-gameday": {
       team: { name: "Bayside Bandicoots", age_group: "U12", sport: "afl" },
@@ -360,6 +365,24 @@ async function seedTeam(admin, email, name, origin) {
       team: { name: "Brunswick Bears", age_group: "U15", sport: "afl" },
       playbook: { strategy: "set-positions" },
       squad: 20,
+    },
+    // Live v3 big field: AFL U16 boys, 18 on and 7 on the bench, in set
+    // positions, 10 minutes into Q2. The field is the formation ("CHB
+    // Hamish C"); tapping two kids on the field changes their positions.
+    // Two bench kids have sat all game, so they're at risk of the 50%
+    // minimum ("Needs 40′ more", "2 under 50%").
+    "afl-u16-gameday": {
+      team: { name: "Wattle Park Wombats", age_group: "U16_boys", sport: "afl" },
+      opponent: "Kew Kookas",
+      playbook: { strategy: "set-positions" },
+      squad: 25,
+      onField: 18,
+      prefs: [
+        [0, { position_key: "ff", kind: "home" }],
+        [15, { position_key: "fb", kind: "home" }],
+        [13, { position_key: "chb", kind: "home" }],
+      ],
+      bigLive: { quarter: 2, minutesIn: 10 },
     },
     "netball-11u-gameday": {
       team: { name: "Hawthorn Hornets", age_group: "11u", sport: "netball" },
@@ -616,6 +639,8 @@ async function seedTeam(admin, email, name, origin) {
     "Ruby Martin", "Jack Anderson", "Zara Thompson", "Leo White", "Chloe Harris", "Hamish Clarke",
     "Matilda King", "Archie Walker", "Sienna Hall", "Cooper Young", "Grace Allen", "Hudson Wright",
     "Eloise Scott", "Max Green", "Harper Baker", "Toby Adams",
+    // A big squad (AFL 18 + 7).
+    "Ollie Reid", "Sam Fox", "Will Kerr",
   ];
   const { data: users } = await admin.auth.admin.listUsers({ perPage: 1000 });
   const ownerId = users.users.find((u) => u.email === email).id;
@@ -712,7 +737,8 @@ async function seedTeam(admin, email, name, origin) {
       scheduled_at: new Date(Date.now() + (s.gameIn ?? 30) * 60_000).toISOString(),
       round_number: (s.pastGames ?? 0) + 4,
       created_by: ownerId,
-      clock_multiplier: s.live?.multiplier ?? 8,
+      // A big-field game under way runs at real time.
+      clock_multiplier: s.live?.multiplier ?? (s.bigLive ? 1 : 8),
       // Past the quarter, so "Sub due" doesn't fire within seconds at 8x.
       sub_interval_seconds: 900,
       on_field_size: onField,
@@ -762,6 +788,42 @@ async function seedTeam(admin, email, name, origin) {
     }
     await admin.from("game_events").insert(events.map((e) => ({ ...e, game_id: game.id, created_by: ownerId })));
     await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+  }
+  if (s.bigLive) {
+    // 6 forwards, 6 mids, 6 backs and 7 on the bench. The quarters before
+    // ran their 20 minutes; this one started minutesIn ago (real time).
+    const { quarter, minutesIn } = s.bigLive;
+    const quarterMs = 20 * 60_000;
+    const lineup = { fwd: ids.slice(0, 6), hfwd: [], mid: ids.slice(6, 12), hback: [], back: ids.slice(12, 18), bench: ids.slice(18) };
+    const secsAgo = (sec) => new Date(Date.now() - sec * 1000).toISOString();
+    const nowSec = minutesIn * 60;
+    const events = [{ type: "lineup_set", metadata: { lineup }, created_at: secsAgo(nowSec + 60 * quarter + 30) }];
+    for (let q = 1; q <= quarter; q++) {
+      const startedSecsAgo = q === quarter ? nowSec : nowSec + 60 * (quarter - q + 1);
+      events.push({ type: "quarter_start", metadata: { quarter: q }, created_at: secsAgo(startedSecsAgo) });
+      if (q === 1) {
+        // Halfway through Q1, five bench kids came on, one per line spot.
+        const offs = [lineup.fwd[5], lineup.mid[5], lineup.back[5], lineup.fwd[4], lineup.mid[4]];
+        const zones = ["fwd", "mid", "back", "fwd", "mid"];
+        offs.forEach((off, n) => {
+          events.push({
+            type: "swap",
+            player_id: lineup.bench[n],
+            metadata: { off_player_id: off, on_player_id: lineup.bench[n], zone: zones[n], quarter: 1, elapsed_ms: quarterMs / 2 },
+            created_at: secsAgo(startedSecsAgo - 5 - n),
+          });
+        });
+      }
+      if (q < quarter) {
+        events.push({ type: "quarter_end", metadata: { quarter: q, elapsed_ms: quarterMs }, created_at: secsAgo(startedSecsAgo - 30) });
+      }
+    }
+    await admin.from("game_events").insert(events.map((e) => ({ ...e, game_id: game.id, created_by: ownerId })));
+    await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+    if (!s.start) {
+      console.log(`▶ Seeded ${s.team.name} (${name})`);
+      return `${origin}/teams/${team.id}/games/${game.id}/live`;
+    }
   }
   console.log(`▶ Seeded ${s.team.name} (${name})`);
   if (s.start === "runner") return `${origin}/run/${game.share_token}`;

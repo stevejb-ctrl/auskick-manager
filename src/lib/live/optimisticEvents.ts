@@ -195,6 +195,32 @@ export const liveEvents = {
       },
     };
   },
+  /** recordPositionSwap (AFL big fields): a goes to position_b, b (if any) to position_a. */
+  positionSwap(input: {
+    player_a_id: string;
+    player_b_id: string | null;
+    position_a: string;
+    position_b: string;
+    zone_a: string;
+    zone_b: string;
+    undo?: boolean;
+  } & At): OptimisticEventInput {
+    return {
+      type: "position_swap",
+      player_id: input.player_a_id,
+      metadata: {
+        player_a_id: input.player_a_id,
+        player_b_id: input.player_b_id,
+        position_a: input.position_a,
+        position_b: input.position_b,
+        zone_a: input.zone_a,
+        zone_b: input.zone_b,
+        quarter: input.quarter,
+        elapsed_ms: input.elapsed_ms,
+        ...(input.undo ? { undo: true } : {}),
+      },
+    };
+  },
   /** A score of any type (recordSoccerGoal, recordBasketballScore, …). */
   score(type: string, playerId: string | null, at: At): OptimisticEventInput {
     return { type, player_id: playerId, metadata: { quarter: at.quarter, elapsed_ms: at.elapsed_ms } };

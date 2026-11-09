@@ -8,6 +8,7 @@ import { withThirdsToday } from "@/lib/playbook/dayLines";
 import { replayLocks } from "@/lib/live/locks";
 import type { RoleSheetConfig } from "@/components/playbook/useRoleSheet";
 import { aflPlaybookInput, withBalanceSeason, withSnapshot } from "@/lib/sports/afl/engine";
+import { aflAwayMs, aflBigField } from "@/lib/sports/afl/bigField";
 import { netballPlaybookInput, withNetballSnapshot } from "@/lib/sports/netball/engine";
 import { leaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
 import { seasonBalanceWeight, withKickoffSnapshot } from "@/lib/playbook/seasonBalance";
@@ -1310,6 +1311,16 @@ async function LivePageBody({ params }: LivePageProps) {
     );
     const loanMins = seasonLoanMinutes(allTeamEvents);
     const seasonAvail = seasonAvailability(allTeamEvents);
+    // Big fields (15/16/18 a side, named positions): the formation and
+    // who's in which position, from the log (live v3, Phase 11).
+    const bigField = aflBigField({
+      playbook,
+      aflPlaybook,
+      onFieldSize: g.on_field_size,
+      zoneModel: positionModel,
+      events: (thisGameEvents ?? []) as GameEvent[],
+      lineup: state.lineup,
+    });
     // Page-level sticky-bar clearance — kicks in at a Q-break
     // (sticky "Ready for Q{n+1}" CTA in QuarterBreak) AND during
     // live play (sticky scorebug at the bottom in LiveGame —
@@ -1371,6 +1382,8 @@ async function LivePageBody({ params }: LivePageProps) {
           defaultOnFieldSize={teamOnFieldSize(ageCfg, (teamRow as { on_field_size?: number | null } | null)?.on_field_size)}
           chipModeByKey={teamChipModes}
           aflPlaybook={aflPlaybook}
+          bigField={bigField ?? undefined}
+          awayMs={aflAwayMs((thisGameEvents ?? []) as GameEvent[], quarterMs, state.currentQuarter)}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
           isAdmin={isAdmin}
           songUrl={songUrl}

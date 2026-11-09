@@ -31,7 +31,11 @@ import { KidBar, TimeSplit } from "@/components/live/KidBar";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { barButton, BAR_SMALL } from "@/components/live/barButtons";
 import { kidWords, type KidOut, type KidSubRole } from "@/lib/live/kidWords";
-import { pctOfGame } from "@/lib/live/minGameTime";
+import { minBarText, pctOfGame } from "@/lib/live/minGameTime";
+import { formationRows } from "@/lib/live/formationRows";
+import { fitSeats, sameSeats, seatLabels, seatOf, type SeatPosition, type Seats } from "@/lib/live/positionSeats";
+import { positionSwapToast } from "@/lib/live/positionSwap";
+import { aflMinTimeStates, type AflBigField } from "@/lib/sports/afl/bigField";
 import { LiveShell } from "@/components/live/LiveShell";
 import { LiveGameMenu, settingsSummary } from "@/components/live/LiveGameMenu";
 import { PlanNextChip } from "@/components/live/PlanNextChip";
@@ -209,6 +213,18 @@ interface LiveGameProps {
    * roles for the AFL suggesters. Omitted = today's behaviour.
    */
   aflPlaybook?: AflPlaybookInput;
+  /**
+   * Big fields (live v3, Phase 11): AFL 15/16/18 a side with named
+   * positions is drawn as its formation, each kid in their seat ("CHB
+   * Jack S"), and tapping two kids on the field trades their positions
+   * (position_swap). Omitted: the zone lines, as small sides have.
+   */
+  bigField?: AflBigField;
+  /**
+   * ms each kid couldn't play so far (late, hurt, lent; aflAwayMs): off
+   * their game for the rotation rule's minimum ("Needs 6′ more").
+   */
+  awayMs?: Record<string, number>;
   exitHref?: string;
   /**
    * True when the current user has admin role on this team. Drives
@@ -258,9 +274,14 @@ function storeMatchesServer(
     lineup: Lineup;
     injuredIds: string[];
     loanedIds: string[];
+    seats: Seats | null;
   },
   server: GameState,
+  /** Big fields: who's in which position on the server; undefined elsewhere. */
+  serverSeats?: Seats | null,
 ): boolean {
+  // A position change inside a line moves nobody between lines.
+  if (serverSeats !== undefined && !sameSeats(store.seats, serverSeats)) return false;
   if (store.currentQuarter !== server.currentQuarter) return false;
   if (store.quarterEnded !== server.quarterEnded || store.finalised !== server.finalised) return false;
   if (store.teamScore.goals !== server.teamScore.goals || store.teamScore.behinds !== server.teamScore.behinds) return false;
@@ -316,6 +337,8 @@ export function LiveGame({
   defaultOnFieldSize,
   chipModeByKey,
   aflPlaybook,
+  bigField,
+  awayMs,
   exitHref,
   isAdmin = false,
   standingScores,
@@ -336,8 +359,15 @@ export function LiveGame({
     () => getSportConfig("afl").zones.filter((z) => ageGroup.zones.includes(z.id)),
     [ageGroup.zones],
   );
+  // Big fields: the positions the seats are for (key, label, line).
+  const seatPositions = useMemo<SeatPosition[] | null>(
+    () => bigField?.positions.map((p) => ({ key: p.key, label: p.label, line: p.line as Zone })) ?? null,
+    [bigField],
+  );
   const init = useLiveGame((s) => s.init);
   const lineup = useLiveGame((s) => s.lineup);
+  const storeSeats = useLiveGame((s) => s.seats);
+  const applyPositionSwap = useLiveGame((s) => s.applyPositionSwap);
   const selected = useLiveGame((s) => s.selected);
   const clockStartedAt = useLiveGame((s) => s.clockStartedAt);
   const accumulatedMs = useLiveGame((s) => s.accumulatedMs);
@@ -481,6 +511,8 @@ export function LiveGame({
   // kid mid-quarter the gap couldn't be filled from the spot (Stagehand
   // round 4).
   const [fillZone, setFillZone] = useState<Zone | null>(null);
+  // Big fields: the empty position the fill sheet is for.
+  const [fillSeat, setFillSeat] = useState<string | null>(null);
   const [, setTick] = useState(0);
   const prevSubStateRef = useRef<"idle" | "soft" | "due">("idle");
   // Plan-ahead rotation (F1): true while the shared planner is open over
@@ -672,13 +704,17 @@ export function LiveGame({
       fullStoreState.activeGameId === gameId &&
       !storeAheadOfServer &&
       pendingWriteCount() === 0 &&
-      !storeMatchesServer(fullStoreState, initialState);
+      !storeMatchesServer(fullStoreState, initialState, bigField ? bigField.seats : undefined);
+    // A big field the store isn't keeping seats for (it was filled before
+    // this screen knew the positions): take the server's game, seats and all.
+    const seatsMissing = !!seatPositions && fullStoreState.seatPositions === null;
     if (
       fullStoreState.activeGameId === gameId &&
       !storeAheadOfServer &&
       lineupHasAnyPlayer &&
       !resync &&
-      !otherPhoneMovedOn
+      !otherPhoneMovedOn &&
+      !seatsMissing
     ) {
       setHydrated(true);
       return;
@@ -781,8 +817,13 @@ export function LiveGame({
       clockStartedAt,
       accumulatedMs,
       clockMultiplier,
+      // Big fields: who's in which position, from the server's replay.
+      seats: bigField?.seats ?? null,
+      seatPositions,
     });
     setHydrated(true);
+    // bigField and seatPositions come with initialState (the same render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [init, initialState, gameId, activeGameId, clockMultiplier]);
 
   /** Game ms into this quarter: the frame of events, the replay and the store. */
@@ -848,6 +889,12 @@ export function LiveGame({
 
   function handleTapField(playerId: string, zone: Zone) {
     if (isFinished) return;
+    // Big fields: a kid on the field, then another, trade positions
+    // (CHB ↔ FB, or CHB ↔ C across lines). Not a sub.
+    if (seatPositions && playerId !== "" && selected?.kind === "field" && selected.playerId !== playerId) {
+      swapPositions(selected.playerId, playerId, null);
+      return;
+    }
     if (playerId === "") {
       if (selected?.kind === "bench") {
         clearSelection();
@@ -931,6 +978,91 @@ export function LiveGame({
     ]);
   }
 
+  // Big fields (live v3, Phase 11): who's in which position now, fitted
+  // to the lineup.
+  function seatsNow(): Seats | null {
+    if (!seatPositions) return null;
+    const st = useLiveGame.getState();
+    return fitSeats(st.seats, st.lineup, seatPositions).seats;
+  }
+  const seatLabel = (key: string) => seatPositions?.find((p) => p.key === key)?.label ?? key;
+
+  // Two kids on the field trade named positions, or one moves to an
+  // empty position (`toKey`). It's not a sub: the sub clock and the
+  // swap count stand. At once, with Undo on the toast for 6 s ("Jack S
+  // to FB · Tom to CHB · position change logged"); Undo writes the
+  // change back as its own position_swap, marked undo.
+  function swapPositions(pidA: string, pidB: string | null, toKey: string | null, undo = false) {
+    const seats = seatsNow();
+    if (!seats || !seatPositions) return;
+    const st = useLiveGame.getState();
+    const posA = seatOf(seats, pidA);
+    const posB = pidB ? seatOf(seats, pidB) : toKey;
+    // Nowhere to go, or the empty position isn't empty any more.
+    if (!posA || !posB || posA === posB || (!pidB && seats[posB] !== null)) {
+      clearSelection();
+      return;
+    }
+    const zoneA = ALL_ZONES.find((z) => st.lineup[z].includes(pidA));
+    const zoneB = pidB
+      ? ALL_ZONES.find((z) => st.lineup[z].includes(pidB))
+      : seatPositions.find((p) => p.key === posB)?.line;
+    if (!zoneA || !zoneB) {
+      clearSelection();
+      return;
+    }
+    const quarter = Math.max(1, currentQuarter);
+    const elapsed_ms = currentElapsedMs();
+    applyPositionSwap(pidA, zoneA, pidB ?? "", zoneB, posB);
+    showSwapToast(
+      positionSwapToast(
+        { name: shortName(pidA), to: seatLabel(posB) },
+        pidB ? { name: shortName(pidB), to: seatLabel(posA) } : null,
+      ),
+      undo
+        ? undefined
+        : () => {
+            // Put it back while both are still where the change left them.
+            const now = seatsNow();
+            if (!now || now[posB] !== pidA || now[posA] !== (pidB ?? null)) return;
+            swapPositions(pidA, pidB, pidB ? null : posA, true);
+          },
+    );
+    enqueueLiveAction("recordPositionSwap", [
+      auth,
+      gameId,
+      {
+        player_a_id: pidA,
+        player_b_id: pidB,
+        position_a: posA,
+        position_b: posB,
+        zone_a: zoneA,
+        zone_b: zoneB,
+        quarter,
+        elapsed_ms,
+        ...(undo ? { undo: true } : {}),
+      },
+    ]);
+  }
+
+  // Big fields: an empty position tapped. A picked field kid moves
+  // there; a picked bench kid comes on into it; else who comes on?
+  function handleTapSeat(key: string, zone: Zone) {
+    if (isFinished) return;
+    if (selected?.kind === "field") {
+      swapPositions(selected.playerId, null, key);
+      return;
+    }
+    if (selected?.kind === "bench") {
+      const on = selected.playerId;
+      clearSelection();
+      manualSwap("", on, zone, key);
+      return;
+    }
+    setFillSeat(key);
+    setFillZone(zone);
+  }
+
   // A sub made by hand (tap-tap, the dock's Swap player, a bench kid
   // into an empty spot) happens at once, off the sub cadence, and the
   // toast carries Undo for 6 s. Live v3 (Steve, 8 Nov 2026) dropped the
@@ -938,8 +1070,8 @@ export function LiveGame({
   // event (marked `undo`, so it nets to no sub), on the same write
   // queue, so it saves after the swap even with no signal. A kid into an
   // empty spot (`off` "") has nobody to bring back: no Undo.
-  function manualSwap(off: string, on: string, zone: Zone) {
-    persistSwap(off, on, zone, false);
+  function manualSwap(off: string, on: string, zone: Zone, position: string | null = null) {
+    persistSwap(off, on, zone, false, 0, false, position);
     if (!off) {
       showSwapToast(`${shortName(on)} on`);
       return;
@@ -1276,6 +1408,8 @@ export function LiveGame({
     batchLeft = 0,
     /** "Undo swaps" putting one back: it nets to zero subs (replayGame's subCount). */
     undo = false,
+    /** Big fields: the empty position the kid comes on into. */
+    position: string | null = null,
   ) {
     setError(null);
     const quarter = Math.max(1, currentQuarter);
@@ -1292,7 +1426,7 @@ export function LiveGame({
       on: { ...prev.on, [on]: at },
       off: { ...prev.off, [off]: at },
     }));
-    applySwap(off, on, zone);
+    applySwap(off, on, zone, position);
     enqueueLiveAction("recordSwap", [
       auth,
       gameId,
@@ -1305,6 +1439,7 @@ export function LiveGame({
         ...(resetSubTimer ? {} : { manual: true }),
         ...(resetSubTimer && batchLeft > 0 ? { batch_left: batchLeft } : {}),
         ...(undo ? { undo: true } : {}),
+        ...(position ? { position } : {}),
       },
     ]);
   }
@@ -1884,7 +2019,11 @@ export function LiveGame({
     if (s.off_player_id) pairOf.set(s.off_player_id, { i, role: "off", s });
     pairOf.set(s.on_player_id, { i, role: "on", s });
   });
-  const positionLabels = assignPositionLabels(lineup, aflPlaybook);
+  // Big fields: who's in which position (the store's seats, fitted to
+  // the lineup). Elsewhere, set positions' labels within each line.
+  const fitted = seatPositions ? fitSeats(storeSeats ?? bigField?.seats ?? null, lineup, seatPositions) : null;
+  const positionLabels =
+    fitted && seatPositions ? seatLabels(fitted.seats, seatPositions) : assignPositionLabels(lineup, aflPlaybook);
   // Where a bench kid goes on: the off kid's position, else the line.
   const pairTo = (s: (typeof suggestions)[number]) =>
     (s.off_player_id && positionLabels?.[s.off_player_id]) || ZONE_SHORT[s.zone];
@@ -1894,6 +2033,26 @@ export function LiveGame({
   const injuredSet = new Set(injuredIds);
   const loanedSet = new Set(loanedIds);
   const lockedSet = new Set(lockedIds);
+
+  // The rotation rule's minimum (AFL 50–75 %, How we play): who's at risk
+  // of missing it by full time (plan default 5: not behind right now, so
+  // nobody's flagged at the first bounce). "Needs 6′ more" under the kid,
+  // "3 under 50%" in the info line, "% of game · min 50%" in the kid bar.
+  const minPct = aflPlaybook?.minGameTimePct ?? 0;
+  const minStates = inPlay
+    ? aflMinTimeStates({
+        minPct,
+        playedMs: totalMsByPlayer,
+        awayMs,
+        elapsedMs: initialState.completedQuarterMs + displayNowMs,
+        quarterMs,
+        periodCount: ageGroup.periodCount,
+        soonMs: subIntervalMs > 0 ? subIntervalMs : quarterMs,
+        playerIds: [...ALL_ZONES.flatMap((z) => lineup[z]), ...lineup.bench],
+        out: new Set([...injuredIds, ...loanedIds]),
+      })
+    : new Map<string, never>();
+  const underCount = Array.from(minStates.values()).filter((m) => m.atRisk).length;
 
   function outOf(pid: string): { kind: KidOutKind; out: KidOut } | null {
     if (injuredSet.has(pid)) {
@@ -1911,10 +2070,12 @@ export function LiveGame({
     const out = outOf(pid);
     const pair = out ? null : pairOf.get(pid) ?? null;
     const sub: KidSubRole | null = pair ? (pair.role === "off" ? { role: "off" } : { role: "on", to: pairTo(pair.s) }) : null;
+    const floor = out ? null : minStates.get(pid) ?? null;
     const words = kidWords({
       place: zone ? "field" : "bench",
       sub,
       subDue,
+      needsMin: floor?.atRisk ? floor.neededMin : null,
       rollingSubs: true,
       subsDoneThisPeriod,
       out: out?.out ?? null,
@@ -1938,10 +2099,16 @@ export function LiveGame({
           states: [
             scored ? `${score.goals} goals, ${score.behinds} behinds` : null,
             !out && lock ? (lock === "field" ? "Field locked" : "Zone locked") : null,
+            floor?.atRisk ? `under ${floor.minPct}% of the game` : null,
           ],
         }}
         place={zone ? "field" : "bench"}
         pos={pos}
+        // Big fields: the dense tile ("CHB Jack S").
+        dense={!!fitted && !!zone}
+        // At risk of the minimum: the sun edge (its words say when, if
+        // they're in the next sub).
+        under={!!floor?.atRisk}
         score={scored ? { text: `${score.goals}.${score.behinds}`, label: "" } : null}
         words={words}
         badge={pair && inPlay ? { n: pair.i + 1, hot: subDue } : null}
@@ -1964,8 +2131,50 @@ export function LiveGame({
     );
   }
 
+  // Big fields: the formation, line by line (Forward, Centre, Back),
+  // each line its rows (formationRows), each spot its kid or an empty
+  // position. Keyed by position, so a kid coming on rises into it. A
+  // kid a line has no position for (more on it than its spots) goes in
+  // a row after it.
+  function bigFieldLines(): FieldLine[] {
+    if (!bigField || !fitted) return [];
+    return formationRows(bigField.positions).map((fl) => {
+      const zone = fl.line as Zone;
+      const rows = fl.rows.map((row) =>
+        row.map((p) => {
+          const pid = fitted.seats[p.key];
+          return (
+            <div key={p.key} className="min-w-0">
+              {pid ? (
+                kidTile(pid, zone)
+              ) : (
+                <KidSlot
+                  label={`Empty ${p.label} spot`}
+                  text={selected ? "Move here" : `${p.label} empty`}
+                  hot={!!selected}
+                  onClick={() => handleTapSeat(p.key, zone)}
+                />
+              )}
+            </div>
+          );
+        }),
+      );
+      const spare = fitted.spare[zone] ?? [];
+      if (spare.length > 0) {
+        rows.push(
+          spare.map((pid) => (
+            <div key={`spare-${pid}`} className="min-w-0">
+              {kidTile(pid, zone)}
+            </div>
+          )),
+        );
+      }
+      return { key: zone, label: ZONE_LABELS[zone], tiles: rows.flat(), rows };
+    });
+  }
+
   // The field: a line per zone, attacking up the page (fwd first).
-  const fieldLines: FieldLine[] = positionsFor(positionModel)
+  const fieldLines: FieldLine[] = fitted ? bigFieldLines() : positionsFor(positionModel)
     .slice()
     .reverse()
     .flatMap((key) => {
@@ -2000,7 +2209,16 @@ export function LiveGame({
         },
       ];
     });
-  const fieldEl = <FieldLines lines={fieldLines} surface="field" marks={<OvalMarks />} wakeUpKey={fieldWakeUpKey} />;
+  const fieldEl = (
+    <FieldLines
+      lines={fieldLines}
+      surface="field"
+      marks={<OvalMarks />}
+      dense={!!fitted}
+      tileWidth={fitted ? 112 : undefined}
+      wakeUpKey={fieldWakeUpKey}
+    />
+  );
 
   // Squad kids not in the game yet: "+ Late" at the foot of the bench
   // (and in ⋯).
@@ -2135,6 +2353,7 @@ export function LiveGame({
         subIntervalMs={subIntervalMs}
         swaps={sheetPairs.length}
         carry={pastHooterCarry}
+        under={minPct > 0 ? { count: underCount, minPct } : null}
         periodWord="quarter"
         noBench={lineup.bench.length > 0 && !hasSwappableBench}
         onOpen={sheetPairs.length > 0 ? openPairs : undefined}
@@ -2158,6 +2377,7 @@ export function LiveGame({
           const totalMs = totalMsByPlayer[pid] ?? 0;
           const gameMs = initialState.completedQuarterMs + displayNowMs;
           const zm = zoneMsByPlayer[pid];
+          const floor = minStates.get(pid);
           const lock = lockedSet.has(pid) ? "field" : zoneLockedPlayers[pid] ? "zone" : null;
           const pair = pairOf.get(pid) ?? null;
           const pairS = pair?.s ?? null;
@@ -2243,9 +2463,15 @@ export function LiveGame({
                   />
                 ) : null
               }
-              line={`${zone ? ZONE_LABELS[zone] : "Bench"} · ${Math.round(totalMs / 60_000)}′ this game · ${pctOfGame(totalMs, gameMs)}% of game`}
+              line={`${zone ? ZONE_LABELS[zone] : "Bench"} · ${Math.round(totalMs / 60_000)}′ this game · ${
+                floor && minPct > 0 ? minBarText(floor) : `${pctOfGame(totalMs, gameMs)}% of game`
+              }`}
               hint={
-                zone ? (
+                zone && fitted ? (
+                  <>
+                    Tap a kid on the field to trade positions with <b className="font-bold text-ink">{first}</b>, or on the bench to sub.
+                  </>
+                ) : zone ? (
                   <>
                     Tap another kid to swap with <b className="font-bold text-ink">{first}</b>.
                   </>
@@ -2376,9 +2602,11 @@ export function LiveGame({
   );
 
   const roundWord = game.round_number != null ? `Round ${game.round_number}` : null;
+  // "AFL U16 Boys", not the id's "U16_boys".
+  const ageWord = ageGroup.id.replace(/_(boys|girls)$/, (_m, g: string) => ` ${g[0].toUpperCase()}${g.slice(1)}`);
   const topSubline = isPreGame
-    ? [roundWord, game.location].filter(Boolean).join(" · ") || `${getSportConfig("afl").shortName} ${ageGroup.id}`
-    : [roundWord, `${getSportConfig("afl").shortName} ${ageGroup.id}`].filter(Boolean).join(" · ");
+    ? [roundWord, game.location].filter(Boolean).join(" · ") || `${getSportConfig("afl").shortName} ${ageWord}`
+    : [roundWord, `${getSportConfig("afl").shortName} ${ageWord}`].filter(Boolean).join(" · ");
   const whoRuns = auth.kind === "token" ? "Game-day link" : isAdmin ? "Team admin" : "Game manager";
 
   return (
@@ -2522,7 +2750,7 @@ export function LiveGame({
 
       {fillZone && (
         <SlotFillSheet
-          slotLabel={ZONE_LABELS[fillZone]}
+          slotLabel={fillSeat ? seatLabel(fillSeat) : ZONE_LABELS[fillZone]}
           candidates={lineup.bench
             .filter((id) => !injuredIds.includes(id) && !loanedIds.includes(id))
             .map((id) => playersById.get(id))
@@ -2531,11 +2759,16 @@ export function LiveGame({
           emptyMessage="Nobody on the bench can come on."
           onPick={(pid) => {
             const zone = fillZone;
+            const seat = fillSeat;
             setFillZone(null);
+            setFillSeat(null);
             // A deliberate pick, off the sub cadence (as a tap-tap sub).
-            manualSwap("", pid, zone);
+            manualSwap("", pid, zone, seat);
           }}
-          onCancel={() => setFillZone(null)}
+          onCancel={() => {
+            setFillZone(null);
+            setFillSeat(null);
+          }}
         />
       )}
 
@@ -2973,9 +3206,12 @@ export function LiveGame({
             onPickReplacement={(rid) => {
               const { injuredId, zone, reason } = injuryReplacementModal;
               if (reason === "lent") {
-                // Lent, then the pick fills the spot (as tapping it would).
+                // Lent, then the pick fills the spot (as tapping it would),
+                // into the lent kid's position on a big field.
+                const before = seatsNow();
+                const seat = before ? seatOf(before, injuredId) : null;
                 handleLoanToggle(injuredId, true);
-                persistSwap("", rid, zone, false);
+                persistSwap("", rid, zone, false, 0, false, seat);
                 showSwapToast(`${shortName(rid)} on`);
               } else {
                 handleInjuryReplacement(injuredId, rid, zone, reason === "went_home");
