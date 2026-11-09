@@ -2154,7 +2154,8 @@ export function LeagueLiveGame({
           className="flex items-center gap-[8px] rounded-[12px] px-3 py-[6px] text-[0.8125rem] leading-snug text-ink shadow-[inset_0_0_0_1.5px_rgb(var(--l-hairline))]"
         >
           <span className="min-w-0 flex-1">
-            <b>Kickoff:</b> who&apos;s kicking off? It goes round the team.
+            {/* One line at 390 px, so the field starts higher (Steve, 10 Nov 2026). */}
+            <b>Who kicks off?</b> It goes round the team.
           </span>
           <button
             type="button"

@@ -92,8 +92,10 @@ export function UnbrokenPeriodWarning({
       data-testid="unbroken-period-warning"
       className="rounded-[12px] bg-sun-soft px-3 py-2 text-[0.8125rem] leading-snug text-ink"
     >
+      {/* Plain words, not the law's number (Steve, 10 Nov 2026: "§6" read
+          as jargon on the sideline). */}
       <p className="truncate font-semibold">
-        §6: everyone plays {required} unbroken {required === 1 ? periodNoun : periodNounPlural}
+        Every kid plays {required === 1 ? "one" : required} whole {required === 1 ? periodNoun : periodNounPlural} without coming off
       </p>
       {rows
         .filter((r) => r.kids.length > 0)

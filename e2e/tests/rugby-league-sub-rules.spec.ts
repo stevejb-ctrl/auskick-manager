@@ -107,7 +107,7 @@ test("league H2: the sub card never takes off a kid who sat out H1", async ({ pa
 
   // The live screen says why: §6 keeps them on to the hooter.
   const warning = page.getByTestId("unbroken-period-warning");
-  await expect(warning).toContainText("§6: everyone plays 1 unbroken half");
+  await expect(warning).toContainText("Every kid plays one whole half without coming off");
   await expect(warning.getByTestId("unbroken-stay")).toContainText(nameOf(tyler));
   await expect(warning.getByTestId("unbroken-stay")).toContainText(nameOf(archie));
 });
