@@ -82,7 +82,8 @@ export function DoneStep({
           </h2>
           <p className="mt-1 text-sm text-ink-dim">
             The mixed rule caps the boys on the field, so Siren needs to know who
-            counts as which. It&rsquo;s only used for the rule, and shows nowhere else.
+            counts as which. It&rsquo;s only used for the rule, as a small G or B on your
+            lineup. Parents never see it.
           </p>
           <Link
             href={`/teams/${teamId}/setup?step=squad`}

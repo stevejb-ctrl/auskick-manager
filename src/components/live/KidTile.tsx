@@ -30,6 +30,8 @@ import { useEffect, useRef, useState } from "react";
 import { useLongPress } from "@/lib/live/useLongPress";
 import { tileName, type TileNameParts } from "@/components/live/tileName";
 import type { KidWords } from "@/lib/live/kidWords";
+import type { MixedGroup } from "@/lib/types";
+import { MixedMark, mixedMarkSpoken } from "@/components/live/MixedMark";
 
 /** Why a kid is out of the rotation: their badge's colour. */
 export type KidOutKind = "injured" | "home" | "lent" | "sit" | "fouledOut";
@@ -90,6 +92,12 @@ export interface KidTileProps {
    * in `spoken.states` too.
    */
   figures?: KidFigure[] | null;
+  /**
+   * A mixed team's G or B after the name (MixedMark), for the coach to
+   * follow the boys' cap. Pass it only on a mixed team, in the coach
+   * view, for a kid whose Girl/Boy is set; the tile then says it too.
+   */
+  group?: MixedGroup | null;
   onClick?: () => void;
   onLongPress?: () => void;
 }
@@ -114,7 +122,6 @@ export function KidTile({
   name,
   spoken,
   place,
-  pos = null,
   score = null,
   words = null,
   badge = null,
@@ -126,13 +133,17 @@ export function KidTile({
   lockLabel = null,
   out = null,
   dense = false,
-  flag = null,
+  flag: flagProp = null,
   figures = null,
+  group = null,
   onClick,
   onLongPress,
+  pos: posProp = null,
 }: KidTileProps) {
   const { handlers, arming, consumedLongPress } = useLongPress({ onLongPress });
   const field = place === "field";
+  const pos = posProp;
+  const flag = flagProp;
 
   // A new kid in the same spot (a sub made): their name rises in.
   const prev = useRef(testId);
@@ -149,6 +160,7 @@ export function KidTile({
     states: [
       words ? spokenWords(words) : null,
       badge ? `pair ${badge.n}` : null,
+      mixedMarkSpoken(group),
       ...(spoken.states ?? []),
     ],
   });
@@ -259,6 +271,7 @@ export function KidTile({
         >
           {name}
         </span>
+        {group && <MixedMark group={group} className="self-center" />}
         {!out && figures?.map((f) => (
           <span
             key={f.key}

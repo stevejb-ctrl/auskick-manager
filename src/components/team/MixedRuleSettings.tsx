@@ -7,7 +7,7 @@
 // sport's own rule is the preset (touch 3 / 1 / 1, Oztag 4 / 1 / 0), and
 // a coach sets a local one (East Hills: at least 3 girls). Who counts as
 // a girl or a boy is asked at the lineup and on the squad, and shows
-// nowhere else.
+// only to the coach (MixedMark on the kids' tiles).
 //
 // The same card, Toggle and save pattern as the other Season cards.
 

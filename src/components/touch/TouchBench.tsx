@@ -7,7 +7,7 @@
 // their actions instead. With a field kid picked, a bench kid whose
 // swap would break a mixed team's rule dims and says why.
 
-import type { Player } from "@/lib/types";
+import type { MixedGroup, Player } from "@/lib/types";
 import type { TouchLineMs } from "@/lib/sports/touch/replay";
 import type { TouchLine } from "@/lib/sports/touch/types";
 import { LinePlayerTile } from "@/components/live/LinePlayerTile";
@@ -35,6 +35,8 @@ interface TouchBenchProps {
   triesByPlayer?: Record<string, number>;
   /** Kids a swap with the selected kid would break a rule for, and why: their tiles dim. */
   ruleNotes?: Record<string, string>;
+  /** A mixed team's G or B per kid (MixedMark): pass it only in the coach's view. */
+  groupOf?: (playerId: string) => MixedGroup | null;
 }
 
 export function TouchBench({
@@ -54,6 +56,7 @@ export function TouchBench({
   lockModes,
   triesByPlayer,
   ruleNotes,
+  groupOf,
 }: TouchBenchProps) {
   const injuredSet = new Set(injuredIds ?? []);
   const loanedSet = new Set(loanedIds ?? []);
@@ -94,6 +97,7 @@ export function TouchBench({
                 lockMode={lockModes?.[pid] ?? null}
                 score={triesByPlayer ? touchTryChip(triesByPlayer[pid]) : null}
                 ruleNote={ruleNotes?.[pid] ?? null}
+                group={groupOf?.(pid) ?? null}
               />
             );
           })}

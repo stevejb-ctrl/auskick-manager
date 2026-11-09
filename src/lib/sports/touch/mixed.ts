@@ -3,8 +3,9 @@
 // "Mixed teams: the boys' cap"): touch at most 3 boys and at least 1 boy
 // and 1 girl (TFA rule 5.4), Oztag at most 4 boys and at least 1 girl
 // (ITF rule 3.3), or a local rule the coach sets. Who a kid counts as
-// is players.mixed_group, asked only on mixed teams and shown nowhere
-// else.
+// is players.mixed_group, asked only on mixed teams and shown only to
+// the coach: a G or B on the lineup, live and break tiles (MixedMark),
+// never on the game-day link, parent screens or public pages.
 //
 // Fair time is per group: with 6 on, at most 3 boys, and a squad of 8
 // boys and 4 girls, the boys share 3 places (about 37 % each) and the
@@ -193,6 +194,21 @@ export function mixedFieldBreach(
     return { text: `${lead}: the mixed rule needs ${rule.minBoys}`, short: `${lead} · rule ${rule.minBoys}` };
   }
   return null;
+}
+
+/**
+ * The live count beside the rule, for the coach to follow the cap
+ * (Steve, 9 Nov 2026): "Boys on 4 of 4 max · Girls on 2 (at least 1)".
+ * Kids with no group count towards neither.
+ */
+export function mixedCountLine(
+  onField: readonly string[],
+  rule: MixedRule,
+  groupOf: (id: string) => MixedGroup | null | undefined,
+): string {
+  const { boys, girls } = countMixedGroups(onField, groupOf);
+  const atLeast = (n: number) => (n > 0 ? ` (at least ${n})` : "");
+  return `Boys on ${boys} of ${rule.maxBoys} max${atLeast(rule.minBoys)} · Girls on ${girls}${atLeast(rule.minGirls)}`;
 }
 
 /** The rule in words: "At most 3 boys on the field, at least 1 girl and 1 boy." */

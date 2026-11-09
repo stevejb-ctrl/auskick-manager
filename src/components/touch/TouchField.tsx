@@ -11,7 +11,7 @@
 
 import { Fragment } from "react";
 import { sportSurface } from "@/components/live/sportSurface";
-import type { Player } from "@/lib/types";
+import type { MixedGroup, Player } from "@/lib/types";
 import type { TouchLineup } from "@/lib/sports/touch/lineup";
 import type { TouchLineMs } from "@/lib/sports/touch/replay";
 import { TOUCH_LANES, type TouchLine } from "@/lib/sports/touch/types";
@@ -47,6 +47,8 @@ interface TouchFieldProps {
   triesByPlayer?: Record<string, number>;
   /** Kids a swap with the selected kid would break a rule for, and why: their tiles dim. */
   ruleNotes?: Record<string, string>;
+  /** A mixed team's G or B per kid (MixedMark): pass it only in the coach's view. */
+  groupOf?: (playerId: string) => MixedGroup | null;
 }
 
 const ORPHAN_WRAP = "col-span-2 mx-auto w-[calc(50%-0.25rem)]";
@@ -68,6 +70,7 @@ export function TouchField({
   lockModes,
   triesByPlayer,
   ruleNotes,
+  groupOf,
 }: TouchFieldProps) {
   const injuredSet = new Set(injuredIds ?? []);
   const anySelected = selectedPlayerId !== null;
@@ -107,6 +110,7 @@ export function TouchField({
         injured={injuredSet.has(pid)}
         lockMode={lockModes?.[pid] ?? null}
         score={triesByPlayer ? touchTryChip(triesByPlayer[pid]) : null}
+        group={groupOf?.(pid) ?? null}
         swapDue={swapDue}
         ruleNote={ruleNotes?.[pid] ?? null}
       />

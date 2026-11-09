@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 import {
   girlsTryCountsDouble,
+  mixedCountLine,
   mixedFieldBreach,
   mixedFieldMessage,
   mixedFieldPlan,
@@ -104,5 +105,23 @@ describe("mixedFieldBreach", () => {
   it("is null when the field keeps the rule", () => {
     expect(mixedFieldBreach(["b1", "b2", "b3", "g1", "g2"], TOUCH_MIXED_RULE, groupOf)).toBeNull();
     expect(mixedFieldBreach(["b1", "b2", "b3", "b4", "g1"], OZTAG_MIXED_RULE, groupOf)).toBeNull();
+  });
+});
+
+describe("mixedCountLine", () => {
+  const groups: Record<string, "girl" | "boy"> = { b1: "boy", b2: "boy", b3: "boy", b4: "boy", g1: "girl", g2: "girl" };
+  const groupOf = (id: string) => groups[id] ?? null;
+
+  it("counts the boys against the cap and the girls against their minimum", () => {
+    expect(mixedCountLine(["b1", "b2", "b3", "b4", "g1", "g2"], OZTAG_MIXED_RULE, groupOf)).toBe(
+      "Boys on 4 of 4 max · Girls on 2 (at least 1)",
+    );
+    expect(mixedCountLine(["b1", "b2", "g1"], TOUCH_MIXED_RULE, groupOf)).toBe(
+      "Boys on 2 of 3 max (at least 1) · Girls on 1 (at least 1)",
+    );
+  });
+
+  it("leaves out kids with no group, and a minimum of none", () => {
+    expect(mixedCountLine(["b1", "x", "g1"], { maxBoys: 3, minGirls: 0, minBoys: 0 }, groupOf)).toBe("Boys on 1 of 3 max · Girls on 1");
   });
 });

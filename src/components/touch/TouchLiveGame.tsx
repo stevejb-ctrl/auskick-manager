@@ -34,8 +34,9 @@
 // writes are optimistic (useOptimisticEvents): a try, an undo or a sub
 // shows the moment it's tapped, as AFL's store does. The shared live
 // chrome (useLiveChrome) is AFL's undo strip flash, swap confirm (with
-// the mixed rule's warning on it) and toast, and lent minutes. Who
-// counts as a girl or a boy is never drawn on a tile.
+// the mixed rule's warning on it) and toast, and lent minutes. On a
+// mixed team the coach sees each kid's G or B and the boys' count;
+// the game-day link doesn't.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -101,7 +102,7 @@ import {
   type TouchPrefs,
   type TouchSeasonBalance,
 } from "@/lib/sports/touch/suggest";
-import { mixedConstraints, mixedFieldBreach, mixedFieldMessage, mixedTags } from "@/lib/sports/touch/mixed";
+import { mixedConstraints, mixedCountLine, mixedFieldBreach, mixedFieldMessage, mixedTags } from "@/lib/sports/touch/mixed";
 import { TOUCH_LANES, TOUCH_LINES, type MixedRule, type TouchAgeGroupConfig, type TouchLine, type TouchStrategy } from "@/lib/sports/touch/types";
 import { TouchScoreBug } from "./TouchScoreBug";
 import { TouchFullTimeReview, TouchGameSummaryCard } from "./TouchFullTime";
@@ -304,6 +305,11 @@ export function TouchLiveGame({
   // ── The mixed rule ───────────────────────────────────────────
   const tags = useMemo(() => (mixed ? mixedTags(mixed.groupOf) : () => [] as readonly string[]), [mixed]);
   const constraints = useMemo(() => (mixed ? mixedConstraints(mixed.rule) : []), [mixed]);
+  // A mixed team's G and B on the kids, and the count beside the rule
+  // (Steve, 9 Nov 2026): the coach's view only, never the game-day link
+  // a parent runs the game from (auth "token"). That's the privacy line.
+  const showGroups = !!mixed && auth.kind === "team";
+  const groupMark = (pid: string) => (showGroups ? (mixed!.groupOf(pid) ?? null) : null);
   // The field's size now: the game's, or what the rule allows.
   const fieldSize = state.fieldSize ?? game.on_field_size;
   // Who can play now, and the field the rule lets them make.
@@ -898,7 +904,7 @@ export function TouchLiveGame({
   // undo line, the info line (the next sub), the field (a line a lane, or
   // one for a side that plays no lanes), the bench and the bar. Half time
   // is TouchBreak (above); full time and the finished game keep their
-  // page (below). Who counts as a girl or a boy is never drawn on a tile.
+  // page (below). A mixed team's G and B are drawn for the coach only.
   const inPlay = isPeriodActive;
   const dueNow = isPeriodActive && subDue.due && subAckKey !== subDueKey;
   // The next sub falls past the whistle: no more this period, so the
@@ -1001,6 +1007,7 @@ export function TouchLiveGame({
           states: [tries ? tries.label : null, held ? "Kept on" : null, note],
         }}
         place={line ? "field" : "bench"}
+        group={groupMark(pid)}
         words={words}
         score={tries}
         badge={pair ? { n: pair.i + 1, hot: dueNow } : null}
@@ -1152,6 +1159,14 @@ export function TouchLiveGame({
             </button>
           )}
         </div>
+      )}
+      {/* The count beside the rule, calm, while the side keeps it (the
+          hi-vis strip above says it when it doesn't). Coach view only. */}
+      {showGroups && lineup && !breach && !isFinished && (
+        <p data-testid="touch-mixed-count" className="px-[2px] text-[0.8125rem] leading-snug text-ink-dim">
+          <span className="mr-[6px] font-display text-[0.625rem] font-black uppercase tracking-[0.12em] text-ink-mute">Mixed rule</span>
+          {mixedCountLine(touchOnField(lineup), mixed!.rule, mixed!.groupOf)}
+        </p>
       )}
       {shortBanner}
     </>

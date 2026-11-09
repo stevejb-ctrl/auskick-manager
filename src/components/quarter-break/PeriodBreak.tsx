@@ -42,7 +42,7 @@ import {
 } from "@/lib/live/break/board";
 import type { BreakIssues } from "@/lib/live/break/issues";
 import type { BreakScoreLine, SportBreakConfig } from "@/lib/sports/break";
-import type { Game } from "@/lib/types";
+import type { Game, MixedGroup } from "@/lib/types";
 import { announce } from "@/lib/a11y/announce";
 
 export type { BreakPlayer } from "@/components/quarter-break/BreakSettingsSheet";
@@ -83,6 +83,12 @@ export interface PeriodBreakProps {
   previousPositions?: Readonly<Record<string, string>>;
   /** Kids who can't play, and why: "Injured", "Lent", "Fouled out". */
   sidelined: Readonly<Record<string, string>>;
+  /**
+   * A mixed team's G or B per kid (MixedMark), coach view only: the
+   * sport passes it on a mixed team, to a coach, for kids whose
+   * Girl/Boy is set.
+   */
+  groups?: Readonly<Record<string, MixedGroup>>;
   onSwap: (a: BoardSlot, b: BoardSlot) => void;
   onLongPress?: (playerId: string) => void;
   strategy: BreakStrategy;
@@ -240,6 +246,7 @@ export function PeriodBreak(props: PeriodBreakProps) {
       name: p?.name ?? "Player",
       score: props.scores?.[id],
       tags: props.tags?.[id],
+      group: props.groups?.[id],
       movement:
         why ??
         movementText(prev, slot.group, places, props.positions ? { from: props.previousPositions?.[id], to: bib } : undefined),
