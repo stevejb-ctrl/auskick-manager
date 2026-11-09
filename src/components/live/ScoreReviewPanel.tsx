@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/Button";
 import type { LiveAuth, Player } from "@/lib/types";
 import { Modal } from "@/components/ui/Modal";
 import { groupScoreLog, scoreEntryWho } from "@/lib/live/scoreLog";
+import { quietOtherPhoneNotices } from "@/lib/live/otherPhone";
 
 interface ScoreReviewPanelProps {
   auth: LiveAuth;
@@ -120,6 +121,8 @@ export function ScoreReviewPanel({
     if (isOurs) undoTeamScore(kind, q);
     else undoOpponentScore(kind, q);
     if (scorer) undoPlayerScore(scorer, kind);
+    // This phone's own fix, not "another phone" (as Scores and fixes).
+    quietOtherPhoneNotices();
 
     startTransitionFn(async () => {
       const result = await deleteScore(auth, gameId, entry.id);
@@ -147,6 +150,9 @@ export function ScoreReviewPanel({
     if (isOurs) incTeam(kind, addQuarter);
     else incOpponent(kind, addQuarter);
     if (isOurs) incPlayerScore(addPlayerId, kind);
+    // This phone's own missed score: when the page catches up it isn't
+    // "Another phone added a Sharks goal" (Stagehand, 9 Nov 2026).
+    quietOtherPhoneNotices();
 
     startTransitionFn(async () => {
       const result = await addRetroScore(auth, gameId, {
