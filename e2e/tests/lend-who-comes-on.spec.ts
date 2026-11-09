@@ -265,8 +265,9 @@ for (const sport of ["soccer", "rugby_league", "netball"] as const) {
 
     await expect.poll(() => loanOf(admin, game.id, lent.id), { timeout: 15_000 }).toBe(false);
     await expect(card).toHaveCount(0, { timeout: 10_000 });
-    // On the bench for the next period, no longer lent.
-    const tile = page.getByRole("group", { name: "Bench", exact: true }).getByTestId(`player-tile-${lent.id}`);
+    // In the next lineup like anyone else (the suggestion may well put
+    // them straight on), no longer lent.
+    const tile = page.getByTestId(`player-tile-${lent.id}`);
     await expect(tile).toBeEnabled();
     await expect(tile).not.toContainText("Lent");
   });
