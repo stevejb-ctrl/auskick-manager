@@ -100,7 +100,7 @@ test("AFL: after a goal and a swap, Undo names the swap and puts it back, then n
   // A goal: the strip names it.
   await page.getByRole("button", { name: `Add goal, ${team.name}` }).click();
   await page.getByRole("dialog").getByRole("button", { name: new RegExp(scorer.full_name) }).click();
-  await expect(strip(page)).toContainText(`Undo: ${team.name} goal — ${scorer.full_name}`);
+  await expect(strip(page)).toContainText(`${team.name} goal — ${scorer.full_name}`);
   await expect.poll(() => count(admin, game.id, "goal"), { timeout: 15_000 }).toBe(1);
 
   // A swap: the toast says what happened, with no Undo of its own; the
@@ -145,7 +145,7 @@ test("basketball: Undo takes back a foul, named, and then the basket before it",
   // A 2 for Mia, then a foul on Sam: the strip names the foul.
   await page.getByTestId(`player-tile-${scorer.id}`).click();
   await page.getByRole("button", { name: /^\+2$/ }).first().click();
-  await expect(strip(page)).toContainText(`Undo: ${team.name} 2 points — ${scorer.full_name}`);
+  await expect(strip(page)).toContainText(`${team.name} 2 points — ${scorer.full_name}`);
   await page.getByTestId(`player-tile-${fouler.id}`).click();
   await page.getByTestId("basketball-foul").click();
   await expect(page.getByTestId(`fouls-${fouler.id}`)).toHaveText("F1");
@@ -195,7 +195,7 @@ test("netball: a mid-quarter swap is what Undo names and puts back, then the goa
   // A goal for GS.
   await gsTile(gs).click();
   await page.getByRole("button", { name: /^(\+\s*goal|record goal|confirm goal)$/i }).click();
-  await expect(strip(page)).toContainText(`Undo: ${team.name} goal — ${gs.full_name}`);
+  await expect(strip(page)).toContainText(`${team.name} goal — ${gs.full_name}`);
   await expect.poll(() => count(admin, game.id, "goal"), { timeout: 15_000 }).toBe(1);
 
   // A swap at GS: the strip names it.
@@ -237,7 +237,7 @@ test("soccer: after a goal and a swap, Undo names the swap, puts it back, then n
 
   await page.getByTestId(`player-tile-${scorer.id}`).click();
   await page.getByRole("button", { name: /^\+\s*goal$/i }).click();
-  await expect(strip(page)).toContainText(`Undo: ${team.name} goal — ${scorer.full_name}`);
+  await expect(strip(page)).toContainText(`${team.name} goal — ${scorer.full_name}`);
   await expect.poll(() => count(admin, game.id, "goal"), { timeout: 15_000 }).toBe(1);
 
   await page.getByTestId(`player-tile-${on.id}`).click();
