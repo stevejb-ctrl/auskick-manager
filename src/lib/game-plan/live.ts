@@ -72,15 +72,18 @@ export function projectUpcomingRotation(
   // Absolute period numbers/labels are preserved (period[0].label = "Q2").
   const upcoming = full.periods.slice(fromIndex).map(clonePeriod);
 
-  // Anchor the current period to live reality.
+  // Anchor the current period to live reality: the kids in the plan.
+  // The live bench also holds the injured and lent, who aren't; kept,
+  // the group-chat text named them by their ids (Stagehand round 9).
+  const playerIds = input.players.map((p) => p.id);
+  const inPlan = new Set(playerIds);
   const current = upcoming[0];
   current.groups = current.groups.map((g) => ({
     ...g,
-    playerIds: [...(input.currentGroups[g.groupId] ?? [])],
+    playerIds: (input.currentGroups[g.groupId] ?? []).filter((id) => inPlan.has(id)),
   }));
-  current.bench = [...input.currentBench];
+  current.bench = input.currentBench.filter((id) => inPlan.has(id));
 
-  const playerIds = input.players.map((p) => p.id);
   return {
     ...full,
     periods: upcoming,
