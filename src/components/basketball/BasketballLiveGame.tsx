@@ -922,6 +922,7 @@ export function BasketballLiveGame({
       subsDoneThisPeriod: subsDone,
       out: o?.out ?? null,
       inPlay,
+      lastPeriod: base.currentPeriod >= ageGroup.periodCount,
     });
     // "On next → G" says the line in full: "On next to Guards".
     if (words && pair?.role === "on" && pair.line !== "court" && pair.where === lineShort(pair.line)) {

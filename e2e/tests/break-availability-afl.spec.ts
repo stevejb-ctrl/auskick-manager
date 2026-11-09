@@ -415,7 +415,8 @@ test("AFL: a lent kid and two kids marked out at the break all start Q2 off the 
   await markOutSheet2.getByRole("button", { name: new RegExp(outAlone.full_name, "i") }).click();
   await page
     .getByRole("dialog", { name: /who comes on at/i })
-    .getByRole("button", { name: /without replacement/i })
+    // Going out, not hurt (the modal's went_home words).
+    .getByRole("button", { name: "Play one short" })
     .click();
   await waitFor((evs) =>
     evs.some((e) => e.type === "injury" && e.player_id === outAlone.id),

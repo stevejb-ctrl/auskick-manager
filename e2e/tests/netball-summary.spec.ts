@@ -257,3 +257,50 @@ test("NETBALL-06: track_scoring=false summary card omits result and goals lines"
   await expect(summaryText).toContainText(/⏱ Game time/);
   await expect(summaryText).toContainText(/👟 \d+ players?/);
 });
+
+// Stagehand, 9 Nov 2026 (whole-game-netball): each quarter was ended
+// early, at about 4 minutes, yet the break and the summary gave every
+// girl a full 10:00 for it. A closed quarter was credited at the age
+// group's quarter length, not the time it actually ran (its
+// quarter_end's elapsed_ms), so time on court went from 3:56 on the
+// live screen to 10:00 at the break.
+test("a quarter ended early counts the minutes it ran, not a full quarter", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "11u", sport: "netball" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 7, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  const positions: Record<string, string[]> = Object.fromEntries(NETBALL_LINEUP_KEYS.map((k, i) => [k, [players[i].id]]));
+  const lineup = { positions, bench: [] as string[] };
+  const base = Date.now() - 60 * 60 * 1000;
+  const ts = (m: number) => new Date(base + m * 60_000).toISOString();
+  // Four quarters of 5:00 each (11 & Under quarters are 10:00), the
+  // same seven on court all game.
+  const events: { type: string; metadata: Record<string, unknown>; created_at: string }[] = [
+    { type: "lineup_set", metadata: { lineup }, created_at: ts(0) },
+  ];
+  for (let q = 1; q <= 4; q++) {
+    events.push({ type: "quarter_start", metadata: { quarter: q }, created_at: ts(q * 10) });
+    events.push({ type: "quarter_end", metadata: { quarter: q, elapsed_ms: 5 * 60_000 }, created_at: ts(q * 10 + 5) });
+    if (q < 4) {
+      events.push({ type: "period_break_swap", metadata: { lineup, quarter: q + 1, midQuarterSubs: [] }, created_at: ts(q * 10 + 6) });
+    }
+  }
+  events.push({ type: "game_finalised", metadata: {}, created_at: ts(46) });
+  const { error } = await admin.from("game_events").insert(events.map((e) => ({ ...e, game_id: game.id, created_by: ownerId })));
+  if (error) throw new Error(`seed: ${error.message}`);
+  await admin.from("games").update({ status: "completed" }).eq("id", game.id);
+
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("nb-walkthrough-seen", "1");
+    } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  const summaryText = page.locator("#netball-game-summary-text");
+  await expect(summaryText).toContainText(/⏱ Game time/, { timeout: 15_000 });
+  // 4 × 5:00 each, not 4 × 10:00.
+  for (const p of players) await expect(summaryText).toContainText(`${p.full_name} — 20:00`);
+  await expect(summaryText).not.toContainText("40:00");
+});

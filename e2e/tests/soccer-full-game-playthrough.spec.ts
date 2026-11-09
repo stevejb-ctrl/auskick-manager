@@ -323,3 +323,62 @@ test("soccer: one of two due swaps leaves the other due, and the clock waits for
 
   expect(errors).toEqual([]);
 });
+
+// Stagehand, 9 Nov 2026 (whole-game-hockey): a minute before the sub,
+// the coach made swap 1 of the planned four from the pairs sheet. It
+// counted as the whole rotation: the sub clock restarted from then, the
+// next sub fell past the siren, and the other three pairs vanished
+// behind "No more subs this quarter". One pair made early is one of the
+// batch, as when it's due: the rest stay planned for the same time.
+test("hockey: one planned pair made early leaves the rest of the sub planned, on time", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("siren-longpress-seen-v1", "true");
+    } catch {}
+  });
+  const admin = createAdminClient();
+  const { data: su } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  const ownerId = su.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, { ownerId, sport: "hockey", ageGroup: "U13", name: `HOC-EARLY-${Date.now() % 100000}` });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  // 15-minute quarters, subs every 10 minutes, 9 minutes into Q1 (real
+  // time): the sub is a minute away, and one restarted now would fall
+  // after the siren.
+  await admin
+    .from("games")
+    .update({ sub_interval_seconds: 600, clock_multiplier: 1, quarter_length_seconds: 900, status: "in_progress" })
+    .eq("id", game.id);
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  const ids = players.map((p) => p.id);
+  const lineup = { keeper: ids[0], lines: { def: ids.slice(1, 4), mid: ids.slice(4, 8), att: ids.slice(8, 11), field: [] }, bench: ids.slice(11) };
+  const t = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString();
+  await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup, sport: "hockey" }, created_at: t(541) },
+      { type: "quarter_start", metadata: { quarter: 1, sport: "hockey" }, created_at: t(540) },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  const swaps = async () =>
+    ((await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "swap").order("created_at")).data ??
+      []) as { metadata: { batch_left?: number } }[];
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  const info = page.getByTestId("info-line");
+  await expect(info).toContainText(/next sub 0:\d\d · \d swaps/i, { timeout: 20_000 });
+  const planned = Number((await info.innerText()).match(/(\d) swaps/i)![1]);
+  expect(planned).toBeGreaterThan(1);
+
+  await info.click();
+  await page.getByRole("dialog").getByRole("button", { name: /^swap .+ off, .+ on$/i }).first().click();
+  await expect.poll(async () => (await swaps()).length).toBe(1);
+  expect((await swaps())[0].metadata.batch_left).toBe(planned - 1);
+  // The rest are still planned, a minute away, not dropped.
+  await page.keyboard.press("Escape");
+  await expect(info).toContainText(new RegExp(`next sub 0:\\d\\d · ${planned - 1} swap`, "i"), { timeout: 15_000 });
+  await expect(info).not.toContainText(/no more subs/i);
+});

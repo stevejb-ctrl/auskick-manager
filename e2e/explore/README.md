@@ -74,6 +74,21 @@ game there (`--as=coach --seed=…`):
 |-------------------------------|-----------------------|---------------------------------------------|
 | `chaotic-substitution-coach`  | `afl-u10-runner-q1`   | Q1 ticking, two kids not marked available   |
 | `rushed-coach`                | `afl-u10-runner-half` | Half-time, two goals down, a behind missing |
+| `fix-scores-flow`             | `afl-u10-runner-qt`   | Quarter time, a goal and a behind each way  |
+| `score-reconciler`            | `afl-u10-runner-3qt`  | Three-quarter time, scores in every quarter |
+| `gameday-afl-u16-big-field`   | `afl-u16-gameday`     | 18 + 7 in set positions, 10 minutes into Q2 |
+
+The whole-game and sideline missions use each sport's game-day seed:
+`whole-game-afl` → `afl-u12-gameday`, `-netball` → `netball-11u-gameday`,
+`-league` → `league-u11-gameday`, `-union` → `union-u12-gameday`,
+`-soccer` → `soccer-u9-gameday`, `-futsal` → `futsal-u12-gameday`,
+`-hockey` → `hockey-u13-gameday`, `-basketball` → `basketball-u12-gameday`,
+`-touch-mixed` → `touch-u11-mixed`, `-oztag` → `oztag-u10-gameday-late`.
+`sideline-chaos-union` → `union-u10-gameday`, `-soccer` →
+`soccer-u9-sideline`, and `-afl` / `-netball` / `-league` → their sport's
+game-day seed with `-late` on the end. Any game-day seed takes `-late`
+(one more kid, not marked available, who turns up late) or `-runner`
+(start from the game-day link).
 
 Add new missions by dropping a `*.md` file into `missions/`. The
 file content IS the prompt — write it like you're briefing a real

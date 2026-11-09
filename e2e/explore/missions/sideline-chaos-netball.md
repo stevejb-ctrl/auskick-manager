@@ -5,7 +5,7 @@ things change fast. After EVERY step, look at the court, the bench and any
 positions, a kid missing, an injured or lent kid on court or in a
 suggestion, a count that doesn't add up.
 
-Do these in order (it's fine if a step needs a long-press or a menu):
+Do these in order (it's fine if a step needs tapping a kid, or a menu):
 
 1. Open the game's lineup and start the game and Q1.
 2. Mid-Q1: your GS **rolls an ankle** — mark her injured. Who covers GS?

@@ -1243,6 +1243,17 @@ export function splitQuarterSegments(
   return segments;
 }
 
+/**
+ * How long a closed quarter ran: its quarter_end's elapsed_ms, when it
+ * has one. A quarter ended early (the umpire's whistle before the app's
+ * clock, or a short day) was credited as a full quarter, so time on court
+ * jumped from 3:56 on the live screen to 10:00 at the break (Stagehand,
+ * 9 Nov 2026). No elapsed_ms (older events): the caller's full quarter.
+ */
+function closedQuarterMs(elapsedMs: unknown): number | null {
+  return typeof elapsedMs === "number" && Number.isFinite(elapsedMs) && elapsedMs > 0 ? elapsedMs : null;
+}
+
 export function playerThirdMs(
   events: GameEvent[],
   inProgressMs: number | null,
@@ -1310,10 +1321,13 @@ export function playerThirdMs(
 
   let currentLineup: GenericLineup | null = null;
   let hasFinalised = false;
+  // How long the quarter that just closed ran (closedQuarterMs).
+  let endedMs: number | null = null;
 
   for (const ev of sorted) {
     const meta = ev.metadata as {
       lineup?: Partial<GenericLineup>;
+      elapsed_ms?: number;
       midQuarterSubs?: Array<{
         positionId: string;
         outPlayerId: string | null;
@@ -1322,13 +1336,15 @@ export function playerThirdMs(
         atMs: number;
       }>;
     };
+    if (ev.type === "quarter_start") endedMs = null;
+    else if (ev.type === "quarter_end") endedMs = closedQuarterMs(meta.elapsed_ms);
     if (ev.type === "lineup_set" && meta.lineup) {
       currentLineup = normaliseGenericLineup(meta.lineup);
     } else if (ev.type === "period_break_swap" && meta.lineup) {
       if (currentLineup) {
         creditClosedQuarter(
           currentLineup,
-          periodSeconds * 1000,
+          endedMs ?? periodSeconds * 1000,
           meta.midQuarterSubs ?? [],
         );
       }
@@ -1337,7 +1353,7 @@ export function playerThirdMs(
       if (currentLineup) {
         creditClosedQuarter(
           currentLineup,
-          periodSeconds * 1000,
+          endedMs ?? periodSeconds * 1000,
           meta.midQuarterSubs ?? [],
         );
       }
@@ -1357,7 +1373,7 @@ export function playerThirdMs(
         addLineupTime(seg.lineup, seg.durationMs);
       }
     } else if (currentLineup) {
-      const ms = inProgressMs ?? periodSeconds * 1000;
+      const ms = inProgressMs ?? endedMs ?? periodSeconds * 1000;
       addLineupTime(overrideTrailingLineup ?? currentLineup, ms);
     }
   }
@@ -1407,23 +1423,28 @@ export function playedZoneMsByPeriod(
   let currentLineup: GenericLineup | null = null;
   let currentPeriod = 0;
   let hasFinalised = false;
+  // How long the quarter that just closed ran (closedQuarterMs).
+  let endedMs: number | null = null;
 
   for (const ev of sorted) {
     const meta = ev.metadata as {
       lineup?: Partial<GenericLineup>;
       quarter?: number;
+      elapsed_ms?: number;
       midQuarterSubs?: QuarterSub[];
     };
+    if (ev.type === "quarter_end") endedMs = closedQuarterMs(meta.elapsed_ms);
     if (ev.type === "lineup_set" && meta.lineup) {
       currentLineup = normaliseGenericLineup(meta.lineup);
     } else if (ev.type === "quarter_start") {
+      endedMs = null;
       currentPeriod =
         typeof meta.quarter === "number" ? meta.quarter : currentPeriod + 1;
     } else if (ev.type === "period_break_swap" && meta.lineup) {
       if (currentLineup) {
         for (const seg of splitQuarterSegments(
           currentLineup,
-          periodSeconds * 1000,
+          endedMs ?? periodSeconds * 1000,
           meta.midQuarterSubs ?? [],
         )) {
           addLineupTime(seg.lineup, seg.durationMs, currentPeriod || 1);
@@ -1434,7 +1455,7 @@ export function playedZoneMsByPeriod(
       if (currentLineup) {
         for (const seg of splitQuarterSegments(
           currentLineup,
-          periodSeconds * 1000,
+          endedMs ?? periodSeconds * 1000,
           meta.midQuarterSubs ?? [],
         )) {
           addLineupTime(seg.lineup, seg.durationMs, currentPeriod || 1);
@@ -1451,7 +1472,7 @@ export function playedZoneMsByPeriod(
         addLineupTime(seg.lineup, seg.durationMs, currentPeriod || 1);
       }
     } else if (currentLineup) {
-      addLineupTime(currentLineup, periodSeconds * 1000, currentPeriod || 1);
+      addLineupTime(currentLineup, endedMs ?? periodSeconds * 1000, currentPeriod || 1);
     }
   }
 

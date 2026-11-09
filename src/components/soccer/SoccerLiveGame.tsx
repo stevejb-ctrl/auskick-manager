@@ -806,6 +806,7 @@ export function SoccerLiveGame({
       subsDoneThisPeriod: subsDone,
       out,
       inPlay,
+      lastPeriod: base.currentPeriod >= ageGroup.periodCount,
     });
     const goals = state.playerGoals[pid] ?? 0;
     const lock = out ? null : lockModes[pid] ?? null;
@@ -935,8 +936,11 @@ export function SoccerLiveGame({
       makeAllPairs();
       return;
     }
-    // One of a due batch: the rest stay due until they're made.
-    sub(s.off_player_id, s.on_player_id, s.line, { batchLeft: dueNow ? planned.length - 1 : undefined });
+    // One of the batch: the rest stay planned (or due) until they're
+    // made, and the sub clock holds. Made early, one pair used to count
+    // as the whole rotation: the clock restarted and the rest fell past
+    // the siren (Stagehand, 9 Nov 2026).
+    sub(s.off_player_id, s.on_player_id, s.line, { batchLeft: planned.length - 1 });
     chrome.swapped(s.off_player_id, s.on_player_id);
     setSelectedId(null);
   }

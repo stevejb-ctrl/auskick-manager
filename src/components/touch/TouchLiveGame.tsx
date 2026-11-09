@@ -943,6 +943,7 @@ export function TouchLiveGame({
       subsDoneThisPeriod: subsDone,
       out: o?.out ?? null,
       inPlay,
+      lastPeriod: base.currentPeriod >= ageGroup.periodCount,
     });
     // "On next → MID" says the lane in full: "On next to Middles".
     if (words && pair?.role === "on" && lane) {

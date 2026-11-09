@@ -239,6 +239,8 @@ interface LiveGameProps {
    * Undo goes back through them, not just this phone's last tap.
    */
   standingScores: StackScore[];
+  /** Every score the server has, standing or taken back (savedScoreKeys). */
+  savedScoreKeys?: string[];
   /** Public URL of the team song audio file, if configured. */
   songUrl?: string | null;
   /** Seconds into the song to start playback from (default 0). */
@@ -271,6 +273,7 @@ function storeMatchesServer(
     finalised: boolean;
     teamScore: { goals: number; behinds: number };
     opponentScore: { goals: number; behinds: number };
+    playerScores: Record<string, { goals: number; behinds: number }>;
     lineup: Lineup;
     injuredIds: string[];
     loanedIds: string[];
@@ -286,6 +289,14 @@ function storeMatchesServer(
   if (store.quarterEnded !== server.quarterEnded || store.finalised !== server.finalised) return false;
   if (store.teamScore.goals !== server.teamScore.goals || store.teamScore.behinds !== server.teamScore.behinds) return false;
   if (store.opponentScore.goals !== server.opponentScore.goals || store.opponentScore.behinds !== server.opponentScore.behinds) return false;
+  // Who scored, too: Scores and fixes changing a scorer moves no total
+  // (Stagehand, 9 Nov 2026), and the old kid's tile kept the score.
+  const scorers = new Set([...Object.keys(store.playerScores), ...Object.keys(server.playerScores)]);
+  for (const id of Array.from(scorers)) {
+    const a = store.playerScores[id] ?? { goals: 0, behinds: 0 };
+    const b = server.playerScores[id] ?? { goals: 0, behinds: 0 };
+    if (a.goals !== b.goals || a.behinds !== b.behinds) return false;
+  }
   const same = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((id) => b.includes(id));
   if (!same(store.injuredIds, server.injuredIds) || !same(store.loanedIds, server.loanedIds)) return false;
   if (!server.lineup) return true;
@@ -342,6 +353,7 @@ export function LiveGame({
   exitHref,
   isAdmin = false,
   standingScores,
+  savedScoreKeys = [],
   songUrl,
   songStartSeconds = 0,
   songDurationSeconds = 15,
@@ -577,7 +589,7 @@ export function LiveGame({
     [standingScores],
   );
   useOtherPhoneScores(standingAsEvents, AFL_SCORE_TYPES, { teamName, opponentName });
-  const undoTop = undoStack(standingScores, localScores, undoneScoreIds).at(-1) ?? null;
+  const undoTop = undoStack(standingScores, localScores, undoneScoreIds, savedScoreKeys).at(-1) ?? null;
   const [undoToastVisible, setUndoToastVisible] = useState(false);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -2080,6 +2092,7 @@ export function LiveGame({
       subsDoneThisPeriod,
       out: out?.out ?? null,
       inPlay,
+      lastPeriod: isLastPeriod,
     });
     const isSelected = selected?.playerId === pid;
     const score = playerScores[pid];
@@ -2295,9 +2308,11 @@ export function LiveGame({
     if (suggestions.length <= 1) return makeAllPairs();
     const s = suggestions[i];
     if (!s) return;
-    // One of a due batch: the rest stay due until they're made (the
-    // sub clock holds; soccer's rule).
-    persistSwap(s.off_player_id, s.on_player_id, s.zone, true, subDue ? suggestions.length - 1 : 0);
+    // One of the batch, due or not yet: the rest stay planned until
+    // they're made and the sub clock holds (soccer's rule). Made early,
+    // one pair used to restart the clock and drop the rest (Stagehand,
+    // 9 Nov 2026).
+    persistSwap(s.off_player_id, s.on_player_id, s.zone, true, suggestions.length - 1);
     showSwapToast(`${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`);
     clearSelection();
   }

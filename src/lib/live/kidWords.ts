@@ -52,6 +52,12 @@ export interface KidWordsInput {
   out?: KidOut | null;
   /** The period is being played. False before kickoff and at the breaks: only out kids get words. */
   inPlay?: boolean;
+  /**
+   * The game's last period: there's no break after it, so a bench kid
+   * whose turn would come "after the break" says nothing (Stagehand,
+   * 9 Nov 2026: "On after the break" late in the last half).
+   */
+  lastPeriod?: boolean;
 }
 
 /** An out kid's badge and what it says, as the live tiles say it today. */
@@ -90,8 +96,8 @@ export function kidWords(input: KidWordsInput): KidWords | null {
   if (input.needsMin && input.needsMin > 0) return { text: `Needs ${input.needsMin}′ more`, tone: "sun" };
 
   if (input.place === "bench") {
-    if (!input.rollingSubs) return { text: "On at the break", tone: "calm" };
-    if (input.subsDoneThisPeriod && !due) return { text: "On after the break", tone: "calm" };
+    if (!input.rollingSubs) return input.lastPeriod ? null : { text: "On at the break", tone: "calm" };
+    if (input.subsDoneThisPeriod && !due) return input.lastPeriod ? null : { text: "On after the break", tone: "calm" };
     return { text: "Sub after next", tone: "calm" };
   }
   return null;

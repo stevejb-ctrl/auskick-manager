@@ -7,7 +7,7 @@ list, and note anything odd: a kid in two places, a kid missing, an
 injured or lent kid on the field or in a suggestion, a count that doesn't
 add up.
 
-Do these in order (it's fine if a step needs a long-press or a menu):
+Do these in order (it's fine if a step needs tapping a kid, or a menu):
 
 1. Open the game's lineup and start the game and the first half.
 2. Mid-half: a forward **gets injured** — mark them injured and replace

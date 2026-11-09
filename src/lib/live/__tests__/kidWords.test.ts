@@ -104,3 +104,15 @@ describe("kidWords — outside play", () => {
     expect(kidWords(afl({ needsMin: 6, inPlay: false }))).toBeNull();
   });
 });
+
+describe("kidWords — the last period", () => {
+  // Stagehand, 9 Nov 2026: "On after the break" late in the last half.
+  it("promises no break after the last period", () => {
+    expect(kidWords(afl({ place: "bench", subsDoneThisPeriod: true }))?.text).toBe("On after the break");
+    expect(kidWords(afl({ place: "bench", subsDoneThisPeriod: true, lastPeriod: true }))).toBeNull();
+    expect(kidWords(afl({ place: "bench", rollingSubs: false, lastPeriod: true }))).toBeNull();
+    // The sub still to come in the last period says so as ever.
+    expect(kidWords(afl({ place: "bench", lastPeriod: true }))?.text).toBe("Sub after next");
+    expect(kidWords(afl({ place: "bench", sub: { role: "on", to: "FWD" }, lastPeriod: true }))?.text).toBe("On next → FWD");
+  });
+});

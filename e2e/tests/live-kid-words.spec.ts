@@ -21,6 +21,7 @@ import { coachId } from "../helpers/people";
 import { skipHints } from "../helpers/a11y";
 import { waitForHydration } from "../helpers/navigation";
 import { subDueAlert } from "../helpers/liveShell";
+import { startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "parallel" });
 test.use({ viewport: { width: 390, height: 844 } });
@@ -160,4 +161,79 @@ test("a kid left tapped doesn't hold the siren: it puts them down and the quarte
   await expect(page.getByTestId("kid-bar")).toBeVisible();
   await expect(page.getByRole("button", { name: /select team for q2/i })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("kid-bar")).toHaveCount(0);
+});
+
+// Stagehand, 9 Nov 2026 (whole-game-futsal): late in the last half, with
+// no more subs before the siren, the bench kids still read "On after the
+// break". There's no break after the last period: they say nothing then.
+test("in the last quarter, with the subs done, the bench doesn't promise a break that isn't coming", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await coachId(admin);
+  const team = await makeTeam(admin, { ownerId, sport: "afl", ageGroup: "U10", name: `KIDWORDS Q4 ${Date.now() % 100000}` });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Kookas" });
+  const ids = players.map((p) => p.id);
+  const lineup = { back: ids.slice(0, 4), hback: [], mid: ids.slice(4, 8), hfwd: [], fwd: ids.slice(8, 12), bench: ids.slice(12) };
+  const at = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString();
+  // 5-minute quarters and a 10-minute sub interval: no sub falls inside a
+  // quarter. Q1–Q3 played; Q3 at the break, Q4 under way.
+  const events: { type: string; metadata: Record<string, unknown>; created_at: string }[] = [
+    { type: "lineup_set", metadata: { lineup }, created_at: at(4000) },
+  ];
+  for (let q = 1; q <= 3; q++) {
+    events.push({ type: "quarter_start", metadata: { quarter: q }, created_at: at(4000 - q * 600) });
+    events.push({ type: "quarter_end", metadata: { quarter: q, elapsed_ms: 300_000 }, created_at: at(3700 - q * 600) });
+  }
+  const { error } = await admin.from("game_events").insert(events.map((e) => ({ ...e, game_id: game.id, created_by: ownerId })));
+  if (error) throw new Error(error.message);
+  await admin
+    .from("games")
+    .update({ status: "in_progress", sub_interval_seconds: 600, clock_multiplier: 1, quarter_length_seconds: 300 })
+    .eq("id", game.id);
+
+  await skipHints(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  // Start Q4 from the break, then read the bench.
+  await startFromBreak(page, /^start q4/i);
+  await expect(page.getByRole("button", { name: /^clock — q4/i })).toBeVisible({ timeout: 15_000 });
+  const bench = page.getByRole("group", { name: "Bench", exact: true });
+  await expect(bench.locator('[data-testid^="player-tile-"]')).toHaveCount(3);
+  await expect(bench).not.toContainText(/after the break/i);
+});
+
+// Stagehand, 9 Nov 2026 (whole-game-hockey, and AFL the same): one pair
+// of the planned sub made a minute early counted as the whole rotation.
+// The sub clock restarted, the next sub fell past the siren, and the
+// other pairs vanished. They stay planned, for the same time.
+test("one pair made early leaves the rest of the planned sub on, at the same time", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await coachId(admin);
+  const team = await makeTeam(admin, { ownerId, sport: "afl", ageGroup: "U10", name: `KIDWORDS EARLY ${Date.now() % 100000}` });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Kookas" });
+  const ids = players.map((p) => p.id);
+  const lineup = { back: ids.slice(0, 4), hback: [], mid: ids.slice(4, 8), hfwd: [], fwd: ids.slice(8, 12), bench: ids.slice(12) };
+  const at = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString();
+  // 15-minute quarters, subs every 10, 9 minutes in: the sub is a minute away.
+  const { error } = await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup }, created_at: at(541) },
+      { type: "quarter_start", metadata: { quarter: 1 }, created_at: at(540) },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  if (error) throw new Error(error.message);
+  await admin
+    .from("games")
+    .update({ status: "in_progress", sub_interval_seconds: 600, clock_multiplier: 1, quarter_length_seconds: 900 })
+    .eq("id", game.id);
+
+  await open(page, `/teams/${team.id}/games/${game.id}/live`);
+  const info = page.getByTestId("info-line");
+  await expect(info).toContainText(/next sub 0:\d\d · 3 swaps/i, { timeout: 15_000 });
+  await info.click();
+  await page.getByRole("dialog").getByRole("button", { name: /^swap .+ off, .+ on$/i }).first().click();
+  await page.keyboard.press("Escape");
+  await expect(info).toContainText(/next sub 0:\d\d · 2 swaps/i, { timeout: 15_000 });
+  await expect(info).not.toContainText(/no more subs/i);
 });

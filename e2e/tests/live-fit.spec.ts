@@ -508,3 +508,62 @@ for (const side of [
     expect(theirs!.height).toBeGreaterThanOrEqual(44);
   });
 }
+
+// Stagehand, 9 Nov 2026 (whole-game-afl): at three-quarter time the
+// break's name in the header ("Three-quarter time", on one line) took
+// the middle, and the team names either side broke inside words
+// ("BAYSI / DE / BAN…", "SAND / RINGH / AM").
+test("at three-quarter time at 390 px the team names in the header break between words, not inside them", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await coachId(admin);
+  const team = await makeTeam(admin, { ownerId, sport: "afl", ageGroup: "U12", name: `Bayside Bandicoots ${Date.now() % 1000}` });
+  await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15, ageGroup: "U12" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Sandringham Sharks" });
+  const ids = players.map((p) => p.id);
+  const lineup = { back: ids.slice(0, 4), hback: [], mid: ids.slice(4, 8), hfwd: [], fwd: ids.slice(8, 12), bench: ids.slice(12) };
+  const at = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString();
+  const events: { type: string; metadata: Record<string, unknown>; player_id?: string; created_at: string }[] = [
+    { type: "lineup_set", metadata: { lineup }, created_at: at(4000) },
+  ];
+  // Q3 ran out on the clock (started 40 minutes ago at real time): the
+  // siren, with the break's name in the header.
+  for (let q = 1; q <= 3; q++) {
+    events.push({ type: "quarter_start", metadata: { quarter: q }, created_at: at(q < 3 ? 4000 - q * 100 : 2400) });
+    events.push({ type: "goal", player_id: ids[8], metadata: { quarter: q, elapsed_ms: 60_000 }, created_at: at(q < 3 ? 3990 - q * 100 : 2390) });
+    if (q < 3) events.push({ type: "quarter_end", metadata: { quarter: q, elapsed_ms: 12 * 60_000 }, created_at: at(3950 - q * 100) });
+  }
+  const { error } = await admin.from("game_events").insert(events.map((e) => ({ ...e, game_id: game.id, created_by: ownerId })));
+  if (error) throw new Error(`seed: ${error.message}`);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("gm-walkthrough-seen", "1");
+      localStorage.setItem("siren-longpress-seen-v1", "true");
+    } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  await expect(page.getByRole("button", { name: /^clock — q3, three-quarter time/i })).toBeVisible({ timeout: 15_000 });
+
+  // Each word of each name sits on one line (a word broken across lines
+  // has two boxes).
+  const broken = await page.getByTestId("scorebug-team-name").evaluateAll((els) =>
+    els.flatMap((el) => {
+      const text = el.firstChild;
+      if (!text || text.nodeType !== Node.TEXT_NODE) return [];
+      const s = text.textContent ?? "";
+      const out: string[] = [];
+      for (const m of Array.from(s.matchAll(/\S+/g))) {
+        const r = document.createRange();
+        r.setStart(text, m.index!);
+        r.setEnd(text, m.index! + m[0].length);
+        const lines = new Set(Array.from(r.getClientRects()).map((b) => Math.round(b.top)));
+        if (lines.size > 1) out.push(m[0]);
+      }
+      return out;
+    }),
+  );
+  expect(broken, "words broken across lines").toEqual([]);
+});
