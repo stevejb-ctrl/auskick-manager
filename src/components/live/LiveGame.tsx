@@ -2308,9 +2308,11 @@ export function LiveGame({
     if (suggestions.length <= 1) return makeAllPairs();
     const s = suggestions[i];
     if (!s) return;
-    // One of a due batch: the rest stay due until they're made (the
-    // sub clock holds; soccer's rule).
-    persistSwap(s.off_player_id, s.on_player_id, s.zone, true, subDue ? suggestions.length - 1 : 0);
+    // One of the batch, due or not yet: the rest stay planned until
+    // they're made and the sub clock holds (soccer's rule). Made early,
+    // one pair used to restart the clock and drop the rest (Stagehand,
+    // 9 Nov 2026).
+    persistSwap(s.off_player_id, s.on_player_id, s.zone, true, suggestions.length - 1);
     showSwapToast(`${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`);
     clearSelection();
   }

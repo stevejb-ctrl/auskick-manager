@@ -201,3 +201,39 @@ test("in the last quarter, with the subs done, the bench doesn't promise a break
   await expect(bench.locator('[data-testid^="player-tile-"]')).toHaveCount(3);
   await expect(bench).not.toContainText(/after the break/i);
 });
+
+// Stagehand, 9 Nov 2026 (whole-game-hockey, and AFL the same): one pair
+// of the planned sub made a minute early counted as the whole rotation.
+// The sub clock restarted, the next sub fell past the siren, and the
+// other pairs vanished. They stay planned, for the same time.
+test("one pair made early leaves the rest of the planned sub on, at the same time", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await coachId(admin);
+  const team = await makeTeam(admin, { ownerId, sport: "afl", ageGroup: "U10", name: `KIDWORDS EARLY ${Date.now() % 100000}` });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Kookas" });
+  const ids = players.map((p) => p.id);
+  const lineup = { back: ids.slice(0, 4), hback: [], mid: ids.slice(4, 8), hfwd: [], fwd: ids.slice(8, 12), bench: ids.slice(12) };
+  const at = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString();
+  // 15-minute quarters, subs every 10, 9 minutes in: the sub is a minute away.
+  const { error } = await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup }, created_at: at(541) },
+      { type: "quarter_start", metadata: { quarter: 1 }, created_at: at(540) },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  if (error) throw new Error(error.message);
+  await admin
+    .from("games")
+    .update({ status: "in_progress", sub_interval_seconds: 600, clock_multiplier: 1, quarter_length_seconds: 900 })
+    .eq("id", game.id);
+
+  await open(page, `/teams/${team.id}/games/${game.id}/live`);
+  const info = page.getByTestId("info-line");
+  await expect(info).toContainText(/next sub 0:\d\d · 3 swaps/i, { timeout: 15_000 });
+  await info.click();
+  await page.getByRole("dialog").getByRole("button", { name: /^swap .+ off, .+ on$/i }).first().click();
+  await page.keyboard.press("Escape");
+  await expect(info).toContainText(/next sub 0:\d\d · 2 swaps/i, { timeout: 15_000 });
+  await expect(info).not.toContainText(/no more subs/i);
+});
