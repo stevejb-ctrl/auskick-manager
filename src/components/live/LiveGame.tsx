@@ -27,7 +27,7 @@ import { FieldLines, OvalMarks, type FieldLine } from "@/components/live/FieldLi
 import { KidBench } from "@/components/live/KidBench";
 import { InfoLine } from "@/components/live/InfoLine";
 import { PairsSheet, type SheetPair } from "@/components/live/PairsSheet";
-import { KidBar, TimeSplit } from "@/components/live/KidBar";
+import { KidBar, KidBarMore, TimeSplit } from "@/components/live/KidBar";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { barButton, BAR_SMALL } from "@/components/live/barButtons";
 import { kidWords, type KidOut, type KidSubRole } from "@/lib/live/kidWords";
@@ -2445,22 +2445,13 @@ export function LiveGame({
                 Injured
               </button>
             ),
-            <button
+            <KidBarMore
               key="more"
-              type="button"
               onClick={() => {
                 clearSelection();
                 handleLongPress(pid);
               }}
-              className={btn("outlined")}
-            >
-              <svg viewBox="0 0 20 20" className="h-[16px] w-[16px]" aria-hidden>
-                <circle cx="4" cy="10" r="2" fill="currentColor" />
-                <circle cx="10" cy="10" r="2" fill="currentColor" />
-                <circle cx="16" cy="10" r="2" fill="currentColor" />
-              </svg>
-              More
-            </button>,
+            />,
           ];
           const columns = actions.length + (lock ? 1 : 0);
           return (

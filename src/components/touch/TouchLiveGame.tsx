@@ -49,7 +49,7 @@ import { KidBench } from "@/components/live/KidBench";
 import { FieldLines, type FieldLine } from "@/components/live/FieldLines";
 import { InfoLine } from "@/components/live/InfoLine";
 import { PairsSheet, type SheetPair } from "@/components/live/PairsSheet";
-import { KidBar, TimeSplit } from "@/components/live/KidBar";
+import { KidBar, KidBarMore, TimeSplit } from "@/components/live/KidBar";
 import { StartBarButton } from "@/components/live/StartBarButton";
 import { WalkthroughOffer } from "@/components/live/WalkthroughOffer";
 import { buildSharedWalkthroughSteps } from "@/components/live/WalkthroughModal";
@@ -1205,22 +1205,13 @@ export function TouchLiveGame({
               </svg>
               Injured
             </button>,
-            <button
+            <KidBarMore
               key="more"
-              type="button"
               onClick={() => {
                 setSelectedId(null);
                 setActionPlayerId(pid);
               }}
-              className={btn("outlined")}
-            >
-              <svg viewBox="0 0 20 20" className="h-[16px] w-[16px]" aria-hidden>
-                <circle cx="4" cy="10" r="2" fill="currentColor" />
-                <circle cx="10" cy="10" r="2" fill="currentColor" />
-                <circle cx="16" cy="10" r="2" fill="currentColor" />
-              </svg>
-              More
-            </button>,
+            />,
           ];
           const dimmedAny = Object.keys(ruleNotes).length > 0;
           return (

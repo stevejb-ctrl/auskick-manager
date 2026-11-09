@@ -27,7 +27,7 @@ import { KidSlot, KidTile, type KidOutKind } from "@/components/live/KidTile";
 import { KidBench } from "@/components/live/KidBench";
 import { InfoLine } from "@/components/live/InfoLine";
 import { PairsSheet, type SheetPair } from "@/components/live/PairsSheet";
-import { KidBar, TimeSplit } from "@/components/live/KidBar";
+import { KidBar, KidBarMore, TimeSplit } from "@/components/live/KidBar";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { LeagueWalkthroughOffer } from "@/components/live/WalkthroughOffer";
@@ -2226,22 +2226,13 @@ export function LeagueLiveGame({
               </svg>
               Injured
             </button>,
-            <button
+            <KidBarMore
               key="more"
-              type="button"
               onClick={() => {
                 handleClearSelection();
                 handlePlayerLongPress(pid);
               }}
-              className={btn("outlined")}
-            >
-              <svg viewBox="0 0 20 20" className="h-[16px] w-[16px]" aria-hidden>
-                <circle cx="4" cy="10" r="2" fill="currentColor" />
-                <circle cx="10" cy="10" r="2" fill="currentColor" />
-                <circle cx="16" cy="10" r="2" fill="currentColor" />
-              </svg>
-              More
-            </button>,
+            />,
           ];
           const pctLine = floor && subLaws.minGameTimePct ? minBarText(floor) : `${pctOfGame(totalMs, gameMs)}% of game`;
           return (

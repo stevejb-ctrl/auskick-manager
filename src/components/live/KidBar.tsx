@@ -19,6 +19,7 @@
 // line keeps the dock's test id (dock-swap-hint).
 
 import { useEffect, type ReactNode } from "react";
+import { barButton, BAR_SMALL } from "@/components/live/barButtons";
 
 export interface KidBarPair {
   /** The pair's number (index + 1). */
@@ -153,6 +154,29 @@ export function KidBar({ name, heading, line, split, hint, pair, extra, actions,
         {actions}
       </div>
     </div>
+  );
+}
+
+/**
+ * The kid bar's More: the player sheet (switch, keep on, lend). Lend was
+ * hard to find behind a bare "More" (Stagehand round 9: six coaches went
+ * looking on the tile and the bar first), so the button says it under
+ * the word. One button for every sport. Its name stays "More"; the
+ * small line is seen, and the sheet it opens names Lend first.
+ */
+export function KidBarMore({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
+  return (
+    <button type="button" data-testid="kid-bar-more" onClick={onClick} disabled={disabled} className={barButton("outlined", "sm")}>
+      <svg viewBox="0 0 20 20" className="h-[16px] w-[16px]" aria-hidden>
+        <circle cx="4" cy="10" r="2" fill="currentColor" />
+        <circle cx="10" cy="10" r="2" fill="currentColor" />
+        <circle cx="16" cy="10" r="2" fill="currentColor" />
+      </svg>
+      More
+      <span aria-hidden className={BAR_SMALL}>
+        lend, switch
+      </span>
+    </button>
   );
 }
 
