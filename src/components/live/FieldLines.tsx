@@ -70,6 +70,11 @@ export interface FieldLinesProps {
    * siren halo round the field ("the game is on"). Null until then.
    */
   wakeUpKey?: number | null;
+  /**
+   * Room kept clear at each end, px, for what's drawn there (rugby's
+   * in-goals and posts: RugbyMarks). The usual 8 when unset.
+   */
+  endsPx?: number;
 }
 
 const ROW_SIDE = {
@@ -89,10 +94,13 @@ function colsFor(n: number): number {
   return n <= 4 ? Math.max(1, n) : Math.ceil(n / 2);
 }
 
-export function FieldLines({ lines, surface = "field", marks, dense = false, tileWidth = 88, wakeUpKey = null }: FieldLinesProps) {
+export function FieldLines({ lines, surface = "field", marks, dense = false, tileWidth = 88, wakeUpKey = null, endsPx }: FieldLinesProps) {
   const rowH = dense ? 44 : 48;
   return (
-    <div className={`relative flex min-h-full flex-1 flex-col rounded-[24px] py-[8px] pl-[4px] pr-[10px] ${SURFACE[surface]}`}>
+    <div
+      className={`relative flex min-h-full flex-1 flex-col rounded-[24px] py-[8px] pl-[4px] pr-[10px] ${SURFACE[surface]}`}
+      style={endsPx !== undefined ? { paddingTop: endsPx, paddingBottom: endsPx } : undefined}
+    >
       {wakeUpKey !== null && (
         <span
           key={wakeUpKey}

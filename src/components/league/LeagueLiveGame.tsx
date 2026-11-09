@@ -2012,6 +2012,7 @@ export function LeagueLiveGame({
   const denseField = Math.max(game.on_field_size, onFieldIds.length) >= LEAGUE_DENSE_FROM;
   const fieldEl = lineup ? (
     <LeagueFieldLines
+      sport={sport}
       forwardsBySize={ageGroup.forwardsBySize}
       forwardPlayers={forwardPlayers}
       backPlayers={backPlayers}

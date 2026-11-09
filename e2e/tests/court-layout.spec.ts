@@ -128,3 +128,54 @@ test("oztag: the eight on the field stand in rows of three and two, down the fie
   const field = (await page.getByRole("group", { name: "Field" }).boundingBox())!;
   expect(rows[rows.length - 1] - rows[0]).toBeGreaterThan(field.height * 0.4);
 });
+
+// Rugby (Steve, 10 Nov 2026): "make it look more field like, goal posts
+// at the end, line markings". League and union draw the in-goals, try
+// lines, halfway and their own lines, with posts at each end clear of
+// every kid.
+for (const c of [
+  { sport: "rugby_league", ageGroup: "U10", count: 15, onField: 11, fwd: 5 },
+  { sport: "rugby_union", ageGroup: "U12", count: 18, onField: 15, fwd: 8 },
+] as const) {
+  test(`${c.sport}: a field with try lines, halfway and posts at both ends, no kid on the posts`, async ({ page }) => {
+    const admin = createAdminClient();
+    const ownerId = await ownerOf(admin);
+    const team = await makeTeam(admin, { ownerId, ageGroup: c.ageGroup, sport: c.sport, name: `RUGBY-FIELD-${Date.now() % 1e6}` });
+    const players = await makePlayers(admin, { teamId: team.id, ownerId, count: c.count });
+    const game = await makeGame(admin, { teamId: team.id, ownerId });
+    await admin.from("games").update({ on_field_size: c.onField }).eq("id", game.id);
+    const ids = players.map((p) => p.id);
+    await seedInPlay(
+      admin,
+      ownerId,
+      game.id,
+      c.sport,
+      { forwards: ids.slice(0, c.fwd), backs: ids.slice(c.fwd, c.onField), bench: ids.slice(c.onField) },
+      ids,
+    );
+    await page.addInitScript(() => {
+      try {
+        for (const k of ["league-walkthrough-seen", "rl-walkthrough-seen"]) localStorage.setItem(k, "1");
+        localStorage.setItem("siren-longpress-seen-v1", "true");
+      } catch {}
+    });
+    await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+    await waitForHydration(page);
+    await expect(page.getByTestId(`league-player-tile-${ids[0]}`)).toBeVisible({ timeout: 15_000 });
+
+    await expect(page.getByTestId("rugby-markings")).toHaveCount(1);
+    await expect(page.getByTestId("rugby-try-line")).toHaveCount(2);
+    const posts = page.getByTestId("rugby-posts");
+    await expect(posts).toHaveCount(2);
+    const postBoxes = [(await posts.nth(0).boundingBox())!, (await posts.nth(1).boundingBox())!];
+    const tiles = await Promise.all(ids.slice(0, c.onField).map(async (id) => (await page.getByTestId(`league-player-tile-${id}`).boundingBox())!));
+    const overlaps = (a: { x: number; y: number; width: number; height: number }, b: typeof a) =>
+      a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+    for (const p of postBoxes) for (const t of tiles) expect(overlaps(p, t)).toBe(false);
+    // One set of posts above every kid, one below.
+    const top = Math.min(...tiles.map((t) => t.y));
+    const bottom = Math.max(...tiles.map((t) => t.y + t.height));
+    expect(postBoxes[0].y + postBoxes[0].height).toBeLessThanOrEqual(top);
+    expect(postBoxes[1].y).toBeGreaterThanOrEqual(bottom);
+  });
+}

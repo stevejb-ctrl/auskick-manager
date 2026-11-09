@@ -17,6 +17,8 @@ import type { VestType } from "@/lib/sports/rugby_league/vests";
 import { arrangeLeagueField, type FieldSlot } from "@/lib/sports/rugby_league/fieldFormation";
 import { formationRows } from "@/lib/live/formationRows";
 import { FieldLines, type FieldLine } from "@/components/live/FieldLines";
+import type { RugbySport } from "@/lib/sports/registry";
+import { RUGBY_IN_GOAL_PX, RugbyMarks } from "./RugbyMarks";
 
 export type LeagueLine = "forwards" | "backs";
 
@@ -24,6 +26,8 @@ export type LeagueLine = "forwards" | "backs";
 export const LEAGUE_DENSE_FROM = 13;
 
 interface LeagueFieldLinesProps {
+  /** Which code's lines the field draws (RugbyMarks). */
+  sport: RugbySport;
   /** The forwards at each size, where the sport states its split (union). */
   forwardsBySize?: Record<number, number>;
   forwardPlayers: Player[];
@@ -43,6 +47,7 @@ interface LeagueFieldLinesProps {
 }
 
 export function LeagueFieldLines({
+  sport,
   forwardsBySize,
   forwardPlayers,
   backPlayers,
@@ -116,6 +121,9 @@ export function LeagueFieldLines({
         dense={dense}
         tileWidth={widest >= 4 ? 88 : 112}
         wakeUpKey={wakeUpKey}
+        marks={<RugbyMarks sport={sport} />}
+        // The in-goals and posts stay clear of the kids, plus a little air.
+        endsPx={RUGBY_IN_GOAL_PX + 6}
       />
     </section>
   );
