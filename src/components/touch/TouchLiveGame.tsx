@@ -48,6 +48,7 @@ import { LiveGameMenu, settingsSummary } from "@/components/live/LiveGameMenu";
 import { KidTile, KidSlot, type KidOutKind } from "@/components/live/KidTile";
 import { KidBench } from "@/components/live/KidBench";
 import { FieldLines, staggerRows, type FieldLine } from "@/components/live/FieldLines";
+import { RUGBY_IN_GOAL_PX, RugbyMarks } from "@/components/league/RugbyMarks";
 import { InfoLine } from "@/components/live/InfoLine";
 import { PairsSheet, type SheetPair } from "@/components/live/PairsSheet";
 import { KidBar, KidBarMore, TimeSplit } from "@/components/live/KidBar";
@@ -1072,7 +1073,10 @@ export function TouchLiveGame({
     : [];
   const fieldEl = lineup ? (
     <div role="region" aria-label="On field" className="flex flex-1 flex-col">
-      <FieldLines lines={fieldLines} surface="field" />
+      {/* A touch field under the kids: in-goals, try lines, halfway and
+          the 10 m lines (RugbyMarks, no posts). Wider tiles than the
+          default 88: a lane holds two, and a name sits beside its G/B. */}
+      <FieldLines lines={fieldLines} surface="field" marks={<RugbyMarks sport={sport} />} endsPx={RUGBY_IN_GOAL_PX + 6} tileWidth={112} />
     </div>
   ) : null;
 
