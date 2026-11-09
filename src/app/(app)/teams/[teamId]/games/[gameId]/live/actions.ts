@@ -1104,7 +1104,7 @@ export interface ScoreLogEntry {
   original_type: string | null;
   /** Quarter the event was booked to. For undo, copied from the original's metadata.quarter. */
   quarter: number | null;
-  /** Whether this was added retroactively from the Fix-scores panel. */
+  /** Whether this was added retroactively from the Fix-scores panel (not a changed scorer). */
   retro: boolean;
   /** A rushed behind (ours, no scorer). */
   rushed: boolean;
@@ -1144,7 +1144,10 @@ export async function getGameScoreLog(
           : typeof meta.intended_quarter === "number"
           ? (meta.intended_quarter as number)
           : null,
-      retro: meta.retro === true,
+      // A changed scorer is put back as a retro score that `replaces` the
+      // old one: the same score, not a missed one added, so no "Added"
+      // tag (Stagehand round 10: a coach read it as a second goal).
+      retro: meta.retro === true && typeof meta.replaces !== "string",
       rushed: meta.rushed === true,
       unattributed: meta.unattributed === true,
       target_event_id: isUndo ? ((meta.target_event_id as string) ?? null) : null,

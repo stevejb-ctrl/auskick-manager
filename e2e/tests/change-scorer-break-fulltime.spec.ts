@@ -172,6 +172,30 @@ async function expectReassigned(admin: SupabaseClient, gameId: string, c: SportC
     .toEqual([{ player: right.id, quarter: 1 }]);
 }
 
+// A changed scorer is the same score, not an added one. The fix is a
+// retro score put back in its own period, and the review tagged it
+// "Added" like a missed score, so a coach who'd only changed the kid
+// thought a second goal had gone in (Stagehand round 10, whole-game-afl).
+// AFL's break and full time, and soccer's family's break, use the
+// review's rows (ScoreReviewPanel).
+for (const [name, upTo] of [["afl", "break"], ["afl", "full"], ["hockey", "break"]] as const) {
+  test(`${name}: at the ${upTo === "break" ? "break" : "full time"}, a changed scorer isn't tagged "Added"`, async ({ page }) => {
+    const c = CASES[name];
+    const { admin, team, game, wrong, right } = await seed(c, upTo);
+    await open(page, team.id, game.id);
+    let scope: Locator | Page = page;
+    if (upTo === "break") {
+      await page.getByRole("button", { name: /review and update scores/i }).click({ timeout: 20_000 });
+      scope = page.getByRole("dialog", { name: "Score" });
+    }
+    await changeScorer(scope, wrong, right);
+    await expectReassigned(admin, game.id, c, wrong, right);
+    const row = scope.getByRole("listitem").filter({ has: changeButton(page, right) });
+    await expect(row).toHaveCount(1);
+    await expect(row).not.toContainText(/added/i);
+  });
+}
+
 for (const [name, c] of Object.entries(CASES)) {
   test(`${name}: at the break, Change who scored moves the score to the right kid`, async ({ page }) => {
     const { admin, team, game, wrong, right } = await seed(c, "break");
