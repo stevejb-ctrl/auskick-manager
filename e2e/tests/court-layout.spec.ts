@@ -127,6 +127,10 @@ test("oztag: the eight on the field stand in rows of three and two, down the fie
   // Spread down the field: the rows are well apart, not stacked tight.
   const field = (await page.getByRole("group", { name: "Field" }).boundingBox())!;
   expect(rows[rows.length - 1] - rows[0]).toBeGreaterThan(field.height * 0.4);
+  // A touch field under them: in-goals and try lines, but no posts.
+  await expect(page.getByTestId("rugby-markings")).toHaveCount(1);
+  await expect(page.getByTestId("rugby-try-line")).toHaveCount(2);
+  await expect(page.getByTestId("rugby-posts")).toHaveCount(0);
 });
 
 // Rugby (Steve, 10 Nov 2026): "make it look more field like, goal posts
@@ -142,9 +146,11 @@ for (const c of [
     const ownerId = await ownerOf(admin);
     const team = await makeTeam(admin, { ownerId, ageGroup: c.ageGroup, sport: c.sport, name: `RUGBY-FIELD-${Date.now() % 1e6}` });
     const players = await makePlayers(admin, { teamId: team.id, ownerId, count: c.count });
-    const game = await makeGame(admin, { teamId: team.id, ownerId });
+    const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Sandringham Sharks" });
     await admin.from("games").update({ on_field_size: c.onField }).eq("id", game.id);
     const ids = players.map((p) => p.id);
+    // A long name, to check it fits its tile.
+    await admin.from("players").update({ full_name: "Maximilian Featherstone" }).eq("id", ids[1]);
     await seedInPlay(
       admin,
       ownerId,
@@ -182,5 +188,26 @@ for (const c of [
     const bg = await page.getByTestId(`league-player-tile-${ids[0]}`).evaluate((el) => getComputedStyle(el).backgroundColor);
     const alpha = bg.startsWith("rgba") ? Number(bg.slice(bg.lastIndexOf(",") + 1, -1)) : 1;
     expect(alpha).toBe(1);
+
+    // The screenshot round's leftovers (Steve, 10 Nov 2026):
+    // Even room to each sideline: the right-hand tiles used to hug it.
+    const pitch = (await page.getByRole("region", { name: "On field" }).boundingBox())!;
+    const left = Math.min(...tiles.map((t) => t.x)) - pitch.x;
+    const right = pitch.x + pitch.width - Math.max(...tiles.map((t) => t.x + t.width));
+    expect(Math.abs(left - right)).toBeLessThan(6);
+    // A long name fits its tile rather than "Maximili…".
+    const cut = await page
+      .getByTestId(`league-player-tile-${ids[1]}`)
+      .evaluate((el) => Array.from(el.querySelectorAll("span.truncate")).some((s) => s.scrollWidth > s.clientWidth + 1));
+    expect(cut).toBe(false);
+    // The other team's name isn't cut in the score bar.
+    const opp = page.getByText("Sandringham Sharks", { exact: true }).last();
+    await expect(opp).toBeVisible();
+    expect(await opp.evaluate((el) => el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+    // League's banner says the rule in plain words, not "§6".
+    if (c.sport === "rugby_league") {
+      await expect(page.getByTestId("unbroken-period-warning")).toContainText(/every kid plays one whole half without coming off/i);
+      await expect(page.getByTestId("unbroken-period-warning")).not.toContainText("§");
+    }
   });
 }

@@ -117,6 +117,17 @@ function spokenWords(w: KidWords): string {
   return w.spoken ?? w.text.replace(/\s*→\s*/, " to ");
 }
 
+/**
+ * The name's size: full on a roomy tile, a little smaller on a narrow
+ * one (a row of four on a phone), down to 13 px, so "Lachlan S" fits
+ * rather than "Lachla…" (Steve, 10 Nov 2026, the screenshot round).
+ * The tile is the size container (cqi = 1% of its width inside).
+ */
+const NAME_SIZE = {
+  full: "text-[clamp(0.8125rem,22cqi,1.0625rem)]",
+  dense: "text-[clamp(0.8125rem,22cqi,1rem)]",
+} as const;
+
 export function KidTile({
   testId,
   name,
@@ -236,7 +247,8 @@ export function KidTile({
       {...handlers}
       disabled={!onClick && !onLongPress}
       className={[
-        "relative flex h-full min-h-[44px] w-full min-w-0 flex-col justify-center gap-[3px] rounded-[10px] px-[8px] text-left",
+        // A size container: the name below scales to the tile's width.
+        "relative flex h-full min-h-[44px] w-full min-w-0 flex-col justify-center gap-[3px] rounded-[10px] px-[8px] text-left [container-type:inline-size]",
         "[transition:background-color_160ms_ease,opacity_160ms_ease,box-shadow_160ms_ease,transform_120ms_cubic-bezier(0.2,0.8,0.2,1)]",
         plate,
         edge,
@@ -273,7 +285,7 @@ export function KidTile({
         {pos && <span className="flex-none text-[0.6875rem] font-extrabold tracking-[0.05em] opacity-[0.76]">{pos}</span>}
         <span
           key={fresh || undefined}
-          className={`min-w-0 max-w-full flex-[0_1_auto] truncate font-extrabold ${dense ? "text-base" : "text-[1.0625rem]"} ${
+          className={`min-w-0 max-w-full flex-[0_1_auto] truncate font-extrabold ${NAME_SIZE[dense ? "dense" : "full"]} ${
             fresh ? "motion-safe:animate-roll-in-up" : ""
           }`}
         >

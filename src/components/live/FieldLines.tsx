@@ -100,7 +100,7 @@ export function FieldLines({ lines, surface = "field", marks, dense = false, til
   const rowH = dense ? 44 : 48;
   return (
     <div
-      className={`relative flex min-h-full flex-1 flex-col rounded-[24px] py-[8px] pl-[4px] pr-[10px] ${SURFACE[surface]}`}
+      className={`relative flex min-h-full flex-1 flex-col rounded-[24px] px-[4px] py-[8px] ${SURFACE[surface]}`}
       style={endsPx !== undefined ? { paddingTop: endsPx, paddingBottom: endsPx } : undefined}
     >
       {wakeUpKey !== null && (
@@ -123,14 +123,19 @@ export function FieldLines({ lines, surface = "field", marks, dense = false, til
             key={line.key}
             role="group"
             aria-label={line.label}
-            className={`relative grid flex-[1_0_auto] grid-cols-[minmax(14px,auto)_minmax(0,1fr)] items-center gap-[6px] ${dense ? "py-[6px]" : "py-[8px]"} ${
+            // The label's column on the left, an empty one as wide on the
+            // right, so the kids sit centred with even room to each
+            // sideline (Steve, 10 Nov 2026: the right-hand tiles hugged it).
+            className={`relative grid flex-[1_0_auto] grid-cols-[14px_minmax(0,1fr)_14px] items-center gap-[6px] ${dense ? "py-[6px]" : "py-[8px]"} ${
               i > 0 ? "border-t border-mark/10" : ""
             }`}
           >
-            {/* Dim, but 4.5:1 on the grass (the design's 42% was 3:1). */}
+            {/* Dim, but 4.5:1 on the grass (the design's 42% was 3:1). On
+                a patch of the ground, so a sideline drawn there (soccer,
+                hockey, futsal) passes behind it, not through it. */}
             <span
               aria-hidden
-              className="self-center justify-self-center whitespace-nowrap font-display text-[0.53125rem] font-bold uppercase leading-none tracking-[0.16em] text-mark/[0.62] [transform:rotate(180deg)] [writing-mode:vertical-rl]"
+              className="self-center justify-self-center whitespace-nowrap rounded-[3px] bg-[rgb(var(--tile-ground,var(--c-field)))] px-[2px] py-[4px] font-display text-[0.53125rem] font-bold uppercase leading-none tracking-[0.16em] text-mark/[0.62] [transform:rotate(180deg)] [writing-mode:vertical-rl]"
             >
               {line.label}
               {line.count && (
