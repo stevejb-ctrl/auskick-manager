@@ -95,6 +95,14 @@ interface ScoreBugFrameProps {
 
 const TOTAL_ROW = "nums mt-1 flex flex-wrap items-baseline gap-x-[8px] font-mono tabular-nums text-ink";
 
+/**
+ * A team's name over its score buttons: on two lines if it needs them,
+ * cut only past that ("SANDRINGHAM / SHARKS", not "SANDRINGHA…": Steve,
+ * 10 Nov 2026, the screenshot round).
+ */
+const BAR_NAME =
+  "line-clamp-2 font-display text-[0.625rem] font-extrabold uppercase leading-[1.15] text-ink-mute [overflow-wrap:break-word]";
+
 export function ScoreBugFrame({
   ours,
   theirs,
@@ -151,7 +159,7 @@ export function ScoreBugFrame({
       const row = (s: ScoreBugSide, chips: ScoreChipSpec[], side: "ours" | "theirs") =>
         chips.length > 0 ? (
           <div className="relative grid grid-cols-[70px_minmax(0,1fr)] items-center gap-[6px] bigtext:grid-cols-1 bigtext:gap-[2px]">
-            <span className="truncate font-display text-[0.625rem] font-extrabold uppercase tracking-[0.08em] text-ink-mute">{s.name}</span>
+            <span className={`${BAR_NAME} tracking-[0.06em]`}>{s.name}</span>
             <div className="grid gap-[6px]" style={{ gridTemplateColumns: `repeat(${chips.length}, minmax(0, 1fr))` }}>
               {chips.map((c, i) => (
                 <button
@@ -205,7 +213,7 @@ export function ScoreBugFrame({
         {theirChips.length > 0 && (
           // Large text: their name and buttons on one row, under ours.
           <div className="relative grid min-w-0 grid-cols-2 grid-rows-[auto_1fr] text-center bigtext:col-span-2 bigtext:grid-cols-[minmax(0,1fr)_auto_auto] bigtext:grid-rows-1 bigtext:items-center bigtext:gap-x-[8px] bigtext:text-left">
-            <span className="col-span-2 truncate font-display text-[0.625rem] font-extrabold uppercase tracking-[0.1em] text-ink-mute bigtext:col-span-1">
+            <span className={`${BAR_NAME} col-span-2 tracking-[0.08em] bigtext:col-span-1`}>
               {theirs.name}
             </span>
             {theirChips.map((c) => (
