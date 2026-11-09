@@ -145,3 +145,20 @@ describe("cleanBatchLeft", () => {
     for (const v of [0, -1, 1.5, NaN, "2", null, undefined]) expect(cleanBatchLeft(v)).toBeUndefined();
   });
 });
+
+describe("undoing one pair of a batch (Stagehand round 10)", () => {
+  // The 8:00 batch has three swaps; the coach makes one early, then
+  // undoes it. The swap back says the whole batch is open again.
+  const events = [
+    ev("quarter_start", { quarter: 1 }),
+    swap(4 * MIN, "a", "x"),
+    swap(7 * MIN, "b", "y", { batch_left: 2 }),
+    swap(7 * MIN + 5_000, "y", "b", { batch_left: 3 }),
+  ];
+  it("keeps the anchor at the last full rotation", () => {
+    expect(resolveSubAnchorElapsed(events, 1)).toBe(4 * MIN);
+  });
+  it("opens the whole batch again", () => {
+    expect(openSubBatch(events, 1)).toBe(3);
+  });
+});

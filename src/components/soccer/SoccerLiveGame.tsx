@@ -504,7 +504,7 @@ export function SoccerLiveGame({
    * sub clock waits for them). `manual`: made by hand, off the
    * rotation's cadence, so the sub clock doesn't restart (AFL's rule).
    */
-  function sub(offId: string | null, onId: string, line?: SoccerUnit, opts: { batchLeft?: number; manual?: boolean } = {}) {
+  function sub(offId: string | null, onId: string, line?: SoccerUnit, opts: { batchLeft?: number; manual?: boolean; undo?: boolean } = {}) {
     setError(null);
     const input = {
       off_player_id: offId,
@@ -512,6 +512,7 @@ export function SoccerLiveGame({
       ...(line ? { line } : {}),
       ...(opts.batchLeft ? { batch_left: opts.batchLeft } : {}),
       ...(opts.manual ? { manual: true } : {}),
+      ...(opts.undo ? { undo: true } : {}),
       ...at(),
     };
     write("recordSoccerSwap", [auth, game.id, input], liveEvents.swap(input));
@@ -949,7 +950,11 @@ export function SoccerLiveGame({
     // as the whole rotation: the clock restarted and the rest fell past
     // the siren (Stagehand, 9 Nov 2026).
     sub(s.off_player_id, s.on_player_id, s.line, { batchLeft: planned.length - 1 });
-    chrome.swapped(s.off_player_id, s.on_player_id);
+    // Undo puts the pair back in the plan: the swap back reopens the
+    // whole batch, so the clock still holds (Stagehand round 10).
+    const off = s.off_player_id;
+    const batch = planned.length;
+    chrome.swapped(off, s.on_player_id, off ? () => sub(s.on_player_id, off, s.line, { batchLeft: batch, undo: true }) : undefined);
     setSelectedId(null);
   }
   const sheetPairs: SheetPair[] = planned.flatMap((s, index) => {

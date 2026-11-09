@@ -27,6 +27,7 @@
 
 import type { GameEvent } from "@/lib/types";
 import { replayLocks, type PlayerLock } from "@/lib/live/locks";
+import { createSwapRecency, isUndoSwap } from "@/lib/live/swapRecency";
 import { takeUndoTarget } from "@/lib/live/scoreUndo";
 import { normalizeSoccerLineup, soccerUnitOf, type SoccerLineup } from "@/lib/sports/soccer/lineup";
 import { SOCCER_LINES, SOCCER_UNITS, type SoccerUnit } from "@/lib/sports/soccer/types";
@@ -168,6 +169,7 @@ export function replaySoccerGame(events: GameEvent[], opts: ReplaySoccerOptions 
   // same spot rather than the end of the line (rugby's "vacant slot in
   // the wrong position" bug).
   const vacated: Record<string, { unit: SoccerUnit; index: number }> = {};
+  const recency = createSwapRecency();
   const leaveField = (lu: SoccerLineup, pid: string) => {
     const unit = soccerUnitOf(lu, pid);
     if (!unit) return;
@@ -249,6 +251,7 @@ export function replaySoccerGame(events: GameEvent[], opts: ReplaySoccerOptions 
         const lu = state.lineup;
         const { off_player_id: off, on_player_id: on, line } = ev.metadata as SwapMeta;
         if (!lu || !on || soccerUnitOf(lu, on)) break; // nothing to do, or a replayed duplicate
+        const settle = recency.swap(state, off, on, isUndoSwap(ev.metadata));
         const offUnit = off ? soccerUnitOf(lu, off) : null;
         let unit: SoccerUnit;
         if (off && offUnit) {
@@ -276,6 +279,7 @@ export function replaySoccerGame(events: GameEvent[], opts: ReplaySoccerOptions 
         delete vacated[on];
         openStint(on, unit, elapsed);
         state.lastSubbedOnMs[on] = absolute;
+        settle();
         break;
       }
 

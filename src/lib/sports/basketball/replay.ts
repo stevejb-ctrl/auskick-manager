@@ -32,6 +32,7 @@
 // comes on with a swap.
 
 import type { GameEvent } from "@/lib/types";
+import { createSwapRecency, isUndoSwap } from "@/lib/live/swapRecency";
 import { replayLocks, type PlayerLock } from "@/lib/live/locks";
 import { takeUndoTarget } from "@/lib/live/scoreUndo";
 import { BASKETBALL_POINTS } from "@/lib/sports/basketball";
@@ -228,6 +229,7 @@ export function replayBasketballGame(events: GameEvent[], opts: ReplayBasketball
   // Where a kid who left stood (line, place in it, position), so their
   // replacement takes the same spot rather than the end of a line.
   const vacated: Record<string, { line: BasketballLine; index: number; pos: BasketballPosition | null }> = {};
+  const recency = createSwapRecency();
   const leaveCourt = (lu: BasketballLineup, pid: string) => {
     const line = basketballLineOf(lu, pid);
     if (!line) return;
@@ -300,6 +302,7 @@ export function replayBasketballGame(events: GameEvent[], opts: ReplayBasketball
         const lu = state.lineup;
         const { off_player_id: off, on_player_id: on, line } = ev.metadata as SwapMeta;
         if (!lu || !on || basketballLineOf(lu, on)) break; // nothing to do, or a replayed duplicate
+        const settle = recency.swap(state, off, on, isUndoSwap(ev.metadata));
         const offLine = off ? basketballLineOf(lu, off) : null;
         if (off && offLine) {
           closeStint(off, elapsed);
@@ -331,6 +334,7 @@ export function replayBasketballGame(events: GameEvent[], opts: ReplayBasketball
         delete vacated[on];
         openStint(lu, on, elapsed);
         state.lastSubbedOnMs[on] = absolute;
+        settle();
         break;
       }
 

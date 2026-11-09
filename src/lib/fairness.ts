@@ -33,6 +33,7 @@ import { emptyZoneCaps, positionsFor, zoneCapsFor, type ZoneCaps } from "@/lib/a
 import { replayLocks, type PlayerLock } from "@/lib/live/locks";
 import { lastClockPause, type ClockPauseMark } from "@/lib/live/clockPause";
 import { openSubBatch, resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
+import { createSwapRecency, isUndoSwap } from "@/lib/live/swapRecency";
 import { positionSwapAsZoneSwap } from "@/lib/live/positionSwap";
 import {
   type ChipKey,
@@ -1227,6 +1228,7 @@ function emptyQuarterScore(): { ours: QuarterScore; theirs: QuarterScore } {
 }
 
 export function replayGame(events: GameEvent[]): GameState {
+  const recency = createSwapRecency();
   const sorted = [...events].sort((a, b) =>
     a.created_at.localeCompare(b.created_at)
   );
@@ -1414,7 +1416,9 @@ export function replayGame(events: GameEvent[]): GameState {
       // moved them since the event's zone was read).
       const offZone = off ? zoneOf(state.lineup, off) : null;
       const z = offZone ?? meta.zone;
-      if (zoneOf(state.lineup, on)) {
+      const duplicate = !!zoneOf(state.lineup, on);
+      const settle = duplicate ? () => {} : recency.swap(state, off, on, isUndoSwap(ev.metadata));
+      if (duplicate) {
         // Already on (a replayed duplicate): nothing to do.
       } else if (off && offZone) {
         closeStint(off, offZone, elapsed);
@@ -1442,6 +1446,7 @@ export function replayGame(events: GameEvent[]): GameState {
       // Stamp the absolute frame so it survives the next quarter_start
       // reset (which only zeroes the per-quarter stintStartMs).
       state.lastSubbedOnMs[on] = state.completedQuarterMs + elapsed;
+      settle();
     } else if (ev.type === "field_zone_swap" && state.lineup) {
       // Two on-field players swap zones (e.g. mid ↔ fwd). Mirrors the
       // store's applyFieldZoneSwap action: close each player's open

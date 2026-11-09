@@ -2326,7 +2326,33 @@ export function LiveGame({
     // one pair used to restart the clock and drop the rest (Stagehand,
     // 9 Nov 2026).
     persistSwap(s.off_player_id, s.on_player_id, s.zone, true, suggestions.length - 1);
-    showSwapToast(`${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`);
+    // Undo puts the kids back and the pair back in the plan: the swap
+    // back reopens the whole batch, so the clock still holds (Stagehand
+    // round 10: one pair couldn't be undone).
+    const batch = suggestions.length;
+    // The two kids' "just subbed" stamps from before the pair: put back
+    // with it, so the kid back on the bench isn't kept off for a rest
+    // (lib/live/swapRecency does the same for the replay).
+    const kids = [s.off_player_id, s.on_player_id];
+    const was = kids.map((id) => ({ id, on: localSubbedMs.on[id], off: localSubbedMs.off[id] }));
+    showSwapToast(
+      `${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`,
+      () => {
+        persistSwap(s.on_player_id, s.off_player_id, s.zone, true, batch, true);
+        setLocalSubbedMs((prev) => {
+          const on = { ...prev.on };
+          const off = { ...prev.off };
+          for (const w of was) {
+            if (w.on === undefined) delete on[w.id];
+            else on[w.id] = w.on;
+            if (w.off === undefined) delete off[w.id];
+            else off[w.id] = w.off;
+          }
+          return { on, off };
+        });
+      },
+      swapUndoLabel([{ off: s.off_player_id, on: s.on_player_id }], shortName),
+    );
     clearSelection();
   }
   function initials(full: string): string {

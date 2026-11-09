@@ -474,7 +474,7 @@ export function TouchLiveGame({
    * `manual`: made by hand, off the rotation's cadence, so the sub clock doesn't restart (AFL's rule).
    * `leftInBatch`: one pair of the planned sub, with this many still to make (the clock holds).
    */
-  function sub(offId: string | null, onId: string, line?: TouchLine, manual = false, leftInBatch = 0) {
+  function sub(offId: string | null, onId: string, line?: TouchLine, manual = false, leftInBatch = 0, undo = false) {
     setError(null);
     const input = {
       off_player_id: offId,
@@ -482,6 +482,7 @@ export function TouchLiveGame({
       ...(line ? { line } : {}),
       ...(leftInBatch > 0 ? { batch_left: leftInBatch } : {}),
       ...(manual ? { manual } : {}),
+      ...(undo ? { undo } : {}),
       ...at(),
     };
     write("recordTouchSwap", [auth, game.id, input], liveEvents.swap(input));
@@ -925,7 +926,11 @@ export function TouchLiveGame({
     // sub clock holds. It used to count as the whole rotation: the clock
     // restarted and the rest slid an interval later (Stagehand, 9 Nov 2026).
     sub(s.off_player_id, s.on_player_id, s.line, false, shownSubs.length - 1);
-    chrome.swapped(s.off_player_id, s.on_player_id);
+    // Undo puts the pair back in the plan: the swap back reopens the
+    // whole batch, so the clock still holds (Stagehand round 10).
+    const off = s.off_player_id;
+    const batch = shownSubs.length;
+    chrome.swapped(off, s.on_player_id, off ? () => sub(s.on_player_id, off, s.line, false, batch, true) : undefined);
     setSelectedId(null);
   }
   function makeAllPairs() {

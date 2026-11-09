@@ -630,10 +630,12 @@ export async function recordLeagueSwap(
     batch_left?: number;
     /** By hand, off the rotation's cadence: the sub clock doesn't restart (lib/live/subAnchor). */
     manual?: boolean;
+    /** Undo putting a swap back: no "just subbed" mark (lib/live/swapRecency). */
+    undo?: boolean;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {
-  const { batch_left, ...rest } = input;
+  const { batch_left, undo, ...rest } = input;
   const batchLeft = cleanBatchLeft(batch_left);
   return insertEvent(
     auth,
@@ -641,7 +643,7 @@ export async function recordLeagueSwap(
     "swap",
     {
       player_id: input.on_player_id,
-      metadata: { ...rest, ...(batchLeft ? { batch_left: batchLeft } : {}) },
+      metadata: { ...rest, ...(batchLeft ? { batch_left: batchLeft } : {}), ...(undo === true ? { undo: true } : {}) },
     },
     idempotencyKey,
   );

@@ -30,6 +30,7 @@
 
 import type { GameEvent, MixedGroup } from "@/lib/types";
 import { replayLocks, type PlayerLock } from "@/lib/live/locks";
+import { createSwapRecency, isUndoSwap } from "@/lib/live/swapRecency";
 import { takeUndoTarget } from "@/lib/live/scoreUndo";
 import { normalizeTouchLineup, touchLineOf, type TouchLineup } from "@/lib/sports/touch/lineup";
 import { TOUCH_LINES, type TouchLine } from "@/lib/sports/touch/types";
@@ -228,6 +229,7 @@ export function replayTouchGame(events: GameEvent[], opts: ReplayTouchOptions = 
   // Where a kid who left stood (lane and place in it), so their
   // replacement takes the same spot rather than the end of a lane.
   const vacated: Record<string, { line: TouchLine; index: number }> = {};
+  const recency = createSwapRecency();
   const leaveField = (lu: TouchLineup, pid: string) => {
     const line = touchLineOf(lu, pid);
     if (!line) return;
@@ -307,6 +309,7 @@ export function replayTouchGame(events: GameEvent[], opts: ReplayTouchOptions = 
         const lu = state.lineup;
         const { off_player_id: off, on_player_id: on, line } = ev.metadata as SwapMeta;
         if (!lu || !on || touchLineOf(lu, on)) break; // nothing to do, or a replayed duplicate
+        const settle = recency.swap(state, off, on, isUndoSwap(ev.metadata));
         const offLine = off ? touchLineOf(lu, off) : null;
         if (off && offLine) {
           closeStint(off, elapsed);
@@ -330,6 +333,7 @@ export function replayTouchGame(events: GameEvent[], opts: ReplayTouchOptions = 
         delete vacated[on];
         openStint(lu, on, elapsed);
         state.lastSubbedOnMs[on] = absolute;
+        settle();
         break;
       }
 

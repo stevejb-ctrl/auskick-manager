@@ -1247,13 +1247,14 @@ export function LeagueLiveGame({
   // `manual`: made by hand, off the rotation's cadence, so the sub clock
   // doesn't restart (AFL's rule). `leftInBatch`: one pair of the planned
   // sub, with this many swaps still to make (the clock holds).
-  function sub(offId: string, onId: string, manual = false, leftInBatch = 0) {
+  function sub(offId: string, onId: string, manual = false, leftInBatch = 0, undo = false) {
     setError(null);
     const input = {
       off_player_id: offId,
       on_player_id: onId,
       ...(leftInBatch > 0 ? { batch_left: leftInBatch } : {}),
       ...(manual ? { manual } : {}),
+      ...(undo ? { undo } : {}),
       ...at(),
     };
     write("recordLeagueSwap", [auth, game.id, input], liveEvents.swap(input));
@@ -1858,7 +1859,11 @@ export function LeagueLiveGame({
       // (Stagehand, 9 Nov 2026). A fill is a lineup, not a swap: it never
       // moved the clock.
       sub(p.swap.off.playerId, p.swap.on.playerId, false, shownSwaps.length - 1);
-      chrome.swapped(p.swap.off.playerId, p.swap.on.playerId);
+      // Undo puts the pair back in the plan: the swap back reopens the
+      // whole batch, so the clock still holds (Stagehand round 10).
+      const { off, on } = p.swap;
+      const batch = shownSwaps.length;
+      chrome.swapped(off.playerId, on.playerId, () => sub(on.playerId, off.playerId, false, batch, true));
     }
     handleClearSelection();
   }

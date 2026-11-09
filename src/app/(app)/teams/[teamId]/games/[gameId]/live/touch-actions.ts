@@ -476,6 +476,8 @@ export async function recordTouchSwap(
     batch_left?: number;
     /** By hand, off the rotation's cadence: the sub clock doesn't restart (lib/live/subAnchor). */
     manual?: boolean;
+    /** Undo putting a swap back: no "just subbed" mark (lib/live/swapRecency). */
+    undo?: boolean;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {
@@ -495,6 +497,7 @@ export async function recordTouchSwap(
         elapsed_ms: input.elapsed_ms,
         ...(batchLeft ? { batch_left: batchLeft } : {}),
         ...(input.manual === true ? { manual: true } : {}),
+        ...(input.undo === true ? { undo: true } : {}),
       },
     },
     idempotencyKey,
