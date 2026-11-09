@@ -12,10 +12,14 @@ const settingsDialog = (page: Page) => page.getByRole("dialog", { name: "Game se
 /** Open the Game settings sheet (the status chip), if it isn't open. */
 export async function openGameSettings(page: Page): Promise<void> {
   const dialog = settingsDialog(page);
-  if (!(await dialog.isVisible())) {
-    await page.getByRole("button", { name: /^game settings:/i }).click();
-  }
-  await expect(dialog).toBeVisible();
+  // The sheet can still be sliding shut from a Done a moment ago: it reads
+  // visible, so no tap, then it's gone. Retry the tap until it stays open.
+  await expect(async () => {
+    if (!(await dialog.isVisible())) {
+      await page.getByRole("button", { name: /^game settings:/i }).click();
+    }
+    await expect(dialog).toBeVisible({ timeout: 1_500 });
+  }).toPass({ timeout: 10_000 });
 }
 
 /** Close the Game settings sheet (Done), if it's open. */
