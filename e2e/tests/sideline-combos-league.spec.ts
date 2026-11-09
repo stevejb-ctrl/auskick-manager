@@ -70,9 +70,12 @@ test("rugby league: lend a forward, fill the gap, a back is hurt and replaced, t
     expect.poll(async () => what(await events()), { timeout: 15_000 }).toBe(true);
   const tile = (pid: string) => page.getByTestId(`league-player-tile-${pid}`);
 
-  // H1: lend a forward.
+  // H1: lend a forward. A lend from the field asks who comes on, as
+  // AFL's (Stagehand round 9); this one plays short, so the spot stays
+  // empty.
   await tile(lent.id).click({ delay: 600 });
   await page.getByRole("button", { name: /lend to opposition/i }).click();
+  await page.getByRole("dialog", { name: /who comes on at/i }).getByRole("button", { name: "Lend without replacement" }).click();
   await landed((evs) => evs.some((e) => e.type === "player_loan" && e.player_id === lent.id));
 
   // Bring a bench kid into the gap: at once, then its toast (AFL's).
@@ -386,6 +389,9 @@ test("rugby league: after a lend, tapping the empty spot brings a bench kid on t
   const [lent, onKid] = [players[0], players[13]];
   await page.getByTestId(`league-player-tile-${lent.id}`).click({ delay: 600 });
   await page.getByRole("button", { name: /lend to opposition/i }).click();
+  // A lend from the field asks who comes on (Stagehand round 9); this one
+  // plays short, and the gap is filled from its empty slot below.
+  await page.getByRole("dialog", { name: /who comes on at/i }).getByRole("button", { name: "Lend without replacement" }).click();
   const lineupSets = async () => {
     const { data } = await admin
       .from("game_events")

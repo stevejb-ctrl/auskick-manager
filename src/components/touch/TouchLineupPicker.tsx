@@ -61,7 +61,7 @@ import {
   type TouchSeasonBalance,
 } from "@/lib/sports/touch/suggest";
 import { benchInTouchLineup, placeInTouchLineup, swapInTouchLineup } from "@/lib/sports/touch/live";
-import { MIXED_FAIRNESS_NOTE, mixedFieldMessage, mixedRuleSummary } from "@/lib/sports/touch/mixed";
+import { MIXED_FAIRNESS_NOTE, mixedCountLine, mixedFieldMessage, mixedRuleSummary } from "@/lib/sports/touch/mixed";
 import { TOUCH_LANES, type MixedRule, type TouchAgeGroupConfig, type TouchLine, type TouchStrategy } from "@/lib/sports/touch/types";
 import { MixedGroupPicker } from "@/components/squad/MixedGroupPicker";
 import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
@@ -286,6 +286,9 @@ export function TouchLineupPicker({
 
   const sizeOptions = Array.from({ length: ageGroup.maxOnFieldSize - ageGroup.minOnFieldSize + 1 }, (_, i) => ageGroup.minOnFieldSize + i);
   const lentPlayers = players.filter((p) => loanedIds.has(p.id));
+  // A mixed team's G and B on the kids, and the count beside the rule:
+  // the coach's view only, never the game-day link (auth "token").
+  const groupMark = mixedRule && auth.kind === "team" ? (id: string) => groups[id] ?? null : undefined;
   const actionPlayer = actionPlayerId ? (playerById.get(actionPlayerId) ?? null) : null;
   const actionOnField = actionPlayerId !== null && touchLineOf(lineup, actionPlayerId) !== null;
   const settingsSummary = [
@@ -317,7 +320,8 @@ export function TouchLineupPicker({
         >
           <p className="text-sm font-semibold text-ink">For the mixed rule, counts as:</p>
           <p className="mt-0.5 text-micro text-ink-dim">
-            Siren needs this to keep the boys&rsquo; cap. It&rsquo;s only used for the rule, and shows nowhere else.
+            Siren needs this to keep the boys&rsquo; cap. It&rsquo;s only used for the rule, as a small G or B on your
+            lineup. Parents never see it.
           </p>
           <ul className="mt-2 space-y-1.5">
             {ungrouped.map((p) => (
@@ -448,6 +452,12 @@ export function TouchLineupPicker({
 
       {/* Rule check, as AFL's lineup: the side against the rules before Start. */}
       <RuleCheckBar items={ruleItems} />
+      {groupMark && mixedRule && (
+        <p data-testid="touch-mixed-count" className="px-1 text-xs text-ink-dim">
+          <span className="mr-1.5 font-mono font-bold uppercase tracking-micro text-ink-mute">Mixed rule</span>
+          {mixedCountLine(fieldIds, mixedRule, groupMark)}
+        </p>
+      )}
 
       <TouchField
         lineup={lineup}
@@ -457,6 +467,7 @@ export function TouchLineupPicker({
         onLongPress={setActionPlayerId}
         selectedPlayerId={selectedId}
         dimUnselected={false}
+        groupOf={groupMark}
       />
       <TouchBench
         bench={lineup.bench}
@@ -466,6 +477,7 @@ export function TouchLineupPicker({
         selectedPlayerId={selectedId}
         dimUnselected={false}
         loanedIds={Array.from(loanedIds)}
+        groupOf={groupMark}
       />
       {mixedRule && <p className="px-1 text-micro text-ink-mute">{MIXED_FAIRNESS_NOTE}</p>}
 

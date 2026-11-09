@@ -28,7 +28,7 @@ import { KidSlot, KidTile, type KidOutKind } from "@/components/live/KidTile";
 import { KidBench } from "@/components/live/KidBench";
 import { InfoLine } from "@/components/live/InfoLine";
 import { PairsSheet, type SheetPair } from "@/components/live/PairsSheet";
-import { KidBar, TimeSplit } from "@/components/live/KidBar";
+import { KidBar, KidBarMore, TimeSplit } from "@/components/live/KidBar";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { LeagueWalkthroughOffer } from "@/components/live/WalkthroughOffer";
@@ -305,6 +305,8 @@ export function LeagueLiveGame({
     injuredId: string;
     zone: "forward" | "back";
     wentHome?: boolean;
+    /** Lent, not hurt: the same who-comes-on, as AFL's lend. */
+    lent?: boolean;
   } | null>(null);
 
 
@@ -536,11 +538,14 @@ export function LeagueLiveGame({
     [thisGameEvents, periodForVests],
   );
   const vestByPlayer = useMemo<Record<string, VestType>>(() => {
+    // A lent kid wears no vest of ours: the DH stayed drawn on a kid
+    // playing for the other team (Stagehand round 9). The vest is still
+    // theirs in the log until it's handed on (the missing-vest prompt).
     const map: Record<string, VestType> = {};
-    if (activeVests.fr) map[activeVests.fr] = "fr";
-    if (activeVests.dh) map[activeVests.dh] = "dh";
+    if (activeVests.fr && !loanedSet.has(activeVests.fr)) map[activeVests.fr] = "fr";
+    if (activeVests.dh && !loanedSet.has(activeVests.dh)) map[activeVests.dh] = "dh";
     return map;
-  }, [activeVests]);
+  }, [activeVests, loanedSet]);
   const vestRequired
     = Boolean(ageGroup.vestRequirements?.fr || ageGroup.vestRequirements?.dh);
 
@@ -1546,10 +1551,43 @@ export function LeagueLiveGame({
     // A lent kid stops being selected now: the next tap would swap them
     // on (Stagehand round 4).
     if (loaned) setSelectedPlayerId((s) => (s === playerId ? null : s));
+    // Lending a kid off the field asks who comes on, as AFL's does. It
+    // left a gap with no word (Stagehand round 9); with nobody on the
+    // bench the sheet says so and lends them short.
+    const zone: "forward" | "back" | null =
+      loaned && lineup && isPeriodActive
+        ? lineup.forwards.includes(playerId)
+          ? "forward"
+          : lineup.backs.includes(playerId)
+            ? "back"
+            : null
+        : null;
+    if (zone) {
+      setActionSheetPlayerId(null);
+      setInjuryReplacementModal({ injuredId: playerId, zone, lent: true });
+      return;
+    }
+    markLoan(playerId, loaned);
+    setActionSheetPlayerId(null);
+  }
+
+  function markLoan(playerId: string, loaned: boolean) {
     setError(null);
     const input = { player_id: playerId, loaned, ...at() };
     write("markLoan", [auth, game.id, input], liveEvents.loan(input));
-    setActionSheetPlayerId(null);
+  }
+
+  /**
+   * A lent kid's replacement: the swap first (the replacement takes the
+   * lent kid's slot, so the line keeps its shape; a loan drops the kid
+   * from their line and the swap would then have no slot to fill), then
+   * the loan on the kid now on the bench.
+   */
+  function handleLendReplacement(lentId: string, replacementId: string) {
+    setInjuryReplacementModal(null);
+    sub(lentId, replacementId);
+    markLoan(lentId, true);
+    chrome.swapped(lentId, replacementId);
   }
 
   function handleReplaceVestFromActionSheet() {
@@ -2216,22 +2254,13 @@ export function LeagueLiveGame({
               </svg>
               Injured
             </button>,
-            <button
+            <KidBarMore
               key="more"
-              type="button"
               onClick={() => {
                 handleClearSelection();
                 handlePlayerLongPress(pid);
               }}
-              className={btn("outlined")}
-            >
-              <svg viewBox="0 0 20 20" className="h-[16px] w-[16px]" aria-hidden>
-                <circle cx="4" cy="10" r="2" fill="currentColor" />
-                <circle cx="10" cy="10" r="2" fill="currentColor" />
-                <circle cx="16" cy="10" r="2" fill="currentColor" />
-              </svg>
-              More
-            </button>,
+            />,
           ];
           const pctLine = floor && subLaws.minGameTimePct ? minBarText(floor) : `${pctOfGame(totalMs, gameMs)}% of game`;
           return (
@@ -2900,11 +2929,22 @@ export function LeagueLiveGame({
         return (
           <InjuryReplacementModal
             injuredPlayer={injPlayer}
-            reason={injuryReplacementModal.wentHome ? "went_home" : "injured"}
+            reason={injuryReplacementModal.lent ? "lent" : injuryReplacementModal.wentHome ? "went_home" : "injured"}
             spotLabel={LEAGUE_SPOT_LABEL[injuryReplacementModal.zone]}
             candidates={candidates}
-            onPickReplacement={(rid) => handleInjuryReplacement(injuryReplacementModal.injuredId, rid, injuryReplacementModal.wentHome)}
-            onSkipReplacement={() => handleInjuryMarkOnly(injuryReplacementModal.injuredId, injuryReplacementModal.wentHome)}
+            onPickReplacement={(rid) =>
+              injuryReplacementModal.lent
+                ? handleLendReplacement(injuryReplacementModal.injuredId, rid)
+                : handleInjuryReplacement(injuryReplacementModal.injuredId, rid, injuryReplacementModal.wentHome)
+            }
+            onSkipReplacement={() => {
+              if (!injuryReplacementModal.lent) {
+                handleInjuryMarkOnly(injuryReplacementModal.injuredId, injuryReplacementModal.wentHome);
+                return;
+              }
+              setInjuryReplacementModal(null);
+              markLoan(injuryReplacementModal.injuredId, true);
+            }}
             onCancel={() => setInjuryReplacementModal(null)}
           />
         );

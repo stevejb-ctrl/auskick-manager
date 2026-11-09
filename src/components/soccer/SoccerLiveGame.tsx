@@ -58,7 +58,7 @@ import { KidSlot, KidTile, type KidOutKind } from "@/components/live/KidTile";
 import { KidBench } from "@/components/live/KidBench";
 import { InfoLine } from "@/components/live/InfoLine";
 import { PairsSheet, type SheetPair } from "@/components/live/PairsSheet";
-import { KidBar, TimeSplit } from "@/components/live/KidBar";
+import { KidBar, KidBarMore, TimeSplit } from "@/components/live/KidBar";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { StartBarButton } from "@/components/live/StartBarButton";
 import { WalkthroughOffer } from "@/components/live/WalkthroughOffer";
@@ -223,7 +223,8 @@ export function SoccerLiveGame({
   const [actionPlayerId, setActionPlayerId] = useState<string | null>(null);
   const [keeperPickerOpen, setKeeperPickerOpen] = useState(false);
   const [fillUnit, setFillUnit] = useState<SoccerUnit | null>(null);
-  const [injury, setInjury] = useState<{ injuredId: string; unit: SoccerUnit; wentHome?: boolean } | null>(null);
+  // A kid leaving the field (hurt, gone home or lent): who comes on.
+  const [injury, setInjury] = useState<{ injuredId: string; unit: SoccerUnit; wentHome?: boolean; lent?: boolean } | null>(null);
   const [subAckKey, setSubAckKey] = useState<string | null>(null);
   // Live v3: the ⋯ menu and the pairs sheet (one sheet at a time).
   const [menuOpen, setMenuOpen] = useState(false);
@@ -681,10 +682,11 @@ export function SoccerLiveGame({
     if (isPeriodActive && unit && swappableBench.length > 0) setInjury({ injuredId: pid, unit, wentHome });
     else markInjured(pid, true, wentHome);
   }
-  function injuryReplace(injuredId: string, replacementId: string, unit: SoccerUnit, wentHome = false) {
+  function injuryReplace(injuredId: string, replacementId: string, unit: SoccerUnit, wentHome = false, lent = false) {
     setInjury(null);
-    // In order, in the one game lane: the injury, then who comes on.
-    markInjured(injuredId, true, wentHome);
+    // In order, in the one game lane: the injury (or the loan), then who comes on.
+    if (lent) setLoan(injuredId, true);
+    else markInjured(injuredId, true, wentHome);
     sub(injuredId, replacementId, unit);
     chrome.swapped(injuredId, replacementId);
   }
@@ -693,6 +695,16 @@ export function SoccerLiveGame({
     const input = { player_id: pid, loaned, ...at() };
     write("markLoan", [auth, game.id, input], liveEvents.loan(input));
   };
+  /**
+   * Lending a kid off the field asks who comes on, as AFL's does (and as
+   * an injury does here). It left a gap with no word (Stagehand round
+   * 9); with nobody on the bench the sheet says so and lends them short.
+   */
+  function startLend(pid: string) {
+    const unit = state.lineup ? soccerUnitOf(state.lineup, pid) : null;
+    if (isPeriodActive && unit) setInjury({ injuredId: pid, unit, lent: true });
+    else setLoan(pid, true);
+  }
   const setHold = (pid: string, lock: { kind: "field" } | null) => {
     setError(null);
     const input = { player_id: pid, lock, ...at() };
@@ -1102,22 +1114,13 @@ export function SoccerLiveGame({
                 Injured
               </button>
             ),
-            <button
+            <KidBarMore
               key="more"
-              type="button"
               onClick={() => {
                 setSelectedId(null);
                 setActionPlayerId(pid);
               }}
-              className={btn("outlined")}
-            >
-              <svg viewBox="0 0 20 20" className="h-[16px] w-[16px]" aria-hidden>
-                <circle cx="4" cy="10" r="2" fill="currentColor" />
-                <circle cx="10" cy="10" r="2" fill="currentColor" />
-                <circle cx="16" cy="10" r="2" fill="currentColor" />
-              </svg>
-              More
-            </button>,
+            />,
           ];
           return (
             <KidBar
@@ -1541,7 +1544,8 @@ export function SoccerLiveGame({
           onToggleLoan={() => {
             const pid = actionPlayer.id;
             setActionPlayerId(null);
-            setLoan(pid, !loanedSet.has(pid));
+            if (loanedSet.has(pid)) setLoan(pid, false);
+            else startLend(pid);
           }}
           onSwitch={() => {
             setActionPlayerId(null);
@@ -1630,11 +1634,12 @@ export function SoccerLiveGame({
               injuredPlayer={injured}
               spotLabel={words[injury.unit].label}
               candidates={candidates}
-              reason={injury.wentHome ? "went_home" : "injured"}
-              onPickReplacement={(rid) => injuryReplace(injury.injuredId, rid, injury.unit, injury.wentHome)}
+              reason={injury.lent ? "lent" : injury.wentHome ? "went_home" : "injured"}
+              onPickReplacement={(rid) => injuryReplace(injury.injuredId, rid, injury.unit, injury.wentHome, injury.lent)}
               onSkipReplacement={() => {
                 setInjury(null);
-                markInjured(injury.injuredId, true, injury.wentHome);
+                if (injury.lent) setLoan(injury.injuredId, true);
+                else markInjured(injury.injuredId, true, injury.wentHome);
               }}
               onCancel={() => setInjury(null)}
             />

@@ -384,7 +384,9 @@ export default function RotationsPage() {
           numbers. Then mark each kid <strong className="text-ink">Girl</strong>{" "}
           or <strong className="text-ink">Boy</strong> on the Squad tab (Siren
           asks at the lineup for anyone you missed, and when you add a
-          fill-in). It&apos;s used only for the rule and shows nowhere else.
+          fill-in). It&apos;s used only for the rule: a small G or B on each
+          kid in your lineup and live game, so you can follow the cap. Parents
+          and the game-day link never see it.
         </p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
           <li>

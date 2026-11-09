@@ -41,7 +41,7 @@ import { KidTile, KidSlot, type KidOutKind } from "@/components/live/KidTile";
 import { KidBench } from "@/components/live/KidBench";
 import { FieldLines, type FieldLine } from "@/components/live/FieldLines";
 import { InfoLine } from "@/components/live/InfoLine";
-import { KidBar, TimeSplit } from "@/components/live/KidBar";
+import { KidBar, KidBarMore, TimeSplit } from "@/components/live/KidBar";
 import { barButton } from "@/components/live/barButtons";
 import { PlanNextChip } from "@/components/live/PlanNextChip";
 import { StartBarButton } from "@/components/live/StartBarButton";
@@ -1609,7 +1609,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // long-press.
   const startLeaving = (playerId: string, positionId: string | null, reason: "injured" | "lent" | "subbed" | "went_home") => {
     closeActions();
-    if (positionId && benchCandidates.length > 0) {
+    // A lend always asks, as AFL's does: with nobody on the bench the
+    // sheet says so, never a silent empty bib (Stagehand round 9).
+    if (positionId && (benchCandidates.length > 0 || reason === "lent")) {
       setLeaving({ playerId, positionId, reason });
       return;
     }
@@ -2438,22 +2440,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               </svg>
               Injured
             </button>,
-            <button
+            <KidBarMore
               key="more"
-              type="button"
               onClick={() => {
                 setSelected(null);
                 setActionsTarget({ playerId: pid, positionId: posId });
               }}
-              className={btn("outlined")}
-            >
-              <svg viewBox="0 0 20 20" className="h-[16px] w-[16px]" aria-hidden>
-                <circle cx="4" cy="10" r="2" fill="currentColor" />
-                <circle cx="10" cy="10" r="2" fill="currentColor" />
-                <circle cx="16" cy="10" r="2" fill="currentColor" />
-              </svg>
-              More
-            </button>,
+            />,
           ];
           return (
             <KidBar

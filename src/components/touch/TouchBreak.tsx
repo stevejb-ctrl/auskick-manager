@@ -7,8 +7,8 @@
 // PeriodBreak): Middles / Links / Wings (or one Field under Minutes
 // only) / Bench, "2nd half" words. A mixed team's side is the size its
 // rule allows, and a plan that breaks the rule (too many boys, too few
-// girls) shows as a broken rule; who counts as a girl or a boy is never
-// drawn on a tile. The plan is staged in the shared break draft (so it
+// girls) shows as a broken rule; the coach sees each kid's G or B and
+// the boys' count (never on the game-day link). The plan is staged in the shared break draft (so it
 // survives a reload or the app being backgrounded) and Start commits it
 // as one lineup_set before the half. The layout lives in PeriodBreak.
 
@@ -45,7 +45,8 @@ import {
 } from "@/lib/sports/touch/suggest";
 import { benchOutInTouchLineup, placeInTouchLineup, swapInTouchLineup } from "@/lib/sports/touch/live";
 import { TOUCH_LANES, type TouchAgeGroupConfig, type TouchLine, type TouchStrategy } from "@/lib/sports/touch/types";
-import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
+import type { Game, GameEvent, LiveAuth, MixedGroup, Player } from "@/lib/types";
+import { mixedCountLine } from "@/lib/sports/touch/mixed";
 import type { SportId } from "@/lib/sports/types";
 
 const GROUPS = ["middle", "link", "wing", "field"] as const;
@@ -340,6 +341,15 @@ export function TouchBreak({
   const canPlay = squad.filter((p) => !sidelinedSet.has(p.id));
   const onFieldNow = touchOnField(draft).filter((id) => !sidelinedSet.has(id));
   const benchNow = draft.bench.filter((id) => !sidelinedSet.has(id));
+  // A mixed team's G and B, and the count beside the rule, as in play:
+  // the coach's view only, never the game-day link (auth "token").
+  const showGroups = !!mixed && auth.kind === "team";
+  const groups: Record<string, MixedGroup> | undefined = showGroups
+    ? Object.fromEntries(squad.flatMap((p) => {
+        const g = mixed!.groupOf(p.id);
+        return g ? [[p.id, g] as const] : [];
+      }))
+    : undefined;
 
   return (
     <PeriodBreak
@@ -352,6 +362,15 @@ export function TouchBreak({
       gameMs={gameMs}
       scores={scores}
       sidelined={sidelined}
+      groups={groups}
+      banner={
+        showGroups ? (
+          <p data-testid="touch-mixed-count" className="text-center text-xs text-ink-dim">
+            <span className="mr-1.5 font-mono font-bold uppercase tracking-micro text-ink-mute">Mixed rule</span>
+            {mixedCountLine(onFieldNow, mixed!.rule, mixed!.groupOf)}
+          </p>
+        ) : undefined
+      }
       onSwap={(a, b) => {
         replan.placedByHand();
         setDraft((d) => swapSlots(d, a, b));

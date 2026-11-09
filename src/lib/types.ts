@@ -229,7 +229,7 @@ export interface Player {
   chip?: PlayerChip | null;
   /**
    * Who a kid counts as under a mixed team's rule (migration 0071).
-   * Asked only on mixed teams and shown nowhere else.
+   * Asked only on mixed teams, and shown only to the coach (MixedMark).
    */
   mixed_group?: MixedGroup | null;
   created_by: string;

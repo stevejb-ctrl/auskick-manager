@@ -14,6 +14,8 @@
 import { useLongPress } from "@/lib/live/useLongPress";
 import { tileName } from "@/components/live/tileName";
 import { ZONE_SWATCH, ZONE_TEXT, type BreakColor } from "@/components/quarter-break/breakZoneTokens";
+import { MixedMark, mixedMarkSpoken } from "@/components/live/MixedMark";
+import type { MixedGroup } from "@/lib/types";
 
 export interface BreakTileModel {
   playerId: string | null;
@@ -27,6 +29,8 @@ export interface BreakTileModel {
   score?: { text: string; label: string };
   /** Small notes after the name (basketball fouls, a league vest). */
   tags?: string[];
+  /** A mixed team's G or B (MixedMark), coach view only. */
+  group?: MixedGroup;
   /** "Stays" / "From Fwd" / "From bench", or the sidelined status. */
   movement: string;
   fromColor: BreakColor;
@@ -86,7 +90,7 @@ export function BreakPlayerTile({ tile, testId, selected, target, onTap, onLongP
         place: tile.tagIsBib ? tile.tag : null,
         number: tile.tagIsBib ? null : tile.tag || null,
         time: tile.time,
-        states: [tile.movement, ...(tile.tags ?? []), tile.score?.label, tile.lowTime && "Low game time"],
+        states: [mixedMarkSpoken(tile.group), tile.movement, ...(tile.tags ?? []), tile.score?.label, tile.lowTime && "Low game time"],
       })}
       disabled={tile.sidelined}
       className={`flex min-h-[56px] w-full min-w-0 flex-col justify-center gap-[3px] rounded-[12px] border-2 px-[10px] py-[8px] text-left text-ink transition-colors duration-fast ease-out-quart disabled:cursor-not-allowed disabled:opacity-55 ${border} ${
@@ -102,6 +106,7 @@ export function BreakPlayerTile({ tile, testId, selected, target, onTap, onLongP
           </span>
         )}
         <span className="min-w-0 flex-1 truncate whitespace-nowrap text-[0.9375rem] font-semibold">{tile.name}</span>
+        {tile.group && <MixedMark group={tile.group} className="self-center text-ink" />}
         {tile.tags?.map((t) => (
           <span key={t} className="shrink-0 font-mono text-nano font-bold uppercase text-ink-dim">
             {t}

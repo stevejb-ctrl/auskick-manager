@@ -46,7 +46,7 @@ import { KidBench } from "@/components/live/KidBench";
 import { FieldLines, type FieldLine } from "@/components/live/FieldLines";
 import { InfoLine } from "@/components/live/InfoLine";
 import { PairsSheet, type SheetPair } from "@/components/live/PairsSheet";
-import { KidBar, TimeSplit } from "@/components/live/KidBar";
+import { KidBar, KidBarMore, TimeSplit } from "@/components/live/KidBar";
 import { StartBarButton } from "@/components/live/StartBarButton";
 import { WalkthroughOffer } from "@/components/live/WalkthroughOffer";
 import { buildSharedWalkthroughSteps } from "@/components/live/WalkthroughModal";
@@ -240,7 +240,7 @@ export function BasketballLiveGame({
   const [leaving, setLeaving] = useState<{
     playerId: string;
     line: BasketballLine;
-    reason: "injured" | "fouled_out" | "sitting_out" | "went_home";
+    reason: "injured" | "fouled_out" | "sitting_out" | "went_home" | "lent";
     /** Opened by the foul that reached the limit: Cancel takes it back. */
     fromFoul?: boolean;
   } | null>(null);
@@ -633,7 +633,7 @@ export function BasketballLiveGame({
     return squad.filter((p) => !placed.has(p.id));
   }, [squad, state.lineup, isFinished]);
 
-  type Leaving = "injured" | "fouled_out" | "sitting_out" | "went_home";
+  type Leaving = "injured" | "fouled_out" | "sitting_out" | "went_home" | "lent";
   function markInjured(pid: string, injured: boolean, reason?: string) {
     setError(null);
     const input = { player_id: pid, injured, ...at(), ...(reason ? { reason } : {}) };
@@ -642,7 +642,9 @@ export function BasketballLiveGame({
   /** A kid leaves the court (hurt, fouled out, sat out): pick who comes on. */
   function startLeaving(pid: string, reason: Leaving, fromFoul = false) {
     const line = state.lineup ? basketballLineOf(state.lineup, pid) : null;
-    if (isPeriodActive && line && swappableBench.length > 0) {
+    // A lend always asks, as AFL's does: with nobody on the bench the
+    // sheet says so, never a silent gap (Stagehand round 9).
+    if (isPeriodActive && line && (swappableBench.length > 0 || reason === "lent")) {
       setLeaving({ playerId: pid, line, reason, fromFoul });
       return;
     }
@@ -654,7 +656,9 @@ export function BasketballLiveGame({
     write("recordBasketballSitOut", [auth, game.id, input], sitOutEvent(input));
   }
   function leaveNow(pid: string, reason: Leaving, replaced = false) {
-    if (reason === "sitting_out") {
+    if (reason === "lent") {
+      setLoan(pid, true);
+    } else if (reason === "sitting_out") {
       setError(null);
       const input = { player_id: pid, duration_ms: SIT_OUT_MS, ...at() };
       write("recordBasketballSitOut", [auth, game.id, input], sitOutEvent(input));
@@ -1188,22 +1192,13 @@ export function BasketballLiveGame({
               </svg>
               Injured
             </button>,
-            <button
+            <KidBarMore
               key="more"
-              type="button"
               onClick={() => {
                 setSelectedId(null);
                 setActionPlayerId(pid);
               }}
-              className={btn("outlined")}
-            >
-              <svg viewBox="0 0 20 20" className="h-[16px] w-[16px]" aria-hidden>
-                <circle cx="4" cy="10" r="2" fill="currentColor" />
-                <circle cx="10" cy="10" r="2" fill="currentColor" />
-                <circle cx="16" cy="10" r="2" fill="currentColor" />
-              </svg>
-              More
-            </button>,
+            />,
           ];
           // Fouls step both ways (Steve 2026-10-22: "Need to be able to
           // undo fouls in basketball"): − takes the last one back, + Foul
@@ -1641,7 +1636,8 @@ export function BasketballLiveGame({
           onToggleLoan={() => {
             const pid = actionPlayer.id;
             setActionPlayerId(null);
-            setLoan(pid, !loanedSet.has(pid));
+            if (loanedSet.has(pid)) setLoan(pid, false);
+            else startLeaving(pid, "lent");
           }}
           onSwitch={() => {
             setActionPlayerId(null);

@@ -43,6 +43,13 @@ interface InjuryReplacementModalProps {
    * switch (netball), or a kid going home. The flow is the same.
    */
   reason?: "injured" | "fouled_out" | "sitting_out" | "lent" | "subbed" | "went_home";
+  /**
+   * What to say when nobody can come on (the default: nobody on the
+   * bench). The sheet still opens for a lend, so the gap is never
+   * silent: lending a kid with an empty bench left a hole on the field
+   * with no word (Stagehand round 9). Touch's mixed team says why.
+   */
+  emptyMessage?: string;
 }
 
 const REASON_WORDS = {
@@ -50,7 +57,7 @@ const REASON_WORDS = {
   went_home: { eyebrow: (n: string) => `${n} is going home`, skip: "Play one short" },
   fouled_out: { eyebrow: (n: string) => `${n} has fouled out`, skip: "Play one short" },
   sitting_out: { eyebrow: (n: string) => `${n} sits out`, skip: "Play one short" },
-  lent: { eyebrow: (n: string) => `Lending ${n} to the opposition`, skip: "Lend without replacement" },
+  lent: { eyebrow: (n: string) => `Lending ${n} to the opposition`, skip: "Lend without replacement", skipEmpty: "Lend and play one short" },
   subbed: { eyebrow: (n: string) => `Taking ${n} off`, skip: "Take off without a replacement" },
 } as const;
 
@@ -76,10 +83,13 @@ export function InjuryReplacementModal({
   onCancel,
   cancelLabel = "Cancel",
   reason = "injured",
+  emptyMessage = "Nobody on the bench can come on.",
 }: InjuryReplacementModalProps) {
   const names = useSquadNames();
   const firstName = names.first(injuredPlayer);
-  const words = REASON_WORDS[reason];
+  const words: { eyebrow: (n: string) => string; skip: string; skipEmpty?: string } = REASON_WORDS[reason];
+  const empty = candidates.length === 0;
+  const skipLabel = empty ? words.skipEmpty ?? words.skip : words.skip;
 
   return (
     <Modal labelledBy="injury-replacement-title" padding="p-0" className="max-h-[85vh]">
@@ -91,11 +101,17 @@ export function InjuryReplacementModal({
             id="injury-replacement-title"
             className="mb-1 text-center text-base font-bold text-ink"
           >
-            Who comes on at {spotLabel}?
+            {empty ? `Nobody to bring on at ${spotLabel}` : `Who comes on at ${spotLabel}?`}
           </h2>
-          <p className="mb-4 text-center text-xs text-ink-dim">
-            Pick a player from the bench. Suggested = least field time so far.
-          </p>
+          {empty ? (
+            <p data-testid="replacement-empty" className="mb-4 text-center text-sm text-ink">
+              {emptyMessage} You&apos;ll play one short until someone can.
+            </p>
+          ) : (
+            <p className="mb-4 text-center text-xs text-ink-dim">
+              Pick a player from the bench. Suggested = least field time so far.
+            </p>
+          )}
         </div>
 
         {/* Candidates list — scrolls if many bench players. */}
@@ -148,7 +164,7 @@ export function InjuryReplacementModal({
             onClick={onSkipReplacement}
             className="w-full rounded-md border border-hairline py-2 text-xs font-semibold text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-surface-alt hover:text-ink"
           >
-            {words.skip}
+            {skipLabel}
           </button>
           <button
             type="button"

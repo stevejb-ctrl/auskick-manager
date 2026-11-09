@@ -184,9 +184,9 @@ export interface LockModalAction {
 function lockModalIntro(can: { switch: boolean; lock: boolean; injure: boolean; lend: boolean }): string {
   const parts: string[] = [];
   if (can.switch) parts.push("switch them out");
+  if (can.lend) parts.push("lend them to the opposition");
   if (can.lock) parts.push("lock them in place");
   if (can.injure) parts.push("flag an injury");
-  if (can.lend) parts.push("lend them to the opposition");
   if (parts.length === 0) return "";
   const text = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")}, or ${parts[parts.length - 1]}`;
   return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
@@ -471,6 +471,29 @@ export function LockModal({
                   </span>
                 </button>
               )}
+              {/* Lend, next after Switch (and a vest's Replace): it sat at
+                  the foot of the list and coaches scrolled past it
+                  (Stagehand round 9). */}
+              {onToggleLoan && (
+                <button
+                  type="button"
+                  data-testid="lock-modal-lend"
+                  onClick={onToggleLoan}
+                  className="flex w-full flex-col items-center rounded-md border border-hairline px-4 py-3 text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+                >
+                  <span className="text-sm font-bold">Lend to opposition</span>
+                  <span className="mt-0.5 text-center text-xs text-ink-dim">
+                    {loanedLabel === null ? (
+                      "Plays for the other team until you bring them back"
+                    ) : (
+                      <>
+                        Season total: <span className="font-semibold text-ink">{loanedLabel}m</span>
+                        {squadLabel > 0 && <> · squad avg {squadLabel}m</>}
+                      </>
+                    )}
+                  </span>
+                </button>
+              )}
               {extraActions?.map(actionButton)}
               {/* RL only — flip between Forwards and Backs without
                   benching. Coach uses this to reshape the field
@@ -604,25 +627,6 @@ export function LockModal({
                   </span>
                 </button>
               )}
-              {onToggleLoan && (
-                <button
-                  type="button"
-                  onClick={onToggleLoan}
-                  className="flex w-full flex-col items-center rounded-md border border-hairline px-4 py-3 text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
-                >
-                  <span className="text-sm font-bold">Lend to opposition</span>
-                  <span className="mt-0.5 text-center text-xs text-ink-dim">
-                    {loanedLabel === null ? (
-                      "Plays for the other team until you bring them back"
-                    ) : (
-                      <>
-                        Season total: <span className="font-semibold text-ink">{loanedLabel}m</span>
-                        {squadLabel > 0 && <> · squad avg {squadLabel}m</>}
-                      </>
-                    )}
-                  </span>
-                </button>
-                )}
               {insightBlock}
               <button
                 type="button"

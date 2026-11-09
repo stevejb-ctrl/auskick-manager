@@ -16,12 +16,13 @@
 // lib/live/rollingSubs.ts.
 
 import { memo, useEffect, useId, useRef, useState, type ReactNode } from "react";
-import type { Player } from "@/lib/types";
+import type { MixedGroup, Player } from "@/lib/types";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
 import { useSquadNames } from "@/components/live/SquadNames";
 import { KeepOnMarker } from "@/components/playbook/KeepOnMarker";
 import { tileName } from "@/components/live/tileName";
+import { MixedMark, mixedMarkSpoken } from "@/components/live/MixedMark";
 
 /** How a sport draws one of its lines on a tile. */
 export interface TileLineStyle {
@@ -88,6 +89,8 @@ export interface LinePlayerTileProps {
    * before the swap.
    */
   ruleNote?: string | null;
+  /** A mixed team's G or B (MixedMark), coach view only. */
+  group?: MixedGroup | null;
 }
 
 function formatMinSec(ms: number): string {
@@ -124,6 +127,7 @@ function LinePlayerTileImpl({
   keepOn = false,
   testId,
   ruleNote = null,
+  group = null,
 }: LinePlayerTileProps) {
   const { handlers: longPressHandlers, arming: longPressArming, consumedLongPress } = useLongPress({ onLongPress });
   const ruleNoteId = useId();
@@ -206,6 +210,7 @@ function LinePlayerTileImpl({
       isOn && `Going on${swapStyle?.short ? ` to ${swapStyle.label}` : ""}, pair ${swap?.pair}`,
       isOff && `Coming off next, pair ${swap?.pair}`,
       !isOff && score?.label,
+      mixedMarkSpoken(group),
       extraChipLabel,
       injured && "Injured",
       loaned && !injured && "Lent to opposition",
@@ -282,6 +287,7 @@ function LinePlayerTileImpl({
                 {score.text}
               </span>
             )}
+            {group && <MixedMark group={group} className="text-ink" />}
             {extraChip}
             {injured ? (
               <span className={`${CHIP} ${wentHome ? "bg-ink-mute" : "bg-danger"} tracking-micro text-white`} aria-label={wentHome ? "Went home" : "Injured"}>
@@ -404,7 +410,8 @@ function areEqual(a: LinePlayerTileProps, b: LinePlayerTileProps): boolean {
     a.score?.text !== b.score?.text ||
     a.swapDue !== b.swapDue ||
     a.extraChip !== b.extraChip ||
-    a.extraChipLabel !== b.extraChipLabel
+    a.extraChipLabel !== b.extraChipLabel ||
+    a.group !== b.group
   ) {
     return false;
   }

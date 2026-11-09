@@ -27,7 +27,7 @@ import { FieldLines, OvalMarks, type FieldLine } from "@/components/live/FieldLi
 import { KidBench } from "@/components/live/KidBench";
 import { InfoLine } from "@/components/live/InfoLine";
 import { PairsSheet, type SheetPair } from "@/components/live/PairsSheet";
-import { KidBar, TimeSplit } from "@/components/live/KidBar";
+import { KidBar, KidBarMore, TimeSplit } from "@/components/live/KidBar";
 import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
 import { barButton, BAR_SMALL } from "@/components/live/barButtons";
 import { kidWords, type KidOut, type KidSubRole } from "@/lib/live/kidWords";
@@ -2477,22 +2477,13 @@ export function LiveGame({
                 Injured
               </button>
             ),
-            <button
+            <KidBarMore
               key="more"
-              type="button"
               onClick={() => {
                 clearSelection();
                 handleLongPress(pid);
               }}
-              className={btn("outlined")}
-            >
-              <svg viewBox="0 0 20 20" className="h-[16px] w-[16px]" aria-hidden>
-                <circle cx="4" cy="10" r="2" fill="currentColor" />
-                <circle cx="10" cy="10" r="2" fill="currentColor" />
-                <circle cx="16" cy="10" r="2" fill="currentColor" />
-              </svg>
-              More
-            </button>,
+            />,
           ];
           const columns = actions.length + (lock ? 1 : 0);
           return (
@@ -3181,8 +3172,10 @@ export function LiveGame({
             onToggleLoan={() => {
               // Lending a kid off the field asks who comes on, as an injury
               // does; it left the spot empty with no word (Stagehand round 7).
+              // Nobody on the bench: the sheet still opens and says so, and
+              // the coach lends them to play one short (Stagehand round 9).
               const onFieldZone = !isLoaned && ALL_ZONES.find((z) => lineup[z].includes(lockModal.playerId));
-              if (onFieldZone && lineup.bench.some((id) => !injuredIds.includes(id) && !loanedIds.includes(id))) {
+              if (onFieldZone) {
                 setInjuryReplacementModal({ injuredId: lockModal.playerId, zone: onFieldZone, reason: "lent" });
                 setLockModal(null);
                 return;
