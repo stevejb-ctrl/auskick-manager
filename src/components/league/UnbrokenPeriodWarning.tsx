@@ -45,8 +45,12 @@ interface UnbrokenPeriodWarningProps {
   shortName?: (p: Player) => string;
 }
 
-/** Characters a banner line holds at 390 px (13 px type). */
-const LINE_CHARS = 44;
+/**
+ * Characters a banner line holds at 390 px (13 px type). At 44 the
+ * line read "Play all next half: Zara Q, Eli S, +2" across half its
+ * width; four tile names fit. The line still truncates past it.
+ */
+const LINE_CHARS = 50;
 
 export function UnbrokenPeriodWarning({
   sport,
