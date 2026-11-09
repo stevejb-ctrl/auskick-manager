@@ -1888,6 +1888,7 @@ export function LeagueLiveGame({
       subsDoneThisPeriod,
       out,
       inPlay,
+      lastPeriod: isLastPeriod,
     });
     const tries = state.playerTries[pid] ?? 0;
     const kicks = conversionByPlayer[pid]?.attemptsInCycle ?? 0;

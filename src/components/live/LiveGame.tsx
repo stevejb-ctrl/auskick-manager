@@ -2092,6 +2092,7 @@ export function LiveGame({
       subsDoneThisPeriod,
       out: out?.out ?? null,
       inPlay,
+      lastPeriod: isLastPeriod,
     });
     const isSelected = selected?.playerId === pid;
     const score = playerScores[pid];

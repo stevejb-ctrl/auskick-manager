@@ -806,6 +806,7 @@ export function SoccerLiveGame({
       subsDoneThisPeriod: subsDone,
       out,
       inPlay,
+      lastPeriod: base.currentPeriod >= ageGroup.periodCount,
     });
     const goals = state.playerGoals[pid] ?? 0;
     const lock = out ? null : lockModes[pid] ?? null;
