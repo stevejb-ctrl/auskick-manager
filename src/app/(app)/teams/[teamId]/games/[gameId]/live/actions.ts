@@ -1020,6 +1020,8 @@ export async function recordSwap(
     batch_left?: number;
     /** "Undo swaps" putting one of a batch back: nets to zero subs. */
     undo?: boolean;
+    /** Big fields: the empty position the kid came on into (lib/live/positionSeats). */
+    position?: string;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {
@@ -1256,6 +1258,53 @@ export async function recordFieldZoneSwap(
     gameId,
     "field_zone_swap",
     { player_id: input.player_a_id, metadata: input },
+    idempotencyKey,
+  );
+}
+
+// AFL big fields (live v3, Phase 11; migration 0078): two kids on the
+// field trade named positions (CHB ↔ FB), or one moves to an empty
+// position (player_b_id null). Not a sub: the sub clock and the swap
+// count don't move. Across lines the replay moves them between lines as
+// a field_zone_swap does (lib/live/positionSwap). Undo writes the change
+// back as its own position_swap, marked `undo`.
+export async function recordPositionSwap(
+  auth: LiveAuth,
+  gameId: string,
+  input: {
+    player_a_id: string;
+    player_b_id: string | null;
+    position_a: string;
+    position_b: string;
+    zone_a: Zone;
+    zone_b: Zone;
+    quarter: number;
+    elapsed_ms: number;
+    undo?: boolean;
+  },
+  idempotencyKey?: string,
+): Promise<ActionResult> {
+  if (!input.player_a_id || !input.position_b || input.player_a_id === input.player_b_id) {
+    return { success: false, error: "That position change doesn't add up." };
+  }
+  return insertEvent(
+    auth,
+    gameId,
+    "position_swap",
+    {
+      player_id: input.player_a_id,
+      metadata: {
+        player_a_id: input.player_a_id,
+        player_b_id: input.player_b_id ?? null,
+        position_a: input.position_a,
+        position_b: input.position_b,
+        zone_a: input.zone_a,
+        zone_b: input.zone_b,
+        quarter: input.quarter,
+        elapsed_ms: input.elapsed_ms,
+        ...(input.undo ? { undo: true } : {}),
+      },
+    },
     idempotencyKey,
   );
 }

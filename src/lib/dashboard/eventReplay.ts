@@ -7,6 +7,7 @@
  */
 import { FILL_IN_STATS_ID, normalizeLineup, type GameEvent, type Lineup, type Zone } from "@/lib/types";
 import { ALL_ZONES, swapFieldPlayers } from "@/lib/fairness";
+import { positionSwapAsZoneSwap } from "@/lib/live/positionSwap";
 import { type GameSnapshot, type LineupPeriod, type ZoneMs, emptyZoneMs } from "./types";
 
 type ActiveStint = { zone: Zone; startMs: number };
@@ -132,7 +133,9 @@ export function replayGame(
     });
   }
 
-  for (const ev of sorted) {
+  for (const raw of sorted) {
+    // A position change across lines (AFL big fields) is a zone swap here.
+    const ev = positionSwapAsZoneSwap(raw) ?? raw;
     const meta = ev.metadata as Record<string, unknown>;
     const elapsed = clampMs(typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0);
     // Stamp a player's first appearance (absolute game-elapsed = finished

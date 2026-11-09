@@ -7,8 +7,11 @@
 // off, and kids trading places trade seats. Pure.
 //
 // position_swap (two kids trading named positions, or one moving to an
-// empty spot) isn't recorded yet; the type below is its shape, so the
-// replay already handles it when the event lands.
+// empty spot; migration 0078) moves seats. A kid coming on into an empty
+// spot takes the one the swap names (`position`), if it's free.
+//
+// The live store keeps the same seats as the game goes (fitSeats after
+// each change), and the page seeds it from this replay.
 
 import { normalizeLineup, type GameEvent, type Lineup, type Zone } from "@/lib/types";
 import { assignPositionKeys, type AflPlaybookInput } from "@/lib/sports/afl/engine";
@@ -140,10 +143,12 @@ export function replaySeats(events: readonly SeatEvent[], input: SeatInput): Sea
           seats = seatSub(seats, off, on);
           break;
         }
-        // Into an empty spot: where the off kid stood if they already left
-        // (an injury or loan landed first), else the first free one.
+        // Into an empty spot: the one the coach tapped, else where the off
+        // kid stood if they already left (an injury or loan landed first),
+        // else the first free one.
         const zone = zoneOf(meta.zone);
-        if (zone) seats = seatFill(seats, on, LINE_OF_ZONE[zone], input.positions, off ? lastSeat[off] : null);
+        const named = typeof meta.position === "string" ? meta.position : null;
+        if (zone) seats = seatFill(seats, on, LINE_OF_ZONE[zone], input.positions, named ?? (off ? lastSeat[off] : null));
         break;
       }
       case "field_zone_swap": {
@@ -198,4 +203,52 @@ export function seatLabels(seats: Seats | null, positions: readonly SeatPosition
   const label = new Map(positions.map((p) => [p.key, p.label]));
   for (const [key, pid] of Object.entries(seats)) if (pid) out[pid] = label.get(key) ?? key;
   return out;
+}
+
+/** The line a zone counts as (half-back is back). */
+export function lineOfZone(zone: Zone): Zone {
+  return LINE_OF_ZONE[zone];
+}
+
+/**
+ * The seats made to fit the lineup: a seat whose kid isn't on the field
+ * any more empties, and a kid on the field with no seat takes a free one
+ * on their line (formation order), as a sub into an empty spot does.
+ * Seats already right are left alone, so a fitted map fits again
+ * unchanged. Kids a line has no seat for (more on it than its
+ * positions) come back in `spare`, line by line, to be drawn after it.
+ */
+export function fitSeats(
+  seats: Seats | null,
+  lineup: Lineup,
+  positions: readonly SeatPosition[],
+): { seats: Seats; spare: Partial<Record<Zone, string[]>> } {
+  const onLine = new Map<string, Zone>();
+  for (const z of Object.keys(LINE_OF_ZONE) as Zone[]) for (const pid of lineup[z] ?? []) onLine.set(pid, LINE_OF_ZONE[z]);
+  const out: Seats = {};
+  for (const p of positions) {
+    const who = seats?.[p.key] ?? null;
+    // On the field, on this seat's line, and not seated twice.
+    out[p.key] = who && onLine.get(who) === p.line && !Object.values(out).includes(who) ? who : null;
+  }
+  const seated = new Set(Object.values(out).filter((v): v is string => !!v));
+  const spare: Partial<Record<Zone, string[]>> = {};
+  for (const [pid, line] of Array.from(onLine.entries())) {
+    if (seated.has(pid)) continue;
+    const free = positions.find((p) => p.line === line && out[p.key] === null);
+    if (free) {
+      out[free.key] = pid;
+      seated.add(pid);
+    } else {
+      (spare[line] ??= []).push(pid);
+    }
+  }
+  return { seats: out, spare };
+}
+
+/** Two seat maps hold the same kids in the same seats. */
+export function sameSeats(a: Seats | null, b: Seats | null): boolean {
+  if (!a || !b) return a === b;
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  return Array.from(keys).every((k) => (a[k] ?? null) === (b[k] ?? null));
 }

@@ -45,6 +45,16 @@ import {
 import { ALL_ZONES, swapFieldPlayers } from "@/lib/fairness";
 import { withoutSubPin, type PlannedRotation } from "@/lib/game-plan";
 import type { StagedBreakDraft } from "@/lib/live/breakDraft";
+import {
+  fitSeats,
+  lineOfZone,
+  seatFill,
+  seatMove,
+  seatSub,
+  seatSwap,
+  type SeatPosition,
+  type Seats,
+} from "@/lib/live/positionSeats";
 
 export type ZoneMs = Record<Zone, number>;
 const newZoneMs = (): ZoneMs => ({ back: 0, hback: 0, mid: 0, hfwd: 0, fwd: 0 });
@@ -149,12 +159,23 @@ export interface LiveGameState {
    * `src/lib/live/breakDraft.ts`.
    */
   breakDraft: StagedBreakDraft | null;
+  /**
+   * AFL big fields (named positions, 15/16/18 a side): who holds which
+   * position (lib/live/positionSeats). Seeded by init from the server's
+   * replay, then kept as the game goes: a kid coming on takes the
+   * off-going kid's seat, a position change moves seats, and every
+   * change ends fitted to the lineup (fitSeats). Null on other fields.
+   */
+  seats: Seats | null;
+  /** The positions the seats are for; null on other fields. */
+  seatPositions: SeatPosition[] | null;
 
   init: (state: Partial<LiveGameState>) => void;
   selectField: (playerId: string, zone: Zone) => void;
   selectBench: (playerId: string) => void;
   clearSelection: () => void;
-  applySwap: (off: string, on: string, zone: Zone) => void;
+  /** `position`: on a big field, the empty position a kid comes on into. */
+  applySwap: (off: string, on: string, zone: Zone, position?: string | null) => void;
   /**
    * Mark an on-field player injured AND substitute a bench player into their
    * vacant zone, in one atomic update. Closes the injured player's zone stint,
@@ -172,6 +193,12 @@ export interface LiveGameState {
    * lands in zoneB, no partner moves the other way.
    */
   applyFieldZoneSwap: (pidA: string, zoneA: Zone, pidB: string, zoneB: Zone) => void;
+  /**
+   * Big fields: `pidA` moves to the position `to`; `pidB` (who held
+   * it, or "" for an empty one) takes pidA's. Across lines the kids
+   * change lines too, as applyFieldZoneSwap moves them.
+   */
+  applyPositionSwap: (pidA: string, zoneA: Zone, pidB: string, zoneB: Zone, to: string) => void;
   /**
    * Mid-quarter on-field-size REDUCTION. Closes each removed player's
    * open stint, drops them from their zone, pushes them to bench.
@@ -292,11 +319,27 @@ const DEFAULT_LIVE_STATE_DATA = {
   rotationMode: "suggested" as "suggested" | "manual" | "rotate",
   plannedRotation: null as PlannedRotation | null,
   breakDraft: null as StagedBreakDraft | null,
+  seats: null as Seats | null,
+  seatPositions: null as SeatPosition[] | null,
 };
+
+/**
+ * The seats after a change, fitted to the new lineup. `seats` is the
+ * change's own move (a sub's seat, a position change); omitted, the old
+ * seats are fitted. Unchanged (null) on a field with no positions.
+ */
+function fittedSeats(
+  prev: Pick<LiveGameState, "seats" | "seatPositions">,
+  lineup: Lineup,
+  seats: Seats | null = prev.seats,
+): Seats | null {
+  if (!prev.seatPositions) return prev.seats;
+  return fitSeats(seats, lineup, prev.seatPositions).seats;
+}
 
 export const useLiveGame = create<LiveGameState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
   ...DEFAULT_LIVE_STATE_DATA,
 
   // init replaces ALL data fields. Caller passes only what they have from
@@ -371,7 +414,7 @@ export const useLiveGame = create<LiveGameState>()(
   selectBench: (playerId) => set({ selected: { kind: "bench", playerId } }),
   clearSelection: () => set({ selected: null }),
 
-  applySwap: (off, on, zone) =>
+  applySwap: (off, on, zone, position) =>
     set((prev) => {
       const lineup = cloneLineup(prev.lineup);
       const nowMs = clockElapsedMs(prev);
@@ -394,6 +437,14 @@ export const useLiveGame = create<LiveGameState>()(
       }
       stintStartMs[on] = nowMs;
       stintZone[on] = zone;
+      // The kid coming on takes the off-going kid's seat, or the empty
+      // one tapped.
+      const seats =
+        prev.seats && prev.seatPositions
+          ? off
+            ? seatSub(prev.seats, off, on)
+            : seatFill(prev.seats, on, lineOfZone(zone), prev.seatPositions, position)
+          : prev.seats;
       return {
         lineup,
         selected: null,
@@ -401,6 +452,7 @@ export const useLiveGame = create<LiveGameState>()(
         stintStartMs,
         stintZone,
         swapCount: prev.swapCount + 1,
+        seats: fittedSeats(prev, lineup, seats),
       };
     }),
 
@@ -461,6 +513,7 @@ export const useLiveGame = create<LiveGameState>()(
         stintZone,
         injuredIds,
         swapCount: prev.swapCount + 1,
+        seats: fittedSeats(prev, lineup, prev.seats ? seatSub(prev.seats, injuredId, replacementId) : null),
       };
     }),
 
@@ -490,6 +543,7 @@ export const useLiveGame = create<LiveGameState>()(
           stintStartMs,
           stintZone,
           swapCount: prev.swapCount + 1,
+          seats: fittedSeats(prev, lineup),
         };
       }
 
@@ -506,8 +560,26 @@ export const useLiveGame = create<LiveGameState>()(
         stintZone[pid] = toZone;
       }
 
-      return { lineup, selected: null, basePlayedZoneMs, stintStartMs, stintZone, swapCount: prev.swapCount + 1 };
+      return {
+        lineup,
+        selected: null,
+        basePlayedZoneMs,
+        stintStartMs,
+        stintZone,
+        swapCount: prev.swapCount + 1,
+        seats: fittedSeats(prev, lineup, prev.seats ? seatSwap(prev.seats, pidA, pidB) : null),
+      };
     }),
+
+  applyPositionSwap: (pidA, zoneA, pidB, zoneB, to) => {
+    // Across lines the kids move between lines first (the zone swap's
+    // stints and lineup), then pidA takes the position named.
+    if (zoneA !== zoneB) get().applyFieldZoneSwap(pidA, zoneA, pidB, zoneB);
+    set((prev) => {
+      if (!prev.seats || !prev.seatPositions) return { selected: null };
+      return { selected: null, seats: fittedSeats(prev, prev.lineup, seatMove(prev.seats, pidA, to)) };
+    });
+  },
 
   applyRosterShrink: (removeIds) =>
     set((prev) => {
@@ -539,15 +611,15 @@ export const useLiveGame = create<LiveGameState>()(
         if (!lineup.bench.includes(pid)) lineup.bench.push(pid);
       }
 
-      return { lineup, selected: null, basePlayedZoneMs, stintStartMs, stintZone };
+      return { lineup, selected: null, basePlayedZoneMs, stintStartMs, stintZone, seats: fittedSeats(prev, lineup) };
     }),
 
   setRotationMode: (mode) => set({ rotationMode: mode }),
   setLineup: (lineup) =>
-    set(() => ({
-      lineup: cloneLineup(lineup),
-      selected: null,
-    })),
+    set((prev) => {
+      const next = cloneLineup(lineup);
+      return { lineup: next, selected: null, seats: fittedSeats(prev, next) };
+    }),
 
   startClock: () =>
     set((prev) => {
@@ -779,6 +851,7 @@ export const useLiveGame = create<LiveGameState>()(
         basePlayedZoneMs,
         stintStartMs,
         stintZone,
+        seats: fittedSeats(prev, lineup),
         swapCount: prev.swapCount + 1,
         // A hurt kid can't stay selected: the next tap would swap them.
         selected: prev.selected?.playerId === playerId ? null : prev.selected,
@@ -839,6 +912,7 @@ export const useLiveGame = create<LiveGameState>()(
         loanedIds: [...prev.loanedIds, playerId],
         loanStartMs: { ...prev.loanStartMs, [playerId]: nowMs },
         lineup,
+        seats: fittedSeats(prev, lineup),
         basePlayedZoneMs,
         stintStartMs,
         stintZone,

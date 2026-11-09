@@ -21,6 +21,7 @@ import {
   recordLineupSet,
   recordSwap,
   recordFieldZoneSwap,
+  recordPositionSwap,
   recordPlayerLock,
   recordClockPause,
 } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
@@ -127,6 +128,8 @@ const actions = {
   recordLineupSet,
   recordSwap,
   recordFieldZoneSwap,
+  // AFL big fields: two kids trade named positions (position_swap).
+  recordPositionSwap,
   // A clock pause or resume, every sport (lib/live/clockPause).
   recordClockPause,
 

@@ -33,6 +33,7 @@ import { emptyZoneCaps, positionsFor, zoneCapsFor, type ZoneCaps } from "@/lib/a
 import { replayLocks, type PlayerLock } from "@/lib/live/locks";
 import { lastClockPause, type ClockPauseMark } from "@/lib/live/clockPause";
 import { openSubBatch, resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
+import { positionSwapAsZoneSwap } from "@/lib/live/positionSwap";
 import {
   type ChipKey,
   type ChipMode,
@@ -1312,7 +1313,10 @@ export function replayGame(events: GameEvent[]): GameState {
   const inLineup = (pid: string) =>
     !!state.lineup && (state.lineup.bench.includes(pid) || zoneOf(state.lineup, pid) != null);
 
-  for (const ev of sorted) {
+  for (const raw of sorted) {
+    // A position change across lines moves the kids between lines as a
+    // zone swap does; inside one line it leaves the lineup be.
+    const ev = positionSwapAsZoneSwap(raw) ?? raw;
     const meta = ev.metadata as {
       lineup?: Partial<Lineup>;
       quarter?: number;
