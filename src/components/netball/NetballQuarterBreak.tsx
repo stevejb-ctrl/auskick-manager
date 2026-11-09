@@ -333,7 +333,6 @@ export function NetballQuarterBreak({
     persistedRotationMode === "manual" ? "manual" : persistedRotationMode === "rotate" ? "rotate" : "suggested",
   );
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
   const router = useRouter();
   // Kids brought back at this break (recovered, back from a loan): they
   // default to the bench so the coach decides if and where they go on.
@@ -585,24 +584,29 @@ export function NetballQuarterBreak({
     // save and a refresh). With no signal the clock's start rides along
     // too (queuedStartClockMark).
     const mark = queuedStartClockMark(nextQuarter);
-    startTransition(() => {
-      write(
-        "periodBreakSwap",
-        [auth, gameId, nextQuarter, staged, midQuarterSubs],
-        liveEvents.netballBreakSwap({ quarter: nextQuarter, lineup: staged, midQuarterSubs }),
-      );
-      write("startNetballQuarter", [auth, gameId, nextQuarter], liveEvents.periodStart(nextQuarter));
-      if (mark) write("recordClockPause", [auth, gameId, mark], liveEvents.clockPause(mark));
-      // The staged lineup is now the quarter's: nothing left to restore.
-      stagedBreakDraft.clear();
-      onStarted();
-      // D-14: this period's plan is used; later planned periods stay.
-      if (plannedRotation && plannedRotation.gameId === gameId) {
-        setPlannedRotation(consumePeriodPin(plannedRotation, upcomingPeriodIndex));
-      }
-      // Medium haptic — the "go!" tap, aligned to the umpire's whistle.
-      void hapticTap("medium");
-    });
+    // Not in a transition: the router's server-action transition took
+    // these writes' on-screen events in with it, so a render between the
+    // quarter start's save and the page's refresh drew the game without
+    // them: the break came back for a moment, and an open goal sheet
+    // went with it ("the period ended while you were adding a goal").
+    // Every other sport's break writes outside one (Stagehand rounds 9
+    // and 10).
+    write(
+      "periodBreakSwap",
+      [auth, gameId, nextQuarter, staged, midQuarterSubs],
+      liveEvents.netballBreakSwap({ quarter: nextQuarter, lineup: staged, midQuarterSubs }),
+    );
+    write("startNetballQuarter", [auth, gameId, nextQuarter], liveEvents.periodStart(nextQuarter));
+    if (mark) write("recordClockPause", [auth, gameId, mark], liveEvents.clockPause(mark));
+    // The staged lineup is now the quarter's: nothing left to restore.
+    stagedBreakDraft.clear();
+    onStarted();
+    // D-14: this period's plan is used; later planned periods stay.
+    if (plannedRotation && plannedRotation.gameId === gameId) {
+      setPlannedRotation(consumePeriodPin(plannedRotation, upcomingPeriodIndex));
+    }
+    // Medium haptic — the "go!" tap, aligned to the umpire's whistle.
+    void hapticTap("medium");
   }
 
   // ─── The break screen ───────────────────────────────────────
@@ -803,7 +807,7 @@ export function NetballQuarterBreak({
           </p>
         ) : undefined
       }
-      start={{ onStart: handleConfirmQuarterStart, pending: isPending, cue: "umpire calls play", error }}
+      start={{ onStart: handleConfirmQuarterStart, pending: false, cue: "umpire calls play", error }}
     />
   );
 }
