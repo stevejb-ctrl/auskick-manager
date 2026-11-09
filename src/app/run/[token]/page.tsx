@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { aflPlaybookInput, withBalanceSeason, withSnapshot } from "@/lib/sports/afl/engine";
+import { aflAwayMs, aflBigField } from "@/lib/sports/afl/bigField";
 import { netballPlaybookInput, withNetballSnapshot } from "@/lib/sports/netball/engine";
 import { leaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
 import { seasonBalanceWeight, withKickoffSnapshot } from "@/lib/playbook/seasonBalance";
@@ -1182,6 +1183,16 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
     );
     const loanMins = seasonLoanMinutes((allTeamEvents ?? []) as GameEvent[]);
     const seasonAvail = seasonAvailability((allTeamEvents ?? []) as GameEvent[]);
+    // Big fields: the formation and who's in which position, as the
+    // coach's page draws them.
+    const bigField = aflBigField({
+      playbook,
+      aflPlaybook,
+      onFieldSize: g.on_field_size,
+      zoneModel: positionModel,
+      events: (thisGameEvents ?? []) as GameEvent[],
+      lineup: state.lineup,
+    });
 
     return (
       <div className="space-y-3 px-4 py-3">
@@ -1217,6 +1228,8 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
           defaultOnFieldSize={teamOnFieldSize(ageCfgSport, (teamRow as { on_field_size?: number | null } | null)?.on_field_size)}
           chipModeByKey={teamChipModes}
           aflPlaybook={aflPlaybook}
+          bigField={bigField ?? undefined}
+          awayMs={aflAwayMs((thisGameEvents ?? []) as GameEvent[], quarterMs, state.currentQuarter)}
           songUrl={songUrl}
           songStartSeconds={songStartSeconds}
           songDurationSeconds={songDurationSeconds}

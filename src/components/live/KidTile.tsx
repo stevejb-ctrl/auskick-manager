@@ -220,6 +220,8 @@ export function KidTile({
         "[transition:background-color_160ms_ease,opacity_160ms_ease,box-shadow_160ms_ease,transform_120ms_cubic-bezier(0.2,0.8,0.2,1)]",
         plate,
         edge,
+        // Big fields at large text: a taller tap target (58 px).
+        dense ? "bigtext:min-h-[58px]" : "",
         dimmed && !selected ? "opacity-[0.32]" : "",
         onClick || onLongPress ? "motion-safe:active:scale-[0.97]" : "cursor-default",
         arming && !selected ? (field ? "ring-2 ring-mark/50" : "ring-2 ring-hairline") : "",
