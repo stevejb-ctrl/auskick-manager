@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, type MouseEvent } from "react";
 import { announce } from "@/lib/a11y/announce";
 
 interface UndoStripProps {
@@ -28,7 +28,17 @@ interface UndoStripProps {
  * undo toast for every sport). Flashes for a few seconds after a score
  * with what was recorded, then settles quietly, still naming it.
  */
-export function UndoStrip({ flashing, message, onUndo, disabled = false, plain = false }: UndoStripProps) {
+export function UndoStrip({ flashing, message, onUndo: onUndoProp, disabled = false, plain = false }: UndoStripProps) {
+  // A double tap is one Undo. The strip names the next thing the moment
+  // the first lands, so the double tap's second half took that back too:
+  // a swap and the score before it, 55 ms apart (Stagehand round 10,
+  // the double-tapper). The browser counts a double tap's taps (the
+  // click's `detail`); a second Undo tapped on its own, after reading
+  // the new label, still counts.
+  const onUndo = (e: MouseEvent<HTMLButtonElement>) => {
+    if (e.detail > 1) return;
+    onUndoProp();
+  };
   // Said into the page's one live region as it flashes (UX round 3, e4:
   // a status mounted already holding its text is often skipped). Ahead
   // of the new score, which the scorebug says.

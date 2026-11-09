@@ -630,6 +630,20 @@ async function seedTeam(admin, email, name, origin) {
     },
     // Round 9: a mixed Oztag side (at most 4 boys of 8 on, at least 2
     // girls), half girls and half boys, for the grandparent mission.
+    // Round 10: no bench at all (as many kids as the court/field takes),
+    // so lending a kid off the field plays one short (lend-and-return).
+    "netball-11u-nobench": {
+      team: { name: "Hawthorn Hornets", age_group: "11u", sport: "netball" },
+      playbook: { strategy: "position-by-position" },
+      squad: 7,
+    },
+    "soccer-u9-nobench": {
+      team: { name: "Kingsway United", age_group: "U9", sport: "soccer" },
+      opponent: "Coogee Crabs",
+      playbook: { strategy: "turns" },
+      squad: 7,
+      onField: 7,
+    },
     "oztag-u10-mixed": {
       team: { name: "Penrith Possums", age_group: "U10", sport: "oztag", mixed_max_boys: 4, mixed_min_girls: 2, mixed_min_boys: 1 },
       opponent: "Blacktown Bandits",

@@ -110,6 +110,31 @@ phone (round 9):
 `oztag-u10-mixed` is the Oztag side as a mixed team (at most 4 boys of 8
 on, at least 2 girls).
 
+Round 10: the ending, undo, rescore, lend and mixed-mark changes, and
+more parents holding the phone. Each mission ends with a PASS/FAIL the
+report can judge.
+
+| Mission                        | Seed                              | What the agent tries                                  |
+|--------------------------------|-----------------------------------|-------------------------------------------------------|
+| `end-period-hunt`              | any game-day seed (a halves sport and a quarters sport) | End a period early without help, back out of the confirm, then "Time's up" |
+| `undo-chain`                   | any game-day seed                 | Score, swap, foul (or their score), then three undos, reading each label |
+| `rescore-at-break`             | any game-day seed                 | Change who scored at the break and at full time, totals unchanged |
+| `lend-and-return`              | any game-day seed, or `netball-11u-nobench` / `soccer-u9-nobench` | Lend a field kid, who comes on (or one short), Bring back at the break |
+| `mixed-cap-follow`             | `touch-u11-mixed`, `oztag-u10-mixed` | G/B marks and the boys count on every surface, over the cap, none on the share link |
+| `netball-injury-q3`            | `netball-11u-gameday`             | An injury replacement mid-Q2, then watch Start Q3 for a flash of the old court |
+| `r10-second-language`          | any `-runner` seed                | Reads English slowly; every word or short form that stops them |
+| `r10-one-thumb-drizzle`        | any `-runner` seed                | One wet thumb: what's out of reach, too small, or needs a hold |
+| `r10-teen-sibling`             | any `-runner` seed                | Skims only; who's played least, the score in one sentence |
+| `r10-phone-dies-halftime`      | any game-day seed                 | The coach's phone dies at the break; the assistant carries on from the share link |
+| `r10-arrives-at-half`          | `afl-u10-runner-half`             | Handed the phone at half-time, never seen the app     |
+| `r10-colour-blind-dad`         | any `-runner` seed                | Red-green colour blind: anything told apart by colour alone |
+| `r10-double-tapper`            | any `-runner` seed                | Double-taps everything: doubled scores, undos, skipped confirms |
+| `r10-nervous-volunteer`        | any game-day seed                 | Afraid of breaking it: confirms, undo, the scary options |
+| `r10-grandad-score-only`       | any `-runner` seed                | Only the score: scoring with a sub due, the score by period |
+
+`netball-11u-nobench` and `soccer-u9-nobench` have exactly as many kids
+as go on, so lending one plays one short.
+
 Add new missions by dropping a `*.md` file into `missions/`. The
 file content IS the prompt — write it like you're briefing a real
 tester.
