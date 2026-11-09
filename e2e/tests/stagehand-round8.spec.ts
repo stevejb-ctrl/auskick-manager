@@ -210,21 +210,27 @@ test("#6 #13 a score from the other phone says so, and Undo names what it takes 
   await b.context.close();
 });
 
-test("#10 at 200% text a netball court name isn't cut to a letter, and the hint stays one line", async ({ browser }) => {
+test("#10 at 200% text a netball court name isn't cut to a letter, and the hint stays one line", async ({ browser, browserName }) => {
+  // The reader's own text size, set over CDP as a phone's setting would
+  // (as live-fit's 200% test). The live shell's large-text layout
+  // (`bigtext`: two kids across) keys off that setting, which an
+  // `html { font-size: 200% }` style doesn't change, so that style left
+  // the court three across at normal widths with the names doubled.
+  test.skip(browserName !== "chromium", "CDP Page.setFontSizes is Chromium-only");
   const { players, game } = await inFirstPeriod("netball");
   const { context, page } = await parentPhone(browser);
-  await page.addInitScript(() =>
-    document.addEventListener("DOMContentLoaded", () => {
-      const s = document.createElement("style");
-      s.textContent = "html { font-size: 200% !important; }";
-      document.head.appendChild(s);
-    }),
-  );
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("Page.setFontSizes", { fontSizes: { standard: 32, fixed: 26 } });
   await openLive(page, `/run/${game.share_token}`);
-  const token = page.getByRole("button", { name: /^[^,]+, Goal Shooter\b/ });
-  const name = token.getByText(players[0].full_name.split(" ")[0], { exact: false }).first();
-  const cut = await name.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
-  expect(cut).toBe(false);
+  // Every kid on the court, from the Goal Shooter to the Goal Keeper,
+  // shows their whole name.
+  const bibs = ["Goal Shooter", "Goal Attack", "Wing Attack", "Centre", "Wing Defence", "Goal Defence", "Goal Keeper"];
+  for (const [i, bib] of bibs.entries()) {
+    const token = page.getByRole("button", { name: new RegExp(`^[^,]+, ${bib},`) });
+    const name = token.getByText(players[i].full_name.split(" ")[0], { exact: false }).first();
+    const cut = await name.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
+    expect(cut, `${bib}'s name is cut`).toBe(false);
+  }
   const hint = page.getByText("Tap a player for actions");
   if (await hint.count()) {
     const box = await hint.boundingBox();
