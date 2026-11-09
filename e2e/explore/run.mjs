@@ -628,6 +628,15 @@ async function seedTeam(admin, email, name, origin) {
       playbook: null,
       squad: 12,
     },
+    // Round 9: a mixed Oztag side (at most 4 boys of 8 on, at least 2
+    // girls), half girls and half boys, for the grandparent mission.
+    "oztag-u10-mixed": {
+      team: { name: "Penrith Possums", age_group: "U10", sport: "oztag", mixed_max_boys: 4, mixed_min_girls: 2, mixed_min_boys: 1 },
+      opponent: "Blacktown Bandits",
+      playbook: null,
+      squad: 12,
+      mixed: true,
+    },
   };
   // Each age group's usual on-field size. Games have no size default
   // (migration 0063), so every seeded game takes its team's. Also
