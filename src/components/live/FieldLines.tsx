@@ -50,10 +50,12 @@ export interface FieldLine {
   count?: { text: string; short: boolean };
 }
 
+// Each surface also names its ground for the tiles on it (KidTile's
+// solid plate: --tile-ground).
 const SURFACE = {
-  field: "bg-field",
-  court: "bg-court",
-  wood: "bg-wood",
+  field: "bg-field [--tile-ground:var(--c-field)]",
+  court: "bg-court [--tile-ground:var(--c-court)]",
+  wood: "bg-wood [--tile-ground:var(--c-wood)]",
 } as const;
 
 export interface FieldLinesProps {

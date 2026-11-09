@@ -170,16 +170,21 @@ export function KidTile({
 
   // The plate. On the grass the colours are the grass's own in both
   // themes (mark / mark-ink); on the bench they follow the page.
+  // On the field the plate is solid: its ground (FieldLines'
+  // --tile-ground: grass, court or boards) under the chalk tint, so the
+  // field's lines stop at the tile instead of running through the name
+  // (Steve, 10 Nov 2026: rugby's 10 m lines, futsal's arcs).
+  const ground = "bg-[rgb(var(--tile-ground,var(--c-field)))]";
   const plate = selected
     ? field
       ? "bg-mark text-mark-ink"
       : "bg-primary text-on-primary"
     : out
       ? field
-        ? "bg-transparent text-mark shadow-[inset_0_0_0_1px_rgb(247_250_245/0.32)]"
+        ? `${ground} text-mark shadow-[inset_0_0_0_1px_rgb(247_250_245/0.32)]`
         : "bg-transparent text-ink shadow-[inset_0_0_0_1px_rgb(var(--l-hairline))]"
       : field
-        ? "bg-mark/[0.07] text-mark"
+        ? `${ground} bg-[linear-gradient(rgb(var(--c-mark)/0.07),rgb(var(--c-mark)/0.07))] text-mark`
         : "bg-[rgb(var(--t-ink)/0.045)] text-ink";
   // The edge: due beats under; a picked kid shows the due edge still.
   const edge = due

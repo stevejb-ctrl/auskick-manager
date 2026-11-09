@@ -177,5 +177,10 @@ for (const c of [
     const bottom = Math.max(...tiles.map((t) => t.y + t.height));
     expect(postBoxes[0].y + postBoxes[0].height).toBeLessThanOrEqual(top);
     expect(postBoxes[1].y).toBeGreaterThanOrEqual(bottom);
+    // The tiles are solid (Steve, 10 Nov 2026): a line stops at a tile
+    // instead of running through the kid's name.
+    const bg = await page.getByTestId(`league-player-tile-${ids[0]}`).evaluate((el) => getComputedStyle(el).backgroundColor);
+    const alpha = bg.startsWith("rgba") ? Number(bg.slice(bg.lastIndexOf(",") + 1, -1)) : 1;
+    expect(alpha).toBe(1);
   });
 }
