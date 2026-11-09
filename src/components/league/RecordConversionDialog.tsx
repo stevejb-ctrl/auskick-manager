@@ -219,7 +219,7 @@ export function RecordConversionDialog({
         {/* Force (junior laws only: international laws have no rotation,
             and a kick from a penalty is a penalty goal), then the way out.
             Pinned, never scrolled out of view. */}
-        <div className="flex-shrink-0 px-3.5 pb-[max(14px,env(safe-area-inset-bottom))] pt-2.5">
+        <div className="flex-shrink-0 px-3.5 pb-[14px] pt-2.5">
           {rotation && (
             <label className="mb-2 flex items-center gap-2 rounded-[12px] bg-surface-alt px-3 py-2 text-xs text-ink-dim">
               <input
