@@ -507,6 +507,34 @@ async function seedTeam(admin, email, name, origin) {
         them: [[1, "goal"], [1, "behind"], [1, "goal"], [2, "behind"], [2, "goal"], [2, "behind"]],
       },
     },
+    // Quarter time: Q1 just ended, a goal and a behind each way, the
+    // break up (fix-scores-flow).
+    "afl-u10-runner-qt": {
+      team: { name: "Coburg Cubs", age_group: "U10", sport: "afl" },
+      playbook: null,
+      squad: 15,
+      start: "runner",
+      live: {
+        quarter: 1,
+        atBreak: true,
+        us: [[1, "goal"], [1, "behind"]],
+        them: [[1, "goal"], [1, "behind"]],
+      },
+    },
+    // Three-quarter time with scores in every quarter, a behind among the
+    // Q3 ones, to reconcile with the other side's scorer (score-reconciler).
+    "afl-u10-runner-3qt": {
+      team: { name: "Coburg Cubs", age_group: "U10", sport: "afl" },
+      playbook: null,
+      squad: 15,
+      start: "runner",
+      live: {
+        quarter: 3,
+        atBreak: true,
+        us: [[1, "goal"], [2, "goal"], [2, "behind"], [3, "behind"], [3, "goal"]],
+        them: [[1, "behind"], [2, "goal"], [3, "goal"], [3, "behind"]],
+      },
+    },
     "league-u8-gameday": {
       team: { name: "Werribee Wolves", age_group: "U8", sport: "rugby_league" },
       playbook: null,
@@ -619,7 +647,11 @@ async function seedTeam(admin, email, name, origin) {
   // <seed>-runner: any seed, started from its game's share link.
   const viaRunner = /^(.+)-runner$/.exec(name);
   const viaAvail = /^(.+)-availability$/.exec(name);
-  const s = SEEDS[name] ?? (viaRunner && SEEDS[viaRunner[1]] ? { ...SEEDS[viaRunner[1]], start: "runner" } : undefined) ??
+  // <seed>-late: one more kid in the squad, not marked available, who
+  // turns up late (the sideline-chaos missions).
+  const viaLate = /^(.+)-late$/.exec(name);
+  const lateBase = viaLate && SEEDS[viaLate[1]] && !SEEDS[viaLate[1]].live ? SEEDS[viaLate[1]] : undefined;
+  const s = SEEDS[name] ?? (lateBase ? { ...lateBase, squad: lateBase.squad + 1, late: (lateBase.late ?? 0) + 1 } : undefined) ?? (viaRunner && SEEDS[viaRunner[1]] ? { ...SEEDS[viaRunner[1]], start: "runner" } : undefined) ??
     (viaAvail && SEEDS[viaAvail[1]] ? { ...SEEDS[viaAvail[1]], start: "availability", gameIn: 18 * 60, noAnswers: true } : undefined) ?? (onFieldFor
     ? {
         team: { name: runner[1] === "afl" ? "Coburg Cubs" : "Brunswick Bluebirds", age_group: runner[2], sport: runner[1] },
