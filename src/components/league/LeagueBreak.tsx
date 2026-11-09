@@ -419,10 +419,11 @@ export function LeagueBreak({
     if (!vestRequired) return undefined;
     const v = currentVests(events, nextPeriod);
     const out: Record<string, string[]> = {};
-    if (v.fr) out[v.fr] = ["FR"];
-    if (v.dh) out[v.dh] = [...(out[v.dh] ?? []), "DH"];
+    // A lent kid wears no vest of ours (Stagehand round 9).
+    if (v.fr && !loaned.has(v.fr)) out[v.fr] = ["FR"];
+    if (v.dh && !loaned.has(v.dh)) out[v.dh] = [...(out[v.dh] ?? []), "DH"];
     return out;
-  }, [vestRequired, events, nextPeriod]);
+  }, [vestRequired, events, nextPeriod, loaned]);
   // The chip's line: who wears each vest next period, first names; a vest
   // with no wearer, or a planned wearer who isn't on the field, needs a pick.
   function vestSummary(): { summary: string; attention: boolean } {

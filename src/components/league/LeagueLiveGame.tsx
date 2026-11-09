@@ -534,11 +534,14 @@ export function LeagueLiveGame({
     [thisGameEvents, periodForVests],
   );
   const vestByPlayer = useMemo<Record<string, VestType>>(() => {
+    // A lent kid wears no vest of ours: the DH stayed drawn on a kid
+    // playing for the other team (Stagehand round 9). The vest is still
+    // theirs in the log until it's handed on (the missing-vest prompt).
     const map: Record<string, VestType> = {};
-    if (activeVests.fr) map[activeVests.fr] = "fr";
-    if (activeVests.dh) map[activeVests.dh] = "dh";
+    if (activeVests.fr && !loanedSet.has(activeVests.fr)) map[activeVests.fr] = "fr";
+    if (activeVests.dh && !loanedSet.has(activeVests.dh)) map[activeVests.dh] = "dh";
     return map;
-  }, [activeVests]);
+  }, [activeVests, loanedSet]);
   const vestRequired
     = Boolean(ageGroup.vestRequirements?.fr || ageGroup.vestRequirements?.dh);
 

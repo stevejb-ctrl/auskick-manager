@@ -142,8 +142,11 @@ export function KidTile({
 }: KidTileProps) {
   const { handlers, arming, consumedLongPress } = useLongPress({ onLongPress });
   const field = place === "field";
-  const pos = posProp;
-  const flag = flagProp;
+  // A lent kid plays for the other team: no position or vest of ours on
+  // them (Stagehand round 9: league's DH stayed drawn on a lent kid).
+  const lent = out === "lent";
+  const pos = lent ? null : posProp;
+  const flag = lent ? null : flagProp;
 
   // A new kid in the same spot (a sub made): their name rises in.
   const prev = useRef(testId);
