@@ -30,8 +30,6 @@ export interface OneUndo {
   other(): void;
   /** What Undo takes back now. */
   pick: Undoable | null;
-  /** …in words, after "Undo: ". */
-  label: string | null;
   /** The strip stops flashing (an undo was written some other way). */
   quiet(): void;
   /**
@@ -118,7 +116,6 @@ export function useOneUndo(opts: {
   }, [push]);
 
   const pick = useMemo(() => lastUndoable({ events, scoreTypes, own, period }), [events, scoreTypes, own, period]);
-  const label = pick ? undoableLabel(pick, { teamName, opponentName, firstName }) : null;
   // The strip flashes while what it names is what was just recorded.
   const pickSeq =
     pick?.kind === "change"
@@ -134,10 +131,12 @@ export function useOneUndo(opts: {
     changed,
     other,
     pick,
-    label,
     quiet,
     strip: ({ show, disabled, plain, onScore, onFoul }) => {
-      if (!show || !pick || !label) return null;
+      if (!show || !pick) return null;
+      // Named only when the strip renders: a screen's `firstName` may
+      // read state declared after its call to this hook (AFL's does).
+      const label = undoableLabel(pick, { teamName, opponentName, firstName });
       const onUndo = () => {
         quiet();
         if (pick.kind === "change") {
