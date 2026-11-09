@@ -172,12 +172,12 @@ test("AFL 15 + 5 (U13) fits too, in the 15-a-side formation", async ({ page }) =
   await expect(page.getByTestId(`player-tile-${kids[13].id}`)).toContainText(/^\d*FB/);
 });
 
-/** The toast's Undo, once its slide-in has settled (WebKit calls it "not stable" while it moves). */
+/** The undo strip's Undo, naming the change (the toast has had no Undo of its own since Stagehand round 9). */
 async function tapUndo(page: Page) {
-  const undo = page.getByTestId("swap-toast").getByRole("button", { name: "Undo" });
+  await expect(page.getByTestId("swap-toast").getByRole("button")).toHaveCount(0);
+  const undo = page.getByTestId("undo-strip").getByRole("button", { name: "Undo" });
   await expect(undo).toBeVisible({ timeout: 5_000 });
-  await page.waitForTimeout(400);
-  await undo.click({ force: true });
+  await undo.click();
 }
 
 async function positionSwapsOf(admin: SupabaseClient, gameId: string) {

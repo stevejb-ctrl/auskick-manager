@@ -73,8 +73,8 @@ import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
 import { liveEvents } from "@/lib/live/optimisticEvents";
-import { undoTargetText, UNDO_GONE_MESSAGE, UNDO_MISSING_MESSAGE, undoTap } from "@/lib/live/undoTarget";
-import { announceLiveNotice } from "@/lib/live/liveSync";
+import { undoOf, undoTap, type UndoTap } from "@/lib/live/undoTarget";
+import type { UndoEvent } from "@/lib/live/lastUndoable";
 import { getSportConfig } from "@/lib/sports/registry";
 import { endPeriodWords } from "@/lib/sports/words";
 import { isGirlsTry, TOUCH_SCORE_EVENT_TYPES, touchTryEventType, touchTryWhat } from "@/lib/sports/touch/scoreEvents";
@@ -277,6 +277,8 @@ export function TouchLiveGame({
     playersById: playerById,
     seasonLoanMinutes,
     events,
+    scoreTypes: TOUCH_SCORE_EVENT_TYPES,
+    period: isPeriodActive ? base.currentPeriod : null,
     openElapsedMs: isPeriodActive ? elapsedMs : null,
     toastLook: "ink",
   });
@@ -514,7 +516,7 @@ export function TouchLiveGame({
       (s) => sub(s.off, s.on, s.line),
     );
     if (nextSubs.length === 1) chrome.swapped(nextSubs[0].off_player_id, nextSubs[0].on_player_id, undo);
-    else chrome.showToast(`${nextSubs.length} subs made`, undo);
+    else chrome.showToast(`${nextSubs.length} subs made`, undo, `the ${nextSubs.length} swaps`);
     setSubAckKey(subDueKey);
   }
 
@@ -596,24 +598,17 @@ export function TouchLiveGame({
   const teamPoints = state.teamScore.points;
   const opponentPoints = state.opponentScore.points;
   const playerTries = state.playerTries;
-  // Takes back the try the strip names (this phone's last), or with none
-  // named the latest on screen — never whatever the other phone scored
-  // since (UX round 2).
-  const undoScore = () => {
-    const tap = undoTap(events, TOUCH_SCORE_EVENT_TYPES, chrome.namedScoreKey);
-    // Its score was taken back on the other phone, or never saved (a tap
-    // offline that didn't get through): nothing to write, and never
-    // another score in its place.
-    if (tap.kind === "gone" || tap.kind === "missing") {
-      chrome.undone();
-      announceLiveNotice(tap.kind === "gone" ? UNDO_GONE_MESSAGE : UNDO_MISSING_MESSAGE);
-      return;
-    }
+  // The strip's Undo takes back the try it names (useOneUndo: this
+  // phone's newest, never whatever the other phone scored since, UX
+  // round 2); the break's and full time's "Undo last score" the latest.
+  const writeScoreUndo = (tap: UndoTap) => {
     if (tap.kind !== "undo") return;
     setError(null);
     write("undoTouchScore", [auth, game.id, tap.target], tap.optimistic);
     chrome.undone();
   };
+  const undoScore = () => writeScoreUndo(undoTap(events, TOUCH_SCORE_EVENT_TYPES, null));
+  const undoNamedScore = (score: UndoEvent) => writeScoreUndo(undoOf(score));
 
   // ── Sideline: injuries, loans, late arrivals, holds ─────────
   const swappableBench = useMemo(
@@ -870,6 +865,7 @@ export function TouchLiveGame({
                         missedNote={`A try you missed counts in ${periodLetter}${base.currentPeriod}.`}
                         onUndo={undoScore}
                         undoDisabled={pending}
+                        fix={{ auth, gameId: game.id }}
                       />
                       {scorerSheet}
                     </>
@@ -1447,9 +1443,8 @@ export function TouchLiveGame({
           banners={bannersEl}
           header={shellHeader}
           undo={chrome.undoStrip({
-            target: undoTargetText(events, TOUCH_SCORE_EVENT_TYPES, chrome.namedScoreKey, { teamName, opponentName }),
-            show: isPeriodActive && (teamPoints > 0 || opponentPoints > 0),
-            onUndo: undoScore,
+            show: isPeriodActive,
+            onUndo: undoNamedScore,
             disabled: pending,
             plain: true,
           })}

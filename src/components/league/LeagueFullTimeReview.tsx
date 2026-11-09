@@ -208,6 +208,7 @@ export function LeagueFullTimeReview({
             missedNote={`Spotted a miscount? A score you missed counts in ${periodAbbrev}${ageGroup.periodCount}.`}
             onUndo={onUndo ?? (() => {})}
             undoDisabled={scorePending || !onUndo}
+            fix={{ auth, gameId }}
           />
         </div>
       )}

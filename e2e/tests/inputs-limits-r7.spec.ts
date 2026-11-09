@@ -473,7 +473,7 @@ test("a finished game's scores can be fixed from More, and the summary follows",
 });
 
 // ─── Undoing a batch of swaps ───────────────────────────────────────
-test("'Make all swaps' can be undone from the toast", async ({ page }) => {
+test("'Make all swaps' can be undone from the undo strip", async ({ page }) => {
   test.setTimeout(90_000);
   const ownerId = await ownerIdOf();
   const admin = createAdminClient();
@@ -500,13 +500,11 @@ test("'Make all swaps' can be undone from the toast", async ({ page }) => {
   await makeAll.click();
   const toast = page.getByTestId("swap-toast");
   await expect(toast).toContainText(`${n} subs made`);
-  // WebKit's actionability check reads the toast as "not stable" for its
-  // whole six seconds (sampled: it sits still once its slide-in ends),
-  // so tap after the slide without that check.
-  const undo = toast.getByRole("button", { name: "Undo swaps" });
-  await expect(undo).toBeVisible();
-  await page.waitForTimeout(400);
-  await undo.click({ force: true });
+  // The strip's one Undo names the batch and puts it back (the toast
+  // has no Undo of its own since Stagehand round 9).
+  const strip = page.getByTestId("undo-strip");
+  await expect(strip).toContainText(`Undo: the ${n} swaps`);
+  await strip.getByRole("button", { name: "Undo" }).click();
   await expect(toast).toContainText("Swaps undone");
 
   type Swap = { off_player_id: string; on_player_id: string };
@@ -555,10 +553,9 @@ test("AFL: a batch of swaps and its Undo aren't subs at full time", async ({ pag
   await makeAll.click();
   const toast = page.getByTestId("swap-toast");
   await expect(toast).toContainText(`${n} subs made`);
-  const undo = toast.getByRole("button", { name: "Undo swaps" });
-  await expect(undo).toBeVisible();
-  await page.waitForTimeout(400);
-  await undo.click({ force: true });
+  const strip = page.getByTestId("undo-strip");
+  await expect(strip).toContainText(`Undo: the ${n} swaps`);
+  await strip.getByRole("button", { name: "Undo" }).click();
   await expect(toast).toContainText("Swaps undone");
 
   const swapRows = async () =>

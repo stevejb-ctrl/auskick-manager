@@ -79,10 +79,14 @@ const PIECES: Record<Piece, (s: string) => boolean> = {
     blocks(s, "LockModal").every((b) => /currentLine=\{/.test(b) || /currentZone=\{(?!null\})/.test(b)),
   // …and the season's lent minutes, not a hard-coded 0.
   lockModalLoan: (s) => blocks(s, "LockModal").every((b) => /seasonLoanMins=\{(?!0\})/.test(b)),
-  // The undo strip flashes with what was recorded ("Roos goal — Mia").
+  // The one Undo (useOneUndo, the shared chrome's undoStrip): the strip
+  // names what it takes back, flashing when it's just been recorded, and
+  // the swap toast has no Undo of its own (Stagehand round 9).
   undoFlash: (s) =>
-    (/<UndoStrip\b/.test(s) || /\.undoStrip\(/.test(s)) && !/flashing=\{false\}/.test(s),
-  // A sub made by hand happens at once and the toast carries Undo (live
+    (/useOneUndo\(/.test(s) || /\.undoStrip\(/.test(s)) &&
+    !/<UndoStrip\b/.test(s) &&
+    blocks(s, "SwapDoneToast").every((b) => !/onUndo=/.test(b)),
+  // A sub made by hand happens at once and the strip's Undo puts it back (live
   // v3, Steve 8 Nov 2026): no screen mounts the old "Manually sub…?"
   // confirm itself. The shared chrome's overlays still render, for the
   // one hand sub that asks first (touch's boys' cap).

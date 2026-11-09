@@ -17,9 +17,11 @@
 // changed. The zero-height relative wrapper keeps the document where it
 // is; the toast floats over the content below.
 //
-// After "Make all swaps" it carries an Undo for a few seconds (round 3
-// edge testing, 24 Oct 2026: reversing a mistaken batch took four taps
-// and two confirms). The caller decides what undo writes.
+// It only says what happened. Putting a swap back is the undo strip's
+// one Undo ("Undo: Ava on for Leo", useOneUndo): the toast's own Undo
+// beside it named something else (Stagehand round 9, 9 Nov 2026), and
+// taps meant for the bar under it landed on the toast. It lets taps
+// through now.
 
 import { useEffect } from "react";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
@@ -27,19 +29,14 @@ import { announce, swapSaid } from "@/lib/a11y/announce";
 
 export function SwapDoneToast({
   text,
-  onUndo,
-  undoLabel = "Undo",
   look = "brand",
-  durationMs = 6000,
+  durationMs = 2500,
 }: {
   text: string;
-  /** Put the swaps back (the toast stays a few seconds longer with it). */
-  onUndo?: () => void;
-  undoLabel?: string;
   /**
-   * Live v3 (AFL's shell): an ink toast over the action bar, chalk words,
-   * the Undo a chalk button and a sun drain bar running out over the
-   * toast's time. Omitted: the green toast every other sport shows.
+   * Live v3 (AFL's shell): an ink toast over the action bar, chalk words
+   * and a sun drain bar running out over the toast's time. Omitted: the
+   * green toast every other sport shows.
    */
   look?: "brand" | "ink";
   /** How long it shows (the ink toast's drain bar runs this long). */
@@ -55,18 +52,9 @@ export function SwapDoneToast({
     return (
       <div
         data-testid="swap-toast"
-        className="pointer-events-auto absolute inset-x-[10px] bottom-[calc(100%+6px)] z-30 flex items-center gap-[8px] overflow-hidden rounded-[16px] bg-ink py-[8px] pl-[13px] pr-[8px] text-[0.8125rem] text-mark shadow-[0_10px_24px_-10px_rgba(0,0,0,0.55)] motion-safe:animate-slide-in-bottom"
+        className="pointer-events-none absolute inset-x-[10px] bottom-[calc(100%+6px)] z-30 flex min-h-[40px] items-center gap-[8px] overflow-hidden rounded-[16px] bg-ink py-[8px] pl-[13px] pr-[8px] text-[0.8125rem] text-mark shadow-[0_10px_24px_-10px_rgba(0,0,0,0.55)] motion-safe:animate-slide-in-bottom"
       >
         <span className="min-w-0 flex-1">{text}</span>
-        {onUndo && (
-          <button
-            type="button"
-            onClick={onUndo}
-            className="inline-flex min-h-[40px] flex-shrink-0 items-center rounded-[10px] bg-mark px-[13px] font-display text-[0.875rem] font-black text-ink motion-safe:active:scale-[0.97]"
-          >
-            {undoLabel}
-          </button>
-        )}
         <span aria-hidden className="pointer-events-none absolute inset-x-[12px] bottom-[3px] h-[2px] overflow-hidden rounded-full bg-white/[0.18]">
           <span
             className="block h-full origin-left bg-sun motion-safe:animate-[toast-drain_linear_forwards]"
@@ -77,7 +65,7 @@ export function SwapDoneToast({
     );
   }
   return (
-    <div className="relative z-30 h-0">
+    <div className="pointer-events-none relative z-30 h-0">
       <div className="absolute inset-x-0 top-0">
         <SirenPulseHalo triggerKey="swap" size="sm" display="block" className="rounded-sm">
           {/* slide-in-bottom (220ms) so the toast rises from below
@@ -97,15 +85,6 @@ export function SwapDoneToast({
               ✓
             </span>
             <span className="text-xs font-semibold">{text}</span>
-            {onUndo && (
-              <button
-                type="button"
-                onClick={onUndo}
-                className="ml-auto min-h-8 rounded-sm px-2 text-xs font-bold text-brand-700 underline decoration-brand-400 underline-offset-2 hover:bg-brand-100 motion-safe:active:scale-[0.97]"
-              >
-                {undoLabel}
-              </button>
-            )}
           </div>
         </SirenPulseHalo>
       </div>

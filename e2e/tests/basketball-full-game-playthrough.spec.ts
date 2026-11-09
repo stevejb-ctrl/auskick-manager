@@ -143,7 +143,7 @@ test("basketball U12: guards and forwards, baskets each way, a foul-out, a sit-o
   await page.getByTestId(`player-tile-${benchKid}`).click({ timeout: 10_000 });
   await page.getByTestId(`player-tile-${offKid}`).click({ timeout: 10_000 });
   await expect(page.getByTestId("swap-toast")).toContainText(`${nameOf(offKid)} → ${nameOf(benchKid)}`);
-  await expect(page.getByTestId("swap-toast").getByRole("button", { name: "Undo" })).toBeVisible();
+  await expect(page.getByTestId("undo-strip")).toContainText(`Undo: ${nameOf(benchKid)} on for ${nameOf(offKid)}`);
   await expect(page.getByRole("dialog", { name: /manually sub/i })).toHaveCount(0);
   await expect.poll(() => count("swap")).toBe(1);
 

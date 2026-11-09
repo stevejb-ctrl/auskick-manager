@@ -23,6 +23,7 @@ import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { LeagueGameSettingsModal } from "./LeagueGameSettingsButton";
 import { LiveShell } from "@/components/live/LiveShell";
 import { LiveGameMenu, settingsSummary } from "@/components/live/LiveGameMenu";
+import { LiveScoreFix } from "@/components/live/ScoresSheet";
 import { KidSlot, KidTile, type KidOutKind } from "@/components/live/KidTile";
 import { KidBench } from "@/components/live/KidBench";
 import { InfoLine } from "@/components/live/InfoLine";
@@ -73,8 +74,8 @@ import { InlineAlert } from "@/components/ui/InlineAlert";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
 import { liveEvents } from "@/lib/live/optimisticEvents";
-import { undoTargetText, UNDO_GONE_MESSAGE, UNDO_MISSING_MESSAGE, undoTap } from "@/lib/live/undoTarget";
-import { announceLiveNotice } from "@/lib/live/liveSync";
+import { undoOf, undoTap, type UndoTap } from "@/lib/live/undoTarget";
+import type { UndoEvent } from "@/lib/live/lastUndoable";
 import { useLiveChrome } from "@/components/live/useLiveChrome";
 import { undoSwaps } from "@/lib/live/liveChrome";
 import { computePeriodClockMs } from "@/lib/live/periodClock";
@@ -370,6 +371,8 @@ export function LeagueLiveGame({
     playersById: playerById,
     seasonLoanMinutes: seasonLoanMins,
     events: thisGameEvents,
+    scoreTypes: RUGBY_SCORE_EVENT_TYPES,
+    period: isPeriodActive ? state.currentQuarter : null,
     openElapsedMs: isPeriodActive ? elapsedMs : null,
     toastLook: "ink",
   });
@@ -1213,24 +1216,17 @@ export function LeagueLiveGame({
     handleClearSelection();
   }
 
-  // Takes back the score the strip names (this phone's last), or with
-  // none named the latest on screen — never whatever the other phone
-  // scored since (UX round 2).
-  function handleUndoScore() {
-    const tap = undoTap(thisGameEvents, RUGBY_SCORE_EVENT_TYPES, chrome.namedScoreKey);
-    // Its score was taken back on the other phone, or never saved (a tap
-    // offline that didn't get through): nothing to write, and never
-    // another score in its place.
-    if (tap.kind === "gone" || tap.kind === "missing") {
-      chrome.undone();
-      announceLiveNotice(tap.kind === "gone" ? UNDO_GONE_MESSAGE : UNDO_MISSING_MESSAGE);
-      return;
-    }
+  // The strip's Undo takes back the score it names (useOneUndo: this
+  // phone's newest, never whatever the other phone scored since, UX
+  // round 2); full time's "Undo last score" the latest.
+  function writeScoreUndo(tap: UndoTap) {
     if (tap.kind !== "undo") return;
     setError(null);
     write("undoLeagueScore", [auth, game.id, tap.target], tap.optimistic);
     chrome.undone();
   }
+  const handleUndoScore = () => writeScoreUndo(undoTap(thisGameEvents, RUGBY_SCORE_EVENT_TYPES, null));
+  const handleUndoNamedScore = (score: UndoEvent) => writeScoreUndo(undoOf(score));
 
   // ── Lineup edits ──────────────────────────────────────────────
   function saveLineup(next: LeagueLineup) {
@@ -1298,7 +1294,7 @@ export function LeagueLiveGame({
         : undefined;
     if (made === 1 && fills.length === 1) chrome.swapped(null, fills[0].playerId);
     else if (made === 1) chrome.swapped(swaps[0].off.playerId, swaps[0].on.playerId, undo);
-    else chrome.showToast(`${made} subs made`, undo);
+    else chrome.showToast(`${made} subs made`, undo, `the ${made} swaps`);
     handleClearSelection();
   }
 
@@ -1752,11 +1748,21 @@ export function LeagueLiveGame({
                   running={running}
                 />
                 {chrome.undoStrip({
-            target: undoTargetText(thisGameEvents, RUGBY_SCORE_EVENT_TYPES, chrome.namedScoreKey, { teamName, opponentName: game.opponent || "Opponent" }),
                   show: state.teamScore.points > 0 || state.opponentScore.points > 0,
-                  onUndo: handleUndoScore,
+                  onUndo: handleUndoNamedScore,
                   disabled: pending,
                 })}
+                {/* The game's scores, each with "Change who scored" (the
+                    Scores and fixes sheet's list, as every break's). */}
+                {(state.teamScore.points > 0 || state.opponentScore.points > 0) && (
+                  <div className="border-t border-hairline pt-3">
+                    <LiveScoreFix
+                      auth={auth}
+                      gameId={game.id}
+                      version={`${state.teamScore.points}:${state.opponentScore.points}`}
+                    />
+                  </div>
+                )}
                 {scoreOverlays}
               </div>
             ) : undefined
@@ -2499,12 +2505,8 @@ export function LeagueLiveGame({
           banners={bannersEl}
           header={shellHeader}
           undo={chrome.undoStrip({
-            target: undoTargetText(thisGameEvents, RUGBY_SCORE_EVENT_TYPES, chrome.namedScoreKey, {
-              teamName,
-              opponentName: game.opponent || "Opponent",
-            }),
-            show: isPeriodActive && (state.teamScore.points > 0 || state.opponentScore.points > 0),
-            onUndo: handleUndoScore,
+            show: isPeriodActive,
+            onUndo: handleUndoNamedScore,
             disabled: pending,
             plain: true,
           })}

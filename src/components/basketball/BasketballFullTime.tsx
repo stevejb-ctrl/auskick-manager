@@ -131,6 +131,7 @@ export function BasketballFullTimeReview({
               missedNote={`Spotted a miscount? A basket you missed counts in ${periodLetter}${periodCount}.`}
               onUndo={onUndo ?? (() => {})}
               undoDisabled={scorePending || !onUndo}
+              fix={{ auth, gameId }}
             />
           </div>
         </>

@@ -22,6 +22,7 @@ import type { LiveAuth, Player } from "@/lib/types";
 import { Modal } from "@/components/ui/Modal";
 import { groupScoreLog, scoreEntryWho } from "@/lib/live/scoreLog";
 import { quietOtherPhoneNotices } from "@/lib/live/otherPhone";
+import { ChangeScorer, fixScoreAs } from "@/components/games/FixScoresDialog";
 
 interface ScoreReviewPanelProps {
   auth: LiveAuth;
@@ -84,6 +85,12 @@ export function ScoreReviewPanel({
   const [pendingDelete, setPendingDelete] = useState<ScoreLogEntry | null>(
     null,
   );
+  // "Change who scored" on one of our scores: the live Scores and fixes
+  // sheet's fix (fixScoreAs "reassign"), so the break and full time can
+  // put a score on the right kid without taking it off and adding it
+  // again (Stagehand round 9). It keeps the score's period.
+  const [changing, setChanging] = useState<{ id: string; playerId: string } | null>(null);
+  const [changePending, startChange] = useTransition();
 
   // Add-score form state
   const [addOpen, setAddOpen] = useState(false);
@@ -138,6 +145,29 @@ export function ScoreReviewPanel({
     });
   }
 
+  function handleChangeScorer(entry: ScoreLogEntry, playerId: string) {
+    setScoreLogError(null);
+    const kind = entry.type === "goal" ? "goals" : "behinds";
+    const was = entry.player_id;
+    // The kids' tallies move at once (the live store doesn't re-read the
+    // server's game on refresh), and back if the fix is refused.
+    if (was) undoPlayerScore(was, kind);
+    incPlayerScore(playerId, kind);
+    quietOtherPhoneNotices();
+    startChange(async () => {
+      const result = await fixScoreAs(auth, gameId, { op: "reassign", eventId: entry.id, playerId });
+      if (!result.success) {
+        undoPlayerScore(playerId, kind);
+        if (was) incPlayerScore(was, kind);
+        setScoreLogError(result.error);
+        return;
+      }
+      setChanging(null);
+      await refreshScoreLog();
+      startTransition(() => router.refresh());
+    });
+  }
+
   function handleAddScore() {
     setScoreLogError(null);
     const isOurs = addKind === "goal" || addKind === "behind";
@@ -179,12 +209,16 @@ export function ScoreReviewPanel({
     [scoreLog, periodCount],
   );
   const who = (e: ScoreLogEntry) => scoreEntryWho(e, (id) => playersById.get(id)?.full_name);
+  const scorerChoices = useMemo(
+    () => players.map((p) => ({ id: p.id, name: `${p.jersey_number != null ? `#${p.jersey_number} ` : ""}${p.full_name}` })),
+    [players],
+  );
 
   return (
     <div>
       <p className="text-xs font-semibold text-ink">Fix scores</p>
       <p className="mt-0.5 text-xs text-ink-mute">
-        Tap × to delete a wrong score, or + to add a missed one.
+        Change who scored, tap × to delete a wrong score, or + to add a missed one.
       </p>
 
       {scoreLogLoading && (
@@ -210,11 +244,10 @@ export function ScoreReviewPanel({
                     const isOurs = e.type === "goal" || e.type === "behind";
                     const isGoal =
                       e.type === "goal" || e.type === "opponent_goal";
+                    const kindWord = includeBehinds && !isGoal ? "behind" : "goal";
                     return (
-                      <li
-                        key={e.id}
-                        className="flex items-center justify-between gap-2 px-3 py-2 text-xs"
-                      >
+                      <li key={e.id} className="px-3 py-2 text-xs" data-testid="score-review-row">
+                      <div className="flex items-center justify-between gap-2">
                         <span className="flex items-center gap-2">
                           <span
                             className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-nano font-bold ${
@@ -232,19 +265,45 @@ export function ScoreReviewPanel({
                             </span>
                           )}
                         </span>
-                        {/* A 44 px target round the small ×, named for
-                            the score it deletes (it was 25×22 and "Delete
-                            this score" on every row; UX round 3, e4). */}
-                        <button
-                          type="button"
-                          onClick={() => setPendingDelete(e)}
-                          className="group -my-2 -mr-2 inline-flex h-11 w-11 shrink-0 items-center justify-center motion-safe:active:scale-[0.97]"
-                          aria-label={`Delete ${includeBehinds && !isGoal ? "behind" : "goal"}${isOurs ? ` by ${who(e)}` : `, ${who(e)}`}`}
-                        >
-                          <span className="rounded-full border border-hairline px-2 py-0.5 text-micro font-medium text-ink-mute transition-colors group-hover:border-danger/30 group-hover:bg-danger/10 group-hover:text-danger">
-                            ×
-                          </span>
-                        </button>
+                        <span className="flex shrink-0 items-center">
+                          {isOurs && (
+                            <button
+                              type="button"
+                              onClick={() => setChanging({ id: e.id, playerId: e.player_id ?? "" })}
+                              className="group -my-2 inline-flex h-11 shrink-0 items-center px-1 motion-safe:active:scale-[0.97]"
+                              aria-label={`Change who scored: ${who(e)}, ${kindWord} in ${periodLetter}${q}`}
+                            >
+                              <span className="rounded-full border border-hairline px-2 py-0.5 text-micro font-medium text-ink-dim transition-colors group-hover:bg-surface">
+                                Change
+                              </span>
+                            </button>
+                          )}
+                          {/* A 44 px target round the small ×, named for
+                              the score it deletes (it was 25×22 and "Delete
+                              this score" on every row; UX round 3, e4). */}
+                          <button
+                            type="button"
+                            onClick={() => setPendingDelete(e)}
+                            className="group -my-2 -mr-2 inline-flex h-11 w-11 shrink-0 items-center justify-center motion-safe:active:scale-[0.97]"
+                            aria-label={`Delete ${kindWord}${isOurs ? ` by ${who(e)}` : `, ${who(e)}`}`}
+                          >
+                            <span className="rounded-full border border-hairline px-2 py-0.5 text-micro font-medium text-ink-mute transition-colors group-hover:border-danger/30 group-hover:bg-danger/10 group-hover:text-danger">
+                              ×
+                            </span>
+                          </button>
+                        </span>
+                      </div>
+                      {changing?.id === e.id && (
+                        <ChangeScorer
+                          players={scorerChoices}
+                          playerId={changing.playerId}
+                          current={e.player_id}
+                          pending={changePending}
+                          onPick={(playerId) => setChanging({ id: e.id, playerId })}
+                          onSave={() => handleChangeScorer(e, changing.playerId)}
+                          onCancel={() => setChanging(null)}
+                        />
+                      )}
                       </li>
                     );
                   })}
