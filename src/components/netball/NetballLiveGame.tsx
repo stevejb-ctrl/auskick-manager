@@ -2289,10 +2289,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // apart by air and a faint chalk rule (FieldLines), on the court's blue.
   const courtLines: FieldLine[] = NETBALL_THIRDS.map(({ id, label }) => {
     const bibs = ageGroup.positions.filter((posId) => primaryThirdFor(posId) === id);
-    return {
-      key: id,
-      label,
-      tiles: bibs.map((posId) => {
+    const tiles = bibs.map((posId) => {
         const pid = onCourt.positions[posId]?.[0] ?? null;
         const bib = bibOf(posId);
         return (
@@ -2309,7 +2306,16 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             )}
           </div>
         );
-      }),
+      });
+    // Staggered down the court as the bibs stand (Steve, 10 Nov 2026):
+    // GS in the shooting circle, GA behind; WA, C, WD across the centre;
+    // GD in front, GK in the circle at the bottom.
+    const end: FieldLine["rowsAlign"] | null = id === "attack-third" ? "start" : id === "defence-third" ? "end" : null;
+    return {
+      key: id,
+      label,
+      tiles,
+      ...(end ? { rows: tiles.map((t) => [t]), rowsAlign: end } : {}),
     };
   }).filter((line) => line.tiles.length > 0);
   const courtEl = (
@@ -3306,13 +3312,24 @@ const NETBALL_THIRDS = [
   { id: "defence-third", label: "Defence third" },
 ] as const;
 
-/** The court's markings, faint under the kids: the centre circle and the two shooting circles. */
+/**
+ * The court's markings under the kids: the centre circle, faint, and
+ * the two shooting circles, plain to see (Steve, 10 Nov 2026), with GS
+ * and GK standing in them. A real circle is 4.9 m on a 15.25 m wide
+ * court: about two-thirds of the width across.
+ */
 function CourtMarks() {
   return (
     <>
       <span className="absolute left-1/2 top-1/2 h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full border-[1.5px] border-mark/[0.07]" />
-      <span className="absolute -top-[72px] left-[24%] right-[24%] h-[144px] rounded-[50%] border-[1.5px] border-mark/[0.07]" />
-      <span className="absolute -bottom-[72px] left-[24%] right-[24%] h-[144px] rounded-[50%] border-[1.5px] border-mark/[0.07]" />
+      <span
+        data-testid="shooting-circle"
+        className="absolute -top-[104px] left-[17%] right-[17%] h-[208px] rounded-[50%] border-2 border-mark/30 bg-mark/[0.04]"
+      />
+      <span
+        data-testid="shooting-circle"
+        className="absolute -bottom-[104px] left-[17%] right-[17%] h-[208px] rounded-[50%] border-2 border-mark/30 bg-mark/[0.04]"
+      />
     </>
   );
 }

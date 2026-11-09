@@ -1,0 +1,129 @@
+// How the kids stand on the court (Steve, 10 Nov 2026, from the
+// screenshot round):
+//  - Netball: staggered down the court as the bibs stand. GS, then GA
+//    in the attack third; WA, C, WD across the centre; GD, then GK.
+//    The shooting circles are drawn plainly, GS and GK in them.
+//  - Oztag: the eight on the one "Field" line used to sit in a tight
+//    block of fours in the middle; they now stand in rows of three and
+//    two down the whole field.
+
+import { test, expect, type Page } from "@playwright/test";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "../fixtures/supabase";
+import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { waitForHydration } from "../helpers/navigation";
+
+test.use({ viewport: { width: 390, height: 844 } });
+
+async function ownerOf(admin: SupabaseClient): Promise<string> {
+  const { data } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  return data.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+}
+
+async function skipTours(page: Page) {
+  await page.addInitScript(() => {
+    try {
+      for (const k of ["nb-walkthrough-seen", "touch-walkthrough-seen", "gm-walkthrough-seen"]) localStorage.setItem(k, "1");
+      localStorage.setItem("siren-longpress-seen-v1", "true");
+    } catch {}
+  });
+}
+
+async function seedInPlay(admin: SupabaseClient, ownerId: string, gameId: string, sport: string, lineup: unknown, ids: string[]) {
+  await admin
+    .from("game_availability")
+    .insert(ids.map((id) => ({ game_id: gameId, player_id: id, status: "available" as const, updated_by: ownerId })));
+  const at = (msAgo: number) => new Date(Date.now() - msAgo).toISOString();
+  const { error } = await admin.from("game_events").insert([
+    { game_id: gameId, type: "lineup_set", metadata: { lineup, sport }, created_by: ownerId, created_at: at(62_000) },
+    { game_id: gameId, type: "quarter_start", metadata: { quarter: 1, sport }, created_by: ownerId, created_at: at(60_000) },
+  ]);
+  if (error) throw new Error(`seed: ${error.message}`);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", gameId);
+}
+
+const box = async (page: Page, id: string) => (await page.getByTestId(`player-tile-${id}`).boundingBox())!;
+
+test("netball: GS then GA, WA C WD across, GD then GK; GS and GK in plain shooting circles", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await ownerOf(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "go", sport: "netball", name: `NB-COURT-${Date.now() % 1e6}` });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 9, ageGroup: "U10" });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  const ids = players.map((p) => p.id);
+  const BIBS = ["gs", "ga", "wa", "c", "wd", "gd", "gk"] as const;
+  await seedInPlay(
+    admin,
+    ownerId,
+    game.id,
+    "netball",
+    { positions: Object.fromEntries(BIBS.map((b, i) => [b, [ids[i]]])), bench: ids.slice(BIBS.length) },
+    ids,
+  );
+  const [gs, ga, wa, c, wd, gd, gk] = ids;
+
+  await skipTours(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  await expect(page.getByTestId(`player-tile-${gs}`)).toBeVisible({ timeout: 15_000 });
+
+  const b = Object.fromEntries(await Promise.all(Object.entries({ gs, ga, wa, c, wd, gd, gk }).map(async ([k, id]) => [k, await box(page, id)])));
+  // Down the court: GS above GA above the centre row above GD above GK.
+  expect(b.gs.y + b.gs.height).toBeLessThanOrEqual(b.ga.y + 1);
+  expect(b.ga.y + b.ga.height).toBeLessThanOrEqual(b.c.y);
+  expect(b.c.y + b.c.height).toBeLessThanOrEqual(b.gd.y);
+  expect(b.gd.y + b.gd.height).toBeLessThanOrEqual(b.gk.y + 1);
+  // WA, C, WD across one row, left to right.
+  expect(Math.abs(b.wa.y - b.c.y)).toBeLessThan(2);
+  expect(Math.abs(b.wd.y - b.c.y)).toBeLessThan(2);
+  expect(b.wa.x).toBeLessThan(b.c.x);
+  expect(b.c.x).toBeLessThan(b.wd.x);
+
+  // The two shooting circles are drawn, and plain to see; GS stands in
+  // the top one, GK in the bottom one.
+  const circles = page.getByTestId("shooting-circle");
+  await expect(circles).toHaveCount(2);
+  const top = (await circles.nth(0).boundingBox())!;
+  const bottom = (await circles.nth(1).boundingBox())!;
+  const courtTop = top.y + top.height / 2; // the circle is centred on the baseline
+  const courtBottom = bottom.y + bottom.height / 2;
+  expect(b.gs.y + b.gs.height / 2).toBeLessThan(courtTop + top.height / 2);
+  expect(b.gk.y + b.gk.height / 2).toBeGreaterThan(courtBottom - bottom.height / 2);
+  const opacity = await circles.nth(0).evaluate((el) => {
+    const m = getComputedStyle(el).borderTopColor.match(/rgba?\(([^)]+)\)/);
+    const parts = m ? m[1].split(",").map((s) => Number(s.trim())) : [];
+    return parts.length === 4 ? parts[3] : 1;
+  });
+  expect(opacity).toBeGreaterThanOrEqual(0.2);
+});
+
+test("oztag: the eight on the field stand in rows of three and two, down the field", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await ownerOf(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "oztag", name: `OZ-FIELD-${Date.now() % 1e6}` });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 11 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  const ids = players.map((p) => p.id);
+  await seedInPlay(
+    admin,
+    ownerId,
+    game.id,
+    "oztag",
+    { lines: { middle: [], link: [], wing: [], field: ids.slice(0, 8) }, bench: ids.slice(8) },
+    ids,
+  );
+
+  await skipTours(page);
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  await expect(page.getByTestId(`player-tile-${ids[0]}`)).toBeVisible({ timeout: 15_000 });
+
+  const boxes = await Promise.all(ids.slice(0, 8).map((id) => box(page, id)));
+  const rows = Array.from(new Set(boxes.map((bx) => Math.round(bx.y)))).sort((a, b) => a - b);
+  // 3, 2, 3: three rows, none more than three across.
+  expect(rows.length).toBe(3);
+  for (const y of rows) expect(boxes.filter((bx) => Math.round(bx.y) === y).length).toBeLessThanOrEqual(3);
+  // Spread down the field: the rows are well apart, not stacked tight.
+  const field = (await page.getByRole("group", { name: "Field" }).boundingBox())!;
+  expect(rows[rows.length - 1] - rows[0]).toBeGreaterThan(field.height * 0.4);
+});
