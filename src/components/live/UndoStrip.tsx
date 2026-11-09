@@ -7,9 +7,10 @@ interface UndoStripProps {
   /** Just scored: the strip flashes dark with what was recorded. */
   flashing: boolean;
   /**
-   * What was recorded ("Roos goal — Mia"): bold while flashing, then
-   * quiet. It stays named, so it's clear which score Undo takes back
-   * when two phones are scoring (UX round 2). Empty: "Undo last score".
+   * What Undo takes back ("Roos goal — Mia", "foul on Sam", "Ava on for
+   * Leo"), shown as "Undo: …": bold while flashing, then quiet. Always
+   * named, so it's clear what Undo takes back after a swap or a foul, or
+   * when two phones are scoring (lib/live/lastUndoable, useOneUndo).
    */
   message: string;
   onUndo: () => void;
@@ -43,7 +44,7 @@ export function UndoStrip({ flashing, message, onUndo, disabled = false, plain =
         data-testid="undo-strip"
       >
         <span className={`min-w-0 flex-1 truncate text-[0.8125rem] ${flashing ? "font-bold text-ink" : ""}`}>
-          {message ? (flashing ? message : `Undo takes back: ${message}`) : "Undo last score"}
+          {message ? `Undo: ${message}` : "Undo"}
         </span>
         <button
           type="button"
@@ -66,9 +67,9 @@ export function UndoStrip({ flashing, message, onUndo, disabled = false, plain =
       data-testid="undo-strip"
     >
       <span className={`text-xs ${flashing ? "text-warm/80" : "text-ink-dim"}`}>
-        {/* Says it's a score Undo takes back, and which: a parent who'd
-            just made a swap pressed Undo for it (Stagehand round 8, #13). */}
-        {message ? (flashing ? message : `Undo takes back: ${message}`) : "Undo last score"}
+        {/* Says what Undo takes back: a parent who'd just made a swap
+            pressed Undo for it (Stagehand round 8, #13). */}
+        {message ? `Undo: ${message}` : "Undo"}
       </span>
       <button
         type="button"

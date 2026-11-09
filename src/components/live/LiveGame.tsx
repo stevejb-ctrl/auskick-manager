@@ -153,7 +153,8 @@ import { onQueueSaved, useWriteQueue } from "@/lib/live/writeQueue";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 
 import { assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
-import { UndoStrip } from "@/components/live/UndoStrip";
+import { useOneUndo } from "@/components/live/useOneUndo";
+import { swapsUndoneText, swapUndoLabel, type UndoEvent } from "@/lib/live/lastUndoable";
 import { AFL_SCORE_TYPES, stackIds, stackRef, undoStack, type StackScore } from "@/lib/live/undoStack";
 import { noteLiveResult, requestLiveSync } from "@/lib/live/liveSync";
 // YT IFrame API + playSong logic lives in `@/lib/live/useHypeSong`
@@ -589,14 +590,29 @@ export function LiveGame({
     [standingScores],
   );
   useOtherPhoneScores(standingAsEvents, AFL_SCORE_TYPES, { teamName, opponentName });
-  const undoTop = undoStack(standingScores, localScores, undoneScoreIds, savedScoreKeys).at(-1) ?? null;
-  const [undoToastVisible, setUndoToastVisible] = useState(false);
-  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const undoScores = undoStack(standingScores, localScores, undoneScoreIds, savedScoreKeys);
+  // The one Undo (useOneUndo): the newest score or swap of this phone's,
+  // else the game's latest score, named on the strip. The stack is
+  // already the scores standing, so it goes over as events in order (a
+  // tap still on its way after every saved one).
+  const oneUndo = useOneUndo({
+    events: undoScores.map((s, i) => ({
+      id: s.eventId ?? `optimistic-${s.key}`,
+      type: s.type,
+      player_id: s.playerId,
+      created_at: s.createdAt ?? `￿${String(i).padStart(4, "0")}`,
+      idempotency_key: s.key,
+      metadata: { quarter: s.quarter },
+    })),
+    scoreTypes: AFL_SCORE_TYPES,
+    period: currentQuarter >= 1 && !quarterEnded && !finalised ? currentQuarter : null,
+    teamName,
+    opponentName,
+    firstName: shortName,
+  });
 
   // Swap-done toast — confirms that a substitution landed.
   const [swapToast, setSwapToast] = useState<string | null>(null);
-  // "Make all swaps"' Undo on the toast, while it shows (undoSwaps).
-  const [swapToastUndo, setSwapToastUndo] = useState<{ run: () => void } | null>(null);
   const swapToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // When the coach taps the own-team `+G`/`+B` chip in the
@@ -975,6 +991,7 @@ export function LiveGame({
     showSwapToast(
       `${shortName(pidA)} ⇄ ${shortName(pidB)} — zones swapped`,
       withUndo ? () => swapZones(pidA, zoneB, pidB, zoneA, false) : undefined,
+      `${shortName(pidA)} and ${shortName(pidB)} swapping zones`,
     );
     enqueueLiveAction("recordFieldZoneSwap", [
       auth,
@@ -1095,7 +1112,7 @@ export function LiveGame({
       const at = ALL_ZONES.find((z) => now[z].includes(on));
       if (!at || !now.bench.includes(off)) return;
       persistSwap(on, off, at, false, 0, true);
-    });
+    }, swapUndoLabel([{ off, on }], shortName));
   }
 
   function handleTapBench(playerId: string) {
@@ -1117,19 +1134,15 @@ export function LiveGame({
   }
 
   function startUndoToast(score: LastScore) {
-    if (undoTimerRef.current !== null) clearTimeout(undoTimerRef.current);
-    setLocalScores((prev) => [
-      ...prev,
-      {
-        eventId: null,
-        key: score.key,
-        type: score.forTeam === "us" ? score.kind : `opponent_${score.kind}`,
-        playerId: score.playerId,
-        quarter: score.quarter,
-      },
-    ]);
-    setUndoToastVisible(true);
-    undoTimerRef.current = setTimeout(() => setUndoToastVisible(false), 8000);
+    const local: StackScore = {
+      eventId: null,
+      key: score.key,
+      type: score.forTeam === "us" ? score.kind : `opponent_${score.kind}`,
+      playerId: score.playerId,
+      quarter: score.quarter,
+    };
+    setLocalScores((prev) => [...prev, local]);
+    oneUndo.scored(score.key, undoScoreMessage(local));
   }
 
   // "Jack", or "Jack S" beside another Jack (SquadNames).
@@ -1139,15 +1152,23 @@ export function LiveGame({
     return names.first(p);
   }
 
-  function showSwapToast(text: string, undo?: () => void) {
+  // The toast says what changed. With `putBack`, the undo strip's one
+  // Undo offers it ("Undo: Ava on for Leo", `undoLabel`) while it's the
+  // last thing done; the toast has no Undo of its own (Stagehand round 9).
+  function showSwapToast(text: string, putBack?: () => void, undoLabel?: string) {
     if (swapToastTimerRef.current !== null) clearTimeout(swapToastTimerRef.current);
     setSwapToast(text);
-    setSwapToastUndo(undo ? { run: undo } : null);
-    // Long enough to tap Undo when there's one.
-    swapToastTimerRef.current = setTimeout(() => {
-      setSwapToast(null);
-      setSwapToastUndo(null);
-    }, undo ? 6000 : 2500);
+    swapToastTimerRef.current = setTimeout(() => setSwapToast(null), 2500);
+    if (putBack) {
+      const label = undoLabel ?? text;
+      oneUndo.changed({
+        label,
+        run: () => {
+          putBack();
+          showSwapToast(swapsUndoneText(label));
+        },
+      });
+    } else oneUndo.other();
     // Light haptic tap on mobile — confirms the swap landed. Goes
     // via the haptics primitive so iOS users get a real Taptic tap
     // instead of the silent navigator.vibrate no-op WebKit ships.
@@ -1364,7 +1385,9 @@ export function LiveGame({
     return `${ours ? teamName : opponentName} ${kind}${who}`;
   }
 
-  function handleUndo() {
+  // The strip's Undo of a score: the one it names (useOneUndo).
+  function handleUndo(named: UndoEvent) {
+    const undoTop = undoScores.find((s) => (s.eventId !== null && s.eventId === named.id) || (s.key !== null && s.key === named.idempotency_key));
     if (!undoTop) return;
     const forTeam = undoTop.type.startsWith("opponent_") ? "opponent" : "us";
     const kind: "goal" | "behind" = undoTop.type.endsWith("behind") ? "behind" : "goal";
@@ -1378,11 +1401,6 @@ export function LiveGame({
     }
 
     setUndoneScoreIds((prev) => new Set(Array.from(prev).concat(stackIds(undoTop))));
-    setUndoToastVisible(false);
-    if (undoTimerRef.current !== null) {
-      clearTimeout(undoTimerRef.current);
-      undoTimerRef.current = null;
-    }
 
     const serverKind = undoTop.type as "goal" | "behind" | "opponent_goal" | "opponent_behind";
 
@@ -1736,10 +1754,6 @@ export function LiveGame({
 
   useEffect(() => {
     return () => {
-      if (undoTimerRef.current !== null) {
-        clearTimeout(undoTimerRef.current);
-        undoTimerRef.current = null;
-      }
       if (swapToastTimerRef.current !== null) {
         clearTimeout(swapToastTimerRef.current);
         swapToastTimerRef.current = null;
@@ -2285,17 +2299,15 @@ export function LiveGame({
     for (const s of suggestions) {
       persistSwap(s.off_player_id, s.on_player_id, s.zone);
     }
-    // The toast's Undo puts them back, last first, without restarting
+    // The strip's Undo puts them back, last first, without restarting
     // the sub clock again (undoSwaps).
-    const undo = undoSwaps(
-      suggestions.map((s) => ({ off: s.off_player_id, on: s.on_player_id, zone: s.zone })),
-      (s) => persistSwap(s.off, s.on, s.zone, false, 0, true),
-    );
+    const pairs = suggestions.map((s) => ({ off: s.off_player_id, on: s.on_player_id, zone: s.zone }));
+    const undo = undoSwaps(pairs, (s) => persistSwap(s.off, s.on, s.zone, false, 0, true));
     if (suggestions.length === 1) {
       const s = suggestions[0];
-      showSwapToast(`${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`, undo);
+      showSwapToast(`${shortName(s.off_player_id)} → ${shortName(s.on_player_id)}`, undo, swapUndoLabel(pairs, shortName));
     } else if (suggestions.length > 1) {
-      showSwapToast(`${suggestions.length} subs made`, undo);
+      showSwapToast(`${suggestions.length} subs made`, undo, swapUndoLabel(pairs, shortName));
     }
     // The pinned plan-ahead sub (if any) has now been applied — consume
     // it so it can't re-fire next window. Planned periods stay.
@@ -2672,31 +2684,14 @@ export function LiveGame({
             ) : null
           }
           header={shellHeader}
-          undo={
-            undoTop && !isPreGame ? (
-              <UndoStrip plain flashing={undoToastVisible} message={undoScoreMessage(undoTop)} onUndo={handleUndo} disabled={isPending} />
-            ) : null
-          }
+          undo={oneUndo.strip({ show: !isPreGame, plain: true, onScore: handleUndo, disabled: isPending })}
           info={infoEl}
           field={fieldEl}
           bench={benchEl}
           bar={shellBar}
           toast={
             swapToast ? (
-              <SwapDoneToast
-                look="ink"
-                text={swapToast}
-                durationMs={swapToastUndo ? 6000 : 2500}
-                undoLabel={swapToast.endsWith(" subs made") ? "Undo swaps" : "Undo"}
-                onUndo={
-                  swapToastUndo
-                    ? () => {
-                        swapToastUndo.run();
-                        showSwapToast("Swaps undone");
-                      }
-                    : undefined
-                }
-              />
+              <SwapDoneToast look="ink" text={swapToast} durationMs={2500} />
             ) : null
           }
         />

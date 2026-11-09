@@ -300,7 +300,7 @@ test("soccer: a tap-tap sub is made at once and toasts; a goal, its undo and the
   await page.getByTestId(`player-tile-${benchKid.id}`).click();
   await page.getByTestId(`player-tile-${def1.id}`).click();
   await expect(page.getByTestId("swap-toast")).toContainText(`${def1.full_name} → ${benchKid.full_name}`, { timeout: 1500 });
-  await expect(page.getByTestId("swap-toast").getByRole("button", { name: "Undo" })).toBeVisible();
+  await expect(page.getByTestId("undo-strip")).toContainText(`Undo: ${benchKid.full_name} on for ${def1.full_name}`);
   await expect(page.getByRole("group", { name: "Defence" }).getByTestId(`player-tile-${benchKid.id}`)).toBeVisible({
     timeout: 1500,
   });

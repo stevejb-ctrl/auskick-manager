@@ -256,7 +256,7 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   await page.getByTestId(`league-player-tile-${benchKid.id}`).click({ timeout: 10_000 });
   await page.getByTestId(`league-player-tile-${offKid.id}`).click({ timeout: 10_000 });
   await expect(page.getByTestId("swap-toast")).toContainText(`${offKid.full_name} → ${benchKid.full_name}`);
-  await expect(page.getByTestId("swap-toast").getByRole("button", { name: "Undo" })).toBeVisible();
+  await expect(page.getByTestId("undo-strip")).toContainText(`Undo: ${benchKid.full_name} on for ${offKid.full_name}`);
   await expect(
     page.getByRole("group", { name: "Backs" }).getByTestId(`league-player-tile-${benchKid.id}`),
   ).toBeVisible({ timeout: 1_500 });

@@ -140,7 +140,8 @@ import {
   clearPeriodToBench,
   type GamePlan,
 } from "@/lib/game-plan";
-import { UndoStrip } from "@/components/live/UndoStrip";
+import { useOneUndo } from "@/components/live/useOneUndo";
+import { swapUndoLabel, type UndoEvent } from "@/lib/live/lastUndoable";
 import { NETBALL_SCORE_TYPES, savedScoreKeys, stackIds, stackRef, standingScores, undoStack, type StackScore } from "@/lib/live/undoStack";
 import { pairScoreUndos } from "@/lib/live/scoreUndo";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
@@ -1108,35 +1109,48 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   useOtherPhoneScores(serverEvents, NETBALL_SCORE_TYPES, { teamName: teamName, opponentName: game.opponent || "Opponent" });
   const serverStanding = useMemo(() => standingScores(serverEvents, NETBALL_SCORE_TYPES), [serverEvents]);
   const serverScoreKeys = useMemo(() => savedScoreKeys(serverEvents, NETBALL_SCORE_TYPES), [serverEvents]);
-  const undoTop = undoStack(serverStanding, localScores, undoneScoreIds, serverScoreKeys).at(-1) ?? null;
-  const [undoToastVisible, setUndoToastVisible] = useState(false);
-  const undoToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const undoScores = undoStack(serverStanding, localScores, undoneScoreIds, serverScoreKeys);
+  // The one Undo (useOneUndo, as AFL's): the newest goal or swap of this
+  // phone's, else the game's latest goal, named on the strip. The stack
+  // is the goals standing, in order (a tap on its way after the saved).
+  const kidFirst = useCallback(
+    (id: string) => squad.find((p) => p.id === id)?.full_name.trim().split(/\s+/)[0] ?? "Player",
+    [squad],
+  );
+  const opponentLabel = game.opponent || "Opponent";
+  const oneUndo = useOneUndo({
+    events: undoScores.map((s, i) => ({
+      id: s.eventId ?? `optimistic-${s.key}`,
+      type: s.type,
+      player_id: s.playerId,
+      created_at: s.createdAt ?? `￿${String(i).padStart(4, "0")}`,
+      idempotency_key: s.key,
+      metadata: { quarter: s.quarter },
+    })),
+    scoreTypes: NETBALL_SCORE_TYPES,
+    period: currentQuarter >= 1 && !quarterEnded && !finalised ? currentQuarter : null,
+    teamName,
+    opponentName: opponentLabel,
+    firstName: kidFirst,
+  });
+  const { scored: undoScored } = oneUndo;
   const startUndoToast = useCallback(
     (kind: "team" | "opp", playerId: string | null, key: string | null) => {
-      if (undoToastTimerRef.current !== null) {
-        clearTimeout(undoToastTimerRef.current);
-      }
       setLocalScores((prev) => [
         ...prev,
         { eventId: null, key, type: kind === "team" ? "goal" : "opponent_goal", playerId, quarter: currentQuarter },
       ]);
-      setUndoToastVisible(true);
-      undoToastTimerRef.current = setTimeout(() => {
-        setUndoToastVisible(false);
-      }, 8000);
+      undoScored(key, `${kind === "team" ? teamName : opponentLabel} goal${kind === "team" && playerId ? ` — ${kidFirst(playerId)}` : ""}`);
     },
-    [currentQuarter],
+    [currentQuarter, undoScored, teamName, opponentLabel, kidFirst],
   );
-  const handleUndoLastScore = useCallback(() => {
+  // The strip's Undo of a goal: the one it names.
+  const handleUndoLastScore = (named: UndoEvent) => {
+    const undoTop = undoScores.find((s) => (s.eventId !== null && s.eventId === named.id) || (s.key !== null && s.key === named.idempotency_key));
     if (!undoTop) return;
     const undoKind = undoTop.type === "goal" ? "team" : "opp";
     const scorer = undoTop.playerId;
     setUndoneScoreIds((prev) => new Set(Array.from(prev).concat(stackIds(undoTop))));
-    setUndoToastVisible(false);
-    if (undoToastTimerRef.current !== null) {
-      clearTimeout(undoToastTimerRef.current);
-      undoToastTimerRef.current = null;
-    }
     // Optimistic delta — subtract one so the scorebug drops
     // instantly (Steve 2026-05-17). The server refresh below
     // reconciles when it lands; if the delta was already at 0
@@ -1164,12 +1178,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         step(1);
         startTransition(() => router.refresh());
       });
-  }, [undoTop, auth, game.id, router, bumpScoreDelta]);
-  // Reset the undo state if the user transitions out of LIVE play
-  // (Q-break, finalised) so a stale chip doesn't carry across phases.
+  };
+  // Out of LIVE play (Q-break, finalised) the strip stops flashing, so a
+  // stale flash doesn't carry across phases.
+  const { quiet: quietUndo } = oneUndo;
   useEffect(() => {
-    if (quarterEnded || finalised) setUndoToastVisible(false);
-  }, [quarterEnded, finalised]);
+    if (quarterEnded || finalised) quietUndo();
+  }, [quarterEnded, finalised, quietUndo]);
 
   const squadById = useMemo(() => new Map(squad.map((p) => [p.id, p])), [squad]);
 
@@ -1528,7 +1543,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // player's vacate + fill. At once, with Undo on the toast for 6 s: the
   // quarter's sub log is this phone's until the break writes it, so Undo
   // takes the two entries back out.
-  const [swapToast, setSwapToast] = useState<{ text: string; undo: (() => void) | null; key: number } | null>(null);
+  const [swapToast, setSwapToast] = useState<{ text: string; key: number } | null>(null);
   const swapToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
@@ -1536,10 +1551,12 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     },
     [],
   );
-  const showSwapToast = (text: string, undo: (() => void) | null) => {
+  // The toast says what changed; the strip's one Undo puts a swap back
+  // (Stagehand round 9: the toast's own Undo beside it named another thing).
+  const showSwapToast = (text: string) => {
     if (swapToastTimerRef.current !== null) clearTimeout(swapToastTimerRef.current);
-    setSwapToast({ text, undo, key: Date.now() });
-    swapToastTimerRef.current = setTimeout(() => setSwapToast(null), undo ? 6000 : 2500);
+    setSwapToast({ text, key: Date.now() });
+    swapToastTimerRef.current = setTimeout(() => setSwapToast(null), 2500);
   };
   const swapOnAt = (positionId: string, offId: string, onId: string) => {
     const atMs = clockMs;
@@ -1547,10 +1564,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     const into: MidQuarterSub = { positionId, outPlayerId: null, inPlayerId: onId, atMs };
     setMidQuarterSubs((prev) => [...prev, out, into]);
     void hapticTap("light");
-    const first = (id: string) => squadById.get(id)?.full_name.trim().split(/\s+/)[0] ?? "Player";
-    showSwapToast(`${first(offId)} → ${first(onId)}`, () => {
-      setMidQuarterSubs((prev) => prev.filter((e) => e !== out && e !== into));
-      showSwapToast("Swap undone", null);
+    showSwapToast(`${kidFirst(offId)} → ${kidFirst(onId)}`);
+    oneUndo.changed({
+      label: swapUndoLabel([{ off: offId, on: onId }], kidFirst),
+      run: () => {
+        setMidQuarterSubs((prev) => prev.filter((e) => e !== out && e !== into));
+        showSwapToast("Swap undone");
+      },
     });
   };
 
@@ -2640,34 +2660,14 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           ) : null
         }
         header={shellHeader}
-        undo={
-          trackScoring && undoTop && inPlay ? (
-            <UndoStrip
-              plain
-              flashing={undoToastVisible}
-              message={`${undoTop.type === "goal" ? teamName : game.opponent} goal${
-                undoTop.type === "goal" && undoTop.playerId && squadById.get(undoTop.playerId)
-                  ? ` — ${squadById.get(undoTop.playerId)!.full_name.trim().split(/\s+/)[0]}`
-                  : ""
-              }`}
-              onUndo={handleUndoLastScore}
-              disabled={isPending}
-            />
-          ) : null
-        }
+        undo={oneUndo.strip({ show: inPlay, plain: true, onScore: handleUndoLastScore, disabled: isPending })}
         info={infoEl}
         field={courtEl}
         bench={benchEl}
         bar={shellBar}
         toast={
           swapToast ? (
-            <SwapDoneToast
-              key={swapToast.key}
-              look="ink"
-              text={swapToast.text}
-              durationMs={swapToast.undo ? 6000 : 2500}
-              onUndo={swapToast.undo ?? undefined}
-            />
+            <SwapDoneToast key={swapToast.key} look="ink" text={swapToast.text} durationMs={2500} />
           ) : null
         }
       />

@@ -1,6 +1,7 @@
 // ─── A manual swap is instant, with Undo ─────────────────────
 // Live v3 (Steve, 8 Nov 2026): a swap made by hand happens at once and
-// the toast carries an Undo for 6 s. There's no "Manually sub X for Y?"
+// the undo strip offers to put it back ("Undo: Ava on for Leo"; the
+// toast had its own Undo until Stagehand round 9). There's no "Manually sub X for Y?"
 // confirm first. Undo writes the swap back (events stay as they were
 // written), so a reload shows the lineup Undo put back, and with no
 // signal the swap and its undo save in order once it's back.
@@ -94,12 +95,15 @@ async function openAfl(page: Page, teamId: string, gameId: string) {
 
 const noConfirm = (page: Page) => page.getByRole("dialog", { name: /manually sub|^move .+ to .+\?$/i });
 
-/** The toast's Undo, once its slide-in has settled (WebKit calls it "not stable" while it moves). */
+/**
+ * The undo strip's Undo, naming the swap ("Undo: Ava on for Leo"). The
+ * toast has no Undo of its own since Stagehand round 9 (one Undo).
+ */
 async function tapUndo(page: Page) {
-  const undo = page.getByTestId("swap-toast").getByRole("button", { name: "Undo" });
-  await expect(undo).toBeVisible({ timeout: 5_000 });
-  await page.waitForTimeout(400);
-  await undo.click({ force: true });
+  await expect(page.getByTestId("swap-toast").getByRole("button")).toHaveCount(0);
+  const strip = page.getByTestId("undo-strip");
+  await expect(strip).toContainText(/Undo: .+ on for /, { timeout: 5_000 });
+  await strip.getByRole("button", { name: "Undo" }).click();
 }
 
 test("AFL: a tap-tap sub happens at once, Undo puts it back, and a reload agrees", async ({ page }) => {
@@ -113,13 +117,13 @@ test("AFL: a tap-tap sub happens at once, Undo puts it back, and a reload agrees
 
   await page.getByTestId(`player-tile-${on.id}`).click();
   await page.getByTestId(`player-tile-${off.id}`).click();
-  // No confirm: the swap is made, and the toast says so with an Undo.
+  // No confirm: the swap is made, the toast says so, and the strip offers Undo.
   await expect(page.getByTestId("swap-toast")).toContainText(`${off.full_name} → ${on.full_name}`, { timeout: 3_000 });
   await expect(noConfirm(page)).toHaveCount(0);
   await expect(zone.getByTestId(`player-tile-${on.id}`)).toBeVisible();
   await expect(benchGroup.getByTestId(`player-tile-${off.id}`)).toBeVisible();
 
-  // Undo while the toast is up (6 s); both writes are checked below.
+  // Undo (the strip's); both writes are checked below.
   await tapUndo(page);
   await expect(zone.getByTestId(`player-tile-${off.id}`)).toBeVisible({ timeout: 3_000 });
   await expect(benchGroup.getByTestId(`player-tile-${on.id}`)).toBeVisible();
@@ -247,7 +251,7 @@ test("soccer: a tap-tap sub happens at once, Undo puts it back, and a reload agr
   await expect(noConfirm(page)).toHaveCount(0);
   await expect(defence.getByTestId(`player-tile-${benchKid.id}`)).toBeVisible();
 
-  // Undo while the toast is up (6 s); both writes are checked below.
+  // Undo (the strip's); both writes are checked below.
   await tapUndo(page);
   await expect(defence.getByTestId(`player-tile-${def1.id}`)).toBeVisible({ timeout: 3_000 });
   await expect(benchGroup.getByTestId(`player-tile-${benchKid.id}`)).toBeVisible();

@@ -73,8 +73,8 @@ import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
 import { liveEvents, type OptimisticEventInput } from "@/lib/live/optimisticEvents";
-import { undoTargetText, UNDO_GONE_MESSAGE, UNDO_MISSING_MESSAGE, undoTap } from "@/lib/live/undoTarget";
-import { announceLiveNotice } from "@/lib/live/liveSync";
+import { undoOf, undoTap, type UndoTap } from "@/lib/live/undoTarget";
+import type { UndoEvent } from "@/lib/live/lastUndoable";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
 import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import { hapticTap } from "@/lib/haptics";
@@ -323,6 +323,8 @@ export function BasketballLiveGame({
     playersById: playerById,
     seasonLoanMinutes,
     events,
+    scoreTypes: BASKETBALL_SCORE_EVENT_TYPES,
+    period: isPeriodActive ? base.currentPeriod : null,
     openElapsedMs: isPeriodActive ? elapsedMs : null,
     toastLook: "ink",
   });
@@ -513,7 +515,7 @@ export function BasketballLiveGame({
       (s) => sub(s.off, s.on, s.line),
     );
     if (nextSubs.length === 1) chrome.swapped(nextSubs[0].off_player_id, nextSubs[0].on_player_id, undo);
-    else chrome.showToast(`${nextSubs.length} subs made`, undo);
+    else chrome.showToast(`${nextSubs.length} subs made`, undo, `the ${nextSubs.length} swaps`);
     setSubAckKey(subDueKey);
   }
 
@@ -605,24 +607,17 @@ export function BasketballLiveGame({
   const teamPoints = state.teamScore.points;
   const opponentPoints = state.opponentScore.points;
   const playerPoints = state.playerPoints;
-  // Takes back the basket the strip names (this phone's last), or with
-  // none named the latest on screen — never whatever the other phone
-  // scored since (UX round 2).
-  const undoScore = () => {
-    const tap = undoTap(events, BASKETBALL_SCORE_EVENT_TYPES, chrome.namedScoreKey);
-    // Its score was taken back on the other phone, or never saved (a tap
-    // offline that didn't get through): nothing to write, and never
-    // another score in its place.
-    if (tap.kind === "gone" || tap.kind === "missing") {
-      chrome.undone();
-      announceLiveNotice(tap.kind === "gone" ? UNDO_GONE_MESSAGE : UNDO_MISSING_MESSAGE);
-      return;
-    }
+  // The strip's Undo takes back the basket it names (useOneUndo: this
+  // phone's newest, never whatever the other phone scored since, UX
+  // round 2); the break's and full time's "Undo last score" the latest.
+  const writeScoreUndo = (tap: UndoTap) => {
     if (tap.kind !== "undo") return;
     setError(null);
     write("undoBasketballScore", [auth, game.id, tap.target], tap.optimistic);
     chrome.undone();
   };
+  const undoScore = () => writeScoreUndo(undoTap(events, BASKETBALL_SCORE_EVENT_TYPES, null));
+  const undoNamedScore = (score: UndoEvent) => writeScoreUndo(undoOf(score));
 
   // ── Sideline: injuries, loans, late arrivals, holds ─────────
   const swappableBench = useMemo(
@@ -652,11 +647,18 @@ export function BasketballLiveGame({
     }
     leaveNow(pid, reason);
   }
-  function leaveNow(pid: string, reason: Leaving) {
+  function endSitOut(pid: string) {
+    setError(null);
+    const input = { player_id: pid, duration_ms: 0, ...at() };
+    write("recordBasketballSitOut", [auth, game.id, input], sitOutEvent(input));
+  }
+  function leaveNow(pid: string, reason: Leaving, replaced = false) {
     if (reason === "sitting_out") {
       setError(null);
       const input = { player_id: pid, duration_ms: SIT_OUT_MS, ...at() };
       write("recordBasketballSitOut", [auth, game.id, input], sitOutEvent(input));
+      // The sin bin is undoable as a swap is: "Undo: Sam's sit-out".
+      if (!replaced) chrome.undoableChange(`${chrome.firstName(pid)}'s sit-out`, () => endSitOut(pid));
     } else {
       // Going home is an injury with reason "out" (lib/live/wentHome).
       markInjured(pid, true, reason === "fouled_out" ? "fouled_out" : reason === "went_home" ? WENT_HOME_REASON : undefined);
@@ -665,9 +667,17 @@ export function BasketballLiveGame({
   function leaveAndReplace(pid: string, replacementId: string, line: BasketballLine, reason: Leaving) {
     setLeaving(null);
     // In order, in the one game lane: the kid leaves, then who comes on.
-    leaveNow(pid, reason);
+    leaveNow(pid, reason, true);
     sub(pid, replacementId, line);
     chrome.swapped(pid, replacementId);
+    // A mistaken sit-out goes back as it came: the sit-out ends and the
+    // kid comes back on for whoever replaced them.
+    if (reason === "sitting_out") {
+      chrome.undoableChange(`${chrome.firstName(pid)}'s sit-out`, () => {
+        endSitOut(pid);
+        sub(replacementId, pid, line);
+      });
+    }
   }
   const setLoan = (pid: string, loaned: boolean) => {
     setError(null);
@@ -689,7 +699,7 @@ export function BasketballLiveGame({
   function writeFoul(pid: string, undo: boolean) {
     setError(null);
     const input = { player_id: pid, ...(undo ? { undo: true } : { kind: "personal" as const }), ...at() };
-    write("recordBasketballFoul", [auth, game.id, input], foulEvent(input));
+    return write("recordBasketballFoul", [auth, game.id, input], foulEvent(input));
   }
   function foul(pid: string) {
     setSelectedId(null);
@@ -697,11 +707,18 @@ export function BasketballLiveGame({
     // said "Back to 5 of 5, and back in the game".
     if ((state.fouls[pid] ?? 0) >= ageGroup.foulOutAt) return;
     const count = (state.fouls[pid] ?? 0) + 1;
-    writeFoul(pid, false);
+    // The strip names it next: "Undo: foul on Sam" (Stagehand round 9).
+    chrome.fouled(writeFoul(pid, false));
     // The limit: out for the game. The coach picks who comes on.
     if (count >= ageGroup.foulOutAt && !fouledOutSet.has(pid)) startLeaving(pid, "fouled_out", true);
   }
   const undoFoul = (pid: string) => writeFoul(pid, true);
+  /** The strip's Undo of a foul: the one that fouled a kid out puts them back in the game too. */
+  function takeBackFoul(pid: string) {
+    const outOnFouls = fouledOutSet.has(pid) && (state.fouls[pid] ?? 0) >= ageGroup.foulOutAt;
+    undoFoul(pid);
+    if (outOnFouls) markInjured(pid, false);
+  }
 
   // ── Tile decorations ────────────────────────────────────────
   const lockModes = useMemo(() => {
@@ -1426,9 +1443,9 @@ export function BasketballLiveGame({
           banners={bannersEl}
           header={shellHeader}
           undo={chrome.undoStrip({
-            target: undoTargetText(events, BASKETBALL_SCORE_EVENT_TYPES, chrome.namedScoreKey, { teamName, opponentName }),
-            show: isPeriodActive && (teamPoints > 0 || opponentPoints > 0),
-            onUndo: undoScore,
+            show: isPeriodActive,
+            onUndo: undoNamedScore,
+            onUndoFoul: (f) => f.player_id && takeBackFoul(f.player_id),
             disabled: pending,
             plain: true,
           })}
