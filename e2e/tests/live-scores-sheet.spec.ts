@@ -144,3 +144,65 @@ test("soccer: a game manager adds a missed goal mid-half and the score on the li
     await context.close();
   }
 });
+
+// Stagehand, 9 Nov 2026 (gameday-afl-u16-big-field): a behind tapped to
+// the wrong kid, then "Change who scored" in Scores and fixes. The total
+// stayed right, but the old kid's tile kept 0.1, the right kid's showed
+// nothing, and Undo still named the old kid, until a reload. The live
+// screen took the server's game only when a total moved, and Undo kept
+// this phone's tap as "on its way" after the server had taken it back.
+test("AFL: changing who scored moves the tally between the kids' tiles and Undo names the new scorer", async ({ page }) => {
+  const admin = createAdminClient();
+  const ownerId = await coachId(admin);
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
+  await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Kew Comets" });
+  const caps = zoneCapsFor(game.on_field_size, aflPositionModel(getAgeGroupConfig("afl", team.ageGroup)));
+  const lineup: Lineup = { back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [] };
+  let cursor = 0;
+  for (const z of ALL_ZONES) for (let i = 0; i < caps[z]; i++) lineup[z].push(players[cursor++].id);
+  lineup.bench = players.slice(cursor).map((p) => p.id);
+  const [wrong, right] = lineup.fwd.map((id) => players.find((p) => p.id === id)!);
+  const at = (msAgo: number) => new Date(Date.now() - msAgo).toISOString();
+  const { error } = await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup }, created_at: at(90_000) },
+      { type: "quarter_start", metadata: { quarter: 1 }, created_at: at(80_000) },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  if (error) throw new Error(`seed: ${error.message}`);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  await skipTours(page);
+  await gotoStable(page, `/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  const tile = (id: string) => page.getByTestId(`player-tile-${id}`);
+  await expect(tile(wrong.id)).toBeVisible({ timeout: 15_000 });
+
+  // The behind, tapped to the wrong kid.
+  await page.getByRole("button", { name: `Add behind, ${team.name}` }).click();
+  await page.getByRole("dialog").getByRole("button", { name: new RegExp(wrong.full_name) }).click();
+  await expect(tile(wrong.id)).toContainText("0.1");
+  const strip = page.getByTestId("undo-strip");
+  await expect(strip).toContainText(`behind — ${wrong.full_name.split(" ")[0]}`);
+  await expect
+    .poll(async () => (await admin.from("game_events").select("id").eq("game_id", game.id).eq("type", "behind")).data?.length, { timeout: 15_000 })
+    .toBe(1);
+
+  // Scores and fixes: change who scored it.
+  const sheet = await openScoresFromHeader(page);
+  await sheet.getByRole("button", { name: new RegExp(`^Change who scored: ${wrong.full_name}`) }).click();
+  await sheet.getByRole("combobox", { name: "Who scored" }).selectOption(right.id);
+  await sheet.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(sheet.getByRole("button", { name: new RegExp(`^Change who scored: ${right.full_name}`) })).toBeVisible({ timeout: 15_000 });
+  await sheet.getByRole("button", { name: "Done" }).click();
+  await expect(sheet).toHaveCount(0);
+
+  // The live screen follows, with no reload: the tally moved, Undo names
+  // the new scorer, and the total is still a behind.
+  await expect(tile(right.id)).toContainText("0.1", { timeout: 15_000 });
+  await expect(tile(wrong.id)).not.toContainText("0.1");
+  await expect(strip).toContainText(`behind — ${right.full_name.split(" ")[0]}`);
+  await expect(ourTotal(page)).toHaveText("10·1");
+});

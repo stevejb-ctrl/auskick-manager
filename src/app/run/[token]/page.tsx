@@ -1,6 +1,6 @@
 import { SFButton, SFIcon } from "@/components/sf";
 import { unstable_noStore as noStore } from "next/cache";
-import { AFL_SCORE_TYPES, standingScores } from "@/lib/live/undoStack";
+import { AFL_SCORE_TYPES, savedScoreKeys, standingScores } from "@/lib/live/undoStack";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
@@ -1203,6 +1203,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
             info strip. */}
         <LiveGame
           standingScores={standingScores((thisGameEvents ?? []) as GameEvent[], AFL_SCORE_TYPES)}
+          savedScoreKeys={savedScoreKeys((thisGameEvents ?? []) as GameEvent[], AFL_SCORE_TYPES)}
           auth={auth}
           gameId={g.id}
           game={g}

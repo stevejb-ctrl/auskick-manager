@@ -141,7 +141,7 @@ import {
   type GamePlan,
 } from "@/lib/game-plan";
 import { UndoStrip } from "@/components/live/UndoStrip";
-import { NETBALL_SCORE_TYPES, stackIds, stackRef, standingScores, undoStack, type StackScore } from "@/lib/live/undoStack";
+import { NETBALL_SCORE_TYPES, savedScoreKeys, stackIds, stackRef, standingScores, undoStack, type StackScore } from "@/lib/live/undoStack";
 import { pairScoreUndos } from "@/lib/live/scoreUndo";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { periodLabels } from "@/lib/sports";
@@ -1107,7 +1107,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // A score from the other phone says so (Stagehand round 8, #6).
   useOtherPhoneScores(serverEvents, NETBALL_SCORE_TYPES, { teamName: teamName, opponentName: game.opponent || "Opponent" });
   const serverStanding = useMemo(() => standingScores(serverEvents, NETBALL_SCORE_TYPES), [serverEvents]);
-  const undoTop = undoStack(serverStanding, localScores, undoneScoreIds).at(-1) ?? null;
+  const serverScoreKeys = useMemo(() => savedScoreKeys(serverEvents, NETBALL_SCORE_TYPES), [serverEvents]);
+  const undoTop = undoStack(serverStanding, localScores, undoneScoreIds, serverScoreKeys).at(-1) ?? null;
   const [undoToastVisible, setUndoToastVisible] = useState(false);
   const undoToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startUndoToast = useCallback(

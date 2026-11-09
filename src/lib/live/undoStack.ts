@@ -59,15 +59,28 @@ export function stackRef(score: StackScore): UndoTargetRef {
 }
 
 /**
+ * The write keys of every score the server has, standing or taken back.
+ * A tap of this phone's that the server has and has since taken back
+ * (Scores and fixes changed who scored, or the other phone undid it) is
+ * no longer on its way: Undo mustn't offer it again.
+ */
+export function savedScoreKeys(events: readonly GameEvent[], scoreTypes: ReadonlySet<string>): string[] {
+  return events.filter((ev) => scoreTypes.has(ev.type) && ev.idempotency_key).map((ev) => ev.idempotency_key as string);
+}
+
+/**
  * The server's standing scores, then this phone's taps it hasn't got
  * yet, less what this phone has taken back. The last is what Undo takes.
+ * `seen` (savedScoreKeys) is every score the server has, so a tap it has
+ * taken back since doesn't come back as "still on its way".
  */
 export function undoStack(
   server: readonly StackScore[],
   local: readonly StackScore[],
   undone: ReadonlySet<string>,
+  seen: readonly string[] = [],
 ): StackScore[] {
-  const saved = new Set(server.map((s) => s.key).filter(Boolean));
+  const saved = new Set([...server.map((s) => s.key).filter(Boolean), ...seen]);
   const pending = local.filter((s) => !s.key || !saved.has(s.key));
   return [...server, ...pending].filter((s) => !stackIds(s).some((id) => undone.has(id)));
 }
