@@ -47,7 +47,7 @@ import { LiveShell } from "@/components/live/LiveShell";
 import { LiveGameMenu, settingsSummary } from "@/components/live/LiveGameMenu";
 import { KidTile, KidSlot, type KidOutKind } from "@/components/live/KidTile";
 import { KidBench } from "@/components/live/KidBench";
-import { FieldLines, type FieldLine } from "@/components/live/FieldLines";
+import { FieldLines, staggerRows, type FieldLine } from "@/components/live/FieldLines";
 import { InfoLine } from "@/components/live/InfoLine";
 import { PairsSheet, type SheetPair } from "@/components/live/PairsSheet";
 import { KidBar, KidBarMore, TimeSplit } from "@/components/live/KidBar";
@@ -1042,10 +1042,7 @@ export function TouchLiveGame({
         const ids = lineup.lines[line];
         const empties = Math.max(0, (lineCaps[line] ?? 0) - ids.length);
         const spot = line === "field" ? "spot" : `${TOUCH_LINE_ONE[line]} spot`;
-        return {
-          key: line,
-          label: line === "field" ? "Field" : TOUCH_LINE_LABEL[line],
-          tiles: [
+        const tiles = [
             ...ids.map((pid) => (
               <div key={pid} className="min-w-0">
                 {kidTile(pid, line)}
@@ -1060,7 +1057,16 @@ export function TouchLiveGame({
                 onClick={() => handleTap("", line)}
               />
             )),
-          ],
+        ];
+        // No lanes (Oztag, small touch): the whole side is one line,
+        // staggered down the field in threes and twos rather than a
+        // tight block of fours in the middle (Steve, 10 Nov 2026).
+        const spread = line === "field" && tiles.length > 4;
+        return {
+          key: line,
+          label: line === "field" ? "Field" : TOUCH_LINE_LABEL[line],
+          tiles,
+          ...(spread ? { rows: staggerRows(tiles), rowsAlign: "spread" as const } : {}),
         };
       })
     : [];

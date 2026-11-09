@@ -15,6 +15,8 @@
 
 import type { ReactNode } from "react";
 
+export { staggerRows } from "@/components/live/staggerRows";
+
 export interface FieldLine {
   key: string;
   /** The line's name: the margin label and the group's accessible name. */
@@ -29,6 +31,12 @@ export interface FieldLine {
    * back row are three rows of one "Forwards" line.
    */
   rows?: ReactNode[][];
+  /**
+   * Where `rows` sit in the line: centred (default), at its top or
+   * bottom (netball's GS and GK by their shooting circles), or spread
+   * down the whole line (Oztag's one line of eight, staggerRows).
+   */
+  rowsAlign?: "center" | "start" | "end" | "spread";
   /**
    * How many are on after the margin label ("FORWARDS 4/4"), underlined
    * when the line is short. Seen only, as the old count chip was.
@@ -57,6 +65,13 @@ export interface FieldLinesProps {
    */
   wakeUpKey?: number | null;
 }
+
+const ROWS_ALIGN = {
+  center: "",
+  start: "self-start",
+  end: "self-end",
+  spread: "self-stretch justify-evenly",
+} as const;
 
 function colsFor(n: number): number {
   return n <= 4 ? Math.max(1, n) : Math.ceil(n / 2);
@@ -104,7 +119,7 @@ export function FieldLines({ lines, surface = "field", marks, dense = false, til
               )}
             </span>
             {line.rows ? (
-              <div className="flex flex-col gap-[6px]">
+              <div className={`flex flex-col gap-[6px] ${ROWS_ALIGN[line.rowsAlign ?? "center"]}`}>
                 {line.rows.map((row, r) => (
                   <div
                     key={r}
