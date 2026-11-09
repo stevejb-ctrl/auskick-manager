@@ -1,8 +1,8 @@
 // How the kids stand on the court (Steve, 10 Nov 2026, from the
 // screenshot round):
-//  - Netball: staggered down the court as the bibs stand. GS, then GA
-//    in the attack third; WA, C, WD across the centre; GD, then GK.
-//    The shooting circles are drawn plainly, GS and GK in them.
+//  - Netball: a bib a row, zigzagging down the court as the old court
+//    did: GS centre, GA right; WA left, C centre, WD right; GD left,
+//    GK centre. The shooting circles are drawn plainly, GS and GK in them.
 //  - Oztag: the eight on the one "Field" line used to sit in a tight
 //    block of fours in the middle; they now stand in rows of three and
 //    two down the whole field.
@@ -44,7 +44,7 @@ async function seedInPlay(admin: SupabaseClient, ownerId: string, gameId: string
 
 const box = async (page: Page, id: string) => (await page.getByTestId(`player-tile-${id}`).boundingBox())!;
 
-test("netball: GS then GA, WA C WD across, GD then GK; GS and GK in plain shooting circles", async ({ page }) => {
+test("netball: a bib a row, zigzagging down the court; GS and GK in plain shooting circles", async ({ page }) => {
   const admin = createAdminClient();
   const ownerId = await ownerOf(admin);
   const team = await makeTeam(admin, { ownerId, ageGroup: "go", sport: "netball", name: `NB-COURT-${Date.now() % 1e6}` });
@@ -68,16 +68,17 @@ test("netball: GS then GA, WA C WD across, GD then GK; GS and GK in plain shooti
   await expect(page.getByTestId(`player-tile-${gs}`)).toBeVisible({ timeout: 15_000 });
 
   const b = Object.fromEntries(await Promise.all(Object.entries({ gs, ga, wa, c, wd, gd, gk }).map(async ([k, id]) => [k, await box(page, id)])));
-  // Down the court: GS above GA above the centre row above GD above GK.
-  expect(b.gs.y + b.gs.height).toBeLessThanOrEqual(b.ga.y + 1);
-  expect(b.ga.y + b.ga.height).toBeLessThanOrEqual(b.c.y);
-  expect(b.c.y + b.c.height).toBeLessThanOrEqual(b.gd.y);
-  expect(b.gd.y + b.gd.height).toBeLessThanOrEqual(b.gk.y + 1);
-  // WA, C, WD across one row, left to right.
-  expect(Math.abs(b.wa.y - b.c.y)).toBeLessThan(2);
-  expect(Math.abs(b.wd.y - b.c.y)).toBeLessThan(2);
-  expect(b.wa.x).toBeLessThan(b.c.x);
-  expect(b.c.x).toBeLessThan(b.wd.x);
+  // A bib a row, down the court: GS, GA, WA, C, WD, GD, GK.
+  const order = ["gs", "ga", "wa", "c", "wd", "gd", "gk"];
+  for (let i = 1; i < order.length; i++) {
+    expect(b[order[i - 1]].y + b[order[i - 1]].height).toBeLessThanOrEqual(b[order[i]].y + 1);
+  }
+  // Zigzagging across it, as the old court did: GS, C and GK centre;
+  // GA and WD right; WA and GD left.
+  const mid = (k: string) => b[k].x + b[k].width / 2;
+  for (const k of ["c", "gk"]) expect(Math.abs(mid(k) - mid("gs"))).toBeLessThan(4);
+  for (const k of ["ga", "wd"]) expect(mid(k)).toBeGreaterThan(mid("gs") + 40);
+  for (const k of ["wa", "gd"]) expect(mid(k)).toBeLessThan(mid("gs") - 40);
 
   // The two shooting circles are drawn, and plain to see; GS stands in
   // the top one, GK in the bottom one.

@@ -38,6 +38,12 @@ export interface FieldLine {
    */
   rowsAlign?: "center" | "start" | "end" | "spread";
   /**
+   * Each row's place across the field: left, centre (default) or right,
+   * a lane in from the edge. Netball's bibs zigzag down the court (GS
+   * centre, GA right, WA left, C centre…), as the court always has.
+   */
+  rowSide?: ("left" | "center" | "right")[];
+  /**
    * How many are on after the margin label ("FORWARDS 4/4"), underlined
    * when the line is short. Seen only, as the old count chip was.
    */
@@ -65,6 +71,12 @@ export interface FieldLinesProps {
    */
   wakeUpKey?: number | null;
 }
+
+const ROW_SIDE = {
+  left: "justify-start pl-[12px]",
+  center: "justify-center",
+  right: "justify-end pr-[12px]",
+} as const;
 
 const ROWS_ALIGN = {
   center: "",
@@ -123,7 +135,7 @@ export function FieldLines({ lines, surface = "field", marks, dense = false, til
                 {line.rows.map((row, r) => (
                   <div
                     key={r}
-                    className="grid justify-center gap-[8px] bigtext:!grid-cols-2"
+                    className={`grid gap-[8px] bigtext:!grid-cols-2 ${ROW_SIDE[line.rowSide?.[r] ?? "center"]}`}
                     style={{
                       gridTemplateColumns: `repeat(${row.length}, minmax(0, ${tileWidth}px))`,
                       gridAutoRows: `minmax(${rowH}px, auto)`,

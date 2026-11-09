@@ -2307,15 +2307,17 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           </div>
         );
       });
-    // Staggered down the court as the bibs stand (Steve, 10 Nov 2026):
-    // GS in the shooting circle, GA behind; WA, C, WD across the centre;
-    // GD in front, GK in the circle at the bottom.
-    const end: FieldLine["rowsAlign"] | null = id === "attack-third" ? "start" : id === "defence-third" ? "end" : null;
+    // Staggered down the court, a bib a row, zigzagging across it as the
+    // old court did (Steve, 10 Nov 2026): GS centre in the shooting
+    // circle, GA right; WA left, C centre, WD right; GD left, GK centre
+    // in the circle at the bottom.
     return {
       key: id,
       label,
       tiles,
-      ...(end ? { rows: tiles.map((t) => [t]), rowsAlign: end } : {}),
+      rows: tiles.map((t) => [t]),
+      rowsAlign: "spread" as const,
+      rowSide: bibs.map((posId) => NETBALL_SIDE[posId] ?? "center"),
     };
   }).filter((line) => line.tiles.length > 0);
   const courtEl = (
@@ -3306,6 +3308,17 @@ function formatClock(ms: number): string {
 
 // ─── The court for the live v3 shell ────────────────────────
 // Netball's thirds as FieldLines' lines, attack up the page.
+/** Where each bib stands across the court: the zigzag down it. */
+const NETBALL_SIDE: Record<string, "left" | "center" | "right"> = {
+  gs: "center",
+  ga: "right",
+  wa: "left",
+  c: "center",
+  wd: "right",
+  gd: "left",
+  gk: "center",
+};
+
 const NETBALL_THIRDS = [
   { id: "attack-third", label: "Attack third" },
   { id: "centre-third", label: "Centre third" },
