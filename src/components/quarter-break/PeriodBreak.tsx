@@ -431,7 +431,8 @@ export function PeriodBreak(props: PeriodBreakProps) {
                     variant="subtle"
                     size="sm"
                     data-testid={`break-bring-back-${p.id}`}
-                    aria-label={`Bring ${p.name} back`}
+                    // Its words first, then whose (label in name).
+                    aria-label={`Bring back ${p.name}`}
                     disabled={props.settings.pending}
                     onClick={() => props.settings.lent?.onToggle(p.id, false)}
                     className="min-h-[44px] shrink-0"

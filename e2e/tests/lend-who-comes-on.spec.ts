@@ -261,7 +261,7 @@ for (const sport of ["soccer", "rugby_league", "netball"] as const) {
     const card = page.getByTestId("break-lent");
     await expect(card).toContainText("Lent to the other team");
     await expect(card).toContainText(lent.full_name);
-    await card.getByRole("button", { name: `Bring ${lent.full_name} back` }).click();
+    await card.getByRole("button", { name: `Bring back ${lent.full_name}` }).click();
 
     await expect.poll(() => loanOf(admin, game.id, lent.id), { timeout: 15_000 }).toBe(false);
     await expect(card).toHaveCount(0, { timeout: 10_000 });

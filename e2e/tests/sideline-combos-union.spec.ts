@@ -90,9 +90,11 @@ test("rugby union at 15 a side: lend, fill, hurt and replaced, a late arrival, t
     timeout: 15_000,
   });
 
-  // Lend a forward.
+  // Lend a forward. A lend from the field asks who comes on, as AFL's
+  // (Stagehand round 9); this one plays short, so the spot stays empty.
   await tile(lent.id).click({ delay: 600 });
   await page.getByRole("button", { name: /lend to opposition/i }).click();
+  await page.getByRole("dialog", { name: /who comes on at/i }).getByRole("button", { name: "Lend without replacement" }).click();
   await landed((evs) => evs.some((e) => e.type === "player_loan" && e.player_id === lent.id));
 
   // Bring a bench kid into the gap: at once, then its toast (AFL's).
