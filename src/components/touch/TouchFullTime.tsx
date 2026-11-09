@@ -119,6 +119,7 @@ export function TouchFullTimeReview({
               missedNote={`Spotted a miscount? A try you missed counts in ${periodLetter || "P"}${periodCount}.`}
               onUndo={onUndo ?? (() => {})}
               undoDisabled={scorePending || !onUndo}
+              fix={{ auth, gameId }}
             />
           </div>
         </>

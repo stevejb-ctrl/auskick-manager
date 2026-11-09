@@ -23,7 +23,7 @@
 // For now it opens from the utility row and, in AFL and netball, from
 // under the clock; the score header takes over in a later phase.
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { InlineAlert } from "@/components/ui/InlineAlert";
@@ -40,10 +40,14 @@ export interface ScoresSheetProps {
   onClose: () => void;
 }
 
-export function ScoresSheet({ auth, gameId, quarters, onClose }: ScoresSheetProps) {
+/**
+ * The game's score log for its fix list, read on mount and again by
+ * `load` (after each fix): the team's admins and game managers, or the
+ * game-day link while the game is on.
+ */
+function useScoreFix(auth: LiveAuth, gameId: string) {
   const [fix, setFix] = useState<FixScoresProps | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const [isLoading, startTransition] = useTransition();
 
   const load = useCallback(() => {
@@ -62,6 +66,12 @@ export function ScoresSheet({ auth, gameId, quarters, onClose }: ScoresSheetProp
     // Once, on open: each fix reads it again (onFixed).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  return { fix, error, isLoading, load };
+}
+
+export function ScoresSheet({ auth, gameId, quarters, onClose }: ScoresSheetProps) {
+  const { fix, error, isLoading, load } = useScoreFix(auth, gameId);
+  const [busy, setBusy] = useState(false);
 
   return (
     <Modal label="Scores and fixes" size="md" onClose={busy ? undefined : onClose}>
@@ -112,6 +122,57 @@ export function ScoresSheet({ auth, gameId, quarters, onClose }: ScoresSheetProp
         </Button>
       </div>
     </Modal>
+  );
+}
+
+/**
+ * The sheet's fix list on its own, for the break's and full time's score
+ * editors (BreakScoreEditor, rugby's break): every score by period, with
+ * "Change who scored" and × (Stagehand round 9: those screens could only
+ * take a score off and add it again). They have their own add buttons,
+ * so no "+ Add a missed score" here.
+ */
+export function LiveScoreFix({
+  auth,
+  gameId,
+  version,
+}: {
+  auth: LiveAuth;
+  gameId: string;
+  /** Changes when the editor's own buttons change the score: the list reads the log again, once it's saved. */
+  version?: string;
+}) {
+  const { fix, error, isLoading, load } = useScoreFix(auth, gameId);
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    // The editor's write is on its way: read once it's had a moment.
+    const t = setTimeout(load, 1200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version]);
+  return (
+    <section aria-label="Scores this game" data-testid="live-score-fix">
+      <p className="text-nano font-bold uppercase tracking-micro text-ink-mute">Scores this game</p>
+      <p className="mt-0.5 text-xs text-ink-dim">Wrong kid? Tap Change to pick who scored.</p>
+      {fix ? (
+        <ScoreFixList {...fix} showTotal={false} allowAdd={false} onFixed={load} />
+      ) : error ? (
+        <InlineAlert className="mt-2">
+          {error}{" "}
+          <button type="button" onClick={load} className="font-semibold underline">
+            Try again
+          </button>
+        </InlineAlert>
+      ) : (
+        <p className="mt-2 text-xs text-ink-mute" aria-live="polite">
+          {isLoading ? "Loading the scores…" : null}
+        </p>
+      )}
+    </section>
   );
 }
 

@@ -864,6 +864,7 @@ export function TouchLiveGame({
                         missedNote={`A try you missed counts in ${periodLetter}${base.currentPeriod}.`}
                         onUndo={undoScore}
                         undoDisabled={pending}
+                        fix={{ auth, gameId: game.id }}
                       />
                       {scorerSheet}
                     </>

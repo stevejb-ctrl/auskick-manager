@@ -852,6 +852,7 @@ export function BasketballLiveGame({
                         missedNote={`A basket you missed counts in ${periodLetter}${base.currentPeriod}.`}
                         onUndo={undoScore}
                         undoDisabled={pending}
+                        fix={{ auth, gameId: game.id }}
                       />
                       {breakScorerPicker}
                     </>

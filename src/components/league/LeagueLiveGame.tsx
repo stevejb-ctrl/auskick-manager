@@ -23,6 +23,7 @@ import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { LeagueGameSettingsModal } from "./LeagueGameSettingsButton";
 import { LiveShell } from "@/components/live/LiveShell";
 import { LiveGameMenu, settingsSummary } from "@/components/live/LiveGameMenu";
+import { LiveScoreFix } from "@/components/live/ScoresSheet";
 import { KidSlot, KidTile, type KidOutKind } from "@/components/live/KidTile";
 import { KidBench } from "@/components/live/KidBench";
 import { InfoLine } from "@/components/live/InfoLine";
@@ -369,9 +370,9 @@ export function LeagueLiveGame({
     playersById: playerById,
     seasonLoanMinutes: seasonLoanMins,
     events: thisGameEvents,
-    openElapsedMs: isPeriodActive ? elapsedMs : null,
     scoreTypes: RUGBY_SCORE_EVENT_TYPES,
     period: isPeriodActive ? state.currentQuarter : null,
+    openElapsedMs: isPeriodActive ? elapsedMs : null,
     toastLook: "ink",
   });
   // The clock as the write lands: a confirmed swap is stamped when the
@@ -1223,9 +1224,9 @@ export function LeagueLiveGame({
     write("undoLeagueScore", [auth, game.id, tap.target], tap.optimistic);
     chrome.undone();
   }
-
   const handleUndoScore = () => writeScoreUndo(undoTap(thisGameEvents, RUGBY_SCORE_EVENT_TYPES, null));
   const handleUndoNamedScore = (score: UndoEvent) => writeScoreUndo(undoOf(score));
+
   // ── Lineup edits ──────────────────────────────────────────────
   function saveLineup(next: LeagueLineup) {
     setError(null);
@@ -1750,6 +1751,17 @@ export function LeagueLiveGame({
                   onUndo: handleUndoNamedScore,
                   disabled: pending,
                 })}
+                {/* The game's scores, each with "Change who scored" (the
+                    Scores and fixes sheet's list, as every break's). */}
+                {(state.teamScore.points > 0 || state.opponentScore.points > 0) && (
+                  <div className="border-t border-hairline pt-3">
+                    <LiveScoreFix
+                      auth={auth}
+                      gameId={game.id}
+                      version={`${state.teamScore.points}:${state.opponentScore.points}`}
+                    />
+                  </div>
+                )}
                 {scoreOverlays}
               </div>
             ) : undefined

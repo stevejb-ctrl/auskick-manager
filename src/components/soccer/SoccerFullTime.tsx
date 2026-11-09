@@ -112,6 +112,7 @@ export function SoccerFullTimeReview({
               missedNote={`Spotted a miscount? A goal you missed counts in ${periodWord.charAt(0).toUpperCase()}${periodCount}.`}
               onUndo={onUndo ?? (() => {})}
               undoDisabled={scorePending || !onUndo}
+              fix={{ auth, gameId }}
             />
           </div>
         </>

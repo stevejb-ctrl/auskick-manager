@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/Button";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { quietOtherPhoneNotices } from "@/lib/live/otherPhone";
 import type { FinishedScoreRow, ScoreFix, ScoreKind } from "@/lib/games/finishedScores";
+import type { LiveAuth } from "@/lib/types";
 
 export interface FixScoresProps {
   teamId: string;
@@ -99,6 +100,7 @@ export function ScoreFixList({
   onFixed,
   onBusy,
   showTotal = true,
+  allowAdd = true,
 }: FixScoresProps & {
   /** After each fix (the live screen reads the log again). */
   onFixed?: () => void;
@@ -106,6 +108,11 @@ export function ScoreFixList({
   onBusy?: (busy: boolean) => void;
   /** The "Us 12 – 6 Them" line (the live sheet shows it in its header). */
   showTotal?: boolean;
+  /**
+   * "+ Add a missed score". Off where the screen has its own add buttons
+   * (the break's and full time's score editors, BreakScoreEditor).
+   */
+  allowAdd?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -196,36 +203,17 @@ export function ScoreFixList({
                       </span>
                     </div>
                     {changing?.id === r.id && (
-                      <div className="mt-2 flex flex-wrap items-end gap-2">
-                        <label className="min-w-0 flex-1 text-micro text-ink-mute">
-                          Who scored
-                          <select
-                            value={changing.playerId}
-                            onChange={(e) => setChanging({ id: r.id, playerId: e.target.value })}
-                            className="mt-0.5 block w-full rounded-md border border-hairline bg-surface px-2 py-1 text-xs text-ink"
-                          >
-                            <option value={NOBODY}>— pick —</option>
-                            {players.map((pl) => (
-                              <option key={pl.id} value={pl.id}>
-                                {pl.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <Button
-                          size="sm"
-                          loading={isPending}
-                          disabled={!changing.playerId || changing.playerId === r.playerId}
-                          onClick={() =>
-                            run({ op: "reassign", eventId: r.id, playerId: changing.playerId }, () => setChanging(null))
-                          }
-                        >
-                          Save
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setChanging(null)} disabled={isPending}>
-                          Cancel
-                        </Button>
-                      </div>
+                      <ChangeScorer
+                        players={players}
+                        playerId={changing.playerId}
+                        current={r.playerId}
+                        pending={isPending}
+                        onPick={(playerId) => setChanging({ id: r.id, playerId })}
+                        onSave={() =>
+                          run({ op: "reassign", eventId: r.id, playerId: changing.playerId }, () => setChanging(null))
+                        }
+                        onCancel={() => setChanging(null)}
+                      />
                     )}
                   </li>
                 ))}
@@ -235,7 +223,7 @@ export function ScoreFixList({
         })}
       </div>
 
-      <div className="mt-3">
+      {allowAdd && <div className="mt-3">
         {!adding ? (
           <button
             type="button"
@@ -323,7 +311,7 @@ export function ScoreFixList({
             </div>
           </div>
         )}
-      </div>
+      </div>}
 
       {error && <InlineAlert className="mt-3">{error}</InlineAlert>}
 
@@ -354,4 +342,63 @@ export function ScoreFixList({
       )}
     </>
   );
+}
+
+/**
+ * "Who scored", Save and Cancel: changing a score's scorer, the same
+ * everywhere a coach can (Scores and fixes, the break's and full time's
+ * score editors, a finished game's Fix scores). The fix is one event
+ * pair (fixScore's "reassign": the score taken off and the same score,
+ * in the same period, put back for the new kid), so the scoreline, the
+ * kids' tallies and Stats follow.
+ */
+export function ChangeScorer({
+  players,
+  playerId,
+  current,
+  pending,
+  onPick,
+  onSave,
+  onCancel,
+}: {
+  players: { id: string; name: string }[];
+  /** The kid picked so far ("" before a pick). */
+  playerId: string;
+  /** Who it's down to now. */
+  current: string | null;
+  pending: boolean;
+  onPick: (playerId: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="mt-2 flex flex-wrap items-end gap-2">
+      <label className="min-w-0 flex-1 text-micro text-ink-mute">
+        Who scored
+        <select
+          value={playerId}
+          onChange={(e) => onPick(e.target.value)}
+          className="mt-0.5 block w-full rounded-md border border-hairline bg-surface px-2 py-1 text-xs text-ink"
+        >
+          <option value={NOBODY}>— pick —</option>
+          {players.map((pl) => (
+            <option key={pl.id} value={pl.id}>
+              {pl.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <Button size="sm" loading={pending} disabled={!playerId || playerId === current} onClick={onSave}>
+        Save
+      </Button>
+      <Button size="sm" variant="ghost" onClick={onCancel} disabled={pending}>
+        Cancel
+      </Button>
+    </div>
+  );
+}
+
+/** A score fix from the live screen: the team's coaches, or the game-day link while the game is on. */
+export function fixScoreAs(auth: LiveAuth, gameId: string, fix: ScoreFix) {
+  return auth.kind === "token" ? fixScoreFromLink(auth.token, gameId, fix) : fixFinishedScore(auth.teamId, gameId, fix);
 }
