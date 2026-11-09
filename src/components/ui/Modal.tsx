@@ -4,6 +4,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDialogFocus } from "@/components/ui/useDialogFocus";
 import { SHEET_CARD, SheetGrab } from "@/components/ui/sheetChrome";
+import { SheetEntranceShield, useSheetTapGuard } from "@/components/ui/useSheetTapGuard";
 
 type ModalSize = "xs" | "sm" | "md" | "lg" | "xl";
 
@@ -83,6 +84,10 @@ export function Modal({
   // opener on close (UX round 3, e4).
   const dialogRef = useRef<HTMLDivElement>(null);
   useDialogFocus(dialogRef, mounted, onClose);
+  // No taps until the sheet has slid in, and a moment's shield over the
+  // screen once it's gone (useSheetTapGuard: Stagehand round 9's scorer
+  // taps landing a row out).
+  const entering = useSheetTapGuard(dialogRef, mounted);
   if (!mounted) return null;
 
   return createPortal(
@@ -164,6 +169,7 @@ export function Modal({
         {/* Clears the home indicator on a phone, under any padding. */}
         <span aria-hidden className="block h-[env(safe-area-inset-bottom)] shrink-0 sm:hidden" />
       </div>
+      <SheetEntranceShield on={entering} />
     </div>,
     document.body,
   );
