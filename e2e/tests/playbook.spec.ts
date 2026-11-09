@@ -11,7 +11,7 @@ import { createAdminClient, createTestUser, deleteTestUser } from "../fixtures/s
 import { makeGame, makePlayers, makeTeam } from "../fixtures/factories";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
 import { closeGameSettings, openGameSettings } from "../helpers/break";
-import { readyAfl } from "../helpers/kickoff";
+import { readyAfl, readyRugby, startRugbyFirst } from "../helpers/kickoff";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -889,8 +889,9 @@ test("league: lines from roles, and vests in a fixed order", async ({ page }) =>
   await expect(page.getByText(/in jersey-number order/)).toBeVisible();
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
+  // Live v3: the picker says Ready; Start H1 is then on the bar.
+  await readyRugby(page);
+  await startRugbyFirst(page);
 
   const lineupSet = async () => {
     const { data } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "lineup_set");
@@ -1193,8 +1194,9 @@ test("league named positions: lineups record positions, and stats count time by 
     } catch {}
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
+  // Live v3: the picker says Ready; Start H1 is then on the bar.
+  await readyRugby(page);
+  await startRugbyFirst(page);
   const recorded = async () => {
     const { data } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "lineup_set");
     return (data?.[0]?.metadata as { lineup?: { forwards: string[]; backs: string[]; slots?: Record<string, string> } })?.lineup ?? null;

@@ -252,7 +252,8 @@ test("#11 the FAQ answers two phones, leaving early, OFF 1, the balance reset, p
   for (const q of [
     "What happens when two phones score the same game?",
     "A player leaves early. What do I do?",
-    'What do "OFF 1" and "Stays" mean?',
+    // Live v3 (Phase 12): the next sub's words, not the old OFF chips.
+    'What do "Off next", the numbers and "Stays" mean?',
     "Can I reset season balance without losing stats?",
     "How do I change the quarter or half length?",
     "Do parents need an account to say if their child can play?",

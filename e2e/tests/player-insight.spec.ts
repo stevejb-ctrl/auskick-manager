@@ -297,6 +297,9 @@ test("rugby league: long-press a player shows in-game, per-period and season ins
   // progress. The quarter_end credits every on-field player a full half
   // in the single "field" zone, so playedZoneMsByPeriod has period-1
   // data for the "By period" section.
+  // Each event a moment apart: inserted together they'd share one
+  // created_at, and the replay could read H2's start before H1's end.
+  const at = (secsAgo: number) => new Date(Date.now() - secsAgo * 1000).toISOString();
   await admin.from("game_events").insert([
     {
       game_id: game.id,
@@ -306,24 +309,28 @@ test("rugby league: long-press a player shows in-game, per-period and season ins
         sport: "rugby_league",
       },
       created_by: ownerId,
+      created_at: at(1_300),
     },
     {
       game_id: game.id,
       type: "quarter_start",
       metadata: { quarter: 1, sport: "rugby_league" },
       created_by: ownerId,
+      created_at: at(1_290),
     },
     {
       game_id: game.id,
       type: "quarter_end",
       metadata: { quarter: 1, elapsed_ms: 1_200_000, sport: "rugby_league" },
       created_by: ownerId,
+      created_at: at(90),
     },
     {
       game_id: game.id,
       type: "quarter_start",
       metadata: { quarter: 2, sport: "rugby_league" },
       created_by: ownerId,
+      created_at: at(60),
     },
   ]);
   await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);

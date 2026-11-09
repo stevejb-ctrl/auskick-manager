@@ -272,6 +272,8 @@ test("#14 football's live screen has a tour that ends on the words you'll see", 
     await dialog.getByRole("button", { name: "Next" }).click();
   }
   await expect(dialog.getByText("Words you'll see")).toBeVisible();
-  await expect(dialog).toContainText("Pair 1, OFF 1");
+  // Live v3 words (Phase 12): the next sub's parts, not the old OFF chips.
+  await expect(dialog).toContainText("Off next, On next → DEF");
+  await expect(dialog).not.toContainText("OFF 1");
   await context.close();
 });

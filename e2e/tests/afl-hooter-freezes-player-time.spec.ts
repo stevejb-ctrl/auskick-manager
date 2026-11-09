@@ -12,7 +12,7 @@
 // This test exercises the path end-to-end at 60× demo speed:
 //   1. Kick off Q1 via the LineupPicker → modal flow.
 //   2. Wait for the auto-hooter (~12s wall = 12min game time).
-//   3. Read a player tile's displayed time at the hooter moment.
+//   3. Read a player tile's time (its accessible name) at the hooter.
 //   4. Wait an additional 2 wall-seconds.
 //   5. Read the same player tile's time again.
 //   6. Assert: equal. If they're not, the bug reproduces.
@@ -79,8 +79,10 @@ test("AFL: player tile time freezes at the auto-hooter", async ({ page }) => {
   // deterministically rather than by name.
   const tile = page.locator(`[data-testid^="player-tile-"]`).first();
   await expect(tile).toBeVisible();
-  const timeAtHooter = await tile.textContent();
-  expect(timeAtHooter, "PlayerTile should render some time text after hooter")
+  // Live v3 tiles show no minutes; the tile says them (its accessible
+  // name, "… 12:00 …"), and the kid bar shows them when tapped.
+  const timeAtHooter = await tile.getAttribute("aria-label");
+  expect(timeAtHooter, "the tile should say the kid's time after the hooter")
     .toMatch(/\d+:\d{2}/);
 
   // Wait 2 wall-seconds. In demo mode that would be 2 game-
@@ -88,7 +90,7 @@ test("AFL: player tile time freezes at the auto-hooter", async ({ page }) => {
   // displayed time MUST stay constant.
   await page.waitForTimeout(2_000);
 
-  const timeAfterWait = await tile.textContent();
+  const timeAfterWait = await tile.getAttribute("aria-label");
   expect(timeAfterWait).toBe(timeAtHooter);
 });
 
