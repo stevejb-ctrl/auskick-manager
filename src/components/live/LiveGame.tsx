@@ -144,6 +144,7 @@ import {
 import { rotateLines } from "@/lib/live/rotateLines";
 import { positionsFor, ZONE_LABELS, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 import { getSportConfig } from "@/lib/sports/registry";
+import { endPeriodWords } from "@/lib/sports/words";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { useHypeSong } from "@/lib/live/useHypeSong";
 import { isFinalSubWindow, canPlanNextPeriod } from "@/lib/live/subCadence";
@@ -2358,11 +2359,30 @@ export function LiveGame({
     />
   ) : null;
 
+  // Ending the quarter: ⋯'s "End Q2" row, and "Time's up: end Q2" on
+  // the info line once the clock reads 0:00 and the quarter's still
+  // open. Both open the end confirm the clock sheet's row does.
+  const canEndPeriod = isLivePlay && !isPreGame && !isFinished && !showQuarterEndModal;
+  const periodTimeUp = canEndPeriod && quarterMs > 0 && nowMs >= quarterMs;
+  const endWords = endPeriodWords({
+    sport: "afl",
+    periodLabel: "quarter",
+    period: currentQuarter,
+    periodCount: ageGroup.periodCount,
+    timeUp: periodTimeUp,
+  });
+  const openEndPeriod = () => {
+    clearSelection();
+    setShowManualEndConfirm(true);
+  };
+
   // The info line: the next sub (or that it's due), with the plan chip.
-  // Shown in play when there's a bench to sub from, or a plan to make.
+  // Shown in play when there's a bench to sub from, or a plan to make,
+  // or the quarter's time is up.
   const infoEl =
-    inPlay && (lineup.bench.length > 0 || planChip) ? (
+    inPlay && (lineup.bench.length > 0 || planChip || periodTimeUp) ? (
       <InfoLine
+        timeUp={periodTimeUp ? { prompt: endWords.prompt, onEnd: openEndPeriod } : undefined}
         state={subState}
         msUntilDue={subPastHooter ? null : msUntilDue}
         subIntervalMs={subIntervalMs}
@@ -2727,6 +2747,7 @@ export function LiveGame({
         trackScoring={trackScoring}
         onScores={!isPreGame ? () => setScoresOpen(true) : undefined}
         planNext={showPlanNextPeriod ? { label: planLabel, onOpen: () => setPlanNextOpen(true) } : undefined}
+        endPeriod={canEndPeriod ? { label: endWords.label, description: endWords.description, onSelect: openEndPeriod } : undefined}
         onWalkthrough={handleOpenWalkthrough}
         onEditLineup={isPreGame && !isFinished ? handleEditLineup : undefined}
       />

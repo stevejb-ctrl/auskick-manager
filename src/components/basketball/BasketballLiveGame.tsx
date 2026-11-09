@@ -57,6 +57,7 @@ import { kidWords, type KidOut, type KidSubRole, type KidWords } from "@/lib/liv
 import { pctOfGame } from "@/lib/live/minGameTime";
 import { formatMinSec } from "@/lib/sports/netball/fairness";
 import { getSportConfig } from "@/lib/sports/registry";
+import { endPeriodWords } from "@/lib/sports/words";
 import { reopenLineup } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
 import { ClockMenu } from "@/components/live/ClockMenu";
@@ -1081,9 +1082,25 @@ export function BasketballLiveGame({
   // on) as "Sub due · rotate a player off". Nobody to bring on: not due.
   const subDueSaid = dueNow && (shownSubs.length > 0 || swappableBench.length > 0);
   const subSoft = !dueNow && msUntilDue !== null && msUntilDue > 0 && msUntilDue <= 30_000 && shownSubs.length > 0;
+  // Ending the period: ⋯'s "End 1st half" (or "End Q2") row, and "Time's
+  // up: end 1st half" on the info line once the clock reads 0:00 and it's
+  // still open. Both open the clock's end confirm.
+  const periodTimeUp = isPeriodActive && atHooter;
+  const endWords = endPeriodWords({
+    sport: "basketball",
+    periodLabel: periodWord,
+    period: base.currentPeriod,
+    periodCount: ageGroup.periodCount,
+    timeUp: periodTimeUp,
+  });
+  const openEndPeriod = () => {
+    setSelectedId(null);
+    setEndConfirmOpen(true);
+  };
   const infoEl =
-    inPlay && benchIds.length > 0 ? (
+    inPlay && (benchIds.length > 0 || periodTimeUp) ? (
       <InfoLine
+        timeUp={periodTimeUp ? { prompt: endWords.prompt, onEnd: openEndPeriod } : undefined}
         state={subDueSaid ? "due" : subSoft ? "soft" : "idle"}
         msUntilDue={subsDone ? null : msUntilDue}
         subIntervalMs={subDue.spanMs ?? 0}
@@ -1461,6 +1478,7 @@ export function BasketballLiveGame({
         }
         onScores={!isPreTipoff ? chrome.openScores : undefined}
         trackScoring={trackScoring}
+        endPeriod={isPeriodActive ? { label: endWords.label, description: endWords.description, onSelect: openEndPeriod } : undefined}
         onWalkthrough={chrome.openHelp}
         onEditLineup={isPreTipoff ? handleEditLineup : undefined}
       />

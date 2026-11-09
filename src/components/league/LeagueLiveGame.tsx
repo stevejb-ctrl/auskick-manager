@@ -143,6 +143,7 @@ import { rugbyFills, type RugbyFill } from "@/lib/sports/rugby/fills";
 import { rugbyForwards } from "@/lib/sports/rugby/lines";
 import { Modal } from "@/components/ui/Modal";
 import { periodLabels } from "@/lib/sports";
+import { endPeriodWords } from "@/lib/sports/words";
 import { seasonLoanMinutes } from "@/lib/fairness";
 import { centreVest } from "@/lib/sports/rugby/zoneTime";
 interface LeagueLiveGameProps {
@@ -2018,9 +2019,27 @@ export function LeagueLiveGame({
   // ── The info line: the next sub, and who's under the floor ──
   const underCount = Array.from(minStates.values()).filter((m) => m.atRisk).length;
   const subSoft = !subDue && msUntilDue !== null && msUntilDue > 0 && msUntilDue <= 30_000 && hasSwappableBench && !subPastHooter;
+  // Ending the period: ⋯'s "End Q2" (or "End 1st half") row, and "Time's
+  // up: end Q2" on the info line once the clock reads 0:00 and it's still
+  // open (paused at the hooter, the period waits). Both open the clock's
+  // end confirm.
+  const canEndPeriod = isPeriodActive && !!state.quarterStartedAt;
+  const periodTimeUp = canEndPeriod && elapsedMs >= periodSeconds * 1000;
+  const endWords = endPeriodWords({
+    sport,
+    periodLabel,
+    period: state.currentQuarter,
+    periodCount: ageGroup.periodCount,
+    timeUp: periodTimeUp,
+  });
+  const openEndPeriod = () => {
+    setSelectedPlayerId(null);
+    setEndQConfirmOpen(true);
+  };
   const infoEl =
-    inPlay && (benchIds.length > 0 || planChip) ? (
+    inPlay && (benchIds.length > 0 || planChip || periodTimeUp) ? (
       <InfoLine
+        timeUp={periodTimeUp ? { prompt: endWords.prompt, onEnd: openEndPeriod } : undefined}
         state={subDue ? "due" : subSoft ? "soft" : "idle"}
         msUntilDue={subPastHooter ? null : msUntilDue}
         subIntervalMs={subIntervalMs ?? 0}
@@ -2541,6 +2560,7 @@ export function LeagueLiveGame({
         )}
         trackScoring={trackScoring}
         planNext={showPlanNext ? { label: planLabel, onOpen: () => setPlanNextOpen(true) } : undefined}
+        endPeriod={canEndPeriod ? { label: endWords.label, description: endWords.description, onSelect: openEndPeriod } : undefined}
         onWalkthrough={handleOpenWalkthrough}
         onEditLineup={preKickoff ? handleEditLineup : undefined}
       />
