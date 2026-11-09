@@ -90,6 +90,26 @@ game-day seed with `-late` on the end. Any game-day seed takes `-late`
 (one more kid, not marked available, who turns up late) or `-runner`
 (start from the game-day link).
 
+Edge cases for the newer sports, and the parents who end up holding the
+phone (round 9):
+
+| Mission                        | Seed                              | What the agent tries                                  |
+|--------------------------------|-----------------------------------|-------------------------------------------------------|
+| `sideline-chaos-basketball`    | `basketball-u12-gameday-late`     | A kid fouls out mid-half, a late kid, half a sub, a foul on the wrong kid |
+| `sideline-chaos-touch`         | `touch-u11-mixed-late`            | A 4th boy on, a girl hurt, a late kid, one pair of a sub |
+| `sideline-chaos-keeper`        | `futsal-u12-gameday`, `hockey-u13-gameday` | The keeper hurt, a bench kid into goal, a lend   |
+| `lend-field-kid`               | any game-day seed                 | Lend a kid off the field mid-period, get them back    |
+| `early-partial-subs`           | `basketball-u12-gameday`, `touch-u11-mixed`, `league-u11-gameday` | One pair of a sub early, the rest when due, a changed pair, a skipped sub |
+| `r9-traffic-toddler`           | `league-u11-gameday-runner`, `soccer-u9-gameday-runner` | One thumb, a toddler, two minutes to kick-off |
+| `r9-netball-dad-battery`       | `netball-11u-gameday-runner`      | Never seen netball, "just do the subs", 10% battery   |
+| `r9-basketball-first-time`     | `basketball-u12-gameday-runner`   | First time on the bench app, a kid fouls out, the ref waiting |
+| `r9-oztag-grandparent-mixed`   | `oztag-u10-mixed-runner`          | The boys' cap explained once and forgotten, a girl hurt |
+| `r9-wrong-kid-score`           | any `-runner` seed                | The wrong scorer twice, the wrong team once, fixed before the end |
+| `r9-two-parents-scoring`       | any `-runner` seed                | Two tabs on one link, both scoring, both swapping     |
+
+`oztag-u10-mixed` is the Oztag side as a mixed team (at most 4 boys of 8
+on, at least 2 girls).
+
 Add new missions by dropping a `*.md` file into `missions/`. The
 file content IS the prompt — write it like you're briefing a real
 tester.
