@@ -58,6 +58,7 @@ import {
   staleRefusal,
 } from "@/lib/live/liveWriteGuard";
 import { lineupWrite, type PeriodWrite } from "@/lib/live/periodGuard";
+import { cleanBatchLeft } from "@/lib/live/subAnchor";
 import { resolveUndoTarget, undoArgs, type UndoTargetRef } from "@/lib/live/undoTarget";
 import { replayRugbyGame, rugbyPoints, rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
@@ -625,18 +626,22 @@ export async function recordLeagueSwap(
     on_player_id: string;
     quarter: number;
     elapsed_ms: number;
+    /** One pair of the planned sub: how many are still to make (lib/live/subAnchor holds the sub clock). */
+    batch_left?: number;
     /** By hand, off the rotation's cadence: the sub clock doesn't restart (lib/live/subAnchor). */
     manual?: boolean;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {
+  const { batch_left, ...rest } = input;
+  const batchLeft = cleanBatchLeft(batch_left);
   return insertEvent(
     auth,
     gameId,
     "swap",
     {
       player_id: input.on_player_id,
-      metadata: input,
+      metadata: { ...rest, ...(batchLeft ? { batch_left: batchLeft } : {}) },
     },
     idempotencyKey,
   );

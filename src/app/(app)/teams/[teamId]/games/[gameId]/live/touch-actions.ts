@@ -44,6 +44,7 @@ import {
   staleRefusal,
 } from "@/lib/live/liveWriteGuard";
 import { lineupWrite, type PeriodWrite } from "@/lib/live/periodGuard";
+import { cleanBatchLeft } from "@/lib/live/subAnchor";
 import { resolveUndoTarget, undoArgs, type UndoTargetRef } from "@/lib/live/undoTarget";
 import type { ActionResult, LiveAuth, MixedGroup } from "@/lib/types";
 import { normalizeTouchLineup, touchOnField, validateTouchLineup, type TouchLineup } from "@/lib/sports/touch/lineup";
@@ -461,7 +462,8 @@ const lineOrUndefined = (v: unknown): TouchLine | undefined =>
 // ─── recordTouchSwap ─────────────────────────────────────────
 // A rolling sub: the kid coming on takes the lane of the kid going off.
 // `line` names the spot when the kid going off has already left (hurt,
-// lent), or an empty place.
+// lent), or an empty place. `batch_left`: one pair of the planned sub,
+// how many are still to make (lib/live/subAnchor holds the sub clock).
 export async function recordTouchSwap(
   auth: LiveAuth,
   gameId: string,
@@ -471,12 +473,14 @@ export async function recordTouchSwap(
     line?: TouchLine;
     quarter: number;
     elapsed_ms: number;
+    batch_left?: number;
     /** By hand, off the rotation's cadence: the sub clock doesn't restart (lib/live/subAnchor). */
     manual?: boolean;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {
   const line = lineOrUndefined(input.line);
+  const batchLeft = cleanBatchLeft(input.batch_left);
   return insertEvent(
     auth,
     gameId,
@@ -489,6 +493,7 @@ export async function recordTouchSwap(
         ...(line ? { line } : {}),
         quarter: input.quarter,
         elapsed_ms: input.elapsed_ms,
+        ...(batchLeft ? { batch_left: batchLeft } : {}),
         ...(input.manual === true ? { manual: true } : {}),
       },
     },

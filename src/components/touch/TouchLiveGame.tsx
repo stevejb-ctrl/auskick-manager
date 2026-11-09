@@ -83,7 +83,7 @@ import { hapticTap } from "@/lib/haptics";
 import { computePeriodClockMs } from "@/lib/live/periodClock";
 import { clockPauseInput } from "@/lib/live/clockPause";
 import { queuedStartClockMark, useEventPeriodPause } from "@/lib/live/useClockPause";
-import { resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
+import { openSubBatch, resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { countTags, keepsComposition, rollingSubDue } from "@/lib/live/rollingSubs";
 import type { Game, GameEvent, LiveAuth, MixedGroup, Player } from "@/lib/types";
@@ -362,7 +362,13 @@ export function TouchLiveGame({
     elapsedMs,
   });
   const msUntilDue = subDue.msUntilDue;
-  const nextSubs = useMemo(() => {
+  // One pair of the planned sub made: just the pairs still to make, not
+  // the kid just taken off straight back on (lib/live/subAnchor).
+  const batchLeft = useMemo(
+    () => (subsOpen ? openSubBatch(events, base.currentPeriod) : 0),
+    [events, base.currentPeriod, subsOpen],
+  );
+  const suggestedSubs = useMemo(() => {
     if (!subsOpen) return [];
     // A kid who goes off rests a sub interval before coming back on; an
     // empty place (a kid hurt with nobody on) is filled first.
@@ -377,6 +383,10 @@ export function TouchLiveGame({
     return suggestTouchSubs({ state: ahead, nowMs: ahead.completedPeriodMs + aheadMs, ...opts });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subsOpen, state, events, strategy, prefs, season, mixed, periodMs, subIntervalSeconds, lineCaps, msUntilDue !== null && msUntilDue <= 0, Math.floor((msUntilDue ?? 0) / 5000)]);
+  const nextSubs = useMemo(
+    () => (batchLeft > 0 ? suggestedSubs.slice(0, batchLeft) : suggestedSubs),
+    [suggestedSubs, batchLeft],
+  );
   const subDueKey = subDue.key === null ? null : `${base.currentPeriod}:${subDue.key}`;
   const subDueShowing = isPeriodActive && subDue.due && nextSubs.length > 0 && subAckKey !== subDueKey;
   useSubDueAudioUnlock();
@@ -451,10 +461,20 @@ export function TouchLiveGame({
     setNowMs(now);
   }
 
-  /** `manual`: made by hand, off the rotation's cadence, so the sub clock doesn't restart (AFL's rule). */
-  function sub(offId: string | null, onId: string, line?: TouchLine, manual = false) {
+  /**
+   * `manual`: made by hand, off the rotation's cadence, so the sub clock doesn't restart (AFL's rule).
+   * `leftInBatch`: one pair of the planned sub, with this many still to make (the clock holds).
+   */
+  function sub(offId: string | null, onId: string, line?: TouchLine, manual = false, leftInBatch = 0) {
     setError(null);
-    const input = { off_player_id: offId, on_player_id: onId, ...(line ? { line } : {}), ...(manual ? { manual } : {}), ...at() };
+    const input = {
+      off_player_id: offId,
+      on_player_id: onId,
+      ...(line ? { line } : {}),
+      ...(leftInBatch > 0 ? { batch_left: leftInBatch } : {}),
+      ...(manual ? { manual } : {}),
+      ...at(),
+    };
     write("recordTouchSwap", [auth, game.id, input], liveEvents.swap(input));
   }
   /** A lane in the coach's words ("Wings"), or the field when it plays no lanes. */
@@ -887,7 +907,10 @@ export function TouchLiveGame({
       makeAllPairs();
       return;
     }
-    sub(s.off_player_id, s.on_player_id, s.line);
+    // One of the batch: the rest stay planned for the same time and the
+    // sub clock holds. It used to count as the whole rotation: the clock
+    // restarted and the rest slid an interval later (Stagehand, 9 Nov 2026).
+    sub(s.off_player_id, s.on_player_id, s.line, false, shownSubs.length - 1);
     chrome.swapped(s.off_player_id, s.on_player_id);
     setSelectedId(null);
   }

@@ -45,6 +45,7 @@ import {
   staleRefusal,
 } from "@/lib/live/liveWriteGuard";
 import { lineupWrite, type PeriodWrite } from "@/lib/live/periodGuard";
+import { cleanBatchLeft } from "@/lib/live/subAnchor";
 import { resolveUndoTarget, undoArgs, type UndoTargetRef } from "@/lib/live/undoTarget";
 import type { ActionResult, LiveAuth } from "@/lib/types";
 import {
@@ -396,7 +397,9 @@ const lineOrUndefined = (v: unknown): BasketballLine | undefined =>
 // ─── recordBasketballSwap ────────────────────────────────────
 // A sub at a dead ball: the kid coming on takes the line (and position)
 // of the kid going off. `line` names the spot when the kid going off has
-// already left (fouled out, hurt, sat out).
+// already left (fouled out, hurt, sat out). `batch_left`: one pair of
+// the planned sub, how many are still to make (lib/live/subAnchor holds
+// the sub clock till 0).
 export async function recordBasketballSwap(
   auth: LiveAuth,
   gameId: string,
@@ -406,12 +409,14 @@ export async function recordBasketballSwap(
     line?: BasketballLine;
     quarter: number;
     elapsed_ms: number;
+    batch_left?: number;
     /** By hand, off the rotation's cadence: the sub clock doesn't restart (lib/live/subAnchor). */
     manual?: boolean;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {
   const line = lineOrUndefined(input.line);
+  const batchLeft = cleanBatchLeft(input.batch_left);
   return insertEvent(
     auth,
     gameId,
@@ -424,6 +429,7 @@ export async function recordBasketballSwap(
         ...(line ? { line } : {}),
         quarter: input.quarter,
         elapsed_ms: input.elapsed_ms,
+        ...(batchLeft ? { batch_left: batchLeft } : {}),
         ...(input.manual === true ? { manual: true } : {}),
       },
     },

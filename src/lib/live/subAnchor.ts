@@ -87,6 +87,11 @@ export function openSubBatch(events: readonly GameEvent[], currentQuarter: numbe
 
 const batchLeft = (meta: SwapMeta): number => (typeof meta.batch_left === "number" && meta.batch_left > 0 ? meta.batch_left : 0);
 
+/** A swap action's `batch_left` as stored: a whole number above 0, else left off. */
+export function cleanBatchLeft(n: unknown): number | undefined {
+  return typeof n === "number" && Number.isInteger(n) && n > 0 ? n : undefined;
+}
+
 /**
  * This period's planned swaps, newest first, then its quarter_start.
  * Forced swaps and hand swaps are left out.

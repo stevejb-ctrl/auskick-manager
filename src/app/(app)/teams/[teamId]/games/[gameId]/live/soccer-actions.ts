@@ -49,6 +49,7 @@ import {
   staleRefusal,
 } from "@/lib/live/liveWriteGuard";
 import { lineupWrite, type PeriodWrite } from "@/lib/live/periodGuard";
+import { cleanBatchLeft } from "@/lib/live/subAnchor";
 import { resolveUndoTarget, undoArgs, type UndoTargetRef } from "@/lib/live/undoTarget";
 import type { ActionResult, LiveAuth } from "@/lib/types";
 import {
@@ -444,10 +445,7 @@ export async function recordSoccerSwap(
   idempotencyKey?: string,
 ): Promise<ActionResult> {
   const line = unitOrUndefined(input.line);
-  const batchLeft =
-    typeof input.batch_left === "number" && Number.isInteger(input.batch_left) && input.batch_left > 0
-      ? input.batch_left
-      : undefined;
+  const batchLeft = cleanBatchLeft(input.batch_left);
   return insertEvent(
     auth,
     gameId,

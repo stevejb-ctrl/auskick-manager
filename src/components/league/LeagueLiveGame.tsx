@@ -81,6 +81,7 @@ import { computePeriodClockMs } from "@/lib/live/periodClock";
 import { clockPauseInput } from "@/lib/live/clockPause";
 import { useEventPeriodPause } from "@/lib/live/useClockPause";
 import { resolveLeagueSubAnchorElapsed } from "@/lib/sports/rugby_league/subAnchor";
+import { openSubBatch } from "@/lib/live/subAnchor";
 import { leagueSwapPossible } from "@/lib/sports/rugby_league/legalSwap";
 import { finaliseLeagueGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/league-actions";
 import { LeagueScoreBug } from "./LeagueScoreBug";
@@ -817,11 +818,18 @@ export function LeagueLiveGame({
     leaguePlaybook,
     subLaws,
   ]);
+  // One pair of the planned sub made: just the swaps still to make, not
+  // the kid just taken off straight back on (lib/live/subAnchor).
+  const batchLeft = useMemo(
+    () => (state.quarterEnded || state.finalised ? 0 : openSubBatch(thisGameEvents, state.currentQuarter)),
+    [thisGameEvents, state.currentQuarter, state.quarterEnded, state.finalised],
+  );
   // A kid filling an empty spot isn't also swapped on.
   const nextSubSuggestions = useMemo(() => {
     const filling = new Set(fillSuggestions.map((f) => f.playerId));
-    return swapSuggestions.filter((s) => !filling.has(s.on.playerId));
-  }, [swapSuggestions, fillSuggestions]);
+    const swaps = swapSuggestions.filter((s) => !filling.has(s.on.playerId));
+    return batchLeft > 0 ? swaps.slice(0, batchLeft) : swaps;
+  }, [swapSuggestions, fillSuggestions, batchLeft]);
 
   // A sub is due only when the laws allow one: with §6 (or the floor)
   // keeping every kid on, "Sub due — rotate a player off" told the coach
@@ -1235,10 +1243,17 @@ export function LeagueLiveGame({
 
   // A rolling sub: `onId` takes `offId`'s spot, `offId` goes to the bench.
   // `manual`: made by hand, off the rotation's cadence, so the sub clock
-  // doesn't restart (AFL's rule).
-  function sub(offId: string, onId: string, manual = false) {
+  // doesn't restart (AFL's rule). `leftInBatch`: one pair of the planned
+  // sub, with this many swaps still to make (the clock holds).
+  function sub(offId: string, onId: string, manual = false, leftInBatch = 0) {
     setError(null);
-    const input = { off_player_id: offId, on_player_id: onId, ...(manual ? { manual } : {}), ...at() };
+    const input = {
+      off_player_id: offId,
+      on_player_id: onId,
+      ...(leftInBatch > 0 ? { batch_left: leftInBatch } : {}),
+      ...(manual ? { manual } : {}),
+      ...at(),
+    };
     write("recordLeagueSwap", [auth, game.id, input], liveEvents.swap(input));
   }
 
@@ -1792,7 +1807,12 @@ export function LeagueLiveGame({
       fillSpots([p.fill]);
       chrome.swapped(null, p.fill.playerId);
     } else {
-      sub(p.swap.off.playerId, p.swap.on.playerId);
+      // One of the batch: the other swaps stay planned for the same time
+      // and the sub clock holds. It used to count as the whole rotation:
+      // the clock restarted and the rest slid an interval later
+      // (Stagehand, 9 Nov 2026). A fill is a lineup, not a swap: it never
+      // moved the clock.
+      sub(p.swap.off.playerId, p.swap.on.playerId, false, shownSwaps.length - 1);
       chrome.swapped(p.swap.off.playerId, p.swap.on.playerId);
     }
     handleClearSelection();
