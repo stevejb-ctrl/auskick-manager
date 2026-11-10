@@ -79,8 +79,10 @@ export function FieldBand({
       {marks && (
         <div
           aria-hidden="true"
-          className={`pointer-events-none absolute inset-0 -z-10 text-mark ${drawIn ? "chalk-mark-in" : ""}`}
-          style={{ opacity: markOpacity }}
+          // The lines' strength is a variable, not an inline opacity: the
+          // homepage H1's first paint is checked for "opacity:0" (seo.spec).
+          className={`pointer-events-none absolute inset-0 -z-10 text-mark opacity-[var(--mark-o)] ${drawIn ? "chalk-mark-in" : ""}`}
+          style={{ "--mark-o": markOpacity } as CSSProperties}
         >
           <SportFieldGlyph
             sport={marks}
