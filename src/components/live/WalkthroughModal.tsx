@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { useHelpHref } from "@/lib/help/helpHref";
 
 export interface WalkthroughStep {
   emoji: string;
@@ -144,6 +145,8 @@ interface WalkthroughModalProps {
 export function WalkthroughModal({ steps: stepsProp, onClose }: WalkthroughModalProps) {
   // Every walkthrough ends on the words (GLOSSARY_STEP).
   const steps = withGlossary(stepsProp);
+  // The full help for this team's sport, in a new tab so the game stays open.
+  const helpHref = useHelpHref();
   const [idx, setIdx] = useState(0);
 
   // Direction tracking for step-content slide animations. The
@@ -228,6 +231,17 @@ export function WalkthroughModal({ steps: stepsProp, onClose }: WalkthroughModal
           >
             Skip walkthrough
           </button>
+        )}
+        {isLast && (
+          <a
+            href={helpHref}
+            target="_blank"
+            rel="noopener"
+            data-testid="walkthrough-help-link"
+            className="mt-3 block w-full text-center text-xs text-ink-mute underline transition-colors duration-fast ease-out-quart hover:text-ink-dim"
+          >
+            More in the help pages (opens a new tab)
+          </a>
         )}
       </Modal>
   );
