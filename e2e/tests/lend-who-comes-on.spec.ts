@@ -240,6 +240,8 @@ test("the kid bar's More says it holds Lend, and Lend sits under Switch in the s
   const more = page.getByTestId("kid-bar").getByRole("button", { name: /^more$/i });
   await expect(more).toContainText(/lend/i);
   await more.click();
+  // Read the rows once the sheet is up: WebKit can still be mounting it.
+  await expect(page.getByRole("dialog").getByRole("button", { name: /^lend to opposition/i })).toBeVisible();
   const buttons = page.getByRole("dialog").getByRole("button");
   const names = (await buttons.allInnerTexts()).map((t) => t.split("\n")[0].trim());
   expect(names.indexOf("Lend to opposition"), names.join(" | ")).toBe(names.indexOf("Switch player") + 1);
