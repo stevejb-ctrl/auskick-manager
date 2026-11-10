@@ -284,17 +284,32 @@ test("#12 a parent helper's game page says who sets the lineup and starts the ga
 
 // ─── #13 Keyboard: a skip link to the scores ─────────────────────
 
-test("#13 keyboard: the first Tab offers Skip to scores, and the other team's chip is a few Tabs after", async ({ browser }) => {
+test("#13 keyboard: the first Tab offers Skip to scores, and the other team's chip is a few Tabs after", async ({ browser, browserName }) => {
   const { game } = await inFirstPeriod("soccer");
   const { context, page } = await parentPhone(browser);
   await openLive(page, `/run/${game.share_token}`);
   await page.locator("body").focus();
-  let reached = false;
-  for (let i = 0; i < 6 && !reached; i++) {
-    await page.keyboard.press("Tab");
-    reached = await page.evaluate(() => document.activeElement?.textContent?.trim() === "Skip to scores");
+  if (browserName === "webkit") {
+    // WebKit's Tab skips links (Safari's "Press Tab to highlight each
+    // item" is off, and Playwright's WebKit ignores Option-Tab), so no
+    // link is reachable by keyboard there. Check the skip link is first
+    // in the focus order by the DOM instead, then Tab on from it.
+    const first = await page.evaluate(
+      () =>
+        document
+          .querySelector<HTMLElement>("a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex='-1'])")
+          ?.textContent?.trim(),
+    );
+    expect(first).toBe("Skip to scores");
+    await page.getByRole("link", { name: "Skip to scores" }).focus();
+  } else {
+    let reached = false;
+    for (let i = 0; i < 6 && !reached; i++) {
+      await page.keyboard.press("Tab");
+      reached = await page.evaluate(() => document.activeElement?.textContent?.trim() === "Skip to scores");
+    }
+    expect(reached).toBe(true);
   }
-  expect(reached).toBe(true);
   await page.keyboard.press("Enter");
   let tabs = 0;
   for (; tabs < 8; tabs++) {
