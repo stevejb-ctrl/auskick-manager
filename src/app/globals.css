@@ -381,3 +381,25 @@ html[data-motion="reduce"] *::after {
   /* Faint / hairline elements stay proportionally lighter. */
   stroke-width: 0.45;
 }
+
+/* ─── The public site's field bands (FieldBand) ─────────────────
+   Chalk words on grass, court or boards, so the keyboard ring turns
+   chalk too: the global :focus-visible rule reads --focus-ring. */
+.field-band {
+  --focus-ring: rgb(247 250 245);
+}
+
+/* The hero's one moment of motion: its chalk lines marked in left to
+   right, once, as a line-marking trolley would. */
+@keyframes chalk-mark-in {
+  from { clip-path: inset(0 100% 0 0); }
+  to   { clip-path: inset(0 0 0 0); }
+}
+.chalk-mark-in {
+  animation: chalk-mark-in 1.2s cubic-bezier(0.25, 1, 0.5, 1) 0.15s both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chalk-mark-in {
+    animation: none;
+  }
+}

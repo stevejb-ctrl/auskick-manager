@@ -55,6 +55,31 @@ test.describe("unauthenticated entry", () => {
     }
   });
 
+  test("the homepage is on the grass, in today's screenshots", async ({ page }) => {
+    // The v3 site (docs/marketing/V3-SITE-DESIGN.md): the hero is a grass
+    // band, and every phone on the page is a live v3 shot from a sport's
+    // own folder (scripts/capture-marketing-v3.mjs), none of the old ones.
+    await page.goto("/");
+    const hero = page.locator("main > section").first();
+    await expect(hero).toHaveAttribute("data-surface", "field");
+    await expect(hero).toHaveCSS("background-color", "rgb(15, 76, 43)");
+    await expect(hero.getByRole("heading", { level: 1 })).toHaveCSS("color", "rgb(247, 250, 245)");
+
+    const srcs = await page.locator("main img").evaluateAll((imgs) =>
+      imgs.map((img) => {
+        const url = new URL(img.getAttribute("src") ?? "", location.href);
+        return decodeURIComponent(url.searchParams.get("url") ?? url.pathname);
+      }),
+    );
+    expect(srcs.length).toBeGreaterThanOrEqual(9);
+    for (const src of srcs) {
+      expect(src, src).toMatch(/^\/marketing\/screenshots\/[a-z-]+\/(live|pairs|scoring|break|fulltime|stats|actions|runner)\.png$/);
+    }
+    // Each feature card is the ground of the sport it's shown in.
+    await expect(page.locator("#features li").filter({ hasText: "Shown in basketball" })).toHaveCSS("background-color", "rgb(90, 56, 32)");
+    await expect(page.locator("#features li").filter({ hasText: "Shown in netball" })).toHaveCSS("background-color", "rgb(30, 70, 95)");
+  });
+
   test("the marketing pages only claim features the app has", async ({ request }) => {
     // The breaks show a rule check, not a fairness number, and PlayHQ
     // import brings fixtures, not results (copy audit, 21 Oct 2026). The

@@ -116,7 +116,7 @@ describe("marketing copy agrees with the facts", () => {
   });
 
   it("counts the sports in the homepage's facts strip", () => {
-    const sports = HOME_CONTENT.trustBand.find((entry) => entry.label === "Junior sports");
+    const sports = HOME_CONTENT.trustBand.find((entry) => entry.label.toLowerCase() === "junior sports");
     expect(sports?.stat).toBe(String(SIREN_SPORTS.length));
   });
 

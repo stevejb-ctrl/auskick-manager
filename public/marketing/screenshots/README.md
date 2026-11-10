@@ -1,88 +1,51 @@
 # Marketing screenshots
 
-The landing page's `ScrollingFeatures` section and the `Hero` phone
-mockup pull from the files in this folder. Placeholders live here as
-`.svg` so the page renders cleanly even before real captures exist.
+The public site's phone screenshots: the homepage and the ten sport pages.
+All of them come from the real app (live v3), shot by one script, so
+re-shoot them rather than editing them by hand.
 
-As the app improves, re-capture — the script below is the
-"rebuild the screenshots" button.
+## Layout
 
-## Dimensions
+One folder per sport page slug (`netball`, `afl`, `rugby-league`, `soccer`,
+`basketball`, `rugby-union`, `touch-football`, `oztag`, `hockey`, `futsal`),
+each with the same files, 390 × 844 at 2× in the app's light theme:
 
-Capture at **portrait phone dimensions** matching `PhoneFrame`'s
-`9 / 19.5` aspect ratio:
+| File           | What it shows                                              | Used by                         |
+| -------------- | ---------------------------------------------------------- | ------------------------------- |
+| `live.png`     | The live screen mid-period, the next sub under 30 s off    | Sport page hero and tour; homepage hero (AFL, netball, basketball); homepage feature (soccer) |
+| `pairs.png`    | The pairs sheet with the sub due (netball: its next-quarter plan) | Tour; homepage feature (basketball) |
+| `scoring.png`  | The scorer sheet after tapping the score button            | Tour                            |
+| `break.png`    | The first break                                            | Tour                            |
+| `fulltime.png` | The full-time review, before Finish game                   | Tour                            |
+| `stats.png`    | The team's Stats page after the game                       | Tour; homepage features (AFL, netball) |
+| `actions.png`  | A kid picked on the field, then More                       | Homepage feature (rugby league) |
+| `runner.png`   | The parent's game-day link, signed out                     | Homepage feature (netball)      |
 
-- Design: **360 × 780**
-- Retina / crisp: **1080 × 2340** (3×)
+The paths are built by `sportShot()` in `src/lib/sports/marketing-sports.ts`
+and `SHARED_FEATURES` in `src/lib/marketing/sportPages.ts`; the words and alt
+text for each tour step are in `content/marketing/sports.json` (`tour`).
+Keep the alt text true to the picture when you re-shoot.
 
-Anything taller or shorter gets cropped by `object-cover`.
+## Re-shooting
 
-## Two ways to capture
-
-### A. Automated (Playwright — recommended)
-
-One-off setup:
-
-```bash
-npm install                    # pulls playwright from devDependencies
-npx playwright install chromium
-```
-
-Configure the capture target in your shell (or drop these into
-`.env.local`):
-
-```bash
-export TEST_EMAIL=coach@example.com
-export TEST_PASSWORD=...
-export SCREENSHOT_TEAM_ID=<uuid of a team with a populated squad>
-export SCREENSHOT_GAME_ID=<uuid of a mid-state game on that team>
-export SCREENSHOT_RUN_TOKEN=<public run-token for share screen>
-```
-
-Run it:
+`scripts/capture-marketing-v3.mjs` seeds a coach, a team and a game per sport
+in the **local** Supabase only (it refuses any other URL), plays the game
+through the UI, shoots each moment, then deletes everything it made. Kids'
+names are made up.
 
 ```bash
-npm run dev                    # terminal 1
-npm run capture:screenshots    # terminal 2
+# a production build of this checkout, served locally with .env.test loaded
+next build && next start -p 3750
+node scripts/capture-marketing-v3.mjs --base=http://localhost:3750
+node scripts/capture-marketing-v3.mjs --only=break                 # one moment, every sport
+node scripts/capture-marketing-v3.mjs --sport=netball,afl          # some sports
+node scripts/capture-marketing-v3.mjs --only=break --sport=hockey  # both
 ```
 
-Output lands in this folder as `.png`. The filenames match what
-`src/app/page.tsx` references, so the landing page picks them up
-without edits. (Delete the matching `.svg` placeholder when the real
-PNG exists — browsers will happily serve `rotations.png` even if
-`rotations.svg` still sits alongside it, but the clutter is
-confusing.)
+A full run takes about an hour (each sport plays a whole game, the later
+periods sped up). A moment it can't reach is reported, its old file is left
+alone, and a `<slug>-error-debug.png` shows where it stuck (delete it).
 
-The script is forgiving: any single capture that fails (missing
-route, selector not found) logs the error and the rest continue.
-
-### B. Manual (browser DevTools)
-
-For the "money-shot" hero capture and any screen that needs curation
-the script can't easily reproduce (confetti mid-celebration, a specific
-sub-due moment, a hand-picked stats leaderboard):
-
-1. Open Chrome DevTools → Toggle device toolbar → pick **Custom** and
-   set dimensions to `360 × 780`.
-2. Zoom to **100%**; set DPR to **3**.
-3. Navigate to the screen; wait for animations to settle.
-4. Three-dot menu in the device toolbar → **Capture screenshot**.
-5. Rename per the table below; drop into this folder.
-
-## What each capture should show
-
-| File              | Feature section    | Capture from |
-| ----------------- | ------------------ | ------------ |
-| `live-game.png`   | Hero (phone mockup)| Live-game screen mid-quarter: scoreboard, field with zones populated, swap card visible. The hero shot. |
-| `rotations.png`   | Rotations          | Rotation view with the Field component showing all three zones + a bench column. Sub timer running in the header. |
-| `scoring.png`     | Scoring            | Score-tracking moments after a goal — celebration chip visible, song-playing state, +Goal / +Behind buttons. |
-| `availability.png`| Availability       | Pre-game availability screen with at least one **injured** player, one **late** player, one **fill-in** row. |
-| `share.png`       | Share              | Share-game screen: public run-link with copy button, invite list with role chips. |
-| `fixtures.png`    | PlayHQ integration | Fixtures list after a PlayHQ import — "Imported from PlayHQ" / "Auto-synced" banner visible, rounds with W/L results. |
-| `stats.png`       | Stats              | Season-stats dashboard: top goal-kicker leaderboard with bars, fair-time badge, KPI tiles. |
-
-## Placeholders
-
-The `.svg` files are deliberately low-fidelity — they match the app's
-visual language enough to let the page render and be reviewed, without
-masquerading as finished screenshots. Swap them out before launch.
+The PNGs are the sources: `next/image` serves them resized and as WebP, and the
+service worker doesn't precache this folder (`publicExcludes` in
+`next.config.mjs`).

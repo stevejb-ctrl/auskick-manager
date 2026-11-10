@@ -57,6 +57,10 @@ const withPWA = withPWAInit({
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: true,
   reloadOnOnline: false,
+  // The public site's screenshots (public/marketing/, a few MB) aren't
+  // part of the app: next/image serves them sized to the page, so the
+  // service worker doesn't precache the originals on every install.
+  publicExcludes: ["!noprecache/**/*", "!marketing/**/*"],
   // skipWaiting+clientsClaim plus outdated-cache cleanup is the
   // recommended combo for an app that ships frequent deploys.
   // Without them the SW update flow takes two app launches to land,

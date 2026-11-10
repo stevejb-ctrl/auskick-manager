@@ -6,7 +6,6 @@ import { HomeHero } from "@/components/marketing/HomeHero";
 import { NativeMarketingBounce } from "@/components/marketing/NativeMarketingBounce";
 import { SharedFeatures } from "@/components/marketing/SharedFeatures";
 import { SportDirectory } from "@/components/marketing/SportDirectory";
-import { TrustBand } from "@/components/marketing/TrustBand";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { getBrand } from "@/lib/brand";
 import { HOME_CONTENT } from "@/lib/marketing/homeContent";
@@ -43,8 +42,10 @@ export const metadata: Metadata = {
  * most of the content from crawlers and put five rows of cards on a
  * phone before any of it.
  *
- * All server-rendered: the hero, a strip of true facts, the sport
- * directory, the six shared features, and the sign-up section.
+ * All server-rendered: the hero on the grass (with the "I coach" chips
+ * and a few true facts along its foot), the sport directory, the six
+ * shared features, and the sign-up back on the grass
+ * (docs/marketing/V3-SITE-DESIGN.md).
  */
 export default async function Home() {
   // Authenticated users skip the marketing site entirely — the
@@ -83,10 +84,8 @@ export default async function Home() {
           dead code once Build 2+ replaces every Build 1 install. */}
       <NativeMarketingBounce />
       <HomeHero />
-      <TrustBand entries={HOME_CONTENT.trustBand} />
       <SportDirectory />
       <SharedFeatures
-        eyebrow="Whatever you coach"
         heading={{ before: "Everything you need to make game day a ", accent: "breeze", after: "." }}
         intro="The same six things in every sport. Shown here in five of them."
       />
