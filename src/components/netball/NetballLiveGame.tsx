@@ -2321,7 +2321,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     };
   }).filter((line) => line.tiles.length > 0);
   const courtEl = (
-    <FieldLines lines={courtLines} surface="court" marks={<CourtMarks />} tileWidth={104} wakeUpKey={courtWakeUpKey} />
+    // Bibs in rem, so they grow with the phone's text size: at 150–200%
+    // a 104 px bib cut "Charlotte" to "Ch…" (Steve, 10 Nov 2026). 9rem
+    // (144 px at 100%) still leaves the zigzag room to show.
+    <FieldLines lines={courtLines} surface="court" marks={<CourtMarks />} tileWidth="9rem" wakeUpKey={courtWakeUpKey} />
   );
 
   // The bench: who can come on, then who's out (hurt, home, lent), and
@@ -3329,7 +3332,8 @@ const NETBALL_THIRDS = [
  * The court's markings under the kids: the centre circle, faint, and
  * the two shooting circles, plain to see (Steve, 10 Nov 2026), with GS
  * and GK standing in them. A real circle is 4.9 m on a 15.25 m wide
- * court: about two-thirds of the width across.
+ * court: about two-thirds of the width across. In rem, as the bibs,
+ * so GS and GK stay in them at large text.
  */
 function CourtMarks() {
   return (
@@ -3337,11 +3341,11 @@ function CourtMarks() {
       <span className="absolute left-1/2 top-1/2 h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full border-[1.5px] border-mark/[0.07]" />
       <span
         data-testid="shooting-circle"
-        className="absolute -top-[104px] left-[17%] right-[17%] h-[208px] rounded-[50%] border-2 border-mark/30 bg-mark/[0.04]"
+        className="absolute -top-[6.5rem] left-[17%] right-[17%] h-[13rem] rounded-[50%] border-2 border-mark/30 bg-mark/[0.04]"
       />
       <span
         data-testid="shooting-circle"
-        className="absolute -bottom-[104px] left-[17%] right-[17%] h-[208px] rounded-[50%] border-2 border-mark/30 bg-mark/[0.04]"
+        className="absolute -bottom-[6.5rem] left-[17%] right-[17%] h-[13rem] rounded-[50%] border-2 border-mark/30 bg-mark/[0.04]"
       />
     </>
   );
