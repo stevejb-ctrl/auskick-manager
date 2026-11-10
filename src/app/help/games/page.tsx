@@ -31,7 +31,11 @@ export default function GamesPage() {
         <h2 className="text-xl font-semibold text-ink">Creating a game</h2>
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-ink-dim">
           <li>Open your team and tap the <strong className="text-ink">Games</strong> tab.</li>
-          <li>Tap <strong className="text-ink">New game</strong>.</li>
+          <li>
+            Tap <strong className="text-ink">Create manually</strong> (or{" "}
+            <strong className="text-ink">Import from PlayHQ</strong> to bring in
+            your fixture).
+          </li>
           <li>
             Fill in:
             <ul className="mt-2 list-disc space-y-1 pl-5">
@@ -45,20 +49,21 @@ export default function GamesPage() {
                 <strong className="text-ink">Date and time</strong>
               </li>
               <li>
-                <strong className="text-ink">Venue</strong> (optional)
+                <strong className="text-ink">Location</strong> and{" "}
+                <strong className="text-ink">Notes</strong> (optional)
               </li>
             </ul>
           </li>
           <li>
-            Tap <strong className="text-ink">Save</strong>. The game appears as{" "}
+            Tap <strong className="text-ink">Create game</strong>. The game appears as{" "}
             <em>Upcoming</em>.
           </li>
         </ol>
 
         <HelpFigure
           src="/help-screenshots/games-create.png"
-          alt="The create game form with opponent, round, date, time, and venue fields"
-          caption="Fill in game details and tap Save."
+          alt="The Create a game form with opponent, date and time, round and location filled in"
+          caption="Fill in the game's details and tap Create game."
         />
       </section>
 

@@ -226,7 +226,7 @@ export default function LiveGamePage() {
 
         <HelpFigure
           src="/help-screenshots/live-game-scoring.png"
-          alt="An AFL live game with the score buttons on the bar at the bottom"
+          alt="An AFL live game with a kid tapped: their bar at the bottom shows + Goal, + Behind, Injured and More"
           caption="Tap + Goal on the bar and pick who scored, or tap a kid first."
         />
 
@@ -385,7 +385,10 @@ export default function LiveGamePage() {
           <li>
             Tap <strong className="text-ink">End Q{"{n}"}</strong> (or{" "}
             <strong className="text-ink">End H{"{n}"}</strong>) to make sure.
-            Players on the field are credited the full period.
+            Players on the field are credited the time played so far. If the
+            game played on after the app&apos;s clock stopped, tap{" "}
+            <strong className="text-ink">The game played on</strong> instead
+            to credit the full period.
           </li>
           <li>
             The break screen appears between periods. AFL, netball and league
@@ -397,7 +400,7 @@ export default function LiveGamePage() {
 
         <HelpFigure
           src="/help-screenshots/live-game-quarter-end.png"
-          alt="The confirmation dialog asking to end the current quarter"
+          alt="The End Q2 now? sheet with End Q2, Cancel and The game played on buttons"
           caption="Confirm to end the quarter (or half) and move to the break screen."
         />
       </section>
@@ -405,21 +408,25 @@ export default function LiveGamePage() {
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-ink">Breaks between quarters or halves</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          In AFL and netball, the app shows a{" "}
-          <strong className="text-ink">Lineup for Q{"{n}"}</strong>{" "}
-          screen at each quarter break. This is your chance to adjust who plays
-          where in the next quarter. For netball this is the main moment of
-          substitution; for AFL it&apos;s an optional reshuffle on top of the
-          rolling subs you made during the quarter.
+          At each break the app shows a{" "}
+          <strong className="text-ink">Q{"{n}"} lineup</strong> screen: the
+          score, then the next period&apos;s lineup on your sport&apos;s
+          field, with the bench under it. This is your chance to adjust who
+          plays where. For netball this is the main moment of substitution;
+          for AFL it&apos;s an optional reshuffle on top of the rolling subs
+          you made during the quarter.
         </p>
         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
           <li>
             <strong className="text-ink">Suggested</strong> is on by default:
-            the algorithm has already placed players in the fairest positions.
-            You can switch to <strong className="text-ink">Keep last quarter</strong>{" "}
-            or <strong className="text-ink">Set manually</strong>. AFL also
-            offers <strong className="text-ink">Rotate lines</strong>, which
-            moves everyone one line along.
+            Siren has already placed players in the fairest positions. You can
+            switch to <strong className="text-ink">Rotate</strong> (everyone
+            moves one line along), <strong className="text-ink">Repeat</strong>{" "}
+            (last period&apos;s lineup) or <strong className="text-ink">Manual</strong>.
+          </li>
+          <li>
+            Each kid shows where they were last period (&quot;From Centre&quot;,
+            &quot;From bench&quot;) and their game time so far.
           </li>
           <li>
             Tap any two players to swap them — even across positions or to and
@@ -431,9 +438,10 @@ export default function LiveGamePage() {
             and cannot be moved onto the playing area.
           </li>
           <li>
-            <strong className="text-ink">Game settings</strong> (collapsed)
-            is where you lend a player or mark an injury. AFL also lets you
-            change the on-field size there.
+            The button beside the score (<strong className="text-ink">All available</strong>{" "}
+            when nobody&apos;s out) opens <strong className="text-ink">Game settings</strong>:
+            mark an injury, lend a player, add a kid who&apos;s turned up or
+            mark one out. AFL also lets you change the on-field size there.
           </li>
         </ul>
         <p className="mt-3 text-sm text-ink-dim">
@@ -454,8 +462,8 @@ export default function LiveGamePage() {
 
         <HelpFigure
           src="/help-screenshots/live-game-quarter-break.png"
-          alt="An AFL game at the end of the first quarter, with players in their lines"
-          caption="The end of an AFL quarter. At the break, review positions, make any manual tweaks, then tap Start."
+          alt="The AFL Q3 lineup at the Q2 break: the score, the Suggested, Rotate, Repeat and Manual choices, the kids in their lines and the bench, and Start Q3"
+          caption="An AFL break. Review the lineup, make any tweaks, then tap Start."
         />
       </section>
 

@@ -560,8 +560,8 @@ export default function RotationsPage() {
 
         <HelpFigure
           src="/help-screenshots/rotations-zone-bar.png"
-          alt="Time bars showing the per-position colour coding"
-          caption="Time bars use the same colours on the live screen and the Stats tab."
+          alt="Season time bars on the AFL lineup tiles in the forward, centre and back colours, and the same colours on two Player statistics cards"
+          caption="The zone colours are the same on the lineup screen and the Stats tab."
         />
       </section>
 
