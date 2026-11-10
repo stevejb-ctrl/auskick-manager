@@ -21,6 +21,10 @@ const PAGE = [247, 245, 241] as const; // warm, the page background
 const WHITE = [255, 255, 255] as const; // surface
 const ALT = [239, 236, 230] as const; // surface-alt
 
+// A 44 px target, give or take subpixel layout: WebKit lays a 44 px
+// button out at 43.99997 when its rows are rem-based fractions.
+const TARGET = 44 - 0.01;
+
 test("muted text passes AA on the page, on white and on surface-alt", async ({ page }) => {
   const admin = createAdminClient();
   const team = await makeTeam(admin, { ownerId: await ownerOf(admin), sport: "netball", ageGroup: "go", name: `A11Y-CON ${Date.now() % 100000}` });
@@ -53,12 +57,12 @@ test("basketball's planned sub: bench pair badges and words pass AA, and each Ma
 
   const all = page.getByTestId("bar-make-all");
   await expect(all).toBeVisible();
-  expect((await boxOf(all)).height).toBeGreaterThanOrEqual(44);
+  expect((await boxOf(all)).height).toBeGreaterThanOrEqual(TARGET);
   await page.getByRole("button", { name: /^pairs/i }).click();
   const make = page.getByRole("dialog").locator("button", { hasText: /^Make$/ });
   await expect(make.first()).toBeVisible();
   for (const b of await make.all()) {
-    expect((await boxOf(b)).height).toBeGreaterThanOrEqual(44);
+    expect((await boxOf(b)).height).toBeGreaterThanOrEqual(TARGET);
     // Each names its kids for a screen reader ("Swap Ava off, Leo on").
     await expect(b).toHaveAccessibleName(/^Swap .+ off, .+ on$/);
   }
@@ -73,11 +77,11 @@ test("union's planned sub: Make all and each pair's Make are 44 px targets", asy
   await openLive(page, team.id, game.id);
   const all = page.getByTestId("bar-make-all");
   await expect(all).toBeVisible({ timeout: 15_000 });
-  expect((await boxOf(all)).height).toBeGreaterThanOrEqual(44);
+  expect((await boxOf(all)).height).toBeGreaterThanOrEqual(TARGET);
   await page.getByRole("button", { name: /^pairs/i }).click();
   const make = page.getByRole("dialog").locator("button", { hasText: /^Make$/ });
   await expect(make.first()).toBeVisible();
-  for (const b of await make.all()) expect((await boxOf(b)).height).toBeGreaterThanOrEqual(44);
+  for (const b of await make.all()) expect((await boxOf(b)).height).toBeGreaterThanOrEqual(TARGET);
 });
 
 test("netball: the scorer's kid bar puts them down with a 44 px ×", async ({ page }) => {
@@ -90,9 +94,9 @@ test("netball: the scorer's kid bar puts them down with a 44 px ×", async ({ pa
   const bar = page.getByTestId("kid-bar");
   await expect(bar.getByRole("button", { name: /^\+ goal$/i })).toBeVisible();
   const close = await boxOf(bar.getByRole("button", { name: /^Put .+ down$/ }));
-  expect(close.height).toBeGreaterThanOrEqual(44);
-  expect(close.width).toBeGreaterThanOrEqual(44);
-  for (const b of await bar.getByRole("button").all()) expect((await boxOf(b)).height).toBeGreaterThanOrEqual(44);
+  expect(close.height).toBeGreaterThanOrEqual(TARGET);
+  expect(close.width).toBeGreaterThanOrEqual(TARGET);
+  for (const b of await bar.getByRole("button").all()) expect((await boxOf(b)).height).toBeGreaterThanOrEqual(TARGET);
 });
 
 test("netball's break: the score fix's × is a 44 px target that names the score", async ({ page }) => {
@@ -112,8 +116,8 @@ test("netball's break: the score fix's × is a 44 px target that names the score
   await expect(del.first()).toBeVisible({ timeout: 10_000 });
   for (const d of await del.all()) {
     const b = await boxOf(d);
-    expect(b.height).toBeGreaterThanOrEqual(44);
-    expect(b.width).toBeGreaterThanOrEqual(44);
+    expect(b.height).toBeGreaterThanOrEqual(TARGET);
+    expect(b.width).toBeGreaterThanOrEqual(TARGET);
   }
   // Each × names what it deletes.
   await expect(page.getByRole("button", { name: `Delete goal by ${players[0].full_name}` })).toBeVisible();
