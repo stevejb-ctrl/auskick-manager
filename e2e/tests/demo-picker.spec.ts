@@ -193,6 +193,12 @@ test.describe("Demo picker", () => {
       page.getByRole("heading", { name: /pick a sport/i }),
     ).toBeVisible();
 
+    // Live v3 (11 Nov 2026): the picker opens on the site's grass band,
+    // as the homepage and the sport pages do.
+    const band = page.locator("main section[data-surface]").first();
+    await expect(band).toHaveAttribute("data-surface", "field");
+    await expect(band).toHaveCSS("background-color", "rgb(15, 76, 43)");
+
     await expect(page.locator('[data-testid^="demo-card-"]')).toHaveCount(10);
     for (const [id, sport] of DEMO_CARDS) {
       const card = page.getByTestId(`demo-card-${id}`);
