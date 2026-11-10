@@ -1,4 +1,5 @@
 import type { CSSProperties, MouseEventHandler, ReactNode } from "react";
+import { ScrollToHashTarget } from "@/components/ui/ScrollToHashTarget";
 
 interface SFCardProps {
   children: ReactNode;
@@ -16,7 +17,7 @@ interface SFCardProps {
   onClick?: MouseEventHandler<HTMLDivElement>;
   className?: string;
   style?: CSSProperties;
-  /** DOM id — lets a page link straight to a card ("#summary"). */
+  /** DOM id — lets a page link straight to a card ("#summary"); the card scrolls to itself when the hash names it. */
   id?: string;
 }
 
@@ -55,6 +56,8 @@ export function SFCard({
       style={pad === 0 ? style : { padding: pad, ...style }}
     >
       {children}
+      {/* A link to the card by id lands on it even when the page streamed in late. */}
+      {id && <ScrollToHashTarget id={id} />}
     </div>
   );
 }

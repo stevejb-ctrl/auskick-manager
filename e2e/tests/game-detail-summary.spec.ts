@@ -60,6 +60,21 @@ test("hockey: the dashboard's Last result opens the game's summary", async ({ pa
   await page.getByRole("region", { name: /last result/i }).getByRole("link").click({ timeout: 15_000 });
   await expect(page).toHaveURL(new RegExp(`/games/${game.id}#summary$`));
   await expect(page.locator("#summary")).toBeInViewport({ timeout: 15_000 });
+  // Scrolled to it, not just on a tall enough screen (10 Nov 2026): the
+  // link landed on the team's loading skeleton, so Next's jump to the
+  // hash found no #summary and the page stayed at the top. On an
+  // iPhone's 664 px the summary was below the fold.
+  // (Or as far as the page goes, when it's too short to bring it up.)
+  await expect
+    .poll(
+      () =>
+        page.locator("#summary").evaluate((el) => {
+          const atBottom = window.scrollY > 0 && window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
+          return el.getBoundingClientRect().top < 200 || atBottom;
+        }),
+      { timeout: 10_000 },
+    )
+    .toBe(true);
   await expect(page.locator("#summary")).toContainText(`${name} 1 def Test Opponent 0`);
 });
 
