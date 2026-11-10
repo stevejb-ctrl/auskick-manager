@@ -1,14 +1,13 @@
 {
   "hero": {
-    "eyebrow": "For junior coaches · Ten sports",
     "headline": "Run game day. Keep your head up.",
     "subtitle": "Fair game time, subs and scores, built on the junior rules of ten sports. Siren does the counting, so you can put the clipboard down and watch your kid play."
   },
   "trustBand": [
-    { "stat": "10", "label": "Junior sports" },
-    { "stat": "$0", "label": "For the 2026 season" },
-    { "stat": "Any phone", "label": "App Store or browser" },
-    { "stat": "0", "label": "Clipboards" }
+    { "stat": "10", "label": "junior sports" },
+    { "stat": "$0", "label": "for the 2026 season" },
+    { "stat": "Any", "label": "phone, from the App Store or a browser" },
+    { "stat": "0", "label": "clipboards" }
   ],
   "finalCta": {
     "finalCtaEyebrow": "Saturday morning is coming",
