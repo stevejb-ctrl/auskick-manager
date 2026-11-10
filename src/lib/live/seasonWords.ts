@@ -40,6 +40,19 @@ export function seasonLeastWords(lines: readonly SeasonLine[]): SeasonWords | nu
 }
 
 /**
+ * AFL's lines as the season words name them on a tile. A row of four
+ * quarter-width tiles fits "Least Back" and no more (10 Nov 2026:
+ * "Least Centre" cut to "Least Cen…").
+ */
+export const AFL_SEASON_SHORT: Record<Zone, string> = {
+  back: "Back",
+  hback: "HB",
+  mid: "Mid",
+  hfwd: "HF",
+  fwd: "Fwd",
+};
+
+/**
  * AFL's lines from a kid's season minutes by zone, for the zones on this
  * field (positionsFor: three or five).
  */

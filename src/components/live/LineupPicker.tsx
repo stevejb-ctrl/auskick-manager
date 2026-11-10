@@ -20,7 +20,7 @@ import { PickerField, type PickerCell, type PickerKidLook, type PickerLine } fro
 import { formationRows } from "@/lib/live/formationRows";
 import { fitSeats, seatLabels, seedSeats } from "@/lib/live/positionSeats";
 import { AFL_BIG_FIELD_FROM, aflSeatInput, type AflBigField } from "@/lib/sports/afl/bigField";
-import { aflSeasonLines, seasonLeastWords } from "@/lib/live/seasonWords";
+import { AFL_SEASON_SHORT, aflSeasonLines, seasonLeastWords } from "@/lib/live/seasonWords";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
@@ -773,7 +773,7 @@ export function LineupPicker({
   // season ("Least Fwd"), and a lock for a hold or a season keep-on.
   const keepOn = keepOnIds(roles.roles);
   const kidLook = (pid: string): PickerKidLook => {
-    const said = seasonLeastWords(aflSeasonLines(season[pid], zones, ZONE_SHORT_LABELS, ZONE_LABELS));
+    const said = seasonLeastWords(aflSeasonLines(season[pid], zones, AFL_SEASON_SHORT, ZONE_LABELS));
     const hold = holds.lockedIds.includes(pid) ? "Field locked" : holds.zoneLockedPlayers[pid] ? "Zone locked" : null;
     const lockLabel = hold ?? (keepOn.has(pid) ? "Plays every minute" : null);
     return {
