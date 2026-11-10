@@ -302,7 +302,8 @@ async function captureSport(s) {
   await finish.click();
   await page.waitForTimeout(2_000);
   if (only.has("stats")) {
-    await page.goto(`${BASE}/teams/${g.team.id}/stats`);
+    // The first stats read backfills the season's minutes: give it time.
+    await page.goto(`${BASE}/teams/${g.team.id}/stats`, { timeout: 60_000 });
     await page.waitForLoadState("load");
     await shoot("stats");
   }

@@ -14,7 +14,8 @@ import type { SportId } from "@/lib/sports/types";
 //
 // Words on a band are chalk (`text-mark`): 9.6:1 or better on all three
 // surfaces. The keyboard ring turns chalk too (--focus-ring, read by the
-// global :focus-visible rule in globals.css).
+// global :focus-visible rule in globals.css). It clips with overflow:
+// clip, not hidden, so the tour's phone can still stick (GameTour).
 
 /** Each surface's texture, a few per cent over its colour. */
 const TEXTURE: Record<MarketingSurface, CSSProperties> = {
@@ -72,7 +73,7 @@ export function FieldBand({
       aria-labelledby={labelledBy}
       aria-label={label}
       data-surface={surface}
-      className={`field-band relative isolate overflow-hidden text-mark ${SURFACE_BG[surface]} ${className}`}
+      className={`field-band relative isolate overflow-clip text-mark ${SURFACE_BG[surface]} ${className}`}
       style={TEXTURE[surface]}
     >
       {marks && (

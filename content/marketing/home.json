@@ -6,7 +6,7 @@
   "trustBand": [
     { "stat": "10", "label": "junior sports" },
     { "stat": "$0", "label": "for the 2026 season" },
-    { "stat": "Any", "label": "phone, from the App Store or a browser" },
+    { "stat": "Any", "label": "phone: the app or a browser" },
     { "stat": "0", "label": "clipboards" }
   ],
   "finalCta": {
