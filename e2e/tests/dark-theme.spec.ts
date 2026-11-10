@@ -122,8 +122,9 @@ test.describe("signed out", () => {
     await open(page, "/");
     const shell = page.locator(".theme-light").first();
     await expect(shell).toHaveCSS("color-scheme", "light");
-    // The heading is still dark ink on the light brand gradient.
-    await expect(page.locator("h1").first()).toHaveCSS("color", "rgb(11, 30, 21)");
+    // The v3 hero is a field band: chalk on grass in either theme, the
+    // same as a light phone sees it (it doesn't flip with the OS).
+    await expect(page.locator("h1").first()).toHaveCSS("color", "rgb(247, 250, 245)");
     await page.screenshot({ path: `playwright/dark-theme/${testInfo.project.name}/marketing.png` });
   });
 });
