@@ -7,13 +7,14 @@
 // 0069) save from Settings and reach the next game.
 
 import { test, expect } from "@playwright/test";
+import { watchPageErrors } from "../helpers/pageErrors";
 import { createAdminClient } from "../fixtures/supabase";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
 
 test("basketball: the wizard makes a U12 team, every page opens, quarters and the foul tally save", async ({ page }) => {
   test.setTimeout(180_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
   const admin = createAdminClient();
 
   await gotoStable(page, "/teams/new");

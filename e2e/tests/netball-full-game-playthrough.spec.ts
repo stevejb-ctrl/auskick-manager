@@ -34,6 +34,7 @@
 // fragile surface in the merged trunk per Phase 3 CONCERNS.md.
 
 import { test, expect } from "@playwright/test";
+import { navAbortGuard } from "../helpers/pageErrors";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { readyNetball } from "../helpers/kickoff";
@@ -51,13 +52,17 @@ function attachConsoleErrorWatcher(
   page: import("@playwright/test").Page,
   errors: string[],
 ): void {
+  // WebKit reports the fetches it cancels on a navigation; those aren't crashes.
+  const isNavAbort = navAbortGuard(page);
   page.on("pageerror", (err) => {
+    if (isNavAbort(err.message)) return;
     errors.push(`pageerror: ${err.message}`);
   });
   page.on("console", (msg) => {
     if (msg.type() !== "error") return;
     const text = msg.text();
     if (KNOWN_INNOCUOUS_PATTERNS.some((re) => re.test(text))) return;
+    if (isNavAbort(text)) return;
     errors.push(`console.error: ${text}`);
   });
 }

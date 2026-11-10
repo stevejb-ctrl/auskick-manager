@@ -6,13 +6,14 @@
 // team's pages stops for futsal or borrows another sport's screen.
 
 import { test, expect } from "@playwright/test";
+import { watchPageErrors } from "../helpers/pageErrors";
 import { createAdminClient } from "../fixtures/supabase";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
 
 test("futsal: the wizard makes a U10 team with futsal's rules, and every team page opens", async ({ page }) => {
   test.setTimeout(180_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
   const admin = createAdminClient();
 
   await gotoStable(page, "/teams/new");

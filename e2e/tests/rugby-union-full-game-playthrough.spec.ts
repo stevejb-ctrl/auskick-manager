@@ -21,6 +21,7 @@
 // says each score in union's words, and a tap-tap sub asks, then toasts.
 
 import { test, expect } from "@playwright/test";
+import { watchPageErrors } from "../helpers/pageErrors";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
@@ -32,7 +33,7 @@ test.describe.configure({ mode: "serial" });
 test("rugby union U12: 15 a side, try → conversion → penalty and drop goals → finish", async ({ page }) => {
   test.setTimeout(240_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
 
   const admin = createAdminClient();
   const { data: su } = await admin.auth.admin.listUsers();

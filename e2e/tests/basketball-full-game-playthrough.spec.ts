@@ -24,6 +24,7 @@
 //   8. Every event basketball's actions write carries the team's sport.
 
 import { test, expect, type Page } from "@playwright/test";
+import { watchPageErrors } from "../helpers/pageErrors";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
@@ -54,7 +55,7 @@ async function openActions(page: Page, playerId: string) {
 test("basketball U12: guards and forwards, baskets each way, a foul-out, a sit-out, the break, finish", async ({ page }) => {
   test.setTimeout(300_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
 
   const { admin, ownerId } = await ownerIdOf();
   const team = await makeTeam(admin, {
@@ -265,7 +266,7 @@ test("basketball U12: guards and forwards, baskets each way, a foul-out, a sit-o
 test("basketball quarters under All five positions: 1 to 5 on court, Q1 starts, the runner link opens", async ({ page }) => {
   test.setTimeout(180_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
 
   const { admin, ownerId } = await ownerIdOf();
   const team = await makeTeam(admin, {

@@ -7,6 +7,7 @@
 // from the lineup on.
 
 import { test, expect } from "@playwright/test";
+import { watchPageErrors } from "../helpers/pageErrors";
 import { createAdminClient } from "../fixtures/supabase";
 import { makePlayers } from "../fixtures/factories";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
@@ -15,7 +16,7 @@ import { readySoccer } from "../helpers/kickoff";
 test("hockey: the wizard makes a U13 team in quarters, every page opens, and the team switches to halves", async ({ page }) => {
   test.setTimeout(180_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
   const admin = createAdminClient();
 
   await gotoStable(page, "/teams/new");

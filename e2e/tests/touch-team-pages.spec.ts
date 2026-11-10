@@ -8,6 +8,7 @@
 // mixed team).
 
 import { test, expect } from "@playwright/test";
+import { watchPageErrors } from "../helpers/pageErrors";
 import { createAdminClient } from "../fixtures/supabase";
 import { makePlayers } from "../fixtures/factories";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
@@ -21,7 +22,7 @@ async function ownerIdOf() {
 test("touch: the wizard makes a mixed U11 team, every page opens, one period and the mixed rule save, Girl/Boy on the squad", async ({ page }) => {
   test.setTimeout(240_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
   const { admin, ownerId } = await ownerIdOf();
 
   await gotoStable(page, "/teams/new");
@@ -166,7 +167,7 @@ test("touch: the wizard makes a mixed U11 team, every page opens, one period and
 test("oztag: the wizard makes a mixed U12 team, every page opens, and the girl's try turns off", async ({ page }) => {
   test.setTimeout(180_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
   const { admin } = await ownerIdOf();
 
   await gotoStable(page, "/teams/new");

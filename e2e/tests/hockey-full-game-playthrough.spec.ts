@@ -12,6 +12,7 @@
 //      as AFL's are, and an injury still replaces the keeper mid-quarter.
 
 import { test, expect, type Page } from "@playwright/test";
+import { watchPageErrors } from "../helpers/pageErrors";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
@@ -70,7 +71,7 @@ async function startPeriod(page: Page, tag: string) {
 test("hockey U9: 7 a side in halves, keepers change only at the break, with a kit-up heads-up", async ({ page }) => {
   test.setTimeout(240_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
 
@@ -206,7 +207,7 @@ test("hockey U13: 4 × 15 quarters, named keepers rotate at the breaks, an injur
 }) => {
   test.setTimeout(300_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
 
