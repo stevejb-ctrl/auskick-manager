@@ -5,7 +5,7 @@
 
 import type { Browser, BrowserContext, Page } from "@playwright/test";
 import { createAdminClient, createTestUser, type TestUser } from "../fixtures/supabase";
-import { waitForHydration } from "./navigation";
+import { waitForHydration, waitForSettledUrl } from "./navigation";
 
 export const PHONE = { width: 390, height: 844 };
 
@@ -54,7 +54,8 @@ export async function signedInPhone(
   await page.getByTestId("login-password").fill(person.password);
   await page.getByTestId("login-submit").click();
   await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 15_000 });
-  await waitForHydration(page);
+  // /dashboard may still hand a one-team account on to its team.
+  await waitForSettledUrl(page);
   return { context, page };
 }
 
