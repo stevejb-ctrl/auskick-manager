@@ -162,7 +162,8 @@ test("before kickoff, Edit lineup goes back to the picker with the lineup as set
   // the first on the bench.
   const lineup = page.getByRole("region", { name: /starting lineup/i });
   await expect(lineup.locator('[data-testid^="player-tile-"]')).toHaveCount(15, { timeout: 15_000 });
-  const benchGroup = lineup.getByText(/^Bench \(3\)$/).locator("..");
+  // Live v3: the picker's bench is a KidBench, a named group (was a "Bench (3)" card).
+  const benchGroup = lineup.getByRole("group", { name: "Bench", exact: true });
   const benchTile = benchGroup.locator('[data-testid^="player-tile-"]').first();
   const benchId = (await benchTile.getAttribute("data-testid"))!.replace("player-tile-", "");
   const fieldTile = lineup.locator('[data-testid^="player-tile-"]').first();
@@ -180,7 +181,7 @@ test("before kickoff, Edit lineup goes back to the picker with the lineup as set
   await item(await openMenu(page), "Edit lineup").click();
   await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
   const again = page.getByRole("region", { name: /starting lineup/i });
-  const benchAgain = again.getByText(/^Bench \(3\)$/).locator("..");
+  const benchAgain = again.getByRole("group", { name: "Bench", exact: true });
   await expect(benchAgain.getByTestId(`player-tile-${fieldId}`)).toBeVisible();
   await expect(benchAgain.getByTestId(`player-tile-${benchId}`)).toHaveCount(0);
   const { data: kicked } = await admin.from("game_events").select("id").eq("game_id", game.id).eq("type", "lineup_set");

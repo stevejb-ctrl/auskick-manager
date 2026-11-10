@@ -944,7 +944,10 @@ test("league named positions: a home position shows on the tile", async ({ page 
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   const tile = page.getByTestId(`league-player-tile-${hooker.id}`).first();
-  await expect(tile.getByLabel("Position HK")).toBeVisible({ timeout: 15_000 });
+  // Live v3: the position leads the tile ("HK Jack S") and its name, as
+  // in play; the old tile's "Position HK" chip went with it.
+  await expect(tile).toHaveAccessibleName(new RegExp(`^${hooker.full_name}, HK,`), { timeout: 15_000 });
+  await expect(tile).toContainText("HK");
 });
 
 test("a season keep-on role shows on the lineup in every sport", async ({ page }) => {
@@ -977,9 +980,12 @@ test("a season keep-on role shows on the lineup in every sport", async ({ page }
     await admin.from("player_position_prefs").insert({ team_id: team.id, player_id: kept.id, kind: "keep_on" });
 
     await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-    const marks = page.getByLabel(MARK);
+    // Live v3: the mark is the tile's lock, labelled exactly; the tile's
+    // own name says it too ("Ava, Back, #3, Plays every minute"), so the
+    // label is matched exactly to count the marks.
+    const marks = page.getByLabel(MARK, { exact: true });
     await expect(marks, s.sport).toHaveCount(1, { timeout: 15_000 });
-    await expect(page.getByRole("button").filter({ has: page.getByLabel(MARK) }), s.sport).toContainText(
+    await expect(page.getByRole("button").filter({ has: page.getByLabel(MARK, { exact: true }) }), s.sport).toContainText(
       kept.full_name.split(" ")[0],
     );
   }
@@ -1089,11 +1095,12 @@ test("netball and league lineups: long-press opens the same role sheet", async (
   await admin.from("team_playbooks").insert({ team_id: nbTeam.id, strategy: "set-positions" });
 
   await page.goto(`/teams/${nbTeam.id}/games/${nbGame.id}/live`);
-  const chip = page.locator('[data-testid^="bench-chip-"]').first();
+  // Live v3: the bench is a KidBench of player tiles (was bench-chip-<id>).
+  const chip = page.getByRole("group", { name: "Bench", exact: true }).locator('[data-testid^="player-tile-"]').first();
   await expect(chip).toBeVisible({ timeout: 15_000 });
   // The bench says why kids sit (usability run: "no stated reason").
   await expect(page.getByText("With 9 here and 7 on court, 2 sit out each quarter and everyone takes a turn.")).toBeVisible();
-  const benchId = (await chip.getAttribute("data-testid"))!.replace("bench-chip-", "");
+  const benchId = (await chip.getAttribute("data-testid"))!.replace("player-tile-", "");
   const benchName = nbPlayers.find((p) => p.id === benchId)!.full_name;
   // PlayerTile parity: the long-press fires after a 500ms hold.
   await chip.click({ delay: 600 });
@@ -1104,7 +1111,7 @@ test("netball and league lineups: long-press opens the same role sheet", async (
   await expect(nbSheet).toHaveCount(0);
   await expect.poll(async () => (await homeOf(benchId))?.position_key).toBe("gk");
   // The long-press didn't also pick the chip for a swap.
-  await expect(chip).not.toHaveClass(/ring-2/);
+  await expect(chip).toHaveAttribute("aria-pressed", "false");
 
   // League: the long-press menu gains "Player role".
   const lgTeam = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "rugby_league" });
