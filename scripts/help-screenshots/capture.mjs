@@ -330,7 +330,8 @@ const SHOTS = {
     await setState("afl-pregame");
     const { ctx, page } = await open(COACH, live("afl"));
     await fitHeight(page);
-    const from = page.getByText("Season time in zone", { exact: true });
+    // Live v3 picker (10 Nov 2026): it opens on the tap hint, no zone key.
+    const from = page.getByText(/^Tap two players to swap/);
     const ready = page.getByRole("button", { name: "Ready", exact: true });
     await save(await bandShot(page, from, ready, { padTop: 12, padBottom: 24 }), "live-game-lineup-picker");
     await ctx.close();

@@ -56,7 +56,7 @@ export default function LiveGamePage() {
         </OL>
         <HelpFigure
           src="/help-screenshots/live-game-lineup-picker.png"
-          alt="An AFL lineup with players arranged across the field and the bench below"
+          alt="An AFL lineup on the oval: each line's kids as tiles, with the bench and Ready below"
           caption="The suggested starting lineup (AFL shown), ready to tweak."
         />
       </HelpSection>

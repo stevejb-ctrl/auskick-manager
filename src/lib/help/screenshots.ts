@@ -16,7 +16,7 @@ export const HELP_SCREENSHOTS = {
   "/help-screenshots/getting-started-create-team.png": { width: 780, height: 800 },
   "/help-screenshots/getting-started-signup.png": { width: 780, height: 1520 },
   "/help-screenshots/live-game-field.png": { width: 780, height: 1688 },
-  "/help-screenshots/live-game-lineup-picker.png": { width: 780, height: 1808 },
+  "/help-screenshots/live-game-lineup-picker.png": { width: 780, height: 1146 },
   "/help-screenshots/live-game-quarter-break.png": { width: 780, height: 1688 },
   "/help-screenshots/live-game-quarter-end.png": { width: 780, height: 1688 },
   "/help-screenshots/live-game-scoring.png": { width: 780, height: 1688 },
