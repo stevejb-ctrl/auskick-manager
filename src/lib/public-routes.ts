@@ -1,4 +1,6 @@
 import type { MetadataRoute } from "next";
+import { HELP_PAGES } from "@/lib/help/pages";
+import { SPORT_HELP } from "@/lib/help/sports";
 import { MARKETING_SPORTS, sportPagePath } from "@/lib/sports/marketing-sports";
 
 // ─── Public routes: what's indexed, what's private ───────────
@@ -8,6 +10,11 @@ import { MARKETING_SPORTS, sportPagePath } from "@/lib/sports/marketing-sports";
 // page is in none of the lists below, so a new page has to pick one.
 
 type ChangeFrequency = NonNullable<MetadataRoute.Sitemap[number]["changeFrequency"]>;
+
+/** When the help pages last changed (the help rewrite, 10 Nov 2026). */
+const HELP_LAST_MODIFIED = "2026-11-10";
+/** The help topics searched for most. */
+const HELP_PRIORITY: Record<string, number> = { "getting-started": 0.7, faq: 0.7 };
 
 /** When the sport pages last changed. */
 const SPORT_PAGES_LAST_MODIFIED = "2026-10-25";
@@ -35,18 +42,20 @@ export const INDEXABLE_ROUTES: readonly IndexableRoute[] = [
     lastModified: SPORT_PAGES_LAST_MODIFIED,
   })),
 
-  // Help hub
-  { path: "/help", priority: 0.8, changeFrequency: "monthly", lastModified: "2026-10-21" },
-  { path: "/help/getting-started", priority: 0.7, changeFrequency: "monthly", lastModified: "2026-10-21" },
-  { path: "/help/teams", priority: 0.6, changeFrequency: "monthly", lastModified: "2026-10-14" },
-  { path: "/help/squads", priority: 0.6, changeFrequency: "monthly", lastModified: "2026-10-14" },
-  { path: "/help/games", priority: 0.6, changeFrequency: "monthly", lastModified: "2026-10-14" },
-  { path: "/help/rotations", priority: 0.6, changeFrequency: "monthly", lastModified: "2026-10-18" },
-  { path: "/help/live-game", priority: 0.6, changeFrequency: "monthly", lastModified: "2026-10-18" },
-  { path: "/help/track-scoring", priority: 0.6, changeFrequency: "monthly", lastModified: "2026-10-18" },
-  { path: "/help/stats", priority: 0.6, changeFrequency: "monthly", lastModified: "2026-10-14" },
-  { path: "/help/faq", priority: 0.7, changeFrequency: "monthly", lastModified: "2026-10-21" },
-  { path: "/help/troubleshooting", priority: 0.6, changeFrequency: "monthly", lastModified: "2026-10-21" },
+  // Help: the global topics, then a hub per sport (/help/netball, …).
+  // Bump HELP_LAST_MODIFIED with a substantive help rewrite.
+  ...HELP_PAGES.map((p) => ({
+    path: p.href,
+    priority: p.href === "/help" ? 0.8 : HELP_PRIORITY[p.slug] ?? 0.6,
+    changeFrequency: "monthly" as const,
+    lastModified: HELP_LAST_MODIFIED,
+  })),
+  ...SPORT_HELP.map((h) => ({
+    path: h.href,
+    priority: 0.7,
+    changeFrequency: "monthly" as const,
+    lastModified: HELP_LAST_MODIFIED,
+  })),
 
   // Transactional landing pages — useful for brand search.
   { path: "/contact", priority: 0.5, changeFrequency: "yearly", lastModified: "2026-05-16" },

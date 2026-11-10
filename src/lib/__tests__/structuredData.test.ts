@@ -11,7 +11,7 @@ import {
   websiteJsonLd,
 } from "@/lib/structured-data";
 import { APP_STORE_URL } from "@/lib/app-links";
-import { HELP_PAGES } from "@/lib/help/pages";
+import { ALL_HELP_PATHS, HELP_PAGES } from "@/lib/help/pages";
 import { helpPageUpdated } from "@/lib/help/updated";
 import { INDEXABLE_ROUTES } from "@/lib/public-routes";
 import { FEATURES, PRICE, sirenOneLiner } from "@/lib/siren-facts";
@@ -122,6 +122,14 @@ describe("helpBreadcrumbJsonLd", () => {
     }
   });
 
+  it("runs Home → Help → the sport for a sport hub", () => {
+    expect(helpBreadcrumbJsonLd(SITE, "/help/touch-football")?.itemListElement).toEqual([
+      { "@type": "ListItem", position: 1, name: "Home", item: `${SITE}/` },
+      { "@type": "ListItem", position: 2, name: "Help", item: `${SITE}/help` },
+      { "@type": "ListItem", position: 3, name: "Touch football", item: `${SITE}/help/touch-football` },
+    ]);
+  });
+
   it("returns nothing outside the help pages", () => {
     expect(helpBreadcrumbJsonLd(SITE, "/help/not-a-page")).toBeNull();
     expect(helpBreadcrumbJsonLd(SITE, "/")).toBeNull();
@@ -129,14 +137,14 @@ describe("helpBreadcrumbJsonLd", () => {
 });
 
 describe("help pages: date and author", () => {
-  it("dates every help page from the sitemap, as '21 Oct 2026'", () => {
-    for (const page of HELP_PAGES) {
-      const lastModified = INDEXABLE_ROUTES.find((r) => r.path === page.href)?.lastModified;
-      expect(lastModified, page.href).toBeDefined();
-      expect(helpPageUpdated(page.href)?.iso, page.href).toBe(lastModified);
+  it("dates every help page and sport hub from the sitemap, as '10 Nov 2026'", () => {
+    for (const path of ALL_HELP_PATHS) {
+      const lastModified = INDEXABLE_ROUTES.find((r) => r.path === path)?.lastModified;
+      expect(lastModified, path).toBeDefined();
+      expect(helpPageUpdated(path)?.iso, path).toBe(lastModified);
     }
-    expect(helpPageUpdated("/help/faq")?.label).toBe("21 Oct 2026");
-    expect(helpPageUpdated("/help/squads")?.label).toBe("14 Oct 2026");
+    expect(helpPageUpdated("/help/faq")?.label).toBe("10 Nov 2026");
+    expect(helpPageUpdated("/help/netball")?.label).toBe("10 Nov 2026");
     expect(helpPageUpdated("/why-siren")).toBeNull();
   });
 
@@ -147,12 +155,13 @@ describe("help pages: date and author", () => {
       headline: "Squads",
       description: HELP_PAGES.find((p) => p.href === "/help/squads")?.description,
       url: `${SITE}/help/squads`,
-      dateModified: "2026-10-14",
+      dateModified: "2026-11-10",
       inLanguage: "en-AU",
       author: { "@type": "Person", name: "Steve Bull", description: "A parent-coach in Australia" },
       publisher: { "@id": `${SITE}/#organization` },
     });
     expect(helpArticleJsonLd(SITE, "/help")?.headline).toBe("Siren Help");
+    expect(helpArticleJsonLd(SITE, "/help/rugby-league")?.headline).toBe("Rugby league");
     expect(helpArticleJsonLd(SITE, "/")).toBeNull();
   });
 });
