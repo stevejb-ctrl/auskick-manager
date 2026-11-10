@@ -21,8 +21,6 @@ import dynamic from "next/dynamic";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { RollingNumber, SCORE_GHOST, useScoreGhost } from "@/components/live/RollingNumber";
-import { CourtDisplay } from "@/components/netball/CourtDisplay";
-import { PositionToken } from "@/components/netball/PositionToken";
 import { NetballLineupPicker } from "@/components/netball/LineupPicker";
 import { LockModal } from "@/components/live/LockModal";
 import { NetballQuarterBreak } from "@/components/netball/NetballQuarterBreak";
@@ -96,7 +94,6 @@ const GamePlanModal = dynamic(
   () => import("@/components/game-plan/GamePlanModal").then((m) => m.GamePlanModal),
   { ssr: false },
 );
-import { PulseDot } from "@/components/ui/PulseDot";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import {
@@ -1171,7 +1168,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     step(-1);
     const { flushed } = enqueueLiveAction("undoNetballScore", [auth, game.id, stackRef(undoTop)]);
     // Refresh after flush so the rolled-back goal disappears from
-    // the scorebug + PositionToken chip on the next render. Refused
+    // the scorebug + the kid's goals on the next render. Refused
     // (the other phone already took it back): put the goal back.
     flushed
       .then(() => startTransition(() => router.refresh()))
@@ -2244,46 +2241,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // atomically via the `startQuarterToo=true` flag. There's no longer
   // a moment when the page can render with a committed lineup but no
   // quarter_start event — matches AFL's flow exactly.
-
-  // ─── Between Q4 and finalise: show finalise button ──────────
-  if (quarterEnded && currentQuarter >= ageGroup.periodCount) {
-    return (
-      <div className="flex flex-col gap-4 pb-4">
-        {topUtilityRow}
-        {walkthroughOverlay}
-        <NetballScoreBug
-          teamName={teamName}
-          opponentName={game.opponent}
-          team={teamScore}
-          opponent={opponentScore}
-          quarterLabel="Q4 END"
-          clockText="—"
-          showScores={trackScoring}
-          clockPulseKey={clockPulseKey}
-        />
-        <CourtDisplay lineup={onCourt} ageGroup={ageGroup} squadById={squadById} disabled />
-        <button
-          type="button"
-          onClick={() => {
-            const { flushed } = enqueueLiveAction("endNetballQuarter", [
-              auth,
-              game.id,
-              4,
-              clockMs,
-            ]);
-            // Refresh after flush so SSR sees the finalise events
-            // and the page rerenders into FT review.
-            flushed.then(() => startTransition(() => router.refresh()));
-          }}
-          disabled={isPending}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 py-3 text-white font-semibold disabled:opacity-60"
-        >
-          {isPending && <PulseDot size="sm" />}
-          {isPending ? "Finishing…" : "Finish game"}
-        </button>
-      </div>
-    );
-  }
 
   // ─── Live v3's shell (Phase 7: netball, as AFL's) ────────────
   // Before the first whistle and through each quarter the screen is
