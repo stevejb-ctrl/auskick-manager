@@ -205,11 +205,18 @@ async function captureSport(g) {
   }
 
   const realS = (Date.now() - kickoffAt) / 1000;
-  await speed(g, Math.max(1, (cfg.periodSeconds - 150) / realS), cfg.subIntervalSeconds);
   if (only.has("pairs") && !(await rollingSubs())) {
+    // Netball: its next-quarter plan, which opens in the quarter's last
+    // sub interval. Run the clock only a little faster, so the plan is
+    // shot while the quarter is still on (not at the break).
+    await speed(g, Math.min(10, Math.max(1, (cfg.periodSeconds - 240) / realS)), cfg.subIntervalSeconds);
+    await page.getByRole("button", { name: /plan q\d/i }).first().waitFor({ timeout: 90_000 });
     await openPairs();
+    if (await atBreakOrFullTime()) throw new Error("the quarter ended before its plan was shot");
     await shoot("pairs");
     await closeSheet();
+  } else {
+    await speed(g, Math.max(1, (cfg.periodSeconds - 150) / realS), cfg.subIntervalSeconds);
   }
   await endPeriod();
   await waitForBreak();
