@@ -306,6 +306,8 @@ describe("full time", () => {
     "src/components/basketball/BasketballFullTime.tsx": "BasketballFullTimeReview",
     "src/components/league/LeagueFullTimeReview.tsx": "LeagueFullTimeReview",
     "src/components/touch/TouchFullTime.tsx": "TouchFullTimeReview",
+    // Netball's too (10 Nov 2026): it was the older AFL-shaped review.
+    "src/components/netball/NetballFullTimeReview.tsx": "NetballFullTimeReview",
   };
 
   for (const [path, name] of Object.entries(reviews)) {
@@ -313,18 +315,25 @@ describe("full time", () => {
       const source = src(path);
       expect(source).toMatch(/<BreakScoreEditor\b/);
       expect(source).not.toMatch(/Score adjustments/);
+      expect(source).not.toMatch(/<ScoreReviewPanel\b/);
     });
   }
+
+  // Netball's full time wears the v3 header, as touch's and basketball's.
+  it("netball's full time and finished game use the v3 score header", () => {
+    const source = src("src/components/netball/NetballLiveGame.tsx");
+    for (const label of ['quarterLabel="FT"']) {
+      const bugs = source.split("<NetballScoreBug").slice(1).filter((s) => s.slice(0, 400).includes(label));
+      expect(bugs.length).toBeGreaterThan(0);
+      for (const b of bugs) expect(b.slice(0, 400)).toMatch(/part="header"/);
+    }
+  });
 
   // Finish game survives a dropped request: the review stays up, says
   // "Couldn't save — try again", and a retry can't finalise twice (round
   // 2, 24 Oct 2026: netball threw "Failed to fetch" into the boundary).
   it("every sport's Finish goes through the shared, retry-safe useFinishGame", () => {
-    for (const path of [
-      "src/components/live/FullTimeReview.tsx",
-      "src/components/netball/NetballFullTimeReview.tsx",
-      ...Object.keys(reviews),
-    ]) {
+    for (const path of ["src/components/live/FullTimeReview.tsx", ...Object.keys(reviews)]) {
       const source = src(path);
       expect(source, path).toMatch(/useFinishGame\(/);
       expect(source, path).not.toMatch(/await finalise\w*Game\(/);
@@ -332,7 +341,9 @@ describe("full time", () => {
   });
 
   it("no one arrives late at a game that's over (the review, not just once it's finished)", () => {
-    for (const path of Object.keys(reviews).map((p) => p.replace(/(FullTime|FullTimeReview)\.tsx$/, "LiveGame.tsx"))) {
+    // Netball's full time is a page of its own, with no late-arrival menu on it.
+    const withMenu = Object.keys(reviews).filter((p) => !p.includes("/netball/"));
+    for (const path of withMenu.map((p) => p.replace(/(FullTime|FullTimeReview)\.tsx$/, "LiveGame.tsx"))) {
       const source = src(path);
       const at = source.indexOf("const lateArrivalCandidates");
       expect(at, path).toBeGreaterThan(-1);

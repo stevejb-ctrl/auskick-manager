@@ -1866,6 +1866,70 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       : // The exit page, as every other sport's link: EXIT to the page
         // you were on did nothing (UX round 2).
         `/run/${auth.token}/left`;
+  // Scorebug-driven scorer picker. Opens when the coach taps the
+  // own-team +G (the live bar's + GOAL, or full time's +G). Lists only
+  // the on-court GS + GA (the only positions allowed to score in
+  // netball). Pick → record directly; no confirm sheet, mirrors AFL's
+  // GameHeader-driven picker pattern. If no eligible scorers are on
+  // court (rare — only if the GS OR GA tile is empty mid-quarter via
+  // injury or vacancy) the sheet still renders so the coach sees "no
+  // candidates" instead of nothing visibly happening on the tap.
+  // Steve 2026-05-16.
+  const scorerPickerEl = pickScorerOpen
+    ? (() => {
+        const eligibleIds = [...(onCourt.positions.gs ?? []), ...(onCourt.positions.ga ?? [])];
+        // Dressed rows, not bare text (UI polish audit §11): the AFL
+        // who-scored picker gives each row a number circle and a
+        // position caption; a netball goal deserves the same moment.
+        // The bib label rides in the circle (netball has no jersey
+        // numbers) and the full position name captions it.
+        const candidates = eligibleIds
+          .map((pid) => {
+            const player = squadById.get(pid);
+            if (!player) return null;
+            const positionId = (onCourt.positions.gs ?? []).includes(pid) ? "GS" : "GA";
+            return {
+              id: pid,
+              name: player.full_name,
+              jerseyNumber: positionId,
+              subLabel: positionId === "GS" ? "Goal Shooter" : "Goal Attack",
+            };
+          })
+          .filter((c): c is NonNullable<typeof c> => !!c);
+        return (
+          <SlotFillSheet
+            slotLabel="goal"
+            titleVerb="Record"
+            lostScore="goal"
+            subtitle="Pick the scorer. Only GS and GA can score a netball goal."
+            emptyMessage="No GS or GA on court right now."
+            candidates={candidates}
+            onPick={(playerId) => {
+              setPickScorerOpen(false);
+              // The same goal as the kid bar's + GOAL.
+              recordGoal(playerId);
+            }}
+            onCancel={() => setPickScorerOpen(false)}
+          />
+        );
+      })()
+    : null;
+
+  // Full time's Undo last score: the game's latest goal standing (the
+  // strip's Undo is gone by then, as in the other sports' full times).
+  const undoLatestGoal = () => {
+    const top = undoScores[undoScores.length - 1];
+    if (!top) return;
+    handleUndoLastScore({
+      id: top.eventId ?? `optimistic-${top.key}`,
+      type: top.type,
+      player_id: top.playerId,
+      created_at: top.createdAt ?? "",
+      idempotency_key: top.key,
+      metadata: { quarter: top.quarter },
+    });
+  };
+
   const topUtilityRow = (
     <LiveTopBar
       exitHref={exitHref}
@@ -1996,7 +2060,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       <div className="flex flex-col gap-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
         {topUtilityRow}
         {walkthroughOverlay}
+        {/* The v3 header, as the other sports' finished games. */}
         <NetballScoreBug
+          part="header"
           teamName={teamName}
           opponentName={game.opponent}
           team={teamScore}
@@ -2053,20 +2119,21 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   }
 
   // ─── Full-time review (Q4 ended, not yet finalised) ───────
-  // Mirrors AFL's FullTimeReview: gives the coach a chance to
-  // reconcile / fix scores before locking the result. Ends with a
-  // "Finalise game" button that fires game_finalised → flips us
-  // into the finalised branch above on next render.
+  // As the other sports' full times: the top bar, the v3 header, then
+  // the review (the shared BreakScoreEditor: missed goals for either
+  // side, Undo, Change who scored) and Finish game, which fires
+  // game_finalised → the finalised branch above on next render.
   if (quarterEnded && currentQuarter >= ageGroup.periodCount) {
     return (
-      <div className="flex flex-col gap-4 pb-4">
+      <div className="ui-nonselect flex flex-col gap-3 pb-4">
         {topUtilityRow}
         {walkthroughOverlay}
         <NetballScoreBug
+          part="header"
           teamName={teamName}
           opponentName={game.opponent}
-          team={teamScore}
-          opponent={opponentScore}
+          team={effectiveTeamScore}
+          opponent={effectiveOpponentScore}
           quarterLabel="FT"
           clockText="—"
           showScores={trackScoring}
@@ -2076,14 +2143,20 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           auth={auth}
           gameId={game.id}
           trackScoring={trackScoring}
-          teamScore={teamScore}
-          opponentScore={opponentScore}
+          teamScore={effectiveTeamScore}
+          opponentScore={effectiveOpponentScore}
           scoreByQuarter={scoreByQuarter}
-          players={squad}
+          periodCount={ageGroup.periodCount}
           finalisedElapsedMs={_quarterElapsedMs ?? 0}
           midQuarterSubs={midQuarterSubs}
-          opponentName={game.opponent}
+          teamName={teamName}
+          opponentName={opponentLabel}
+          onTeamGoal={!pickScorerOpen ? () => setPickScorerOpen(true) : undefined}
+          onOpponentGoal={handleOpponentGoal}
+          onUndo={undoScores.length > 0 ? undoLatestGoal : undefined}
+          scorePending={isPending}
         />
+        {scorerPickerEl}
       </div>
     );
   }
@@ -2999,56 +3072,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         />
       )}
 
-      {/* Scorebug-driven scorer picker. Opens when the coach taps
-          the new own-team +G chip on the scorebug. Lists only the
-          currently-on-court GS + GA (the only positions allowed to
-          score in netball). Pick → record directly; no confirm
-          sheet, mirrors AFL's GameHeader-driven picker pattern. If
-          no eligible scorers are on court (rare — only if the GS
-          OR GA tile is empty mid-quarter via injury or vacancy)
-          the sheet still renders so the coach sees "no candidates"
-          instead of nothing visibly happening on the tap.
-          Steve 2026-05-16. */}
-      {pickScorerOpen && (() => {
-        const eligibleIds = [
-          ...(onCourt.positions.gs ?? []),
-          ...(onCourt.positions.ga ?? []),
-        ];
-        // Dressed rows, not bare text (UI polish audit §11): the
-        // AFL who-scored picker gives each row a number circle and
-        // a position caption; a netball goal deserves the same
-        // moment. The bib label rides in the circle (netball has no
-        // jersey numbers) and the full position name captions it.
-        const candidates = eligibleIds
-          .map((pid) => {
-            const player = squadById.get(pid);
-            if (!player) return null;
-            const positionId = (onCourt.positions.gs ?? []).includes(pid) ? "GS" : "GA";
-            return {
-              id: pid,
-              name: player.full_name,
-              jerseyNumber: positionId,
-              subLabel: positionId === "GS" ? "Goal Shooter" : "Goal Attack",
-            };
-          })
-          .filter((c): c is NonNullable<typeof c> => !!c);
-        return (
-          <SlotFillSheet
-            slotLabel="goal"
-            titleVerb="Record"
-            lostScore="goal"
-            subtitle="Pick the scorer. Only GS and GA can score a netball goal."
-            emptyMessage="No GS or GA on court right now."
-            candidates={candidates}
-            onPick={(playerId) => {
-              setPickScorerOpen(false);
-              // The same goal as the kid bar's + GOAL.
-              recordGoal(playerId);
-            }}
-            onCancel={() => setPickScorerOpen(false)}
-          />
-        );
-      })()}
+      {/* The GS / GA scorer picker (scorerPickerEl, above). */}
+      {scorerPickerEl}
 
       {/* First-time hint for the long-press (shared with AFL's), while
           the quarter's on and nobody's picked (it would cover the kid bar). */}
