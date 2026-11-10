@@ -24,7 +24,6 @@
 // Start, not after.
 
 import { useMemo, useRef, useState, useTransition } from "react";
-import { LINEUP_TAP_HINT } from "@/components/lineup/lineupHints";
 import { useKeptSetting } from "@/components/lineup/useKeptSetting";
 import { useRouter } from "next/navigation";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
@@ -66,8 +65,10 @@ import { TOUCH_LANES, type MixedRule, type TouchAgeGroupConfig, type TouchLine, 
 import { MixedGroupPicker } from "@/components/squad/MixedGroupPicker";
 import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
 import { touchLineupRuleItems } from "@/lib/sports/touch/ruleCheck";
-import { TouchField } from "./TouchField";
-import { TouchBench } from "./TouchBench";
+import { rugbyField } from "@/components/league/RugbyMarks";
+import { spreadRows } from "@/components/live/FieldLines";
+import { PickerField, type PickerCell } from "@/components/lineup/PickerField";
+import { outWords } from "@/lib/live/kidWords";
 import { TOUCH_LINE_LABEL, TOUCH_LINE_ONE, touchStrategyLabel } from "./touchWords";
 import type { TouchSport } from "@/lib/sports/registry";
 import { squadLoanAverage } from "@/lib/live/liveChrome";
@@ -299,6 +300,12 @@ export function TouchLineupPicker({
     ...(lentPlayers.length > 0 ? [`${lentPlayers.length} lent`] : []),
   ].join(" · ");
 
+  // The field's lines, as TouchLiveGame draws them: the lanes, or one Field.
+  const usesLanes = lineup.lines.field.length === 0 && (shape.lines.field ?? 0) === 0;
+  const fieldRows: TouchLine[] = usesLanes
+    ? TOUCH_LANES.filter((l) => Math.max(shape.lines[l] ?? 0, lineup.lines[l].length) > 0)
+    : ["field"];
+
   return (
     <div ref={pickerRootRef} role="region" aria-label="Starting lineup" className="space-y-4 pb-32">
       <LineupPickerBreadcrumb availabilityHref={availabilityHref ?? undefined} />
@@ -306,7 +313,6 @@ export function TouchLineupPicker({
 
       <header className="space-y-1 px-1">
         <h1 className="text-xl font-bold text-ink">{ageGroup.label} starting side</h1>
-        <p className="text-xs text-ink-mute">{LINEUP_TAP_HINT}</p>
       </header>
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
@@ -459,25 +465,43 @@ export function TouchLineupPicker({
         </p>
       )}
 
-      <TouchField
-        lineup={lineup}
-        lineCaps={shape.lines}
-        playersById={playerById}
-        onTap={(pid, line) => handleTap(pid, line)}
+      {/* The touch field, as the live screen draws it (live v3): the
+          lanes attack up the page (or one Field line staggered down it),
+          a mixed team's G and B after each name, the bench under it. */}
+      <PickerField
+        ground={rugbyField(sport, { tileWidth: 112 })}
+        lines={fieldRows.map((line) => {
+          const ids = lineup.lines[line];
+          const spot = line === "field" ? "spot" : `${TOUCH_LINE_ONE[line]} spot`;
+          return {
+            key: line,
+            label: line === "field" ? "Field" : TOUCH_LINE_LABEL[line],
+            cells: Array.from({ length: Math.max(shape.lines[line] ?? 0, ids.length) }, (_, slot): PickerCell => {
+              const pid = ids[slot] ?? null;
+              return {
+                key: pid ?? `empty-${slot}`,
+                playerId: pid,
+                place: line === "field" ? null : TOUCH_LINE_LABEL[line],
+                emptyLabel: selectedId ? `Move ${playerById.get(selectedId)?.full_name ?? "them"} to the empty ${spot}` : `Empty ${spot}`,
+                onTap: () => handleTap(pid ?? "", line),
+              };
+            }),
+            // No lanes (Oztag, small touch): staggered down the field.
+            shape: line === "field" ? (tiles) => spreadRows(tiles) : undefined,
+          };
+        })}
+        bench={[...lineup.bench.filter((id) => !loanedIds.has(id)), ...lineup.bench.filter((id) => loanedIds.has(id))].map((pid) => ({
+          playerId: pid,
+          // A lent kid's tap opens their sheet (Bring back), as in play.
+          onTap: loanedIds.has(pid) ? () => setActionPlayerId(pid) : () => handleTap(pid, null),
+        }))}
+        players={playerById}
+        selectedId={selectedId}
+        look={(pid) => ({
+          group: groupMark?.(pid) ?? null,
+          ...(loanedIds.has(pid) ? { out: "lent" as const, words: outWords({ kind: "lent" }) } : {}),
+        })}
         onLongPress={setActionPlayerId}
-        selectedPlayerId={selectedId}
-        dimUnselected={false}
-        groupOf={groupMark}
-      />
-      <TouchBench
-        bench={lineup.bench}
-        playersById={playerById}
-        onTap={(pid) => handleTap(pid, null)}
-        onLongPress={setActionPlayerId}
-        selectedPlayerId={selectedId}
-        dimUnselected={false}
-        loanedIds={Array.from(loanedIds)}
-        groupOf={groupMark}
       />
       {mixedRule && <p className="px-1 text-micro text-ink-mute">{MIXED_FAIRNESS_NOTE}</p>}
 
