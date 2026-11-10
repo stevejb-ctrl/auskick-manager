@@ -24,7 +24,7 @@ interface FinalCTAProps {
  */
 export function FinalCTA({ copy, showAppStoreBadge, surface = "field", marks = "afl" }: FinalCTAProps) {
   return (
-    <FieldBand id="signup" surface={surface} marks={marks} markOpacity={0.12} labelledBy="signup-heading">
+    <FieldBand id="signup" surface={surface} marks={marks} markOpacity={0.12} markFit="meet" labelledBy="signup-heading">
       <div className="mx-auto max-w-3xl px-4 py-20 text-center sm:px-6 md:py-28">
         <p className="font-display text-[1.0625rem] font-bold text-mark/75 stretch-80">{copy.finalCtaEyebrow}</p>
         <h2

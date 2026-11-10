@@ -92,6 +92,19 @@ for (const sport of SPORTS) {
   });
 }
 
+// Steve, 10 Nov 2026: the sign-up band on a wide screen sliced AFL's oval
+// to a strip, so its two ends and 50 m arcs read as stray circles. The
+// short band draws the whole ground instead, centred behind the words.
+test("the sign-up band draws the whole ground on a wide screen", async ({ page }) => {
+  await page.setViewportSize({ width: 1900, height: 900 });
+  for (const path of ["/afl", "/"]) {
+    await page.goto(path, { waitUntil: "domcontentloaded" });
+    const glyph = page.locator("#signup svg[data-sport-field]").filter({ visible: true });
+    await expect(glyph).toHaveCount(1);
+    await expect(glyph).toHaveAttribute("preserveAspectRatio", "xMidYMid meet");
+  }
+});
+
 test("the sport pages and the homepage fit a phone: nothing scrolls sideways at 390", async ({ page }) => {
   test.setTimeout(120_000);
   await page.setViewportSize({ width: 390, height: 844 });

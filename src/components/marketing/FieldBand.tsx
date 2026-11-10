@@ -49,6 +49,13 @@ interface FieldBandProps {
   drawIn?: boolean;
   /** How strong the chalk markings are, 0–1. */
   markOpacity?: number;
+  /**
+   * How the ground fills the band: cropped to cover it (the default), or
+   * whole and centred. A short, wide band (the sign-up) wants the whole
+   * ground: sliced, AFL's oval was a strip whose ends read as stray
+   * circles (Steve, 10 Nov 2026).
+   */
+  markFit?: "slice" | "meet";
   id?: string;
   labelledBy?: string;
   label?: string;
@@ -61,6 +68,7 @@ export function FieldBand({
   marks,
   drawIn = false,
   markOpacity = 0.18,
+  markFit = "slice",
   id,
   labelledBy,
   label,
@@ -88,13 +96,13 @@ export function FieldBand({
             sport={marks}
             weight={2}
             orientation="portrait"
-            fit="slice"
+            fit={markFit}
             className="h-full w-full md:hidden"
           />
           <SportFieldGlyph
             sport={marks}
             weight={2}
-            fit="slice"
+            fit={markFit}
             className="hidden h-full w-full md:block"
           />
         </div>
