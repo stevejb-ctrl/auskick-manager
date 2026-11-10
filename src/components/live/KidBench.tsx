@@ -13,8 +13,11 @@
 import type { ReactNode } from "react";
 
 export interface KidBenchProps {
-  /** How many are on the bench, for the margin label. */
-  count: number;
+  /**
+   * How many are on the bench, for the margin label: a number, or the
+   * break's "3 + 1 injured".
+   */
+  count: number | string;
   /** The kids: bench tiles, then the out tiles. */
   tiles: ReactNode[];
   /** "+ Late" (LateArrivalMenu look="text"); hides itself with nobody to add. */

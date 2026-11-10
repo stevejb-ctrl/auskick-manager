@@ -44,6 +44,7 @@ import { LiveGameMenu, settingsSummary } from "@/components/live/LiveGameMenu";
 import { KidTile, KidSlot, type KidFigure, type KidOutKind } from "@/components/live/KidTile";
 import { KidBench } from "@/components/live/KidBench";
 import { FieldLines, type FieldLine } from "@/components/live/FieldLines";
+import { woodCourt } from "./WoodMarks";
 import { InfoLine } from "@/components/live/InfoLine";
 import { PairsSheet, type SheetPair } from "@/components/live/PairsSheet";
 import { KidBar, KidBarMore, TimeSplit } from "@/components/live/KidBar";
@@ -1075,7 +1076,7 @@ export function BasketballLiveGame({
     : [];
   const fieldEl = lineup ? (
     <div role="region" aria-label="On court" className="flex flex-1 flex-col">
-      <FieldLines lines={fieldLines} surface="wood" marks={<WoodMarks />} tileWidth={112} />
+      <FieldLines lines={fieldLines} {...woodCourt()} />
     </div>
   ) : null;
 
@@ -1812,18 +1813,3 @@ export function BasketballLiveGame({
   );
 }
 
-/**
- * The court's paint, faint chalk on the wood under the kids: the key and
- * the free-throw circle at the top (the basket the forwards attack), the
- * halfway line's centre circle at the foot. Decoration only.
- */
-function WoodMarks() {
-  return (
-    <>
-      <span className="absolute left-1/2 top-0 h-[30%] w-[36%] -translate-x-1/2 border-[1.5px] border-t-0 border-mark/[0.08]" />
-      <span className="absolute left-1/2 top-[calc(30%-28px)] h-14 w-14 -translate-x-1/2 rounded-full border-[1.5px] border-mark/[0.08]" />
-      <span className="absolute left-1/2 top-0 h-[58%] w-[84%] -translate-x-1/2 rounded-b-full border-[1.5px] border-t-0 border-mark/[0.06]" />
-      <span className="absolute -bottom-8 left-1/2 h-16 w-16 -translate-x-1/2 rounded-full border-[1.5px] border-mark/[0.08]" />
-    </>
-  );
-}

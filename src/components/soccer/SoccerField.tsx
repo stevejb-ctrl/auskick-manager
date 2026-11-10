@@ -13,6 +13,7 @@
 import { Fragment } from "react";
 import { sportSurface } from "@/components/live/sportSurface";
 import type { Player } from "@/lib/types";
+import type { FieldSurface } from "@/components/live/FieldLines";
 import type { SoccerLineup } from "@/lib/sports/soccer/lineup";
 import type { SoccerUnitMs } from "@/lib/sports/soccer/replay";
 import type { SoccerLine, SoccerSurface, SoccerUnit, SoccerUnitWords } from "@/lib/sports/soccer/types";
@@ -212,6 +213,20 @@ export function SoccerSurfaceMarks({ surface }: { surface: SoccerSurface }) {
 }
 
 /**
+ * The soccer family's ground for FieldLines (the live field and the
+ * break): futsal on the court, soccer and hockey on the grass, each with
+ * its markings. Eleven a side gets a wider plate for "ATT Lucas N" (the
+ * design's 100+).
+ */
+export function soccerField(surface: SoccerSurface, bigSide: boolean): FieldSurface {
+  return {
+    surface: surface === "court" ? "court" : "field",
+    marks: <SoccerSurfaceMarks surface={surface} />,
+    tileWidth: bigSide ? 108 : 88,
+  };
+}
+
+/**
  * Futsal's court, on the shared court token basketball draws on: the
  * lines, halfway and the centre circle, and at each end the 6 m penalty
  * area (quarter circles from the posts, joined by a short straight), the
@@ -273,7 +288,7 @@ function HockeyPitchMarkings() {
 function PitchMarkings() {
   const line = "border-white/[0.22]";
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0">
+    <div aria-hidden data-testid="pitch-markings" className="pointer-events-none absolute inset-0">
       <div className={`absolute inset-x-2.5 inset-y-2.5 rounded-[10px] border-[1.5px] ${line}`} />
       <div className="absolute inset-x-2.5 top-1/2 h-0 border-t-[1.5px] border-white/[0.18]" />
       <div className="absolute left-1/2 top-1/2 h-[72px] w-[72px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[1.5px] border-white/[0.16]" />

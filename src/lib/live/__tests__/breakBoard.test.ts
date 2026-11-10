@@ -7,6 +7,7 @@ import {
   BENCH,
   buildBoard,
   canSwap,
+  cellsInRows,
   findFix,
   isLowTime,
   movementText,
@@ -229,5 +230,19 @@ describe("rotateGroups", () => {
     });
     expect(out.groups.court.sort()).toEqual(["b", "c"]);
     expect(out.bench).toEqual(["a"]);
+  });
+});
+
+describe("cellsInRows: a line's cells in a formation's rows", () => {
+  const cell = (playerId: string | null, n: string) => ({ slot: { playerId }, n });
+  it("puts each kid in their spot and an empty spot in the line's next empty cell", () => {
+    const cells = [cell("a", "A"), cell("b", "B"), cell(null, "E1"), cell("c", "C"), cell(null, "E2")];
+    const rows = cellsInRows([["c", null], ["a"], [null, "b"]], cells);
+    expect(rows.map((r) => r.map((c) => c.n))).toEqual([["C", "E1"], ["A"], ["E2", "B"]]);
+  });
+  it("drops spots with no cell and keeps cells no spot named in a last row", () => {
+    const cells = [cell("a", "A"), cell("b", "B"), cell("z", "Z")];
+    const rows = cellsInRows([["a", null], ["gone"], ["b"]], cells);
+    expect(rows.map((r) => r.map((c) => c.n))).toEqual([["A"], ["B"], ["Z"]]);
   });
 });

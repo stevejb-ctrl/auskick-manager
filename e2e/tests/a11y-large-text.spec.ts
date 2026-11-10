@@ -93,9 +93,12 @@ test("at 200% break tiles show each kid's whole name, at the larger size", async
   await expect(page.getByRole("button", { name: /^start 2nd half/i })).toBeVisible({ timeout: 15_000 });
   await largeText(page, 200);
 
+  // The tiles carry the squad's short name ("Paddy M"), as in play,
+  // since the break draws the field (10 Nov 2026).
   for (const p of players.slice(0, 3)) {
     const tile = page.getByTestId(`player-tile-${p.id}`);
-    const name = tile.getByText(p.full_name, { exact: true });
+    const [first, last] = p.full_name.split(" ");
+    const name = tile.getByText(`${first} ${last[0]}`, { exact: true });
     await name.scrollIntoViewIfNeeded();
     const m = await name.evaluate((el) => ({
       clipped: el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1,

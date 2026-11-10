@@ -25,6 +25,7 @@ import { hapticTap } from "@/lib/haptics";
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
 import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
 import { type InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
+import { soccerField } from "./SoccerField";
 import { PeriodBreak, type BreakPlayer, type BreakStrategy } from "@/components/quarter-break/PeriodBreak";
 import { breakConfigFor } from "@/lib/sports/break";
 import { periodLabels, type SoccerSport } from "@/lib/sports";
@@ -398,6 +399,8 @@ export function SoccerBreak({
     <PeriodBreak
       header={{ exitHref, game }}
       config={config}
+      // The pitch, futsal's court or the hockey pitch, as in play.
+      field={soccerField(rules.surface, game.on_field_size >= 11)}
       nextPeriod={nextPeriod}
       slots={board}
       players={players}

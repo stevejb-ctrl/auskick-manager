@@ -23,6 +23,8 @@ import { useStagedBreakDraft } from "@/lib/live/useStagedBreakDraft";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { hapticTap } from "@/lib/haptics";
 import { type InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
+import { rugbyField } from "@/components/league/RugbyMarks";
+import { spreadRows } from "@/components/live/FieldLines";
 import { PeriodBreak, type BreakPlayer, type BreakStrategy } from "@/components/quarter-break/PeriodBreak";
 import { breakConfigFor } from "@/lib/sports/break";
 import { getSportConfig } from "@/lib/sports/registry";
@@ -355,6 +357,11 @@ export function TouchBreak({
     <PeriodBreak
       header={{ exitHref, game }}
       config={config}
+      // The touch field as in play; one Field line staggers its crowd.
+      field={{
+        ...rugbyField(sport === "oztag" ? "oztag" : "touch", { tileWidth: 112 }),
+        shape: (zone, cells) => (zone.key === "field" ? spreadRows(cells.map((c) => c.node)) : undefined),
+      }}
       nextPeriod={nextPeriod}
       slots={board}
       players={players}

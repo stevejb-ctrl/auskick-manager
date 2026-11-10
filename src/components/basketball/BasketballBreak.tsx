@@ -21,6 +21,7 @@ import { useStagedBreakDraft } from "@/lib/live/useStagedBreakDraft";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { hapticTap } from "@/lib/haptics";
 import { type InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
+import { woodCourt } from "./WoodMarks";
 import { PeriodBreak, type BreakPlayer, type BreakStrategy } from "@/components/quarter-break/PeriodBreak";
 import { breakConfigFor } from "@/lib/sports/break";
 import { buildBoard, placesOf, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
@@ -348,6 +349,7 @@ export function BasketballBreak({
     <PeriodBreak
       header={{ exitHref, game }}
       config={config}
+      field={woodCourt()}
       nextPeriod={nextPeriod}
       slots={board}
       players={players}

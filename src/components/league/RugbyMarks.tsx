@@ -14,6 +14,7 @@
 // stands in an in-goal or on the posts.
 
 import type { RugbySport } from "@/lib/sports/registry";
+import type { FieldSurface } from "@/components/live/FieldLines";
 
 /** How deep each in-goal is drawn, px: the field's end padding too. */
 export const RUGBY_IN_GOAL_PX = 40;
@@ -74,6 +75,15 @@ function Posts({ end }: { end: "top" | "bottom" }) {
       <span className="absolute bottom-[9px] left-0 right-0 h-[3px] rounded-full bg-mark/60" />
     </div>
   );
+}
+
+/**
+ * A try-line field for FieldLines (the live field and the break): the
+ * grass, this code's lines, and the in-goals and posts kept clear of the
+ * kids, plus a little air.
+ */
+export function rugbyField(sport: TryLineCode, look: { tileWidth?: number; dense?: boolean } = {}): FieldSurface {
+  return { surface: "field", marks: <RugbyMarks sport={sport} />, endsPx: RUGBY_IN_GOAL_PX + 6, ...look };
 }
 
 export function RugbyMarks({ sport }: { sport: TryLineCode }) {

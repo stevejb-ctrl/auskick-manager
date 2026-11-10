@@ -42,6 +42,7 @@ import { cycleLineup, netballRuleCheck } from "@/lib/sports/netball/engine";
 import { pairScoreUndos } from "@/lib/live/scoreUndo";
 import type { RuleCheckItem } from "@/lib/playbook/ruleCheck";
 import { breakConfigFor } from "@/lib/sports/break";
+import { netballCourt, netballCourtLine } from "./NetballCourt";
 import { PeriodBreak, type BreakPlayer, type BreakStrategy } from "@/components/quarter-break/PeriodBreak";
 import { buildBoard, placesOf, swapInStaged, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
@@ -710,6 +711,8 @@ export function NetballQuarterBreak({
     <PeriodBreak
       header={{ exitHref, game, onHelp }}
       config={config}
+      // The court as in play: its blue, the circles, the bibs zigzagging.
+      field={{ ...netballCourt(), shape: (_zone, cells) => netballCourtLine(cells.map((c) => c.slot.group), cells.map((c) => c.node)) }}
       nextPeriod={nextQuarter}
       slots={board}
       players={breakPlayers}

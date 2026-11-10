@@ -44,6 +44,7 @@ import { breakInsightInput } from "@/lib/player-insight";
 import { getSportConfig } from "@/lib/sports/registry";
 import { breakConfigFor } from "@/lib/sports/break";
 import { aflRuleCheck, type AflPlaybookInput } from "@/lib/sports/afl/engine";
+import { ovalField } from "@/components/live/FieldLines";
 import { PeriodBreak, type BreakPlayer, type BreakStrategy } from "@/components/quarter-break/PeriodBreak";
 import { buildBoard, placesOf, swapInStaged, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
@@ -750,6 +751,7 @@ export function QuarterBreak({
     <PeriodBreak
       header={{ exitHref, game, onHelp }}
       config={config}
+      field={ovalField()}
       nextPeriod={nextQuarter}
       slots={board}
       players={breakPlayers}

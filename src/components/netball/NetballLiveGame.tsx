@@ -38,6 +38,7 @@ import { LiveGameMenu } from "@/components/live/LiveGameMenu";
 import { KidTile, KidSlot, type KidOutKind } from "@/components/live/KidTile";
 import { KidBench } from "@/components/live/KidBench";
 import { FieldLines, type FieldLine } from "@/components/live/FieldLines";
+import { netballCourt, netballCourtLine } from "./NetballCourt";
 import { InfoLine } from "@/components/live/InfoLine";
 import { KidBar, KidBarMore, TimeSplit } from "@/components/live/KidBar";
 import { barButton } from "@/components/live/barButtons";
@@ -2337,24 +2338,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           </div>
         );
       });
-    // Staggered down the court, a bib a row, zigzagging across it as the
-    // old court did (Steve, 10 Nov 2026): GS centre in the shooting
-    // circle, GA right; WA left, C centre, WD right; GD left, GK centre
-    // in the circle at the bottom.
-    return {
-      key: id,
-      label,
-      tiles,
-      rows: tiles.map((t) => [t]),
-      rowsAlign: "spread" as const,
-      rowSide: bibs.map((posId) => NETBALL_SIDE[posId] ?? "center"),
-    };
+    // Staggered down the court, a bib a row, zigzagging (netballCourtLine).
+    return { key: id, label, tiles, ...netballCourtLine(bibs, tiles) };
   }).filter((line) => line.tiles.length > 0);
   const courtEl = (
-    // Bibs in rem, so they grow with the phone's text size: at 150–200%
-    // a 104 px bib cut "Charlotte" to "Ch…" (Steve, 10 Nov 2026). 9rem
-    // (144 px at 100%) still leaves the zigzag room to show.
-    <FieldLines lines={courtLines} surface="court" marks={<CourtMarks />} tileWidth="9rem" wakeUpKey={courtWakeUpKey} />
+    <FieldLines lines={courtLines} {...netballCourt()} wakeUpKey={courtWakeUpKey} />
   );
 
   // The bench: who can come on, then who's out (hurt, home, lent), and
@@ -3293,45 +3281,11 @@ function formatClock(ms: number): string {
 
 // ─── The court for the live v3 shell ────────────────────────
 // Netball's thirds as FieldLines' lines, attack up the page.
-/** Where each bib stands across the court: the zigzag down it. */
-const NETBALL_SIDE: Record<string, "left" | "center" | "right"> = {
-  gs: "center",
-  ga: "right",
-  wa: "left",
-  c: "center",
-  wd: "right",
-  gd: "left",
-  gk: "center",
-};
-
 const NETBALL_THIRDS = [
   { id: "attack-third", label: "Attack third" },
   { id: "centre-third", label: "Centre third" },
   { id: "defence-third", label: "Defence third" },
 ] as const;
-
-/**
- * The court's markings under the kids: the centre circle, faint, and
- * the two shooting circles, plain to see (Steve, 10 Nov 2026), with GS
- * and GK standing in them. A real circle is 4.9 m on a 15.25 m wide
- * court: about two-thirds of the width across. In rem, as the bibs,
- * so GS and GK stay in them at large text.
- */
-function CourtMarks() {
-  return (
-    <>
-      <span className="absolute left-1/2 top-1/2 h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full border-[1.5px] border-mark/[0.07]" />
-      <span
-        data-testid="shooting-circle"
-        className="absolute -top-[6.5rem] left-[17%] right-[17%] h-[13rem] rounded-[50%] border-2 border-mark/30 bg-mark/[0.04]"
-      />
-      <span
-        data-testid="shooting-circle"
-        className="absolute -bottom-[6.5rem] left-[17%] right-[17%] h-[13rem] rounded-[50%] border-2 border-mark/30 bg-mark/[0.04]"
-      />
-    </>
-  );
-}
 
 // ─── The optimistic score delta ─────────────────────────────
 // This phone's goals (and undos) not back from the server yet, and the
