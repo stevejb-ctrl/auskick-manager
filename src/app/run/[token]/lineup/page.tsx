@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { aflPlaybookInput, withBalanceSeason } from "@/lib/sports/afl/engine";
 import { LineupPicker } from "@/components/live/LineupPicker";
+import { aflBigField } from "@/lib/sports/afl/bigField";
 import { seasonZoneMinutes } from "@/lib/fairness";
 import { aflBranch, aflPositionModel, getAgeGroupConfig, teamSport } from "@/lib/sports";
 import type { Game, GameEvent, LiveAuth, Player, Sport } from "@/lib/types";
@@ -169,6 +170,8 @@ async function LineupPageBody({ params }: LineupPageProps) {
           initialDraft={initialDraft}
           chipModeByKey={teamChipModes}
           aflPlaybook={aflPlaybook}
+          // Big fields: the formation the live screen will draw (live v3).
+          bigField={aflBigField({ playbook, aflPlaybook, onFieldSize: g.on_field_size, zoneModel: positionModel, events: [], lineup: null })}
         />
       )}
     </div>

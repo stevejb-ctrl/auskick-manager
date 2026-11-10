@@ -1582,6 +1582,15 @@ async function LivePageBody({ params }: LivePageProps) {
           initialLoanedIds={initialLoanedIds}
           initialLocks={replayLocks((thisGameEvents ?? []) as GameEvent[])}
           seasonLoanMinutes={seasonLoanMinutes((seasonEvents ?? []) as GameEvent[])}
+          // Big fields: the formation the live screen will draw (live v3).
+          bigField={aflBigField({
+            playbook,
+            aflPlaybook,
+            onFieldSize: g.on_field_size,
+            zoneModel: positionModel,
+            events: [],
+            lineup: null,
+          })}
         />
       )}
     </div>
