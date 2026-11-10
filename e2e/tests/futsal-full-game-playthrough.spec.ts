@@ -87,8 +87,10 @@ test("futsal U10: 5 a side on a court, a goal each way, a mid-half keeper swap, 
   await expect(court.getByRole("group", { name: "Back" }).locator("[data-testid^='player-tile-']")).toHaveCount(2);
   await expect(court.getByRole("group", { name: "Front" }).locator("[data-testid^='player-tile-']")).toHaveCount(2);
   await expect(court.getByRole("group", { name: "Wings" })).toHaveCount(0);
-  await expect(court.getByRole("group", { name: "Back" })).toContainText("BACK");
-  await expect(court.getByRole("group", { name: "Front" })).toContainText("FRONT");
+  // Live v3 (10 Nov 2026): the old tiles' BACK / FRONT tags went; each
+  // line says how many are on in its margin, as the live court does.
+  await expect(court.getByRole("group", { name: "Back" })).toContainText("2 on");
+  await expect(court.getByRole("group", { name: "Front" })).toContainText("2 on");
   await expect(page.getByRole("group", { name: "Bench" }).locator("[data-testid^='player-tile-']")).toHaveCount(3);
   await expect(page.getByRole("region", { name: "Keeper" })).toContainText(/starts in goal/i);
 

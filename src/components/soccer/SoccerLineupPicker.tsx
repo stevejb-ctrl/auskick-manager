@@ -464,6 +464,7 @@ export function SoccerLineupPicker({
       <PickerField
         ground={soccerField(rules.surface, Math.max(onFieldSize, fieldIds.length) >= 11)}
         regionLabel={rules.surface === "court" ? "On court" : "On field"}
+        surfaceName={rules.surface}
         lines={fieldLines}
         bench={benchOrder.map((pid) => ({
           playerId: pid,

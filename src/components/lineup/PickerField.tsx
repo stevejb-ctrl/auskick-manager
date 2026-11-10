@@ -103,6 +103,8 @@ export interface PickerFieldProps {
   hint?: ReactNode | null;
   /** The field wrapper's region name ("On field", "On court"). */
   regionLabel?: string;
+  /** What it's drawn on, as data-surface (soccer's "pitch", "court", "hockey"). */
+  surfaceName?: string;
 }
 
 export function PickerField({
@@ -120,6 +122,7 @@ export function PickerField({
   denseBench,
   hint = LINEUP_TAP_HINT,
   regionLabel = "On field",
+  surfaceName,
 }: PickerFieldProps) {
   const names = useSquadNames();
 
@@ -189,7 +192,7 @@ export function PickerField({
   return (
     <div className="flex flex-col gap-3">
       {hint && <p className="text-center text-xs text-ink-dim">{hint}</p>}
-      <div data-testid="lineup-field" role="region" aria-label={regionLabel} className="flex flex-col">
+      <div data-testid="lineup-field" data-surface={surfaceName} role="region" aria-label={regionLabel} className="flex flex-col">
         <FieldLines lines={fieldLines} {...ground} />
       </div>
       <KidBench
