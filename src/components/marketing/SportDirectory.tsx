@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SportFieldGlyph } from "@/components/marketing/SportFieldGlyph";
+import { SPORT_TILE_FRAME, SportTileFace } from "@/components/marketing/SportTile";
 import { sportPageCopy } from "@/lib/marketing/sportPages";
 import { SPORT_COUNT_WORD } from "@/lib/siren-facts";
 import { MARKETING_SPORTS, type MarketingSurface, sportPagePath } from "@/lib/sports/marketing-sports";
@@ -43,26 +43,9 @@ export function SportDirectory() {
               <Link
                 href={sportPagePath(sport)}
                 data-testid={`sport-tile-${sport.id}`}
-                className="group flex h-full flex-row items-center gap-4 rounded-[18px] border border-hairline bg-surface p-2.5 transition-colors duration-fast ease-out-quart hover:border-ink sm:flex-col sm:items-stretch sm:gap-0 sm:overflow-hidden sm:p-0"
+                className={SPORT_TILE_FRAME}
               >
-                <span
-                  className={`flex aspect-[16/10] w-[88px] shrink-0 items-center rounded-[12px] p-1.5 text-mark/75 sm:w-auto sm:rounded-none sm:px-7 sm:py-5 ${SURFACE_BG[sport.surface]}`}
-                >
-                  <SportFieldGlyph sport={sport.sport} weight={1.4} className="h-full w-full" />
-                </span>
-                <span className="flex min-w-0 flex-1 flex-col gap-1 sm:px-[18px] sm:pb-5 sm:pt-4">
-                  <span className="flex items-center gap-2">
-                    <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: sport.accent }} />
-                    <span className="font-display text-[1.25rem] font-extrabold leading-tight text-ink stretch-80 sm:text-[1.375rem]">
-                      {sport.short}
-                    </span>
-                    <ArrowRight className="ml-auto hidden h-4 w-4 text-ink transition-transform duration-fast group-hover:translate-x-0.5 motion-reduce:transition-none sm:block" />
-                  </span>
-                  <span className="text-[0.875rem] leading-snug text-ink-dim sm:text-[0.9375rem]">
-                    {sportPageCopy(sport.sport).tileLine}
-                  </span>
-                </span>
-                <ChevronRight className="h-4 w-4 shrink-0 text-ink-dim sm:hidden" />
+                <SportTileFace sport={sport} line={sportPageCopy(sport.sport).tileLine} />
               </Link>
             </li>
           ))}
@@ -108,19 +91,3 @@ const EXAMPLE_TEAMS: ReadonlyArray<{ name: string; sport: string; surface: Marke
   { name: "Kingsway United", sport: "Football U9", surface: "field" },
   { name: "Fitzroy Falcons", sport: "AFL U10", surface: "field" },
 ];
-
-function ArrowRight({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true" className={className}>
-      <path d="M3 8h10M9 4l4 4-4 4" />
-    </svg>
-  );
-}
-
-function ChevronRight({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true" className={className}>
-      <path d="M6 3l5 5-5 5" />
-    </svg>
-  );
-}
