@@ -96,6 +96,31 @@ export function swapInStaged(staged: StagedLineup, a: BoardSlot, b: BoardSlot): 
   return { groups, bench };
 }
 
+/**
+ * A line's cells in rows from who stands where (a formation's spots,
+ * rugby's leagueFieldLayout): a kid's id finds their cell, an empty spot
+ * (null) takes the line's next empty one. Cells no spot named go in a
+ * row of their own at the end, so nobody is dropped.
+ */
+export function cellsInRows<C extends { slot: Pick<BoardSlot, "playerId"> }>(
+  spots: readonly (readonly (string | null)[])[],
+  cells: readonly C[],
+): C[][] {
+  const used = new Set<C>();
+  const rows = spots
+    .map((row) =>
+      row.flatMap((id) => {
+        const cell = cells.find((c) => !used.has(c) && (id ? c.slot.playerId === id : !c.slot.playerId));
+        if (!cell) return [];
+        used.add(cell);
+        return [cell];
+      }),
+    )
+    .filter((row) => row.length > 0);
+  const rest = cells.filter((c) => !used.has(c));
+  return rest.length ? [...rows, rest] : rows;
+}
+
 /** Where each kid is in a staged lineup: their group, or "bench". */
 export function placesOf(staged: StagedLineup): Record<string, string> {
   const out: Record<string, string> = {};

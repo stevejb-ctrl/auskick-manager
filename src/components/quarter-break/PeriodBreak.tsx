@@ -4,15 +4,20 @@
 // One screen for every sport's quarter- or half-time break (docs/
 // handoffs/siren-footy-break-redesign-HANDOFF.md): the header, a score
 // chip and a status chip, the 4-up strategy picker, the issues card, the
-// zones from the sport's config (lib/sports/break.ts) as 2-column tiles
-// with the bench last, and the sticky Start footer. Tap two tiles to
-// swap them, across zones or with the bench.
+// next period's lineup on the sport's own field, drawn as its live
+// screen draws it (FieldLines: the surface, markings and lines; Steve,
+// 10 Nov 2026), the zones from the sport's config (lib/sports/break.ts)
+// as its lines, the bench under it (KidBench), and the sticky Start
+// footer. Tap two tiles to swap them, across lines or with the bench.
 //
 // It never asks which sport it's showing. Each sport's adapter (AFL's
 // QuarterBreak, NetballQuarterBreak, SoccerBreak, BasketballBreak,
 // LeagueBreak) turns its engine into these props: the slots, the rule
 // check, the strategies, its writers. What differs between sports lives
-// in config or in the adapter, never in a branch here.
+// in config or in the adapter, never in a branch here: the field too,
+// whose surface, markings and line shapes each adapter takes from the
+// helper its live screen uses (ovalField, netballCourt, …), so the two
+// can't drift apart.
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
@@ -30,7 +35,9 @@ import {
   type BreakPlayer,
   type BreakSettingsProps,
 } from "@/components/quarter-break/BreakSettingsSheet";
-import { ZONE_SWATCH, ZONE_TEXT } from "@/components/quarter-break/breakZoneTokens";
+import { FieldLines, type FieldLine, type FieldLinesProps } from "@/components/live/FieldLines";
+import { KidBench } from "@/components/live/KidBench";
+import { useSquadNames } from "@/components/live/SquadNames";
 import {
   BENCH,
   averageMs,
@@ -42,6 +49,7 @@ import {
 } from "@/lib/live/break/board";
 import type { BreakIssues } from "@/lib/live/break/issues";
 import type { BreakScoreLine, SportBreakConfig } from "@/lib/sports/break";
+import type { BreakZoneDef } from "@/lib/sports/types";
 import type { Game, MixedGroup } from "@/lib/types";
 import { announce } from "@/lib/a11y/announce";
 
@@ -57,10 +65,31 @@ const STRATEGIES: { id: BreakStrategy; label: string }[] = [
   { id: "manual", label: "Manual" },
 ];
 
+/** A spot on the break's field: its slot and the tile drawn for it. */
+export interface BreakFieldCell {
+  slot: BoardSlot;
+  node: ReactNode;
+}
+
+/** How a line's kids stand, where it isn't a plain grid (FieldLine). */
+export type BreakLineShape = Partial<Pick<FieldLine, "rows" | "rowsAlign" | "rowSide" | "cols">>;
+
+/**
+ * The sport's field at the break, the same as its live screen's: the
+ * surface and markings (and the room each end keeps, the tile width),
+ * from the helper the live screen uses, and how each zone's kids stand
+ * (netball's zigzag, rugby's formation, Oztag's 3-2-3).
+ */
+export interface BreakField extends Pick<FieldLinesProps, "surface" | "marks" | "endsPx" | "tileWidth" | "dense"> {
+  shape?: (zone: BreakZoneDef, cells: BreakFieldCell[]) => BreakLineShape | undefined;
+}
+
 export interface PeriodBreakProps {
   /** The live screen's top bar: Exit, the title and Help. */
   header: { exitHref?: string; game: Game; onHelp?: () => void };
   config: SportBreakConfig;
+  /** The sport's field, as its live screen draws it. */
+  field: BreakField;
   /** The period about to start (1-based). */
   nextPeriod: number;
   /** The staged lineup as slots (lib/live/break/board.ts). */
@@ -179,6 +208,7 @@ export function PeriodBreak(props: PeriodBreakProps) {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, [nextPeriod]);
 
+  const squadNames = useSquadNames();
   const sidelinedSet = useMemo(() => new Set(Object.keys(sidelined)), [sidelined]);
   const places = useMemo(() => placeIndex(config.zones), [config.zones]);
   const periodName = config.periodName(nextPeriod);
@@ -215,17 +245,14 @@ export function PeriodBreak(props: PeriodBreakProps) {
 
   function tileFor(slot: BoardSlot): BreakTileModel {
     const zone = config.zones.find((z) => z.key === slot.zone);
-    const color = zone?.color ?? "bench";
     const id = slot.playerId;
     if (!id) {
       return {
         playerId: null,
         tag: slot.label ?? "",
         tagIsBib: !!slot.label,
-        zoneColor: color,
         name: "",
         movement: "",
-        fromColor: "bench",
         time: "",
         lowTime: false,
         sidelined: false,
@@ -242,15 +269,14 @@ export function PeriodBreak(props: PeriodBreakProps) {
       playerId: id,
       tag: bib ?? jersey,
       tagIsBib: !!bib,
-      zoneColor: color,
       name: p?.name ?? "Player",
+      shown: p ? squadNames.tile({ id, full_name: p.name }) : undefined,
       score: props.scores?.[id],
       tags: props.tags?.[id],
       group: props.groups?.[id],
       movement:
         why ??
         movementText(prev, slot.group, places, props.positions ? { from: props.previousPositions?.[id], to: bib } : undefined),
-      fromColor: places[prev]?.color ?? "bench",
       time: clock(ms),
       lowTime: !why && isLowTime(ms, average, config.lowTimeMs),
       sidelined: !!why,
@@ -286,10 +312,52 @@ export function PeriodBreak(props: PeriodBreakProps) {
     setSelected(null);
   }
 
-  const sections = [
-    ...config.zones.map((z) => ({ key: z.key, label: z.label, color: z.color as keyof typeof ZONE_SWATCH })),
-    { key: BENCH, label: "BENCH", color: "bench" as const },
-  ];
+  // One tile, on the field or the bench, keyed by its spot (and kid).
+  function tileNode(s: BoardSlot, i: number, place: "field" | "bench"): ReactNode {
+    return (
+      <div key={`${s.group}-${s.index}-${s.playerId ?? "empty"}`} className="min-w-0">
+        <BreakPlayerTile
+          tile={tileFor(s)}
+          place={place}
+          dense={place === "field" && field.dense}
+          testId={s.playerId ? `player-tile-${s.playerId}` : undefined}
+          selected={selected === i}
+          target={selected !== null && selected !== i && !!selectedSlot && canSwap(selectedSlot, s, sidelinedSet)}
+          onTap={() => tap(i)}
+          onLongPress={props.onLongPress && s.playerId ? () => props.onLongPress?.(s.playerId as string) : undefined}
+        />
+      </div>
+    );
+  }
+
+  // The field: a line per zone, attack up the page, each in the shape
+  // the sport's live screen gives it. A line says how many are on
+  // ("FORWARD 4 on"), underlined when it's short.
+  const { field } = props;
+  const fieldLines: FieldLine[] = config.zones.flatMap((zone) => {
+    const cells = slots.flatMap((s, i) => (s.zone === zone.key ? [{ slot: s, node: tileNode(s, i, "field") }] : []));
+    if (cells.length === 0) return [];
+    const on = cells.filter((c) => c.slot.playerId && !sidelined[c.slot.playerId]).length;
+    return [
+      {
+        key: zone.key,
+        label: titleCase(zone.label),
+        tiles: cells.map((c) => c.node),
+        count: { text: `${on} on`, short: on < zone.slots },
+        ...field.shape?.(zone, cells),
+      },
+    ];
+  });
+
+  // The bench: who can come on, then who's out, as in play (KidBench).
+  const benchCells = slots.map((s, i) => ({ s, i })).filter(({ s }) => s.zone === BENCH);
+  const benchOut = new Map<string, number>();
+  for (const { s } of benchCells) {
+    const why = s.playerId ? sidelined[s.playerId] : undefined;
+    if (why) benchOut.set(why.toLowerCase(), (benchOut.get(why.toLowerCase()) ?? 0) + 1);
+  }
+  const benchOutCount = Array.from(benchOut.values()).reduce((a, b) => a + b, 0);
+  const benchCount = [String(benchCells.length - benchOutCount), ...Array.from(benchOut.entries()).map(([why, n]) => `${n} ${why}`)].join(" + ");
 
   const lentKids = props.settings.lent?.players ?? [];
   const brokenCount = issues.broken.length;
@@ -448,50 +516,20 @@ export function PeriodBreak(props: PeriodBreakProps) {
         <p className="text-center text-xs text-ink-dim">Tap two players to swap — any position or bench</p>
         {props.banner}
 
-        {sections.map((section) => {
-          const inSection = slots.map((s, i) => ({ s, i })).filter(({ s }) => s.zone === section.key);
-          if (section.key === BENCH && inSection.length === 0) return null;
-          const out = inSection.filter(({ s }) => s.playerId && sidelined[s.playerId]);
-          const outCounts = new Map<string, number>();
-          for (const { s } of out) {
-            const why = sidelined[s.playerId as string].toLowerCase();
-            outCounts.set(why, (outCounts.get(why) ?? 0) + 1);
-          }
-          const count =
-            section.key === BENCH
-              ? [String(inSection.length - out.length), ...Array.from(outCounts.entries()).map(([why, n]) => `${n} ${why}`)].join(" + ")
-              : `${inSection.filter(({ s }) => s.playerId).length} on`;
-          return (
-            <section key={section.key} role="group" aria-label={titleCase(section.label)} className="space-y-1.5">
-              <div className="flex items-center gap-2 px-0.5">
-                <span aria-hidden className={`h-2.5 w-2.5 rounded-[3px] ${ZONE_SWATCH[section.color]}`} />
-                <span className={`font-mono text-xs font-semibold tracking-[0.12em] ${ZONE_TEXT[section.color]}`}>
-                  {section.label}
-                </span>
-                <span className="ml-auto text-xs text-ink-dim">{count}</span>
-              </div>
-              {/* Two columns, or one once the text is large: a column is at
-                  least 8.5rem, which at 150% text and up is more than half a
-                  phone (UX round 3, e4: at 200% names cut to "Leo…"). */}
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(max(8.5rem,calc(50%_-_3px)),1fr))] gap-[6px]">
-                {inSection.map(({ s, i }) => {
-                  const tile = tileFor(s);
-                  return (
-                    <BreakPlayerTile
-                      key={`${s.group}-${s.index}-${s.playerId ?? "empty"}`}
-                      tile={tile}
-                      testId={s.playerId ? `player-tile-${s.playerId}` : undefined}
-                      selected={selected === i}
-                      target={selected !== null && selected !== i && !!selectedSlot && canSwap(selectedSlot, s, sidelinedSet)}
-                      onTap={() => tap(i)}
-                      onLongPress={props.onLongPress && s.playerId ? () => props.onLongPress?.(s.playerId as string) : undefined}
-                    />
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })}
+        {/* The field, drawn as in play, and the bench under it. */}
+        <div data-testid="break-field" className="flex flex-col">
+          <FieldLines
+            lines={fieldLines}
+            surface={field.surface}
+            marks={field.marks}
+            endsPx={field.endsPx}
+            tileWidth={field.tileWidth}
+            dense={field.dense}
+          />
+        </div>
+        {benchCells.length > 0 && (
+          <KidBench count={benchCount} tiles={benchCells.map(({ s, i }) => tileNode(s, i, "bench"))} />
+        )}
 
         {props.extras}
 
