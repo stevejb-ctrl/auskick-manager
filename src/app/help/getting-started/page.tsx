@@ -99,9 +99,8 @@ export default function GettingStartedPage() {
           <li>Open your team and tap the <strong className="text-ink">Squad</strong> tab.</li>
           <li>
             Under <strong className="text-ink">Add player</strong>, enter the
-            player&apos;s full name and, for AFL and league, an optional
-            jersey number (netball squads don&apos;t use numbers, so
-            there&apos;s no number field). Then tap{" "}
+            player&apos;s full name and an optional jersey number (netball
+            squads wear bibs, so there&apos;s no number field). Then tap{" "}
             <strong className="text-ink">Add player</strong>.
           </li>
           <li>Repeat for every player in your squad.</li>
@@ -145,11 +144,12 @@ export default function GettingStartedPage() {
         <HelpCallout type="tip">
           On game day, tap <strong>Start game day</strong> on the Today tab: mark
           who&apos;s here, check the lineup, then <strong>Start Q1</strong>{" "}
-          (league from Under 10: <strong>Start H1</strong>). See{" "}
+          (<strong>Start H1</strong> in a game of halves). See{" "}
           <Link href="/help/live-game" className="font-medium underline">
-            Live Game
+            The live screen
           </Link>{" "}
-          for a full walkthrough.
+          for a full walkthrough, and your sport&apos;s page for its field,
+          scoring and subs.
         </HelpCallout>
       </section>
 
@@ -159,10 +159,16 @@ export default function GettingStartedPage() {
         <ul className="mt-3 space-y-2 text-sm text-ink-dim">
           <li>
             <Link href="/help/live-game" className="font-medium text-brand-600 hover:underline">
-              Live Game →
+              The live screen →
             </Link>{" "}
-            Running a game on the day: lineups, scoring, subs, and the breaks
-            between quarters or halves.
+            Running a game on the day: the lineup, the clock, scores, subs and
+            the ⋯ menu.
+          </li>
+          <li>
+            <Link href="/help" className="font-medium text-brand-600 hover:underline">
+              Your sport →
+            </Link>{" "}
+            Your sport&apos;s field, scoring, subs, breaks and junior rules.
           </li>
           <li>
             <Link href="/help/rotations" className="font-medium text-brand-600 hover:underline">

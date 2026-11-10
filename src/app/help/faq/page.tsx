@@ -23,6 +23,21 @@ interface FAQItem {
 
 const FAQ: FAQItem[] = [
   {
+    q: "Where's the help for my sport?",
+    a: (
+      <>
+        Each sport has a page of its own, with its field, scoring, subs,
+        breaks and junior rules: pick yours under <strong>Your sport</strong>{" "}
+        on the{" "}
+        <Link href="/help" className="font-medium underline">
+          help home page
+        </Link>
+        . Help from inside a team (the avatar menu) opens your team&apos;s
+        sport straight away.
+      </>
+    ),
+  },
+  {
     q: "Why did my scores reset?",
     a: (
       <>
@@ -107,7 +122,8 @@ const FAQ: FAQItem[] = [
     q: "How do I change the quarter or half length?",
     a: (
       <>
-        In Team › Settings, set the length in minutes. New games use it. In
+        On the Team tab, under Season, set the quarter, half or period length
+        in minutes. New games use it. In
         netball you can also change it for one game on the lineup screen
         before the start. Once a game has started, its length stays as it was.
       </>
@@ -167,8 +183,8 @@ const FAQ: FAQItem[] = [
         <strong>Start Q{"{n}"}</strong> (or <strong>Start H{"{n}"}</strong>{" "}
         in a halves game) after the break. If the clock isn&apos;t running,
         the timer doesn&apos;t count. Also
-        check the sub interval (1 to 10 minutes) under Game settings, on the
-        lineup screen or below the field during the game. If your team uses
+        check the sub interval under Game settings, on the lineup screen or
+        under <strong>⋯</strong> during the game. If your team uses
         the <strong>Subs only at the breaks</strong> rule, Siren won&apos;t
         suggest rolling subs.
       </>
@@ -178,11 +194,11 @@ const FAQ: FAQItem[] = [
     q: "How do I add a player who arrived late?",
     a: (
       <>
-        During a live game, tap <strong>+ Add late arrival</strong> below the
-        field or court. It lets you add a player from your squad to the bench
-        mid-game. They&apos;ll then be available for rotations and the next
-        break&apos;s lineup. At a league break you can also use{" "}
-        <strong>Add arrived player</strong>.
+        During a live game, tap <strong>+ Late</strong> at the foot of the
+        bench, or <strong>⋯</strong> › <strong>+ Add late arrival</strong>.
+        Pick the player from your squad and they go on the bench, ready for
+        the next sub or the next break&apos;s lineup. At a break, the button
+        beside the score has <strong>Add arrived player</strong> too.
       </>
     ),
   },
@@ -201,9 +217,9 @@ const FAQ: FAQItem[] = [
       <>
         Open the <strong>Season balance</strong> card on the Stats tab. It
         shows each player&apos;s minutes in each line or position this
-        season, tints any spot where a kid is owed at least a quarter (a
-        half, for league from Under 10), and counts how many kids are within
-        a quarter (or half) of even. Aim for an even season. Individual games
+        season, tints any spot where a kid is owed at least a quarter (or a
+        half, in games of halves), and counts how many kids are within a
+        quarter (or half) of even. Aim for an even season. Individual games
         often sit uneven, which is normal. See{" "}
         <Link href="/help/rotations" className="font-medium underline">
           Rotations
@@ -216,9 +232,16 @@ const FAQ: FAQItem[] = [
     q: "How do I invite another coach to manage my team?",
     a: (
       <>
-        Open your team and go to the <strong>Team</strong> tab, under People. You&apos;ll find a
-        shareable invite link. Anyone with the link joins as a Manager.
-        Managers can run live games but cannot delete the team or change settings.
+        Open your team&apos;s <strong>Team</strong> tab, then People ›{" "}
+        <strong>Invite someone</strong>. Pick the role (Manager, to run games,
+        or Coach, for full control), add their email or copy the link, and
+        send it to them: each link works once, for one person, for 14 days.
+        Managers run games and mark availability, but can&apos;t change the
+        team&apos;s settings or squad. See{" "}
+        <Link href="/help/teams" className="font-medium underline">
+          Teams
+        </Link>
+        .
       </>
     ),
   },
@@ -228,8 +251,8 @@ const FAQ: FAQItem[] = [
       <>
         After you tap <strong>Mark injured</strong> in the player actions
         sheet, the player comes out of the rotation straight away. If
-        they&apos;re on the field, AFL and league ask who comes on in their
-        place, and netball asks who fills their position. If you skip the
+        they&apos;re on the field, Siren asks who comes on in their place (in
+        netball, who fills their bib). If you skip the
         replacement, their spot is left short. If their tile still shows on
         the playing area without an <strong>INJ</strong> badge, try
         refreshing the page. If the issue persists, see{" "}
