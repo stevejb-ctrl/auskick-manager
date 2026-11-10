@@ -15,7 +15,7 @@
 
 import type { ReactNode } from "react";
 
-export { staggerRows } from "@/components/live/staggerRows";
+export { spreadRows, staggerRows } from "@/components/live/staggerRows";
 
 export interface FieldLine {
   key: string;
@@ -178,11 +178,25 @@ export function FieldLines({ lines, surface = "field", marks, dense = false, til
   );
 }
 
+/**
+ * A sport's ground for FieldLines: its surface and markings, and the
+ * tile width and end room it wants. Each sport has one helper giving it
+ * (ovalField, netballCourt, soccerField, woodCourt, rugbyField), which
+ * its live screen and its period break both spread into FieldLines, so
+ * the break's field can't drift from the game's.
+ */
+export type FieldSurface = Pick<FieldLinesProps, "surface" | "marks" | "endsPx" | "tileWidth" | "dense">;
+
+/** AFL's oval; a big field's formation (fitted) gets the dense, wider tiles. */
+export function ovalField(fitted = false): FieldSurface {
+  return { surface: "field", marks: <OvalMarks />, dense: fitted, tileWidth: fitted ? 112 : undefined };
+}
+
 /** AFL's oval: the centre circle and the two goal-square arcs, faint. */
 export function OvalMarks() {
   return (
     <>
-      <span className="absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full border-[1.5px] border-mark/[0.07]" />
+      <span data-testid="oval-markings" className="absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full border-[1.5px] border-mark/[0.07]" />
       <span className="absolute -top-16 left-[22%] right-[22%] h-[110px] rounded-[50%] border-[1.5px] border-mark/[0.07]" />
       <span className="absolute -bottom-16 left-[22%] right-[22%] h-[110px] rounded-[50%] border-[1.5px] border-mark/[0.07]" />
     </>

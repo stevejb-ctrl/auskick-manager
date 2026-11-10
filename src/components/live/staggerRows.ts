@@ -6,6 +6,15 @@
  * tight block of fours (Steve, 10 Nov 2026: Oztag looked cramped). Four
  * or fewer stay one row.
  */
+/**
+ * A crowd's line shape for FieldLines (`rows` spread down the line), or
+ * nothing for four or fewer: Oztag's and small touch's one Field line,
+ * in play and at the break.
+ */
+export function spreadRows<T>(tiles: readonly T[]): { rows?: T[][]; rowsAlign?: "spread" } {
+  return tiles.length > 4 ? { rows: staggerRows(tiles), rowsAlign: "spread" } : {};
+}
+
 export function staggerRows<T>(tiles: readonly T[]): T[][] {
   if (tiles.length <= 4) return [[...tiles]];
   const rows: T[][] = [];

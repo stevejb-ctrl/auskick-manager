@@ -120,7 +120,7 @@ import {
   type SoccerUnit,
 } from "@/lib/sports/soccer/types";
 import type { SoccerKeeperPrefs } from "@/lib/sports/soccer/keeper";
-import { SoccerSurfaceMarks } from "./SoccerField";
+import { soccerField } from "./SoccerField";
 import { SoccerScoreBug } from "./SoccerScoreBug";
 import { SoccerBreak } from "./SoccerBreak";
 import { SoccerFullTimeReview, SoccerGameSummaryCard } from "./SoccerFullTime";
@@ -895,10 +895,7 @@ export function SoccerLiveGame({
     <div role="region" aria-label={onCourt ? "On court" : "On field"} className="flex flex-[1_0_auto] flex-col">
       <FieldLines
         lines={fieldLines}
-        surface={onCourt ? "court" : "field"}
-        marks={<SoccerSurfaceMarks surface={rules.surface} />}
-        // Eleven a side: a wider plate for "ATT Lucas N" (the design's 100+).
-        tileWidth={bigSide ? 108 : 88}
+        {...soccerField(rules.surface, bigSide)}
         wakeUpKey={wakeUpKey}
       />
     </div>

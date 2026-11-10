@@ -23,7 +23,7 @@ import { SwapDoneToast } from "@/components/live/SwapDoneToast";
 import { undoSwaps } from "@/lib/live/liveChrome";
 import { useSquadNames } from "@/components/live/SquadNames";
 import { KidSlot, KidTile, type KidOutKind } from "@/components/live/KidTile";
-import { FieldLines, OvalMarks, type FieldLine } from "@/components/live/FieldLines";
+import { FieldLines, ovalField, type FieldLine } from "@/components/live/FieldLines";
 import { KidBench } from "@/components/live/KidBench";
 import { InfoLine } from "@/components/live/InfoLine";
 import { PairsSheet, type SheetPair } from "@/components/live/PairsSheet";
@@ -2240,10 +2240,7 @@ export function LiveGame({
   const fieldEl = (
     <FieldLines
       lines={fieldLines}
-      surface="field"
-      marks={<OvalMarks />}
-      dense={!!fitted}
-      tileWidth={fitted ? 112 : undefined}
+      {...ovalField(!!fitted)}
       wakeUpKey={fieldWakeUpKey}
     />
   );
