@@ -18,7 +18,6 @@
 // season debt. Changing the size or the shape suggests again.
 
 import { useMemo, useRef, useState, useTransition } from "react";
-import { LINEUP_TAP_HINT } from "@/components/lineup/lineupHints";
 import { keptSetting, useKeptSetting } from "@/components/lineup/useKeptSetting";
 import { useRouter } from "next/navigation";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
@@ -61,8 +60,10 @@ import {
   type SoccerUnit,
 } from "@/lib/sports/soccer/types";
 import type { SoccerKeeperPrefs } from "@/lib/sports/soccer/keeper";
-import { SoccerField } from "./SoccerField";
-import { SoccerBench } from "./SoccerBench";
+import { soccerField } from "./SoccerField";
+import { LentList } from "@/components/lineup/LentList";
+import { PickerField, type PickerCell, type PickerKidLook, type PickerLine } from "@/components/lineup/PickerField";
+import { outWords } from "@/lib/live/kidWords";
 import { KeeperHandoverCard } from "./KeeperHandoverCard";
 import { soccerKeeperNote, soccerSubModeNote } from "./soccerWords";
 import { squadLoanAverage } from "@/lib/live/liveChrome";
@@ -310,6 +311,35 @@ export function SoccerLineupPicker({
     ...(lentPlayers.length > 0 ? [`${lentPlayers.length} lent`] : []),
   ].join(" · ");
 
+  // ── The field (PickerField), as SoccerLiveGame draws it ──
+  const cellsFor = (unit: SoccerUnit, ids: string[], cap: number): PickerCell[] =>
+    Array.from({ length: Math.max(cap, ids.length) }, (_, slot) => {
+      const pid = ids[slot] ?? null;
+      return {
+        key: `slot-${slot}`,
+        playerId: pid,
+        place: words[unit].short ? words[unit].label : null,
+        emptyLabel: `Empty ${words[unit].label.toLowerCase()} spot`,
+        onTap: () => handleTap(pid ?? "", unit),
+      };
+    });
+  const fieldLines: PickerLine[] = formation.keeper
+    ? [
+        ...(["att", "mid", "def"] as const)
+          .filter((l) => Math.max(lineCaps[l] ?? 0, lineup.lines[l].length) > 0)
+          .map((l) => ({ key: l, label: words[l].label, cells: cellsFor(l, lineup.lines[l], lineCaps[l] ?? 0) })),
+        { key: "gk", label: words.gk.label, noCount: true, cells: cellsFor("gk", lineup.keeper ? [lineup.keeper] : [], 1) },
+      ]
+    : [{ key: "field", label: words.field.label, cells: cellsFor("field", lineup.lines.field, lineCaps.field ?? 0) }];
+  // The bench: who can come on, then who's lent (LENT, tap to bring back).
+  const benchOrder = [...lineup.bench.filter((id) => !loanedIds.has(id)), ...lineup.bench.filter((id) => loanedIds.has(id))];
+  const kidLook = (pid: string, cell: PickerCell | null): PickerKidLook => {
+    if (loanedIds.has(pid)) return { out: "lent", words: outWords({ kind: "lent" }) };
+    // The keeper: a small "GK" flag on the tile's corner, as in play.
+    const keeper = !!cell && lineup.keeper === pid;
+    return { flag: keeper ? words.gk.short : null };
+  };
+
   return (
     <div ref={pickerRootRef} role="region" aria-label="Starting lineup" className="space-y-4 pb-32">
       <LineupPickerBreadcrumb availabilityHref={availabilityHref ?? undefined} />
@@ -317,9 +347,6 @@ export function SoccerLineupPicker({
 
       <header className="space-y-1 px-1">
         <h1 className="text-xl font-bold text-ink">{ageGroup.label} starting lineup</h1>
-        <p className="text-xs text-ink-mute">
-          {LINEUP_TAP_HINT}
-        </p>
       </header>
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
@@ -431,48 +458,34 @@ export function SoccerLineupPicker({
         />
       )}
 
-      <SoccerField
-        words={words}
-        surface={rules.surface}
-        lineup={lineup}
-        lineCaps={lineCaps}
-        hasKeeper={formation.keeper}
-        playersById={playerById}
-        onTap={(pid, unit) => handleTap(pid, unit)}
+      {/* The pitch, futsal's court or the hockey pitch, as the live
+          screen draws it (live v3): the lines attack up the page, the
+          keeper alone at the foot with the GK flag, the bench under it. */}
+      <PickerField
+        ground={soccerField(rules.surface, Math.max(onFieldSize, fieldIds.length) >= 11)}
+        regionLabel={rules.surface === "court" ? "On court" : "On field"}
+        surfaceName={rules.surface}
+        lines={fieldLines}
+        bench={benchOrder.map((pid) => ({
+          playerId: pid,
+          // A lent kid's tap opens their sheet (Bring back), as in play.
+          onTap: loanedIds.has(pid) ? () => setActionPlayerId(pid) : () => handleTap(pid, null),
+        }))}
+        players={playerById}
+        selectedId={selectedId}
+        look={kidLook}
         onLongPress={setActionPlayerId}
-        selectedPlayerId={selectedId}
-        dimUnselected={false}
-      />
-      <SoccerBench
-        words={words}
-        bench={lineup.bench}
-        playersById={playerById}
-        onTap={(pid) => handleTap(pid, null)}
-        onLongPress={setActionPlayerId}
-        selectedPlayerId={selectedId}
-        dimUnselected={false}
-        loanedIds={Array.from(loanedIds)}
+        denseBench={benchOrder.length > 6}
       />
 
-      {lentPlayers.length > 0 && (
-        <div className="rounded-lg border border-warn/40 bg-warn-soft/60 px-3 py-2">
-          <p className="text-xs font-semibold text-warn">Lent to the other team</p>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            {lentPlayers.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => handleLend(p.id, false)}
-                aria-label={`Bring ${p.full_name} back`}
-                className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 motion-safe:active:scale-[0.97]"
-              >
-                <span>{p.full_name}</span>
-                <span className="ml-0.5 text-micro font-semibold text-warn/80">Bring back</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Kids lent before kickoff, each with a plain Bring back (LentList,
+          as the break lists them). */}
+      <LentList
+        players={lentPlayers.map((p) => ({ id: p.id, name: p.full_name }))}
+        note="Bring them back and they join the bench."
+        buttonTestId={(id) => `picker-recall-lent-${id}`}
+        onBringBack={(id) => handleLend(id, false)}
+      />
 
       <LineupPickerFooter
         onFieldCount={fieldIds.length}

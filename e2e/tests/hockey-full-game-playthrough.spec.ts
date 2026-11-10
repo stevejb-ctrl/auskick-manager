@@ -102,7 +102,8 @@ test("hockey U9: 7 a side in halves, keepers change only at the break, with a ki
   for (const line of ["Defenders", "Midfield", "Strikers"]) {
     await expect(field.getByRole("group", { name: line }).locator("[data-testid^='player-tile-']")).toHaveCount(2);
   }
-  await expect(field.getByRole("group", { name: "Strikers" })).toContainText("STR");
+  // Live v3: the line says how many are on (the old tiles' STR tag went).
+  await expect(field.getByRole("group", { name: "Strikers" })).toContainText("2 on");
   await expect(page.getByRole("group", { name: "Bench" }).locator("[data-testid^='player-tile-']")).toHaveCount(2);
 
   // Live v3: the picker's Ready, then Start H1 on the live screen's bar.

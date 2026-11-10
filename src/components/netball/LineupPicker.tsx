@@ -15,8 +15,10 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import type { LiveAuth, Player } from "@/lib/types";
 import { markLoan } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { setGameAllowMidQuarterSubs } from "@/app/(app)/teams/[teamId]/games/actions";
-import { Court } from "@/components/netball/Court";
-import { PositionToken } from "@/components/netball/PositionToken";
+import { netballCourt, netballCourtLine } from "@/components/netball/NetballCourt";
+import { LentList } from "@/components/lineup/LentList";
+import { LendSetting } from "@/components/lineup/LendSetting";
+import { PickerField, type PickerCell, type PickerKidLook, type PickerLine } from "@/components/lineup/PickerField";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Toggle } from "@/components/ui/Toggle";
@@ -42,10 +44,9 @@ import {
   lastQuarterTeammatesInThird,
 } from "@/lib/sports/netball/fairness";
 import type { GameEvent } from "@/lib/types";
-import { useLongPress } from "@/lib/live/useLongPress";
 import { useRoleSheet, type RoleSheetConfig } from "@/components/playbook/useRoleSheet";
 import { GamePlanButton, type GamePlanButtonProps } from "@/components/game-plan/GamePlanButton";
-import { KeepOnMarker, keepOnIds } from "@/components/playbook/KeepOnMarker";
+import { keepOnIds } from "@/components/playbook/KeepOnMarker";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { pinLaterPeriods, withPinnedPeriods } from "@/lib/game-plan";
 import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
@@ -811,47 +812,47 @@ export function NetballLineupPicker({
     }
   }
 
-  // Position-keyed horizontal alignment — alternating zigzag down the
-  // court so adjacent positions sit on OPPOSITE sides (GA opposite WA,
-  // WD opposite GD), matching real-court geography. Same layout as the
-  // live court so the lineup the coach builds matches what they'll see
-  // during play.
-  const ALIGN: Record<string, string> = {
-    gs: "justify-start pl-4",
-    ga: "justify-end pr-4",
-    wa: "justify-start pl-4",
-    c: "justify-center",
-    wd: "justify-end pr-4",
-    gd: "justify-start pl-4",
-    gk: "justify-end pr-4",
+  // ── The court, as the live screen draws it (live v3) ──
+  // A line per third, attack up the page, each bib's kid with their
+  // position before the name ("GS Ava"), zigzagging down the court
+  // (netballCourtLine), and the bench under it: everyone here who isn't
+  // on a bib. The same court the live screen and the break draw, so the
+  // lineup looks the same before and after Ready.
+  const keepOn = keepOnIds(playerRoles.roles);
+  const bibOf = (posId: string) => netballSport.allPositions.find((p) => p.id === posId) ?? null;
+  const courtLines: PickerLine[] = NETBALL_THIRDS.map(({ id, label }) => {
+    const bibs = ageGroup.positions.filter((posId) => primaryThirdFor(posId) === id);
+    return {
+      key: id,
+      label,
+      noCount: true,
+      cells: bibs.map((posId): PickerCell => {
+        const occupantId = lineup.positions[posId]?.[0] ?? null;
+        const bib = bibOf(posId);
+        return {
+          key: posId,
+          playerId: occupantId,
+          pos: bib?.shortLabel ?? posId.toUpperCase(),
+          place: bib?.label ?? posId,
+          emptyLabel: `${bib?.label ?? posId}, empty`,
+          onTap: () => (occupantId ? handleTapPlayer(occupantId) : handleTapEmpty(posId)),
+        };
+      }),
+      shape: (tiles) => netballCourtLine(bibs, tiles),
+    };
+  });
+  const onCourtIds = Array.from(playerSlot.entries())
+    .filter(([, slot]) => slot !== "bench")
+    .map(([pid]) => pid);
+  const onCourtSet = new Set(onCourtIds);
+  const benchIds = [
+    ...lineup.bench,
+    ...availableIds.filter((pid) => !onCourtSet.has(pid) && !lineup.bench.includes(pid)),
+  ];
+  const kidLook = (pid: string): PickerKidLook => {
+    const lockLabel = keepOn.has(pid) ? "Plays every minute" : null;
+    return { locked: !!lockLabel, lockLabel, states: [lockLabel] };
   };
-
-  const renderTokenAt = (positionId: string) => {
-    const occupantId = lineup.positions[positionId]?.[0];
-    const occupantName = occupantId ? squadById.get(occupantId)?.full_name ?? null : null;
-    return (
-      <div
-        key={positionId}
-        className={`relative z-10 flex w-full ${ALIGN[positionId] ?? "justify-center"}`}
-      >
-        <PositionToken
-          positionId={positionId}
-          playerName={occupantName}
-          playerId={occupantId}
-          selected={!!occupantId && selected === occupantId}
-          onTap={() => {
-            if (occupantId) handleTapPlayer(occupantId);
-            else handleTapEmpty(positionId);
-          }}
-          onLongPress={occupantId && playerRoles.open ? () => playerRoles.open?.(occupantId) : undefined}
-          keepOn={!!occupantId && keepOnIds(playerRoles.roles).has(occupantId)}
-        />
-      </div>
-    );
-  };
-
-  const byThird = (third: "attack-third" | "centre-third" | "defence-third") =>
-    ageGroup.positions.filter((id) => primaryThirdFor(id) === third);
 
   return (
     // No bottom padding: the Save/Start footer (LineupPickerFooter) is
@@ -1126,46 +1127,7 @@ export function NetballLineupPicker({
                 chip set here is the live source of truth. Same
                 visual treatment as AFL's pre-game Lend section. */}
             {lendingEnabled && (
-              <div>
-                <p className="text-xs font-semibold text-ink">Lend a player</p>
-                <p className="mt-0.5 text-xs text-ink-mute">
-                  Lent players sit out for the rest of the game until you
-                  bring them back.
-                </p>
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  {lentPlayers.map((p) => (
-                    <span
-                      key={p.id}
-                      className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-warn-soft px-2.5 py-1 text-xs font-medium text-warn-ink"
-                    >
-                      <span>{p.full_name}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleLendToggle(p.id, false)}
-                        disabled={loanPending}
-                        aria-label={`Bring ${p.full_name} back`}
-                        className="ml-0.5 rounded-full px-1 text-micro font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60 motion-safe:active:scale-[0.97]"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => setLendPickerOpen(true)}
-                    disabled={loanPending}
-                    className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60 motion-safe:active:scale-[0.97]"
-                  >
-                    <span aria-hidden>+</span>
-                    Lend a player
-                  </button>
-                </div>
-                {loanError && (
-                  <p className="mt-1 text-xs text-danger" role="alert">
-                    {loanError}
-                  </p>
-                )}
-              </div>
+              <LendSetting lentCount={lentPlayers.length} onLend={() => setLendPickerOpen(true)} pending={loanPending} error={loanError} />
             )}
           </div>
         )}
@@ -1173,23 +1135,34 @@ export function NetballLineupPicker({
 
       {ruleCheck && <RuleCheckBar items={ruleCheck.items} />}
 
-      <Court
-        attackThird={byThird("attack-third").map(renderTokenAt)}
-        centreThird={byThird("centre-third").map(renderTokenAt)}
-        defenceThird={byThird("defence-third").map(renderTokenAt)}
+      <LentList
+        players={lentPlayers.map((p) => ({ id: p.id, name: p.full_name }))}
+        note="Bring them back and they join the bench."
+        pending={loanPending}
+        buttonTestId={(id) => `picker-recall-lent-${id}`}
+        onBringBack={(id) => handleLendToggle(id, false)}
       />
-
-      <BenchStrip
-        bench={lineup.bench}
-        onCourtIds={Array.from(playerSlot.entries())
-          .filter(([, slot]) => slot !== "bench")
-          .map(([pid]) => pid)}
-        squadById={squadById}
-        availableIds={availableIds}
+      <PickerField
+        ground={netballCourt()}
+        lines={courtLines}
+        regionLabel="On court"
+        bench={benchIds.map((pid) => ({ playerId: pid, onTap: () => handleTapPlayer(pid) }))}
+        players={squadById}
         selectedId={selected}
-        onTapPlayer={handleTapPlayer}
-        onLongPressPlayer={playerRoles.open}
-        keepOnIds={keepOnIds(playerRoles.roles)}
+        look={kidLook}
+        onLongPress={playerRoles.open}
+        benchEmptyText="Everyone available is placed."
+        benchNote={
+          // Why kids sit (usability run: "no stated reason"). Netball subs
+          // only at the breaks, so sitting out is a whole quarter; at
+          // kickoff nobody has played yet, so it's simply turns.
+          availableIds.length > onCourtIds.length && onCourtIds.length > 0 ? (
+            <p className="px-1 text-center text-xs text-ink-dim">
+              With {availableIds.length} here and {onCourtIds.length} on court,{" "}
+              {availableIds.length - onCourtIds.length} sit out each quarter and everyone takes a turn.
+            </p>
+          ) : null
+        }
       />
       {playerRoles.sheet}
 
@@ -1309,116 +1282,9 @@ export function NetballLineupPicker({
   );
 }
 
-// ─── Bench strip ─────────────────────────────────────────────
-function BenchStrip({
-  bench,
-  onCourtIds,
-  squadById,
-  availableIds,
-  selectedId,
-  onTapPlayer,
-  onLongPressPlayer,
-  keepOnIds: keepOn,
-}: {
-  bench: string[];
-  onCourtIds: string[];
-  squadById: Map<string, Player>;
-  availableIds: string[];
-  /** Currently-selected player id (highlighted to confirm the tap). */
-  selectedId: string | null;
-  onTapPlayer: (playerId: string) => void;
-  onLongPressPlayer?: (playerId: string) => void;
-  keepOnIds?: Set<string>;
-}) {
-  // "Bench + unassigned" = available players who aren't currently in a
-  // position. That's the explicit bench list plus anyone in availableIds
-  // who hasn't been placed anywhere yet. Showing both lets the coach
-  // tap-to-assign without remembering who's left.
-  const onCourtSet = new Set(onCourtIds);
-  const benchSet = new Set(bench);
-  const unassigned = availableIds.filter(
-    (pid) => !onCourtSet.has(pid) && !benchSet.has(pid),
-  );
-  const all = [...bench, ...unassigned];
-
-  return (
-    // The bench card every sport's lineup uses (design review, Oct 2026:
-    // netball's was a grey "Bench + unassigned" heading that read as
-    // disabled, over a row of small name chips): the mono "Bench (n)"
-    // label and a four-up grid of tiles.
-    <div className="flex flex-col gap-2 rounded-lg border border-hairline bg-surface p-3 shadow-card">
-      <h3 className="font-mono text-micro font-bold uppercase tracking-micro text-ink-dim">
-        Bench ({all.length})
-      </h3>
-      {/* Why kids sit (usability run: "no stated reason"). Netball subs
-          only at the breaks, so sitting out is a whole quarter; at
-          kickoff nobody has played yet, so it's simply turns. */}
-      {availableIds.length > onCourtIds.length && onCourtIds.length > 0 && (
-        <p className="text-xs text-ink-dim">
-          With {availableIds.length} here and {onCourtIds.length} on court,{" "}
-          {availableIds.length - onCourtIds.length} sit out each quarter and everyone takes a turn.
-        </p>
-      )}
-      <div className="grid grid-cols-4 gap-2 bigtext:grid-cols-2">
-        {all.length === 0 ? (
-          <span className="col-span-4 text-xs text-ink-mute">
-            Everyone available is placed.
-          </span>
-        ) : (
-          all.map((pid) => {
-            const player = squadById.get(pid);
-            if (!player) return null;
-            return (
-              <BenchChip
-                key={pid}
-                player={player}
-                selected={selectedId === pid}
-                onTap={() => onTapPlayer(pid)}
-                onLongPress={onLongPressPlayer ? () => onLongPressPlayer(pid) : undefined}
-                keepOn={keepOn?.has(pid) ?? false}
-              />
-            );
-          })
-        )}
-      </div>
-    </div>
-  );
-}
-
-/** A bench chip: tap to pick, long-press for the player's role. */
-function BenchChip({
-  player,
-  selected,
-  onTap,
-  onLongPress,
-  keepOn = false,
-}: {
-  player: Player;
-  selected: boolean;
-  onTap: () => void;
-  onLongPress?: () => void;
-  keepOn?: boolean;
-}) {
-  const lp = useLongPress({ onLongPress });
-  return (
-    <button
-      type="button"
-      data-testid={`bench-chip-${player.id}`}
-      {...lp.handlers}
-      onClick={() => {
-        if (lp.consumedLongPress()) return;
-        onTap();
-      }}
-      className={`relative min-h-[56px] rounded-md border px-2 py-2 text-left text-sm font-semibold leading-tight shadow-card transition-colors [overflow-wrap:anywhere] ${
-        selected
-          ? "border-brand-500 bg-brand-50 text-brand-800 ring-2 ring-brand-400"
-          : lp.arming
-            ? "border-brand-400 bg-surface-alt text-ink"
-            : "border-hairline bg-surface text-ink hover:bg-surface-alt"
-      }`}
-    >
-      {player.full_name}
-      {keepOn && <KeepOnMarker corner={false} />}
-    </button>
-  );
-}
+// Netball's thirds as the court's lines, attack up the page (as NetballLiveGame).
+const NETBALL_THIRDS = [
+  { id: "attack-third", label: "Attack third" },
+  { id: "centre-third", label: "Centre third" },
+  { id: "defence-third", label: "Defence third" },
+] as const;

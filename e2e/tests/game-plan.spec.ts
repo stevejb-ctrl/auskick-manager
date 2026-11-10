@@ -256,8 +256,11 @@ test("netball pre-kickoff: Game plan's first quarter is the lineup, and Use this
     } catch {}
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.locator('[data-testid^="bench-chip-"]').first()).toBeVisible({ timeout: 15_000 });
-  const lineupBench = await benchIds(page.locator("body"), "bench-chip-");
+  // Live v3: the bench is a KidBench of player tiles (it was a card of
+  // bench-chip-<id> chips), the same bench as every sport's.
+  const benchGroup = page.getByRole("group", { name: "Bench", exact: true });
+  await expect(benchGroup.locator('[data-testid^="player-tile-"]').first()).toBeVisible({ timeout: 15_000 });
+  const lineupBench = await benchIds(benchGroup, "player-tile-");
 
   await page.getByRole("button", { name: /^game plan$/i }).click();
   await expect(page.getByRole("heading", { name: /^game plan$/i })).toBeVisible({ timeout: 10_000 });
@@ -265,8 +268,8 @@ test("netball pre-kickoff: Game plan's first quarter is the lineup, and Use this
 
   const { fieldKid, benchKid } = await swapInPlan(page);
   await page.getByRole("button", { name: "Use this plan" }).click();
-  await expect(page.getByTestId(`bench-chip-${fieldKid}`)).toBeVisible();
-  await expect(page.getByTestId(`bench-chip-${benchKid}`)).toHaveCount(0);
+  await expect(benchGroup.getByTestId(`player-tile-${fieldKid}`)).toBeVisible();
+  await expect(benchGroup.getByTestId(`player-tile-${benchKid}`)).toHaveCount(0);
 });
 
 test("league pre-kickoff: Game plan's first half is the lineup, and Use this plan applies changes", async ({

@@ -68,7 +68,8 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
   const field = page.getByRole("region", { name: "On field" });
-  await expect(page.getByText("15 / 15").first()).toBeVisible({ timeout: 15_000 });
+  // Live v3: the old "15 / 15" count chip is each line's margin count.
+  await expect(field.getByRole("group", { name: "Forwards" })).toContainText("8 on", { timeout: 15_000 });
   await expect(field.locator("[data-testid^='league-player-tile-']")).toHaveCount(15);
   // Union's 15: eight forwards and seven backs, on the shared card tiles.
   await expect(field.getByRole("group", { name: "Forwards" }).locator("[data-testid^='league-player-tile-']")).toHaveCount(8);
