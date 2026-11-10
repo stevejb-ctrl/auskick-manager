@@ -122,7 +122,10 @@ export function BreakPlayerTile({ tile, place, testId, selected, target, dense =
       ].join(" ")}
     >
       <span className="flex w-full min-w-0 items-baseline gap-[5px] whitespace-nowrap font-display stretch-72 leading-[1.05]">
-        {tile.tag && (
+        {/* A bib or position names the spot, so it stays; a jumper
+            number leaves the field tile to the name, as in play (a row of
+            four cut "Joaquin" to "Joa…"). The bench, wider, keeps it. */}
+        {tile.tag && (tile.tagIsBib || !field) && (
           <span className={`flex-none text-[0.6875rem] tracking-[0.05em] ${tile.tagIsBib ? "font-extrabold opacity-[0.76]" : "font-bold opacity-[0.6]"}`}>
             {tile.tag}
           </span>
