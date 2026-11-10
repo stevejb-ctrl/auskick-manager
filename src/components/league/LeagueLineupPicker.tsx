@@ -69,6 +69,7 @@ import { leagueFieldLayout } from "./LeagueFieldLines";
 import { rugbyField } from "./RugbyMarks";
 import { vestLabel } from "./PlayerVestBadge";
 import { LentList } from "@/components/lineup/LentList";
+import { LendSetting } from "@/components/lineup/LendSetting";
 import { PickerField, type PickerCell } from "@/components/lineup/PickerField";
 
 import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_league/engine";
@@ -1161,51 +1162,7 @@ export function LeagueLineupPicker({
                 )}
               </p>
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Lend a player</Label>
-              <p className="text-micro text-ink-mute">
-                Lent players sit out for the rest of the game until
-                you bring them back.
-              </p>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {lentPlayers.map((p) => (
-                  <span
-                    key={p.id}
-                    className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-warn-soft px-2.5 py-1 text-xs font-medium text-warn-ink"
-                  >
-                    {p.jersey_number != null && (
-                      <span className="font-semibold tabular-nums">
-                        {p.jersey_number}
-                      </span>
-                    )}
-                    <span>{p.full_name}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleLendToggle(p.id, false)}
-                      disabled={loanPending}
-                      aria-label={`Bring ${p.full_name} back`}
-                      className="ml-0.5 rounded-full px-1 text-micro font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60 motion-safe:active:scale-[0.97]"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setLendPickerOpen(true)}
-                  disabled={loanPending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60 motion-safe:active:scale-[0.97]"
-                >
-                  <span aria-hidden>+</span>
-                  Lend a player
-                </button>
-              </div>
-              {loanError && (
-                <p className="mt-1 text-xs text-danger" role="alert">
-                  {loanError}
-                </p>
-              )}
-            </div>
+            <LendSetting lentCount={lentPlayers.length} onLend={() => setLendPickerOpen(true)} pending={loanPending} error={loanError} />
           </div>
         )}
       </div>
