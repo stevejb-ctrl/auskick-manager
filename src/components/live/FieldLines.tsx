@@ -65,8 +65,12 @@ export interface FieldLinesProps {
   marks?: ReactNode;
   /** Big fields: shorter rows (44 px). */
   dense?: boolean;
-  /** Widest a tile gets, px (narrower when the row needs it). */
-  tileWidth?: number;
+  /**
+   * Widest a tile gets: px, or a CSS length such as "9rem" so the tile
+   * grows with the phone's text size (netball's bibs). Narrower when
+   * the row needs it.
+   */
+  tileWidth?: number | string;
   /**
    * Bumped when the game goes from pre-kickoff to Q1 running: a one-shot
    * siren halo round the field ("the game is on"). Null until then.
@@ -91,6 +95,17 @@ const ROWS_ALIGN = {
   end: "self-end",
   spread: "self-stretch justify-evenly",
 } as const;
+
+/** A tile's widest, as a grid track's max. */
+function trackMax(tileWidth: number | string): string {
+  return typeof tileWidth === "number" ? `${tileWidth}px` : tileWidth;
+}
+
+// At large text a row of two or more goes two across; a row of one (a
+// netball bib, a big field's full-forward) keeps the whole row, so its
+// name isn't halved (Steve, 10 Nov 2026: netball's names cut to "Ch…").
+const BIG_ROW = "bigtext:!grid-cols-2";
+const BIG_ROW_OF_ONE = "bigtext:!grid-cols-1";
 
 function colsFor(n: number): number {
   return n <= 4 ? Math.max(1, n) : Math.ceil(n / 2);
@@ -150,9 +165,9 @@ export function FieldLines({ lines, surface = "field", marks, dense = false, til
                 {line.rows.map((row, r) => (
                   <div
                     key={r}
-                    className={`grid gap-[8px] bigtext:!grid-cols-2 ${ROW_SIDE[line.rowSide?.[r] ?? "center"]}`}
+                    className={`grid gap-[8px] ${row.length === 1 ? BIG_ROW_OF_ONE : BIG_ROW} ${ROW_SIDE[line.rowSide?.[r] ?? "center"]}`}
                     style={{
-                      gridTemplateColumns: `repeat(${row.length}, minmax(0, ${tileWidth}px))`,
+                      gridTemplateColumns: `repeat(${row.length}, minmax(0, ${trackMax(tileWidth)}))`,
                       gridAutoRows: `minmax(${rowH}px, auto)`,
                     }}
                   >
@@ -164,7 +179,7 @@ export function FieldLines({ lines, surface = "field", marks, dense = false, til
               <div
                 className="grid justify-center gap-[8px] bigtext:!grid-cols-2"
                 style={{
-                  gridTemplateColumns: `repeat(${cols}, minmax(0, ${tileWidth}px))`,
+                  gridTemplateColumns: `repeat(${cols}, minmax(0, ${trackMax(tileWidth)}))`,
                   gridAutoRows: `minmax(${rowH}px, auto)`,
                 }}
               >

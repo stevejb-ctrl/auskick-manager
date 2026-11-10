@@ -21,8 +21,6 @@ import dynamic from "next/dynamic";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { RollingNumber, SCORE_GHOST, useScoreGhost } from "@/components/live/RollingNumber";
-import { CourtDisplay } from "@/components/netball/CourtDisplay";
-import { PositionToken } from "@/components/netball/PositionToken";
 import { NetballLineupPicker } from "@/components/netball/LineupPicker";
 import { LockModal } from "@/components/live/LockModal";
 import { NetballQuarterBreak } from "@/components/netball/NetballQuarterBreak";
@@ -96,7 +94,6 @@ const GamePlanModal = dynamic(
   () => import("@/components/game-plan/GamePlanModal").then((m) => m.GamePlanModal),
   { ssr: false },
 );
-import { PulseDot } from "@/components/ui/PulseDot";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import {
@@ -1171,7 +1168,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     step(-1);
     const { flushed } = enqueueLiveAction("undoNetballScore", [auth, game.id, stackRef(undoTop)]);
     // Refresh after flush so the rolled-back goal disappears from
-    // the scorebug + PositionToken chip on the next render. Refused
+    // the scorebug + the kid's goals on the next render. Refused
     // (the other phone already took it back): put the goal back.
     flushed
       .then(() => startTransition(() => router.refresh()))
@@ -1866,6 +1863,70 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       : // The exit page, as every other sport's link: EXIT to the page
         // you were on did nothing (UX round 2).
         `/run/${auth.token}/left`;
+  // Scorebug-driven scorer picker. Opens when the coach taps the
+  // own-team +G (the live bar's + GOAL, or full time's +G). Lists only
+  // the on-court GS + GA (the only positions allowed to score in
+  // netball). Pick → record directly; no confirm sheet, mirrors AFL's
+  // GameHeader-driven picker pattern. If no eligible scorers are on
+  // court (rare — only if the GS OR GA tile is empty mid-quarter via
+  // injury or vacancy) the sheet still renders so the coach sees "no
+  // candidates" instead of nothing visibly happening on the tap.
+  // Steve 2026-05-16.
+  const scorerPickerEl = pickScorerOpen
+    ? (() => {
+        const eligibleIds = [...(onCourt.positions.gs ?? []), ...(onCourt.positions.ga ?? [])];
+        // Dressed rows, not bare text (UI polish audit §11): the AFL
+        // who-scored picker gives each row a number circle and a
+        // position caption; a netball goal deserves the same moment.
+        // The bib label rides in the circle (netball has no jersey
+        // numbers) and the full position name captions it.
+        const candidates = eligibleIds
+          .map((pid) => {
+            const player = squadById.get(pid);
+            if (!player) return null;
+            const positionId = (onCourt.positions.gs ?? []).includes(pid) ? "GS" : "GA";
+            return {
+              id: pid,
+              name: player.full_name,
+              jerseyNumber: positionId,
+              subLabel: positionId === "GS" ? "Goal Shooter" : "Goal Attack",
+            };
+          })
+          .filter((c): c is NonNullable<typeof c> => !!c);
+        return (
+          <SlotFillSheet
+            slotLabel="goal"
+            titleVerb="Record"
+            lostScore="goal"
+            subtitle="Pick the scorer. Only GS and GA can score a netball goal."
+            emptyMessage="No GS or GA on court right now."
+            candidates={candidates}
+            onPick={(playerId) => {
+              setPickScorerOpen(false);
+              // The same goal as the kid bar's + GOAL.
+              recordGoal(playerId);
+            }}
+            onCancel={() => setPickScorerOpen(false)}
+          />
+        );
+      })()
+    : null;
+
+  // Full time's Undo last score: the game's latest goal standing (the
+  // strip's Undo is gone by then, as in the other sports' full times).
+  const undoLatestGoal = () => {
+    const top = undoScores[undoScores.length - 1];
+    if (!top) return;
+    handleUndoLastScore({
+      id: top.eventId ?? `optimistic-${top.key}`,
+      type: top.type,
+      player_id: top.playerId,
+      created_at: top.createdAt ?? "",
+      idempotency_key: top.key,
+      metadata: { quarter: top.quarter },
+    });
+  };
+
   const topUtilityRow = (
     <LiveTopBar
       exitHref={exitHref}
@@ -1996,7 +2057,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       <div className="flex flex-col gap-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
         {topUtilityRow}
         {walkthroughOverlay}
+        {/* The v3 header, as the other sports' finished games. */}
         <NetballScoreBug
+          part="header"
           teamName={teamName}
           opponentName={game.opponent}
           team={teamScore}
@@ -2053,20 +2116,21 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   }
 
   // ─── Full-time review (Q4 ended, not yet finalised) ───────
-  // Mirrors AFL's FullTimeReview: gives the coach a chance to
-  // reconcile / fix scores before locking the result. Ends with a
-  // "Finalise game" button that fires game_finalised → flips us
-  // into the finalised branch above on next render.
+  // As the other sports' full times: the top bar, the v3 header, then
+  // the review (the shared BreakScoreEditor: missed goals for either
+  // side, Undo, Change who scored) and Finish game, which fires
+  // game_finalised → the finalised branch above on next render.
   if (quarterEnded && currentQuarter >= ageGroup.periodCount) {
     return (
-      <div className="flex flex-col gap-4 pb-4">
+      <div className="ui-nonselect flex flex-col gap-3 pb-4">
         {topUtilityRow}
         {walkthroughOverlay}
         <NetballScoreBug
+          part="header"
           teamName={teamName}
           opponentName={game.opponent}
-          team={teamScore}
-          opponent={opponentScore}
+          team={effectiveTeamScore}
+          opponent={effectiveOpponentScore}
           quarterLabel="FT"
           clockText="—"
           showScores={trackScoring}
@@ -2076,14 +2140,20 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           auth={auth}
           gameId={game.id}
           trackScoring={trackScoring}
-          teamScore={teamScore}
-          opponentScore={opponentScore}
+          teamScore={effectiveTeamScore}
+          opponentScore={effectiveOpponentScore}
           scoreByQuarter={scoreByQuarter}
-          players={squad}
+          periodCount={ageGroup.periodCount}
           finalisedElapsedMs={_quarterElapsedMs ?? 0}
           midQuarterSubs={midQuarterSubs}
-          opponentName={game.opponent}
+          teamName={teamName}
+          opponentName={opponentLabel}
+          onTeamGoal={!pickScorerOpen ? () => setPickScorerOpen(true) : undefined}
+          onOpponentGoal={handleOpponentGoal}
+          onUndo={undoScores.length > 0 ? undoLatestGoal : undefined}
+          scorePending={isPending}
         />
+        {scorerPickerEl}
       </div>
     );
   }
@@ -2171,46 +2241,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // atomically via the `startQuarterToo=true` flag. There's no longer
   // a moment when the page can render with a committed lineup but no
   // quarter_start event — matches AFL's flow exactly.
-
-  // ─── Between Q4 and finalise: show finalise button ──────────
-  if (quarterEnded && currentQuarter >= ageGroup.periodCount) {
-    return (
-      <div className="flex flex-col gap-4 pb-4">
-        {topUtilityRow}
-        {walkthroughOverlay}
-        <NetballScoreBug
-          teamName={teamName}
-          opponentName={game.opponent}
-          team={teamScore}
-          opponent={opponentScore}
-          quarterLabel="Q4 END"
-          clockText="—"
-          showScores={trackScoring}
-          clockPulseKey={clockPulseKey}
-        />
-        <CourtDisplay lineup={onCourt} ageGroup={ageGroup} squadById={squadById} disabled />
-        <button
-          type="button"
-          onClick={() => {
-            const { flushed } = enqueueLiveAction("endNetballQuarter", [
-              auth,
-              game.id,
-              4,
-              clockMs,
-            ]);
-            // Refresh after flush so SSR sees the finalise events
-            // and the page rerenders into FT review.
-            flushed.then(() => startTransition(() => router.refresh()));
-          }}
-          disabled={isPending}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 py-3 text-white font-semibold disabled:opacity-60"
-        >
-          {isPending && <PulseDot size="sm" />}
-          {isPending ? "Finishing…" : "Finish game"}
-        </button>
-      </div>
-    );
-  }
 
   // ─── Live v3's shell (Phase 7: netball, as AFL's) ────────────
   // Before the first whistle and through each quarter the screen is
@@ -2321,7 +2351,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     };
   }).filter((line) => line.tiles.length > 0);
   const courtEl = (
-    <FieldLines lines={courtLines} surface="court" marks={<CourtMarks />} tileWidth={104} wakeUpKey={courtWakeUpKey} />
+    // Bibs in rem, so they grow with the phone's text size: at 150–200%
+    // a 104 px bib cut "Charlotte" to "Ch…" (Steve, 10 Nov 2026). 9rem
+    // (144 px at 100%) still leaves the zigzag room to show.
+    <FieldLines lines={courtLines} surface="court" marks={<CourtMarks />} tileWidth="9rem" wakeUpKey={courtWakeUpKey} />
   );
 
   // The bench: who can come on, then who's out (hurt, home, lent), and
@@ -2996,56 +3029,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         />
       )}
 
-      {/* Scorebug-driven scorer picker. Opens when the coach taps
-          the new own-team +G chip on the scorebug. Lists only the
-          currently-on-court GS + GA (the only positions allowed to
-          score in netball). Pick → record directly; no confirm
-          sheet, mirrors AFL's GameHeader-driven picker pattern. If
-          no eligible scorers are on court (rare — only if the GS
-          OR GA tile is empty mid-quarter via injury or vacancy)
-          the sheet still renders so the coach sees "no candidates"
-          instead of nothing visibly happening on the tap.
-          Steve 2026-05-16. */}
-      {pickScorerOpen && (() => {
-        const eligibleIds = [
-          ...(onCourt.positions.gs ?? []),
-          ...(onCourt.positions.ga ?? []),
-        ];
-        // Dressed rows, not bare text (UI polish audit §11): the
-        // AFL who-scored picker gives each row a number circle and
-        // a position caption; a netball goal deserves the same
-        // moment. The bib label rides in the circle (netball has no
-        // jersey numbers) and the full position name captions it.
-        const candidates = eligibleIds
-          .map((pid) => {
-            const player = squadById.get(pid);
-            if (!player) return null;
-            const positionId = (onCourt.positions.gs ?? []).includes(pid) ? "GS" : "GA";
-            return {
-              id: pid,
-              name: player.full_name,
-              jerseyNumber: positionId,
-              subLabel: positionId === "GS" ? "Goal Shooter" : "Goal Attack",
-            };
-          })
-          .filter((c): c is NonNullable<typeof c> => !!c);
-        return (
-          <SlotFillSheet
-            slotLabel="goal"
-            titleVerb="Record"
-            lostScore="goal"
-            subtitle="Pick the scorer. Only GS and GA can score a netball goal."
-            emptyMessage="No GS or GA on court right now."
-            candidates={candidates}
-            onPick={(playerId) => {
-              setPickScorerOpen(false);
-              // The same goal as the kid bar's + GOAL.
-              recordGoal(playerId);
-            }}
-            onCancel={() => setPickScorerOpen(false)}
-          />
-        );
-      })()}
+      {/* The GS / GA scorer picker (scorerPickerEl, above). */}
+      {scorerPickerEl}
 
       {/* First-time hint for the long-press (shared with AFL's), while
           the quarter's on and nobody's picked (it would cover the kid bar). */}
@@ -3329,7 +3314,8 @@ const NETBALL_THIRDS = [
  * The court's markings under the kids: the centre circle, faint, and
  * the two shooting circles, plain to see (Steve, 10 Nov 2026), with GS
  * and GK standing in them. A real circle is 4.9 m on a 15.25 m wide
- * court: about two-thirds of the width across.
+ * court: about two-thirds of the width across. In rem, as the bibs,
+ * so GS and GK stay in them at large text.
  */
 function CourtMarks() {
   return (
@@ -3337,11 +3323,11 @@ function CourtMarks() {
       <span className="absolute left-1/2 top-1/2 h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full border-[1.5px] border-mark/[0.07]" />
       <span
         data-testid="shooting-circle"
-        className="absolute -top-[104px] left-[17%] right-[17%] h-[208px] rounded-[50%] border-2 border-mark/30 bg-mark/[0.04]"
+        className="absolute -top-[6.5rem] left-[17%] right-[17%] h-[13rem] rounded-[50%] border-2 border-mark/30 bg-mark/[0.04]"
       />
       <span
         data-testid="shooting-circle"
-        className="absolute -bottom-[104px] left-[17%] right-[17%] h-[208px] rounded-[50%] border-2 border-mark/30 bg-mark/[0.04]"
+        className="absolute -bottom-[6.5rem] left-[17%] right-[17%] h-[13rem] rounded-[50%] border-2 border-mark/30 bg-mark/[0.04]"
       />
     </>
   );

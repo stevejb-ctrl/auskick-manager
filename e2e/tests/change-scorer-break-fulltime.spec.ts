@@ -43,6 +43,8 @@ interface SportCase {
   lineup: (k: string[], size: number) => unknown;
   /** The wrong kid and the right one: two on the field (by squad index). */
   scorers: [number, number];
+  /** Full time only (netball: its break is the break screen's own). */
+  fullTimeOnly?: boolean;
 }
 
 const CASES: Record<string, SportCase> = {
@@ -81,6 +83,17 @@ const CASES: Record<string, SportCase> = {
     scorersLine: /Tries: ([^\n]*)/,
     scorers: [0, 1],
     lineup: (k, size) => ({ lines: { middle: [], link: [], wing: [], field: k.slice(0, size) }, bench: k.slice(size) }),
+  },
+  // Netball's full time is the shared editor too (10 Nov 2026): GS to GA.
+  netball: {
+    sport: "netball",
+    ageGroup: "go",
+    scoreType: "goal",
+    tileLabel: "",
+    scorersLine: /Goals: ([^\n]*)/,
+    scorers: [0, 1],
+    lineup: (k) => ({ positions: Object.fromEntries(["gs", "ga", "wa", "c", "wd", "gd", "gk"].map((p, i) => [p, [k[i]]])), bench: k.slice(7) }),
+    fullTimeOnly: true,
   },
 };
 
@@ -197,7 +210,7 @@ for (const [name, upTo] of [["afl", "break"], ["afl", "full"], ["hockey", "break
 }
 
 for (const [name, c] of Object.entries(CASES)) {
-  test(`${name}: at the break, Change who scored moves the score to the right kid`, async ({ page }) => {
+  if (!c.fullTimeOnly) test(`${name}: at the break, Change who scored moves the score to the right kid`, async ({ page }) => {
     const { admin, team, game, wrong, right } = await seed(c, "break");
     await open(page, team.id, game.id);
     const tile = (kid: Kid) => page.getByTestId(`player-tile-${kid.id}`);
