@@ -61,7 +61,7 @@
     "metaTitle": "Junior AFL rotation app: fair zones and subs | Siren",
     "metaDescription": "Junior AFL game-day app: fair time in forward, centre and back, sub alerts on the clock, quarter-break plans and season stats, Under 8 to Under 18. Free for the 2026 season.",
     "knows": [
-      { "stat": "F · C · B", "title": "Three zones", "body": "Siren balances each kid's minutes in forward, centre and back, not just their time on the ground." },
+      { "stat": "F · C · B", "title": "Zones, or your own positions", "body": "Run forward, centre and back only, or set your own positions if you want to: full forward, ruck, wing. Siren balances each kid's time in each, not just their time on the ground." },
       { "stat": "6–18", "title": "6 to 18 a side", "body": "From 6 a side at Under 8 to 18 a side at Under 18, with scores off until Under 11 as the junior rules have it." },
       { "stat": "Sub due", "title": "Subs on the clock", "body": "A sub alert every few minutes, with the swaps that even out time already picked." }
     ],
@@ -110,7 +110,7 @@
     "menuLine": "Rolling subs, FR and DH",
     "eyebrow": "Junior rugby league · quarters, then halves from Under 10",
     "heroTitle": { "before": "Every kid gets a run, by the ", "italic": "Junior Laws", "after": "." },
-    "heroSubtitle": "Rolling subs, First Receiver and Dummy Half vests, kicks shared round, and every kid's unbroken period. Siren knows the Junior Laws that generic sub-timers miss, so you can stop juggling a clipboard and watch your kid play.",
+    "heroSubtitle": "Rolling subs, forwards and backs or your own positions, First Receiver and Dummy Half vests, kicks shared round, and every kid's unbroken period. Siren knows the Junior Laws that generic sub-timers miss, so you can stop juggling a clipboard and watch your kid play.",
     "metaTitle": "Junior rugby league team app: fair subs, vests and Junior Laws | Siren",
     "metaDescription": "Junior rugby league game-day app: rolling subs, First Receiver and Dummy Half vests rotated, conversions shared, every kid's unbroken period, Under 6 to Under 17. Free for the 2026 season.",
     "knows": [
@@ -273,7 +273,7 @@
     "metaTitle": "Junior rugby union team app: fair subs, forwards and backs | Siren",
     "metaDescription": "Junior rugby union game-day app: rolling subs, time across forwards and backs, named positions from 1 to 15, and your competition's side size from tag to 15 a side. Free for the 2026 season.",
     "knows": [
-      { "stat": "1–15", "title": "Named positions", "body": "From Under 12, positions are numbered as on the jersey, front row to fullback." },
+      { "stat": "1–15", "title": "Your own positions", "body": "From Under 10, run forwards and backs only, or set your own positions if you want to, numbered as on the jersey from front row to fullback." },
       { "stat": "F · B", "title": "Forwards and backs", "body": "Younger teams share time across forwards and backs, so every kid learns both." },
       { "stat": "5–15", "title": "Your competition's size", "body": "Tag at Under 6 and 7, then 7, 10, 12 and 15 a side, set to what your competition plays." }
     ],

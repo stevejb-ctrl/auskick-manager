@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { HOME_CONTENT } from "@/lib/marketing/homeContent";
 import { sportPageCopy } from "@/lib/marketing/sportPages";
+import { effectivePolicy, getSportPlaybook } from "@/lib/playbook";
 import { MARKETING_SPORTS } from "@/lib/sports/marketing-sports";
 import { ALL_SPORT_IDS, getSportConfig } from "@/lib/sports/registry";
 import {
@@ -118,6 +119,22 @@ describe("marketing copy agrees with the facts", () => {
   it("counts the sports in the homepage's facts strip", () => {
     const sports = HOME_CONTENT.trustBand.find((entry) => entry.label.toLowerCase() === "junior sports");
     expect(sports?.stat).toBe(String(SIREN_SPORTS.length));
+  });
+
+  // Steve, 10 Nov 2026: where a coach can run lines only or name their
+  // own positions, the sport's page says so; where they can't, it doesn't.
+  it("says you can set your own positions exactly where a coach can", () => {
+    for (const { sport } of MARKETING_SPORTS) {
+      const playbook = getSportPlaybook(sport);
+      const canSetOwn = getSportConfig(sport).ageGroups.some((ag) => {
+        // AFL's zones are on by default to U10 but a coach can turn them off.
+        const policy = { ...effectivePolicy(sport, ag.id), zonesEnforced: false };
+        return playbook.positionModel(policy, 12).kind === "custom";
+      });
+      const copy = sportPageCopy(sport);
+      const words = [copy.heroSubtitle, ...copy.knows.flatMap((k) => [k.title, k.body])].join(" ");
+      expect(/your own positions/i.test(words), `${sport}: copy says own positions`).toBe(canSetOwn);
+    }
   });
 
   it("gives every sport on the public site its own page copy", () => {
