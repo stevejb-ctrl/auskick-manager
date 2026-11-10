@@ -37,6 +37,7 @@ import {
 } from "@/components/quarter-break/BreakSettingsSheet";
 import { FieldLines, type FieldLine, type FieldLinesProps } from "@/components/live/FieldLines";
 import { KidBench } from "@/components/live/KidBench";
+import { LentList } from "@/components/lineup/LentList";
 import { useSquadNames } from "@/components/live/SquadNames";
 import {
   BENCH,
@@ -483,35 +484,14 @@ export function PeriodBreak(props: PeriodBreakProps) {
             getting one back at the break was only in Game settings, as
             a ×, and four coaches in Stagehand round 9 didn't find it.
             Every sport hands over its lent kids with their writer. */}
-        {lentKids.length > 0 && (
-          <section
-            data-testid="break-lent"
-            aria-label="Lent to the other team"
-            className="rounded-md border border-hairline bg-surface px-4 py-3 shadow-card"
-          >
-            <p className="text-sm font-bold text-ink">Lent to the other team</p>
-            <p className="mt-0.5 text-xs text-ink-dim">Bring them back and they join the bench for {periodName}.</p>
-            <ul className="mt-2 space-y-1.5">
-              {lentKids.map((p) => (
-                <li key={p.id} className="flex min-h-[44px] items-center justify-between gap-2">
-                  <span className="min-w-0 truncate text-sm font-semibold text-ink">{p.name}</span>
-                  <SFButton
-                    variant="subtle"
-                    size="sm"
-                    data-testid={`break-bring-back-${p.id}`}
-                    // Its words first, then whose (label in name).
-                    aria-label={`Bring back ${p.name}`}
-                    disabled={props.settings.pending}
-                    onClick={() => props.settings.lent?.onToggle(p.id, false)}
-                    className="min-h-[44px] shrink-0"
-                  >
-                    Bring back
-                  </SFButton>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        <LentList
+          testId="break-lent"
+          players={lentKids}
+          note={`Bring them back and they join the bench for ${periodName}.`}
+          pending={props.settings.pending}
+          buttonTestId={(id) => `break-bring-back-${id}`}
+          onBringBack={(id) => props.settings.lent?.onToggle(id, false)}
+        />
 
         <p className="text-center text-xs text-ink-dim">Tap two players to swap — any position or bench</p>
         {props.banner}

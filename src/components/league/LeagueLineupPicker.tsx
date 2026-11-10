@@ -68,6 +68,7 @@ import type {
 import { leagueFieldLayout } from "./LeagueFieldLines";
 import { rugbyField } from "./RugbyMarks";
 import { vestLabel } from "./PlayerVestBadge";
+import { LentList } from "@/components/lineup/LentList";
 import { PickerField, type PickerCell } from "@/components/lineup/PickerField";
 
 import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_league/engine";
@@ -1210,6 +1211,13 @@ export function LeagueLineupPicker({
       </div>
 
       {/* ── Selection helper banner ──────────────────────────── */}
+      <LentList
+        players={lentPlayers.map((p) => ({ id: p.id, name: p.full_name }))}
+        note="Bring them back and they join the bench."
+        pending={loanPending}
+        buttonTestId={(id) => `picker-recall-lent-${id}`}
+        onBringBack={(id) => handleLendToggle(id, false)}
+      />
       {/* ── The field and bench, as the live screen draws them ──
           Live v3: rugby's grass with this code's lines and posts, the
           formation's rows (leagueFieldLayout: vest wearers in their

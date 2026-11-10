@@ -13,6 +13,8 @@ import { LockModal } from "@/components/live/LockModal";
 import { aflStoreLocks, type PlayerLock } from "@/lib/live/locks";
 import type { ChipKey, ChipMode } from "@/lib/chips";
 import { ovalField } from "@/components/live/FieldLines";
+import { ZONE_SHORT } from "@/components/live/Field";
+import { LentList } from "@/components/lineup/LentList";
 import { PickerField, type PickerCell, type PickerKidLook, type PickerLine } from "@/components/lineup/PickerField";
 import { formationRows } from "@/lib/live/formationRows";
 import { fitSeats, seatLabels, seedSeats } from "@/lib/live/positionSeats";
@@ -724,7 +726,7 @@ export function LineupPicker({
     key,
     playerId: null,
     pos: label ?? null,
-    emptyLabel: `Empty ${label ?? ZONE_SHORT_LABELS[zone]} spot`,
+    emptyLabel: `Empty ${label ?? ZONE_SHORT[zone]} spot`,
     aimed: aimedZone === zone,
     onTap: () => tapEmpty(zone),
   });
@@ -802,40 +804,14 @@ export function LineupPicker({
           lent players straight from the picker (recall was previously only
           reachable inside the Game settings collapse). "Bring back" returns
           them to the bench, ready to place. */}
-      {lentPlayers.length > 0 && (
-        <div className="rounded-lg border border-warn/40 bg-warn-soft/60 px-3 py-2">
-          <p className="text-xs font-semibold text-warn">Lent to the other team</p>
-          <p className="mt-0.5 text-micro text-warn/80">
-            Tap “Bring back” to return a player to your bench.
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            {lentPlayers.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => handleLendToggle(p.id, false)}
-                disabled={loanPending}
-                data-testid={`picker-recall-lent-${p.id}`}
-                aria-label={`Bring ${p.full_name} back`}
-                className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-60 motion-safe:active:scale-[0.97]"
-              >
-                {p.jersey_number != null && (
-                  <span className="tabular-nums font-semibold">{p.jersey_number}</span>
-                )}
-                <span>{p.full_name}</span>
-                <span className="ml-0.5 text-micro font-semibold text-warn/80">
-                  Bring back
-                </span>
-              </button>
-            ))}
-          </div>
-          {loanError && (
-            <p className="mt-1 text-xs text-danger" role="alert">
-              {loanError}
-            </p>
-          )}
-        </div>
-      )}
+      <LentList
+        players={lentPlayers.map((p) => ({ id: p.id, name: p.full_name }))}
+        note="Bring them back and they join the bench, ready to place."
+        pending={loanPending}
+        error={loanError}
+        buttonTestId={(id) => `picker-recall-lent-${id}`}
+        onBringBack={(id) => handleLendToggle(id, false)}
+      />
 
       {/* ── Game settings (collapsible) ──────────────────────────────────
           Steve 2026-05-13: the three pre-game controls (rotation

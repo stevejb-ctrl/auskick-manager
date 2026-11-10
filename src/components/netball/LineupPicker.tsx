@@ -16,6 +16,7 @@ import type { LiveAuth, Player } from "@/lib/types";
 import { markLoan } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { setGameAllowMidQuarterSubs } from "@/app/(app)/teams/[teamId]/games/actions";
 import { netballCourt, netballCourtLine } from "@/components/netball/NetballCourt";
+import { LentList } from "@/components/lineup/LentList";
 import { PickerField, type PickerCell, type PickerKidLook, type PickerLine } from "@/components/lineup/PickerField";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -1172,6 +1173,13 @@ export function NetballLineupPicker({
 
       {ruleCheck && <RuleCheckBar items={ruleCheck.items} />}
 
+      <LentList
+        players={lentPlayers.map((p) => ({ id: p.id, name: p.full_name }))}
+        note="Bring them back and they join the bench."
+        pending={loanPending}
+        buttonTestId={(id) => `picker-recall-lent-${id}`}
+        onBringBack={(id) => handleLendToggle(id, false)}
+      />
       <PickerField
         ground={netballCourt()}
         lines={courtLines}

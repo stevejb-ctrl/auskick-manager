@@ -61,6 +61,7 @@ import {
 } from "@/lib/sports/soccer/types";
 import type { SoccerKeeperPrefs } from "@/lib/sports/soccer/keeper";
 import { soccerField } from "./SoccerField";
+import { LentList } from "@/components/lineup/LentList";
 import { PickerField, type PickerCell, type PickerKidLook, type PickerLine } from "@/components/lineup/PickerField";
 import { outWords } from "@/lib/live/kidWords";
 import { KeeperHandoverCard } from "./KeeperHandoverCard";
@@ -476,25 +477,14 @@ export function SoccerLineupPicker({
         denseBench={benchOrder.length > 6}
       />
 
-      {lentPlayers.length > 0 && (
-        <div className="rounded-lg border border-warn/40 bg-warn-soft/60 px-3 py-2">
-          <p className="text-xs font-semibold text-warn">Lent to the other team</p>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            {lentPlayers.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => handleLend(p.id, false)}
-                aria-label={`Bring ${p.full_name} back`}
-                className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 motion-safe:active:scale-[0.97]"
-              >
-                <span>{p.full_name}</span>
-                <span className="ml-0.5 text-micro font-semibold text-warn/80">Bring back</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Kids lent before kickoff, each with a plain Bring back (LentList,
+          as the break lists them). */}
+      <LentList
+        players={lentPlayers.map((p) => ({ id: p.id, name: p.full_name }))}
+        note="Bring them back and they join the bench."
+        buttonTestId={(id) => `picker-recall-lent-${id}`}
+        onBringBack={(id) => handleLend(id, false)}
+      />
 
       <LineupPickerFooter
         onFieldCount={fieldIds.length}
