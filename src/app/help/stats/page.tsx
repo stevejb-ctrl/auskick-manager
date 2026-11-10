@@ -89,8 +89,8 @@ export default function StatsPage() {
 
         <HelpFigure
           src="/help-screenshots/stats-minutes-equity.png"
-          alt="AFL stats cards before any games are finished, each showing a No data yet note"
-          caption="Before your first finished game, each card shows a No data yet note."
+          alt="The AFL Season balance card: kids owed time, how many are within a quarter of even, and each kid's minutes forward, centre and back"
+          caption="Season balance (AFL shown). Tinted spots are where a kid is owed time."
         />
       </section>
 
@@ -147,8 +147,8 @@ export default function StatsPage() {
 
         <HelpFigure
           src="/help-screenshots/stats-combinations.png"
-          alt="The AFL Position fit, Head-to-head by opponent, Quarter-by-quarter scoring and Attendance cards, before any games are finished"
-          caption="The lower AFL cards: Position fit, Head-to-head, Quarter-by-quarter scoring and Attendance."
+          alt="The AFL Head-to-head by opponent card, with wins, losses and scores against three teams, and the Quarter-by-quarter scoring card"
+          caption="Head-to-head and Quarter-by-quarter scoring (AFL)."
         />
       </section>
 

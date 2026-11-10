@@ -73,8 +73,8 @@ export default function TrackScoringPage() {
 
         <HelpFigure
           src="/help-screenshots/track-scoring-toggle.png"
-          alt="An AFL game's detail page"
-          caption="A game's detail page. Scoring is switched on for the whole team on the Team tab, not game by game."
+          alt="The Track goals & behinds switch, on, under Game-day extras on an AFL team's Team tab"
+          caption="The scoring switch on the Team tab. It's for the whole team, not game by game."
         />
       </section>
 
@@ -139,7 +139,7 @@ export default function TrackScoringPage() {
 
         <HelpFigure
           src="/help-screenshots/track-scoring-player-tile.png"
-          alt="An AFL kid on the field during a scored game, with their tally after the name"
+          alt="An AFL score of 1.1 (7) and the back line, where Mateo S shows 1.0 and Nora F 0.1 after their names"
           caption="When scoring is tracked, each kid shows their tally after their name."
         />
       </section>

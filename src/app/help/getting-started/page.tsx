@@ -51,8 +51,8 @@ export default function GettingStartedPage() {
 
         <HelpFigure
           src="/help-screenshots/getting-started-signup.png"
-          alt="The Siren sign-up form with email and password fields"
-          caption="The sign-up form. Fill in your email and password to get started."
+          alt="The Siren sign-in page with Google, Apple and an email field"
+          caption="Enter your email and tap Continue, or use Google or Apple."
         />
       </section>
 
@@ -71,15 +71,15 @@ export default function GettingStartedPage() {
             generated.
           </li>
           <li>
-            Tap <strong className="text-ink">Create team</strong>. Your new team
-            card appears on the dashboard.
+            Tap <strong className="text-ink">Continue</strong> and finish the
+            short setup. Your new team card appears on the dashboard.
           </li>
         </ol>
 
         <HelpFigure
           src="/help-screenshots/getting-started-create-team.png"
-          alt="The create team form showing a team name field and age group selector"
-          caption="Name your team and pick the age group before saving."
+          alt="The new team form with the team name, age group, players on the field and quarter length"
+          caption="Name your team and pick the age group, then tap Continue."
         />
 
         <HelpCallout type="tip">
@@ -127,19 +127,19 @@ export default function GettingStartedPage() {
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-ink-dim">
           <li>Open your team and tap the <strong className="text-ink">Games</strong> tab.</li>
           <li>
-            Tap <strong className="text-ink">New game</strong>. Fill in the opponent name,
-            round number, date, time, and optional venue.
+            Tap <strong className="text-ink">Create manually</strong>. Fill in the opponent name,
+            date, time, round number, and optional location.
           </li>
           <li>
-            Tap <strong className="text-ink">Save</strong>. The game appears in your games list
+            Tap <strong className="text-ink">Create game</strong>. The game appears in your games list
             with <em>Upcoming</em> status.
           </li>
         </ol>
 
         <HelpFigure
           src="/help-screenshots/getting-started-create-game.png"
-          alt="The create game form with fields for opponent, round, date, time, and venue"
-          caption="Tap New game to schedule a match."
+          alt="The Create a game form with fields for opponent, date and time, round and location"
+          caption="Tap Create manually to schedule a match."
         />
 
         <HelpCallout type="tip">
