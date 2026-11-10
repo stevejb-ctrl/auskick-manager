@@ -65,8 +65,10 @@ import type {
   LiveAuth,
   Player,
 } from "@/lib/types";
-import { LeagueField } from "./LeagueField";
-import { LeagueBenchStrip } from "./LeagueBenchStrip";
+import { leagueFieldLayout } from "./LeagueFieldLines";
+import { rugbyField } from "./RugbyMarks";
+import { vestLabel } from "./PlayerVestBadge";
+import { PickerField, type PickerCell } from "@/components/lineup/PickerField";
 
 import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_league/engine";
 import { vestStartBlocker } from "@/lib/sports/rugby_league/vests";
@@ -1009,6 +1011,20 @@ export function LeagueLineupPicker({
   const fwdLabel = "Forwards";
   const backLabel = "Backs";
 
+  // ── The field (PickerField), as the live screen lays it out ──
+  const positionLabels = assignLeaguePositionLabels({ forwards: forwardIds, backs: backIds }, leaguePlaybook);
+  const keepOn = keepOnIds(playerRoles.roles);
+  const fieldLayout = leagueFieldLayout({
+    forwardsBySize: ageGroup.forwardsBySize,
+    forwardPlayers,
+    backPlayers,
+    onFieldSize,
+    vestRequirements: reqs,
+    vestByPlayer,
+    positionLabels,
+    positionOrder: linePositionOrder(leaguePlaybook?.positions),
+  });
+
   return (
     <div
       ref={pickerRootRef}
@@ -1027,9 +1043,6 @@ export function LeagueLineupPicker({
         <h1 className="text-xl font-bold text-ink">
           {ageGroup.label} starting lineup
         </h1>
-        <p className="text-xs text-ink-mute">
-          {LEAGUE_LINEUP_TAP_HINT}
-        </p>
       </header>
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
@@ -1197,95 +1210,54 @@ export function LeagueLineupPicker({
       </div>
 
       {/* ── Selection helper banner ──────────────────────────── */}
-      {selectedPlayerId && (
-        <div className="rounded-md border border-brand-300 bg-brand-50 px-3 py-2 text-xs text-brand-800">
-          Selected{" "}
-          <strong className="font-semibold">
-            {playerById.get(selectedPlayerId)?.full_name ?? "player"}
-          </strong>
-          . Tap another tile to swap, or tap an empty slot to move them
-          there.{" "}
-          <button
-            type="button"
-            onClick={() => setSelectedPlayerId(null)}
-            className="ml-1 underline-offset-2 hover:underline"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-
-      {/* ── Field (formation) + Bench ────────────────────────── */}
-      <SFCard pad={0} className="overflow-hidden">
-        <div className="flex items-center gap-3 border-b border-hairline px-4 py-3">
-          <span
-            aria-hidden="true"
-            className="block h-5 w-1 rounded-sm bg-brand-600"
-          />
-          <div className="min-w-0 flex-1">
-            <h3 className="font-mono text-micro font-bold uppercase tracking-micro text-ink">
-              Starting field
-            </h3>
-            <p className="mt-0.5 text-micro text-ink-mute">
-              Tap two players to switch positions. Long-press a
-              player for other actions.
-            </p>
-          </div>
-          <span
-            className={`inline-flex items-center rounded-full px-2.5 py-0.5 font-mono text-xs font-bold tabular-nums ${
-              fieldIds.length === onFieldSize
-                ? "bg-brand-600/15 text-brand-700"
-                : fieldIds.length < onFieldSize
-                  ? "bg-warn/15 text-warn"
-                  : "bg-alarm/15 text-alarm"
-            }`}
-          >
-            {fieldIds.length} / {onFieldSize}
-          </span>
-        </div>
-        <div className="p-3">
-          <LeagueField
-            sport={sport}
-            forwardsBySize={ageGroup.forwardsBySize}
-            players={fieldPlayers}
-            forwardPlayers={forwardPlayers}
-            backPlayers={backPlayers}
-            onFieldSize={onFieldSize}
-            vestRequirements={reqs}
-            vestByPlayer={vestByPlayer}
-            positionLabels={assignLeaguePositionLabels(
-              { forwards: forwardIds, backs: backIds },
-              leaguePlaybook,
-            )}
-            positionOrder={linePositionOrder(leaguePlaybook?.positions)}
-            keepOnIds={keepOnIds(playerRoles.roles)}
-            selectedPlayerId={selectedPlayerId}
-            chipModes={chipModes}
-            onPlayerClick={handleTileTap}
-            onPlayerLongPress={handleTileLongPress}
-            onVacantSpotTap={
-              // Wire empty-slot taps for ANY selection — bench OR
-              // field. Pre-game equivalent of the live-game short-
-              // squad fix: a coach with 10 players in an 11-on-field
-              // game wants to choose which zone holds the blank, not
-              // get it auto-assigned. Steve 2026-05-23.
-              selectedPlayerId ? handleVacantSpotTap : undefined
-            }
-            vacantSpotPrimed={Boolean(selectedPlayerId)}
-            disabled={isPending}
-          />
-        </div>
-      </SFCard>
-
-      <LeagueBenchStrip
-        players={benchPlayers}
-        vestByPlayer={vestByPlayer}
-        keepOnIds={keepOnIds(playerRoles.roles)}
-        selectedPlayerId={selectedPlayerId}
-        chipModes={chipModes}
-        onPlayerClick={handleTileTap}
-        onPlayerLongPress={handleTileLongPress}
-        disabled={isPending}
+      {/* ── The field and bench, as the live screen draws them ──
+          Live v3: rugby's grass with this code's lines and posts, the
+          formation's rows (leagueFieldLayout: vest wearers in their
+          vest's spot, the last back at fullback, union's named positions
+          in theirs), each kid a KidTile with their FR / DH flag and
+          position, the bench under it. Tap two players to swap; with a
+          player picked, tap an empty spot to move them there. */}
+      <PickerField
+        ground={rugbyField(sport, { dense: fieldLayout.dense, tileWidth: fieldLayout.tileWidth })}
+        lines={fieldLayout.lines.map(({ line, rows }) => {
+          const zone: LeagueZone = line === "forwards" ? "forward" : "back";
+          const sizes = rows.map((r) => r.length);
+          return {
+            key: line,
+            label: line === "forwards" ? "Forwards" : "Backs",
+            cells: rows.flat().map(
+              (s): PickerCell => ({
+                key: s.key,
+                playerId: s.player?.id ?? null,
+                pos: s.player ? positionLabels[s.player.id] ?? null : null,
+                place: s.player ? positionLabels[s.player.id] || (zone === "forward" ? "Forwards" : "Backs") : null,
+                emptyLabel: selectedPlayerId ? `Move selected player to ${line}` : `Empty ${line === "forwards" ? "forward" : "back"} spot`,
+                onTap: s.player ? () => handleTileTap(s.player!.id) : () => handleVacantSpotTap(zone),
+              }),
+            ),
+            // The formation's rows, as in play.
+            shape: (tiles) => {
+              let at = 0;
+              return { rows: sizes.map((n) => tiles.slice(at, (at += n))) };
+            },
+          };
+        })}
+        bench={benchPlayers.map((p) => ({ playerId: p.id, onTap: () => handleTileTap(p.id) }))}
+        players={playerById}
+        selectedId={selectedPlayerId}
+        hint={LEAGUE_LINEUP_TAP_HINT}
+        look={(pid) => {
+          const vest = vestByPlayer[pid] ?? null;
+          const lockLabel = keepOn.has(pid) ? "Plays every minute" : null;
+          return {
+            testId: `league-player-tile-${pid}`,
+            flag: vest ? vest.toUpperCase() : null,
+            locked: !!lockLabel,
+            lockLabel,
+            states: [vest ? vestLabel(vest) : null, lockLabel],
+          };
+        }}
+        onLongPress={handleTileLongPress}
       />
 
       {/* ── Vest rotation plan ─────────────────────────────────
