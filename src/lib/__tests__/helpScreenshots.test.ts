@@ -3,30 +3,45 @@
 // keeps that list in step with the folder (a re-captured screenshot at a
 // new size fails here), and every page's HelpFigure on a listed file.
 // Each listed file is shown on a page, captured once and kept small.
+// The sport hubs' words (and figures) live in src/components/help/sport/,
+// their screenshots in public/help-screenshots/<sport>/.
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { HELP_SCREENSHOTS } from "@/lib/help/screenshots";
+import { SPORT_HELP } from "@/lib/help/sports";
 
 const ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 const HELP_APP = join(ROOT, "src/app/help");
+const HELP_SPORTS = join(ROOT, "src/components/help/sport");
+const SHOTS = join(ROOT, "public/help-screenshots");
 const MAX_BYTES = 120 * 1024;
 
-function pages(dir = HELP_APP): string[] {
+/** The help pages and the sport hubs' content: every file that can show a figure. */
+function sources(dir: string, match: (name: string) => boolean): string[] {
   return readdirSync(dir).flatMap((name) => {
     const full = join(dir, name);
-    return statSync(full).isDirectory() ? pages(full) : name === "page.tsx" ? [full] : [];
+    return statSync(full).isDirectory() ? sources(full, match) : match(name) ? [full] : [];
+  });
+}
+function pages(): string[] {
+  return [...sources(HELP_APP, (n) => n === "page.tsx"), ...sources(HELP_SPORTS, (n) => n.endsWith(".tsx"))];
+}
+
+/** Every PNG under public/help-screenshots, sport folders included. */
+function pngs(dir = SHOTS, prefix = "/help-screenshots"): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) return pngs(full, `${prefix}/${name}`);
+    return name.endsWith(".png") ? [`${prefix}/${name}`] : [];
   });
 }
 
 describe("help screenshots", () => {
   it("lists every PNG in public/help-screenshots, and nothing else", () => {
-    const onDisk = readdirSync(join(ROOT, "public/help-screenshots"))
-      .filter((f) => f.endsWith(".png"))
-      .map((f) => `/help-screenshots/${f}`)
-      .sort();
+    const onDisk = pngs().sort();
     expect(Object.keys(HELP_SCREENSHOTS).sort()).toEqual(onDisk);
   });
 
@@ -41,7 +56,7 @@ describe("help screenshots", () => {
     const used = pages().flatMap((file) =>
       Array.from(readFileSync(file, "utf8").matchAll(/src="(\/help-screenshots\/[^"]+)"/g), (m) => m[1]),
     );
-    expect(used.length).toBeGreaterThan(20);
+    expect(used.length).toBeGreaterThan(70);
     expect(used.filter((src) => !(src in HELP_SCREENSHOTS))).toEqual([]);
   });
 
@@ -65,6 +80,14 @@ describe("help screenshots", () => {
 
   it(`keeps each one under ${MAX_BYTES / 1024} KB`, () => {
     expect(Object.keys(HELP_SCREENSHOTS).filter((p) => statSync(join(ROOT, "public", p)).size > MAX_BYTES)).toEqual([]);
+  });
+
+  it("gives every sport hub its live, pairs, scoring, break and full-time shots", () => {
+    for (const hub of SPORT_HELP) {
+      for (const shot of ["live", "pairs", "scoring", "break", "fulltime"]) {
+        expect(Object.keys(HELP_SCREENSHOTS), hub.href).toContain(`/help-screenshots/${hub.sport.slug}/${shot}.png`);
+      }
+    }
   });
 
   it("has no debug captures", () => {

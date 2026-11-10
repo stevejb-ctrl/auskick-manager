@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { resetAnalytics } from "@/lib/analytics/client";
 import { createClient } from "@/lib/supabase/client";
 import { FeedbackModal } from "@/components/feedback/FeedbackModal";
+import { useHelpHref } from "@/lib/help/helpHref";
 
 interface UserMenuProps {
   /** Display email; shown both in the trigger (sm+) and at the top of the dropdown. */
@@ -26,6 +27,8 @@ export function UserMenu({ email }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  // Inside a team, Help opens that team's sport hub.
+  const helpHref = useHelpHref();
 
   useEffect(() => {
     if (!open) return;
@@ -112,7 +115,7 @@ export function UserMenu({ email }: UserMenuProps) {
             Join a team
           </Link>
           <Link
-            href="/help"
+            href={helpHref}
             role="menuitem"
             onClick={() => setOpen(false)}
             className="block px-3 py-2.5 text-sm text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"

@@ -40,6 +40,13 @@ export const NEW_COACH = {
   name: "Alex Rivera",
 };
 
+/** Owns one demo team per sport (sport-teams.mjs) for the sport hubs' shots. */
+export const SPORTS_COACH = {
+  email: "jordan.lee@siren.test",
+  password: "help-shots-pw-4821",
+  name: "Jordan Lee",
+};
+
 export const MIN = 60_000;
 
 /** Deterministic PRNG so re-seeding gives the same games. */

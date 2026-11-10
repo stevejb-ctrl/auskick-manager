@@ -8,7 +8,7 @@ import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 
 export const metadata = {
   title: "Squads · Help · Siren",
-  description: "Adding players, editing details, managing availability.",
+  description: "Adding players, jersey numbers, roles, and marking who's in for a game, or asking parents to.",
   alternates: { canonical: "/help/squads" },
 };
 
@@ -36,10 +36,10 @@ export default function SquadsPage() {
           </li>
           <li>
             Enter the player&apos;s <strong className="text-ink">full name</strong>.
-            AFL and league squads can also add a{" "}
+            Every sport but netball can also add a{" "}
             <strong className="text-ink">jersey number</strong> (optional).
-            Netball squads don&apos;t use numbers, so there&apos;s no number
-            field.
+            Netball players wear their position bibs instead, so there&apos;s
+            no number field.
           </li>
           <li>
             Tap <strong className="text-ink">Add player</strong>. The player
@@ -50,14 +50,14 @@ export default function SquadsPage() {
         <HelpFigure
           src="/help-screenshots/squads-add-player.png"
           alt="The AFL add player form open at the top of the squad list, showing name and jersey number fields"
-          caption="Fill in the name (and a jersey number for AFL or league), then tap Add player."
+          caption="Fill in the name (and a jersey number, if your sport uses them), then tap Add player."
         />
 
         <HelpCallout type="tip">
-          In AFL and league, jersey numbers show on player tiles so you can
-          spot players quickly during a live game. Each number can only be
-          used once in the squad. Netball players wear position bibs (GS, GA,
-          etc.) instead, so Siren doesn&apos;t ask for numbers.
+          Jersey numbers show on the kids&apos; tiles so you can spot them
+          quickly during a live game. Each number can only be used once in
+          the squad. A mixed touch or Oztag team also marks each kid Girl or
+          Boy, for the mixed rule only.
         </HelpCallout>
       </section>
 
@@ -65,7 +65,7 @@ export default function SquadsPage() {
         <h2 className="text-xl font-semibold text-ink">Editing a player</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           Tap a player&apos;s row in the squad list to open the edit form. Change the name
-          (or, for AFL and league, the jersey number) and tap{" "}
+          (or the jersey number) and tap{" "}
           <strong className="text-ink">Save</strong>.
         </p>
       </section>
@@ -102,8 +102,9 @@ export default function SquadsPage() {
             Named positions, preferred lines).
           </li>
           <li>
-            <strong className="text-ink">Takes a turn in goal</strong> —
-            soccer&apos;s version: on unless a kid would rather not go in goal.
+            <strong className="text-ink">Takes a turn in goal</strong> and{" "}
+            <strong className="text-ink">Keen keeper</strong> — football, futsal
+            and hockey: who goes in goal, and who goes in first.
           </li>
           <li>
             <strong className="text-ink">Plays every minute</strong> — they
@@ -146,6 +147,14 @@ export default function SquadsPage() {
             or out, then tap <strong className="text-ink">Continue to lineup</strong>.
           </li>
           <li>
+            Or ask the parents: tap{" "}
+            <strong className="text-ink">Ask parents who&apos;s in</strong> on
+            the game and post the link in your group chat. Parents tap{" "}
+            <strong className="text-ink">In</strong> or{" "}
+            <strong className="text-ink">Out</strong> for their child, with no
+            account, and you see it straight away.
+          </li>
+          <li>
             On the day: tap <strong className="text-ink">Start game day</strong>.
             The <strong className="text-ink">Who&apos;s here</strong> line at the
             top of the lineup shows who&apos;s in; open it to mark a no-show out and
@@ -160,10 +169,10 @@ export default function SquadsPage() {
         />
 
         <HelpCallout type="tip">
-          You can add a late-arriving player during a live game using{" "}
-          <strong>+ Add late arrival</strong> on the live game screen. See{" "}
+          You can add a late-arriving player during a live game: tap{" "}
+          <strong>+ Late</strong> at the foot of the bench. See{" "}
           <Link href="/help/live-game" className="font-medium underline">
-            Live Game
+            The live screen
           </Link>{" "}
           for details.
         </HelpCallout>

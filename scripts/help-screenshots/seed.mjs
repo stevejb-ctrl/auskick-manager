@@ -1,15 +1,23 @@
-// Seed realistic AFL / netball / league teams for the help screenshots.
+// Seed realistic teams for the help screenshots: AFL / netball /
+// league teams with a season behind them (Sam Taylor), a brand-new
+// coach (Alex Rivera), and one team per sport with a game today for
+// the sport hubs (Jordan Lee, sport-teams.mjs).
 // Local Supabase only (see lib.mjs). Idempotent: wipes and
-// recreates the two help-shots accounts and their teams.
+// recreates the three help-shots accounts and their teams.
 
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import {
-  admin, must, findUser, COACH, NEW_COACH, STATE_DIR, MIN, rng,
+  admin, must, findUser, COACH, NEW_COACH, SPORTS_COACH, STATE_DIR, MIN, rng, REPO, req,
   simulateAfl, simulateNetball, simulateLeague, setGameEvents,
 } from "./lib.mjs";
+import { SPORT_TEAMS } from "./sport-teams.mjs";
 
 const DAY = 86_400_000;
+
+// The app's own new-game defaults (TypeScript, loaded with jiti).
+const jiti = req("jiti")(import.meta.url, { alias: { "@": path.join(REPO, "src") } });
+const { newGameDefaults } = jiti(path.join(REPO, "src/lib/games/newGameDefaults.ts"));
 
 function localAt(daysFromToday, hh, mm) {
   const d = new Date();
@@ -242,8 +250,54 @@ async function main() {
   const nc = await makePlayers(ncTeam, newCoachId, [["Mia Hughes", 1], ["Noah Park", 2], ["Lily Evans", 3]]);
   ids.newCoach = { teamId: ncTeam, players: nc };
 
+  // ── One team per sport (sport hubs) ───────────────────────
+  const sportsCoachId = await resetUser(SPORTS_COACH);
+  ids.sportsCoachId = sportsCoachId;
+  ids.sports = {};
+  for (const s of SPORT_TEAMS) ids.sports[s.slug] = await seedSportTeam(sportsCoachId, s);
+
   writeFileSync(path.join(STATE_DIR, "help-ids.json"), JSON.stringify(ids, null, 2));
-  console.log("seeded", JSON.stringify({ afl: aflTeam, netball: nbTeam, league: rlTeam, newCoach: ncTeam }));
+  console.log("seeded", JSON.stringify({ afl: aflTeam, netball: nbTeam, league: rlTeam, newCoach: ncTeam, sports: Object.keys(ids.sports) }));
+}
+
+/** A sport's demo team, its squad, and today's game with everyone in. */
+async function seedSportTeam(ownerId, s) {
+  const teamId = await makeTeam(ownerId, {
+    name: s.team, sport: s.sport, age_group: s.age, track_scoring: true, ...(s.mixed ?? {}),
+  });
+  const rows = s.squad.map((full_name, i) => ({
+    team_id: teamId,
+    full_name,
+    jersey_number: s.sport === "netball" ? null : i + 1,
+    is_active: true,
+    created_by: ownerId,
+    ...(s.mixed ? { mixed_group: i % 2 ? "boy" : "girl" } : {}),
+  }));
+  const players = await must(admin.from("players").insert(rows).select("id, full_name"), `${s.slug} players`);
+  const playerIds = s.squad.map((n) => players.find((p) => p.full_name === n).id);
+  const team = await must(
+    admin.from("teams").select("sport, age_group, on_field_size, period_count").eq("id", teamId).single(),
+    `${s.slug} team`,
+  );
+  const game = await must(
+    admin
+      .from("games")
+      .insert({
+        team_id: teamId,
+        opponent: s.opponent,
+        scheduled_at: localAt(0, 9, 0).toISOString(),
+        round_number: 6,
+        location: s.venue,
+        ...newGameDefaults(team.sport, team.age_group, team.on_field_size, team.period_count),
+        status: "upcoming",
+        created_by: ownerId,
+      })
+      .select("id, sub_interval_seconds")
+      .single(),
+    `${s.slug} game`,
+  );
+  await setAvailability(game.id, ownerId, playerIds);
+  return { teamId, gameId: game.id, players: playerIds, subIntervalSeconds: game.sub_interval_seconds };
 }
 
 await main();
