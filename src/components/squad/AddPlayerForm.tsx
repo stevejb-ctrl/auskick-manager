@@ -91,22 +91,29 @@ export function AddPlayerForm({
       return;
     }
 
+    // Round 11: the boxes clear as Add is tapped and stay open while it
+    // saves, so a coach typing the next kid straight away keeps every
+    // letter (they were disabled for a second and the typing was lost).
+    const sent = { name: name.trim(), jersey, group };
+    setName("");
+    setJersey("");
+    setGroup(null);
+    setWarnedFor(null);
     startTransition(async () => {
-      const jerseyValue = parseWholeNumber(jersey, { min: 1, max: 99, what: "Jersey" }).value;
+      const jerseyValue = parseWholeNumber(sent.jersey, { min: 1, max: 99, what: "Jersey" }).value;
       const result = await addPlayer(
         teamId,
-        name.trim(),
+        sent.name,
         jerseyValue,
         null,
-        mixed ? group : null,
+        mixed ? sent.group : null,
       );
       if (!result.success) {
-        setServerError(result.error);
-      } else {
-        setName("");
-        setJersey("");
-        setGroup(null);
-        setWarnedFor(null);
+        setServerError(`${sent.name} wasn't added: ${result.error}`);
+        // Put the kid back to fix, unless the next one's already going in.
+        setName((now) => (now === "" ? sent.name : now));
+        setJersey((now) => (now === "" ? sent.jersey : now));
+        setGroup((now) => now ?? sent.group);
       }
     });
   }
@@ -135,7 +142,6 @@ export function AddPlayerForm({
             }}
             placeholder="e.g. Sam Smith"
             error={nameError}
-            disabled={isPending}
           />
         </div>
         {showJersey && (
@@ -153,13 +159,12 @@ export function AddPlayerForm({
               }}
               placeholder="Optional"
               error={jerseyError}
-              disabled={isPending}
             />
           </div>
         )}
       </div>
 
-      {mixed && <MixedGroupPicker value={group} onChange={setGroup} disabled={isPending} />}
+      {mixed && <MixedGroupPicker value={group} onChange={setGroup} />}
 
       {dupe && warned && (
         <InlineAlert kind="warn">
