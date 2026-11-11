@@ -49,7 +49,8 @@ function noNativeDialogs(page: Page): string[] {
 /** A live game on a team flagged as a demo, opened on its game-day link. */
 async function liveDemo(page: Page, which: "afl" | "netball") {
   const made = which === "afl" ? await aflGame({ name: "R11A-DEMO-AFL" }) : await netballGame({ name: "R11A-DEMO-NB" });
-  await made.admin.from("teams").update({ is_demo: true }).eq("id", made.team.id);
+  // The demos keep score, so the score bar is there to stay clear of.
+  await made.admin.from("teams").update({ is_demo: true, track_scoring: true }).eq("id", made.team.id);
   await skipHints(page);
   await page.goto(`/run/${made.game.share_token}`);
   await waitForHydration(page);
@@ -202,9 +203,13 @@ test.describe("2. the app's own confirm dialog", () => {
 
       await revoke.click();
       await dialog.getByRole("button", { name: "Revoke invite" }).click();
+      await expect
+        .poll(async () => (await admin.from("team_invites").select("revoked_at").eq("token", token).single()).data?.revoked_at, {
+          timeout: 15_000,
+        })
+        .not.toBeNull();
+      await expect(dialog).toBeHidden();
       await expect(page.getByRole("button", { name: /^revoke$/i })).toHaveCount(0, { timeout: 10_000 });
-      const { data: gone } = await admin.from("team_invites").select("revoked_at").eq("token", token).single();
-      expect(gone?.revoked_at).not.toBeNull();
       expect(native).toEqual([]);
     } finally {
       await context.close();
