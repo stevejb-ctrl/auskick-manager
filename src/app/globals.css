@@ -389,6 +389,23 @@ html[data-motion="reduce"] *::after {
   --focus-ring: rgb(247 250 245);
 }
 
+/* The demo game's sign-up footer (DemoSignupFooter). Measured in rem
+   against its own width, so large text counts: where the words and the
+   button no longer sit side by side (about 125% text at 320 px, 150%
+   at 390), only the button stays, full width, and the game keeps its
+   height. At 200% the words alone took half the screen. */
+.demo-foot {
+  container-type: inline-size;
+}
+@container (max-width: 17rem) {
+  .demo-foot-words {
+    display: none;
+  }
+  .demo-foot-cta {
+    flex: 1 1 auto;
+  }
+}
+
 /* The hero's one moment of motion: its chalk lines marked in left to
    right, once, as a line-marking trolley would. */
 @keyframes chalk-mark-in {

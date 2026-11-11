@@ -24,9 +24,10 @@ import { PRICE } from "@/lib/siren-facts";
 //
 // The look: a strip of the live screen's grass (bg-field, the same in
 // both themes) with chalk words and the site's hi-vis Create your team
-// (BAND_PRIMARY, 44 px tall here). At large text the words stack over
-// the button; on a short screen (a phone held sideways) only the button
-// stays, so the game keeps its height.
+// (BAND_PRIMARY, 44 px tall here). Where large text leaves no room for
+// the words beside the button (.demo-foot in globals.css), and on a
+// short screen (a phone held sideways), only the button stays, so the
+// game keeps its height.
 
 export function DemoFrame({ children }: { children: ReactNode }) {
   const boxRef = useRef<HTMLDivElement>(null);
@@ -68,20 +69,20 @@ export function DemoSignupFooter() {
     <aside
       aria-label="Sign up"
       data-testid="demo-signup-footer"
-      className="field-band relative z-[1] flex shrink-0 items-center gap-3 bg-field px-4 pt-2 text-mark bigtext:flex-col bigtext:items-stretch bigtext:gap-2"
+      className="field-band demo-foot relative z-[1] flex shrink-0 items-center gap-3 bg-field px-4 pt-2 text-mark"
       style={{
         paddingBottom: "max(8px, env(safe-area-inset-bottom))",
         paddingLeft: "max(16px, env(safe-area-inset-left))",
         paddingRight: "max(16px, env(safe-area-inset-right))",
       }}
     >
-      <p className="min-w-0 flex-1 text-[0.8125rem] leading-snug short:hidden">
+      <p className="demo-foot-words min-w-0 flex-1 text-[0.8125rem] leading-snug short:hidden">
         <span className="block font-bold">Like it? Run your own team.</span>
         <span className="block text-mark/80">{PRICE.line}.</span>
       </p>
       <Link
         href="/signup"
-        className="inline-flex min-h-[44px] shrink-0 items-center justify-center whitespace-nowrap rounded-[14px] bg-hivis px-4 font-display text-[0.9375rem] font-extrabold stretch-80 text-hivis-ink transition-[background-color,transform] duration-fast ease-out-quart hover:bg-hivis/90 motion-safe:active:scale-[0.98] short:ml-auto bigtext:whitespace-normal bigtext:py-2"
+        className="demo-foot-cta inline-flex min-h-[44px] shrink-0 items-center justify-center whitespace-nowrap rounded-[14px] bg-hivis px-4 font-display text-[0.9375rem] font-extrabold stretch-80 text-hivis-ink transition-[background-color,transform] duration-fast ease-out-quart hover:bg-hivis/90 motion-safe:active:scale-[0.98] short:ml-auto"
       >
         Create your team
       </Link>

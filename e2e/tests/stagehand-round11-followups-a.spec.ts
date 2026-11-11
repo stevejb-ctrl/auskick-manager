@@ -121,6 +121,10 @@ test.describe("1. the demo game's sign-up footer", () => {
       await shot(page, "1-demo-footer-netball");
       await largeText(page, 200);
       await expectFooterClear(page);
+      // Only the button stays at 200%: the words took half the screen.
+      const footer = page.getByTestId("demo-signup-footer");
+      await expect(footer.getByText("Like it? Run your own team.")).toBeHidden();
+      expect((await boxOf(footer)).height / page.viewportSize()!.height).toBeLessThan(0.15);
       await shot(page, "1-demo-footer-netball-200");
     } finally {
       await admin.from("teams").delete().eq("id", team.id);
