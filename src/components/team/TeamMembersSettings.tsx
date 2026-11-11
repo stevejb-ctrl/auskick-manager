@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Badge } from "@/components/ui/Badge";
 import { ROLE_LABEL, ROLE_OPTIONS, ROLE_SUMMARY } from "@/lib/roles";
-import { isEmail } from "@/lib/email/validate";
+import { emailError, isEmail } from "@/lib/email/validate";
 import { publicOrigin } from "@/lib/platform";
 import type { TeamRole } from "@/lib/types";
 import { InlineAlert } from "@/components/ui/InlineAlert";
@@ -377,6 +377,7 @@ function InviteForm({
   const [copied, setCopied] = useState(false);
   const [emailStatus, setEmailStatus] = useState<EmailStatus>({ kind: "none" });
   const [lookup, setLookup] = useState<LookupState>({ kind: "idle" });
+  const [emailErr, setEmailErr] = useState<string | null>(null);
 
   // Debounced lookup: when the email field looks like a valid address,
   // ask the server whether a Siren account exists for it so the submit
@@ -410,10 +411,10 @@ function InviteForm({
     setEmailStatus({ kind: "none" });
 
     const trimmed = invitedEmail.trim();
-    if (trimmed && !isEmail(trimmed)) {
-      setError("Please use a valid email address, or leave the field blank.");
-      return;
-    }
+    // Blank is fine (a link to copy); a typo isn't (Stagehand round 11).
+    const badEmail = trimmed ? emailError(trimmed) : null;
+    setEmailErr(badEmail);
+    if (badEmail) return;
 
     // Direct-add branch: known existing user, not yet on this team.
     // Skip the token + email flow entirely.
@@ -595,7 +596,7 @@ function InviteForm({
       // browsers — especially WKWebView under iOS — surface an
       // implicit "invalid email" prompt before our handler runs.
       // The server action still validates non-empty submissions
-      // against EMAIL_RE, so this is a UX-only relaxation. Steve
+      // with emailError, so this is a UX-only relaxation. Steve
       // 2026-05-20.
       noValidate
       className="space-y-3 rounded-md border border-hairline bg-surface-alt p-4"
@@ -625,7 +626,11 @@ function InviteForm({
           type="email"
           autoComplete="email"
           value={invitedEmail}
-          onChange={(e) => setInvitedEmail(e.target.value)}
+          onChange={(e) => {
+            setInvitedEmail(e.target.value);
+            setEmailErr(null);
+          }}
+          error={emailErr ?? undefined}
           placeholder="name@example.com"
           disabled={isPending}
         />

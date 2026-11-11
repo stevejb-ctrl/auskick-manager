@@ -1,7 +1,7 @@
 "use server";
 
 import { CONTACT_FROM, CONTACT_TO, getResend } from "@/lib/resend";
-import { EMAIL_RE } from "@/lib/email/validate";
+import { emailError } from "@/lib/email/validate";
 import { trimTo } from "@/lib/strings";
 import type { ActionResult } from "@/lib/types";
 
@@ -48,8 +48,9 @@ export async function sendContactMessage(
   if (!name) {
     return { success: false, error: "Please add your name." };
   }
-  if (!email || !EMAIL_RE.test(email)) {
-    return { success: false, error: "Please use a valid email address." };
+  const badEmail = emailError(email);
+  if (badEmail) {
+    return { success: false, error: badEmail };
   }
   if (!message || message.length < MESSAGE_MIN) {
     return {

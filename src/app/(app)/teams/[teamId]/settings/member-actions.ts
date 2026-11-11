@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getResend, senderAs } from "@/lib/resend";
 import { getSportConfig, isSportId } from "@/lib/sports";
-import { EMAIL_RE, maskEmail } from "@/lib/email/validate";
+import { emailError, isEmail, maskEmail } from "@/lib/email/validate";
 import {
   buildInviteEmail,
   buildMemberAddedEmail,
@@ -86,8 +86,9 @@ export async function createInvite(
   // the client check is bypassable (and to keep our schema honest —
   // the column is citext, not "anything goes").
   const trimmedEmail = invitedEmail?.trim() || null;
-  if (trimmedEmail && !EMAIL_RE.test(trimmedEmail)) {
-    return { success: false, error: "Please use a valid email address." };
+  const badEmail = trimmedEmail ? emailError(trimmedEmail) : null;
+  if (badEmail) {
+    return { success: false, error: badEmail };
   }
 
   // Pre-gen both id and token so we don't need a read-back. Both
@@ -408,7 +409,7 @@ export async function lookupInviteRecipient(
   if (error) return { success: false, error };
 
   const trimmed = email.trim();
-  if (!trimmed || !EMAIL_RE.test(trimmed)) {
+  if (!isEmail(trimmed)) {
     return { success: false, error: "Please use a valid email address." };
   }
 
