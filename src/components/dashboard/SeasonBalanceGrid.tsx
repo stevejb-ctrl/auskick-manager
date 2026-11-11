@@ -54,7 +54,14 @@ export function SeasonBalanceGrid({ grid, periodWord, sinceLabel }: SeasonBalanc
       >
         {owed.length === 0 ? (
           <p className="font-semibold">
-            <span aria-hidden="true">✓ </span>Everyone&apos;s within a {periodWord} of even.
+            <span aria-hidden="true">✓ </span>
+            {/* "Within" counts kids over a line too, and the tick only kids
+                owed: when some are over (and so not within), the tick says
+                what it knows (Stagehand round 11: "Everyone's within" above
+                "12 of 25 kids within"). */}
+            {grid.within === grid.total
+              ? <>Everyone&apos;s within a {periodWord} of even.</>
+              : <>Nobody&apos;s owed a {periodWord} anywhere.</>}
           </p>
         ) : (
           <p>

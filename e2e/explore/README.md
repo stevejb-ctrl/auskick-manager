@@ -135,6 +135,31 @@ report can judge.
 `netball-11u-nobench` and `soccer-u9-nobench` have exactly as many kids
 as go on, so lending one plays one short.
 
+Round 11: the public site signed out, new teams in every sport, whole
+games, and team admin. The signed-out missions take no `--as`; start
+them at `--url=http://localhost:<port>/` (or `/demo`).
+
+| Mission                        | Start / seed                      | What the agent tries                                  |
+|--------------------------------|-----------------------------------|-------------------------------------------------------|
+| `r11-curious-parent`           | signed out, `/`                   | What Siren is, cost, the parent's side, every menu item |
+| `r11-sport-shopper`            | signed out, `/`                   | Every sport page in turn: its own words, its buttons  |
+| `r11-demo-<a>-<b>`             | signed out, `/demo`               | Two sports' demos through a break (netball-league, basketball-hockey, afl-touch, soccer-union, futsal-oztag) |
+| `r11-help-reader`              | signed out, `/`                   | A sport's help hub, searching for subs, fixes, injuries |
+| `r11-fine-print`               | signed out, `/`                   | Pricing, why Siren, privacy, terms, contact, support, footers |
+| `r11-signup-from-site`         | signed out, `/`                   | Sign up and sign in from the site, a typo'd email     |
+| `r11-onboard-<sport>`          | `--as=coach`, no seed             | The setup wizard in one sport (all ten, AFL twice), a squad, a game, the lineup |
+| `r11-full-game-<sport>`        | the sport's `-late` game-day seed | A whole game: subs, Undo, a late kid, an injury, a lend, breaks, the summary and stats |
+| `r11-full-game-afl-big`        | `afl-u16-gameday`                 | The 18-a-side field to full time                      |
+| `r11-parent-helper`            | any `-runner` seed                | A parent on the game-day link with no help            |
+| `r11-second-phone`             | any game-day seed                 | Coach and manager on two tabs (Stagehand can't open the second tab) |
+| `r11-sideline-mess`            | any game-day seed (or `-late`)    | Late kid, injury, lend, a wrong-team score, all at the break |
+| `r11-admin-*`, `r11-help-in-team`, `r11-returning-stats` | a team seed | Invites, squad edits, next week's availability, How we play, help and settings from a team, season stats |
+
+Stagehand can't type reliably into the setup wizard when the machine is
+busy (dropped and reordered keys, native selects), and can't get past a
+native `confirm()`. For the wizard in every sport, a scripted walk is
+more telling than an agent.
+
 Add new missions by dropping a `*.md` file into `missions/`. The
 file content IS the prompt — write it like you're briefing a real
 tester.

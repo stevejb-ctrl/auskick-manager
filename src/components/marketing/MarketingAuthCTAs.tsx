@@ -64,7 +64,7 @@ export function MarketingAuthCTAs({ variant }: MarketingAuthCTAsProps) {
         </Link>
         <Link
           href="/login"
-          className="inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-on-primary transition-colors duration-fast ease-out-quart hover:bg-primary/85"
+          className="inline-flex items-center whitespace-nowrap rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-on-primary transition-colors duration-fast ease-out-quart hover:bg-primary/85"
         >
           Start free
         </Link>

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { runDemoGame } from "@/app/(marketing)/demo/actions";
+import { TryDemoButton } from "@/app/(marketing)/demo/TryDemoButton";
 import { AppStoreBadge } from "@/components/marketing/AppStoreBadge";
 import { BAND_ACCENT } from "@/components/marketing/bandStyles";
 import { FieldBand } from "@/components/marketing/FieldBand";
@@ -113,12 +115,12 @@ export default function SportPage({ params }: SportPageProps) {
                 <AppStoreBadge theme="dark" />
                 <MarketingAuthCTAs variant="hero" />
                 {sport.hasDemo && (
-                  <Link
-                    href="/demo"
+                  <TryDemoButton
+                    sport={sport}
+                    label={`Try the ${name} demo`}
+                    action={runDemoGame}
                     className="inline-flex h-12 items-center gap-2 px-2 text-base font-semibold text-mark underline decoration-mark/40 underline-offset-4 hover:decoration-mark"
-                  >
-                    Try the {name} demo
-                  </Link>
+                  />
                 )}
               </div>
             </div>
