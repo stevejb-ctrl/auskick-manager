@@ -106,7 +106,9 @@ test.describe("1. the demo game's sign-up footer", () => {
       await expect(page.getByTestId("demo-signup-footer")).toContainText(/free for the 2026 season/i);
       await shot(page, "1-demo-footer-afl");
       await page.getByTestId("demo-signup-footer").getByRole("link", { name: "Create your team" }).click();
-      await page.waitForURL(/\/login/, { timeout: 15_000 });
+      // /signup is sign-in's page; this browser is the suite's signed-in
+      // coach, so it goes on to the dashboard. A visitor stops at /login.
+      await page.waitForURL((u) => /^\/(login|dashboard)/.test(u.pathname), { timeout: 30_000 });
     } finally {
       await admin.from("teams").delete().eq("id", team.id);
     }
