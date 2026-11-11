@@ -182,6 +182,27 @@ describe("marketing copy agrees with the facts", () => {
     expect(stale).toEqual([]);
     expect(PRICE.line).toContain(String(PRICE.season));
   });
+
+  // Steve, 12 Nov 2026 (Stagehand round 11): the Terms said "free during
+  // the current early-access period" while the site said free for the
+  // 2026 season. "Make it free for the 2026 season", everywhere.
+  it("never calls the price early access, anywhere in the app or its content", () => {
+    const everything = [
+      ...filesUnder(join(ROOT, "src"), ".tsx"),
+      ...filesUnder(join(ROOT, "src"), ".ts").filter((f) => !/[\\/]__tests__[\\/]/.test(f)),
+      ...filesUnder(join(ROOT, "content"), ".json"),
+      ...filesUnder(join(ROOT, "content"), ".md"),
+    ];
+    const said = everything.filter((file) => /early[\s-]access/i.test(readFileSync(file, "utf8"))).map(rel);
+    expect(said).toEqual([]);
+  });
+
+  it("has the Terms give the price as the season's, from the facts", () => {
+    const terms = PAGE_SOURCE.find((p) => p.file === "src/app/(marketing)/terms/page.tsx")!.text;
+    const price = terms.match(/7\. Price[\s\S]*?<\/Section>/)?.[0] ?? "";
+    expect(price).toMatch(/PRICE\.(season|line)/);
+    expect(price).not.toMatch(/early|beta|trial/i);
+  });
 });
 
 // Features the marketing copy described that the app doesn't have,
