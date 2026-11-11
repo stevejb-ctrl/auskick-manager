@@ -9,6 +9,7 @@ import {
   removeMember,
   revokeInvite,
   sendInviteEmail,
+  updateInviteRole,
   updateMemberRole,
   type InviteRecipientLookup,
 } from "@/app/(app)/teams/[teamId]/settings/member-actions";
@@ -782,6 +783,9 @@ function InviteRow({
   const [error, setError] = useState<string | null>(null);
   const [resendNote, setResendNote] = useState<string | null>(null);
   const [confirmingRevoke, setConfirmingRevoke] = useState(false);
+  // The role the link joins as. Shown at once; put back if the server says no.
+  const [role, setRole] = useState<TeamRole>(invite.role);
+  useEffect(() => setRole(invite.role), [invite.role]);
 
   // Ticks every second while we're inside the resend throttle window
   // so the button label can count down ("Sent 28s ago"). After the
@@ -824,6 +828,25 @@ function InviteRow({
     });
   }
 
+  // A pending invite's role can change until it's used, as a member's
+  // can (Stagehand round 11: only Copy link and Revoke).
+  function handleRoleChange(newRole: TeamRole) {
+    setError(null);
+    setResendNote(null);
+    if (newRole === role) return;
+    const prev = role;
+    setRole(newRole);
+    startTransition(async () => {
+      const res = await updateInviteRole(teamId, invite.id, newRole);
+      if (!res.success) {
+        setRole(prev);
+        setError(res.error);
+        return;
+      }
+      setResendNote(`The link now joins as ${ROLE_LABEL[newRole]}.`);
+    });
+  }
+
   function handleResend() {
     setError(null);
     setResendNote(null);
@@ -842,7 +865,7 @@ function InviteRow({
     <li className="flex flex-wrap items-center gap-3 px-3 py-2.5">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <Badge variant={invite.role}>{ROLE_LABEL[invite.role]}</Badge>
+          <Badge variant={role}>{ROLE_LABEL[role]}</Badge>
           {recipient && (
             <span className="truncate text-sm text-ink">{recipient}</span>
           )}
@@ -871,7 +894,22 @@ function InviteRow({
           </p>
         )}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {/* The member row's role picker, for the person the link is for. */}
+        <select
+          value={role}
+          onChange={(e) => handleRoleChange(e.target.value as TeamRole)}
+          disabled={isPending}
+          className="min-h-[44px] rounded-md border border-hairline bg-surface px-2 py-1.5 text-sm text-ink shadow-card focus:border-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:opacity-50"
+          aria-label={`Role for the invite${recipient ? ` to ${recipient}` : ""}`}
+          data-testid="invite-role"
+        >
+          {ROLE_OPTIONS.map((r) => (
+            <option key={r} value={r}>
+              {ROLE_LABEL[r]}
+            </option>
+          ))}
+        </select>
         {invite.invited_email && (
           <Button
             type="button"

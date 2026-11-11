@@ -12,7 +12,7 @@ import {
 } from "@/lib/email/inviteTemplate";
 import { sendPushNotification } from "@/lib/notifications/sendPushNotification";
 import { publicOrigin } from "@/lib/platform";
-import { ROLE_LABEL, ROLE_SUMMARY } from "@/lib/roles";
+import { ROLE_LABEL, ROLE_OPTIONS, ROLE_SUMMARY } from "@/lib/roles";
 import { memberDisplayName } from "@/lib/members/displayName";
 import type { ActionResult, TeamRole } from "@/lib/types";
 
@@ -271,6 +271,41 @@ export async function revokeInvite(
     .eq("team_id", teamId);
 
   if (updateError) return { success: false, error: updateError.message };
+
+  revalidatePath(`/teams/${teamId}/settings`);
+  return { success: true };
+}
+
+/**
+ * Change the role a pending invite joins as (Stagehand round 11: it
+ * could only be copied or revoked). The same gate as a member's role:
+ * a team admin, checked here and by RLS (team_invites_update_admin,
+ * 0017). Only an invite nobody has used or revoked; the join page and
+ * acceptInvite read the role off the row, so the link joins as the new
+ * one from now on.
+ */
+export async function updateInviteRole(
+  teamId: string,
+  inviteId: string,
+  newRole: TeamRole
+): Promise<ActionResult> {
+  const { supabase, error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+  if (!ROLE_OPTIONS.includes(newRole)) return { success: false, error: "That isn't a team role." };
+
+  const { data: updated, error: updateError } = await supabase
+    .from("team_invites")
+    .update({ role: newRole })
+    .eq("id", inviteId)
+    .eq("team_id", teamId)
+    .is("accepted_at", null)
+    .is("revoked_at", null)
+    .select("id");
+
+  if (updateError) return { success: false, error: updateError.message };
+  if (!updated || updated.length === 0) {
+    return { success: false, error: "This invite has already been used or revoked." };
+  }
 
   revalidatePath(`/teams/${teamId}/settings`);
   return { success: true };
