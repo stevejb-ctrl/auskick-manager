@@ -49,6 +49,7 @@ import {
   type BoardSlot,
 } from "@/lib/live/break/board";
 import type { BreakIssues } from "@/lib/live/break/issues";
+import { kidsMoved, marginWords, replannedText } from "@/lib/live/break/breakWords";
 import type { BreakScoreLine, SportBreakConfig } from "@/lib/sports/break";
 import type { BreakZoneDef } from "@/lib/sports/types";
 import type { Game, MixedGroup } from "@/lib/types";
@@ -123,6 +124,13 @@ export interface PeriodBreakProps {
   onLongPress?: (playerId: string) => void;
   strategy: BreakStrategy;
   onStrategy: (next: BreakStrategy) => void;
+  /**
+   * How many times the break has re-planned its lineup on its own
+   * (useBreakReplan: who can play changed). Each new one is said under
+   * the strategy picker, "Lineup re-planned: 3 kids moved." (Stagehand
+   * round 11, #2), until the coach next changes the lineup themselves.
+   */
+  replanned?: number;
   issues: BreakIssues;
   /** The score chip; absent when the team isn't keeping score. */
   score?: { line: BreakScoreLine; editor?: ReactNode };
@@ -239,6 +247,24 @@ export function PeriodBreak(props: PeriodBreakProps) {
     if (start.error) setConfirmOpen(false);
   }, [start.error]);
 
+  // The break re-planned on its own: say so, with how many kids moved,
+  // against the lineup on screen the render before.
+  const [replanNote, setReplanNote] = useState<string | null>(null);
+  const placedBefore = useRef<Record<string, string>>({});
+  const replanSeen = useRef(props.replanned ?? 0);
+  useEffect(() => {
+    const placed: Record<string, string> = {};
+    for (const s of slots) if (s.playerId) placed[s.playerId] = s.zone === BENCH ? BENCH : s.group;
+    const stamp = props.replanned ?? 0;
+    if (stamp !== replanSeen.current) {
+      replanSeen.current = stamp;
+      const moved = kidsMoved(placedBefore.current, placed, BENCH, sidelinedSet);
+      setReplanNote(moved > 0 ? replannedText(moved) : null);
+    }
+    placedBefore.current = placed;
+  }, [slots, props.replanned, sidelinedSet]);
+  useEffect(() => setReplanNote(null), [nextPeriod]);
+
   const average = useMemo(() => {
     const healthy = slots.map((s) => s.playerId).filter((id): id is string => !!id && !sidelinedSet.has(id));
     return averageMs(healthy, gameMs);
@@ -302,6 +328,7 @@ export function PeriodBreak(props: PeriodBreakProps) {
     }
     props.onSwap(selectedSlot, slot);
     setSelected(null);
+    setReplanNote(null);
   }
 
   function fix(issueId: string) {
@@ -311,6 +338,7 @@ export function PeriodBreak(props: PeriodBreakProps) {
     // apply swaps to the latest draft, so they compose in order.
     for (const [a, b] of swaps) props.onSwap(a, b);
     setSelected(null);
+    setReplanNote(null);
   }
 
   // One tile, on the field or the bench, keyed by its spot (and kid).
@@ -418,20 +446,22 @@ export function PeriodBreak(props: PeriodBreakProps) {
               type="button"
               onClick={() => setScoreOpen(true)}
               disabled={!props.score.editor}
-              aria-label={`Score ${props.score.line.main}. Review and update scores`}
+              aria-label={`Score ${props.score.line.main}, ${marginWords(props.score.line.margin).toLowerCase()}. Review and update scores`}
               className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-[12px] border border-hairline bg-surface px-3 text-left disabled:cursor-default"
             >
               <span className="whitespace-nowrap font-mono text-[0.9375rem] font-semibold tabular-nums text-ink">
                 {props.score.line.main}
               </span>
-              {props.score.line.margin !== 0 && (
-                <span
-                  // win green, not ok: ok is 4.05:1 on white (UX round 3, e4).
-                  className={`whitespace-nowrap text-[0.8125rem] font-semibold ${props.score.line.margin > 0 ? "text-win" : "text-danger"}`}
-                >
-                  {props.score.line.margin > 0 ? `+${props.score.line.margin}` : props.score.line.margin}
-                </span>
-              )}
+              {/* The margin, said: "Up by 1", not "+1" (Stagehand round 11, #3). */}
+              <span
+                data-testid="break-margin"
+                // win green, not ok: ok is 4.05:1 on white (UX round 3, e4).
+                className={`whitespace-nowrap text-[0.8125rem] font-semibold ${
+                  props.score.line.margin > 0 ? "text-win" : props.score.line.margin < 0 ? "text-danger" : "text-ink-dim"
+                }`}
+              >
+                {marginWords(props.score.line.margin)}
+              </span>
               <span className="ml-auto truncate text-xs text-ink-dim">{props.score.line.detail}</span>
             </button>
           )}
@@ -474,9 +504,20 @@ export function PeriodBreak(props: PeriodBreakProps) {
           value={props.strategy}
           onChange={(next) => {
             setSelected(null);
+            setReplanNote(null);
             props.onStrategy(next);
           }}
         />
+
+        {replanNote && (
+          <p
+            data-testid="break-replanned"
+            role="status"
+            className="rounded-md border border-hairline bg-surface-alt px-3 py-2 text-sm font-medium text-ink"
+          >
+            {replanNote}
+          </p>
+        )}
 
         <BreakIssuesCard issues={issues} onFix={fix} />
 

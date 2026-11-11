@@ -383,6 +383,7 @@ export function TouchBreak({
         setDraft((d) => swapSlots(d, a, b));
       }}
       strategy={strategy}
+      replanned={replan.replanned}
       onStrategy={(next) => {
         setStrategy(next);
         if (next !== "repeat") setPersistedRotationMode(next === "rotate" ? "rotate" : next === "manual" ? "manual" : "suggested");

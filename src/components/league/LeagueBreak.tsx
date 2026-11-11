@@ -499,6 +499,7 @@ export function LeagueBreak({
         setDraft((d) => swapSlots(d, a, b));
       }}
       strategy={strategy}
+      replanned={replan.replanned}
       onStrategy={(next) => {
         shaped.current = true;
         setStrategy(next);
