@@ -863,7 +863,9 @@ function InviteRow({
 
   return (
     <li className="flex flex-wrap items-center gap-3 px-3 py-2.5">
-      <div className="min-w-0 flex-1">
+      {/* At least 14rem, so on a phone the actions wrap under the words
+          rather than squeezing them under the role picker. */}
+      <div className="min-w-0 flex-1 basis-[14rem]">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <Badge variant={role}>{ROLE_LABEL[role]}</Badge>
           {recipient && (
