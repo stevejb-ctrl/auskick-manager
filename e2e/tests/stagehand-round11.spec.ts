@@ -44,3 +44,30 @@ test("#1 the next kid's name typed straight after Add player is kept", async ({ 
   await expect(name).toHaveValue("");
 });
 
+// ─── #2 "Try the <sport> demo" starts that sport's demo ─────────
+// Every sport page's "Try the Rugby league demo" went to the demo
+// picker, where the visitor had to pick rugby league again.
+
+test.describe("#2 signed out", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+  for (const [path, label, sport] of [
+    ["/rugby-league", /try the rugby league demo/i, "rugby_league"],
+    ["/netball", /try the netball demo/i, "netball"],
+  ] as const) {
+    test(`#2 ${path}'s Try the demo starts a ${sport} demo game`, async ({ page }) => {
+      await page.goto(path);
+      // Not waitForHydration: a server-action form carries React's own
+      // hidden action input, which never gets props.
+      await page.waitForLoadState("networkidle");
+      await page.getByRole("button", { name: label }).or(page.getByRole("link", { name: label })).first().click();
+      await page.waitForURL(/\/run\/[a-zA-Z0-9_-]+/, { timeout: 20_000 });
+      const token = page.url().match(/\/run\/([a-zA-Z0-9_-]+)/)![1];
+      const { data: game } = await createAdminClient()
+        .from("games")
+        .select("teams!inner(sport, is_demo)")
+        .eq("share_token", token)
+        .single();
+      expect(game).toMatchObject({ teams: { sport, is_demo: true } });
+    });
+  }
+});
