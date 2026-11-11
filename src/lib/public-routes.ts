@@ -63,7 +63,7 @@ export const INDEXABLE_ROUTES: readonly IndexableRoute[] = [
 
   // Legal
   { path: "/privacy", priority: 0.3, changeFrequency: "yearly", lastModified: "2026-10-22" },
-  { path: "/terms", priority: 0.3, changeFrequency: "yearly", lastModified: "2026-04-22" },
+  { path: "/terms", priority: 0.3, changeFrequency: "yearly", lastModified: "2026-11-12" },
 ];
 
 /**
