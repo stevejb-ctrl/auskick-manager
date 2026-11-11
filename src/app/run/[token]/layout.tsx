@@ -8,6 +8,7 @@ import { ScoringForProvider } from "@/components/live/ScoringFor";
 import { loadSquadNames } from "@/lib/live/loadSquadNames";
 import type { NamedPlayer } from "@/lib/names";
 import { GameGoneWatcher } from "@/components/live/GameGoneWatcher";
+import { GameDayScreen } from "@/components/live/GameDayLoading";
 import { RunWhoseProvider, type RunWhose } from "@/components/live/RunWhose";
 import { getSportConfig, teamSport } from "@/lib/sports";
 import { teamAgeGroup } from "@/lib/sports/teamAgeGroup";
@@ -101,7 +102,10 @@ export default async function RunLayout({
         <main>
           <RunWhoseProvider whose={whose}>
             <SquadNamesProvider players={players}>
-              <ScoringForProvider>{children}</ScoringForProvider>
+              <ScoringForProvider>
+                {/* Marks the screen, so its loader stays out of a refresh (GameDayLoading). */}
+                <GameDayScreen>{children}</GameDayScreen>
+              </ScoringForProvider>
             </SquadNamesProvider>
           </RunWhoseProvider>
           {/* The coach deleting the game (or replacing the link) shows here. */}
