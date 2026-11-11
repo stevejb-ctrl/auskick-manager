@@ -35,6 +35,7 @@ import { NotPlayedActions } from "@/components/games/NotPlayedGames";
 import { finishedScoreLog, scoreKinds } from "@/lib/games/finishedScores";
 import type { FixScoresProps } from "@/components/games/FixScoresDialog";
 import { replayBasketballGame } from "@/lib/sports/basketball/replay";
+import { periodFormatText } from "@/lib/games/periodFormatText";
 
 interface GameDetailPageProps {
   params: { teamId: string; gameId: string };
@@ -296,6 +297,17 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
     (team as { period_count?: number | null } | null)?.period_count,
   );
   const scoreNames = distinctFullNames(summarySquad);
+  // "4 × 10 min quarters": the team's halves, quarters or one period, at
+  // the length this game runs (getEffectiveQuarterSeconds).
+  const periodFormat = periodFormatText(
+    teamAge.periodCount,
+    getEffectiveQuarterSeconds(
+      { quarter_length_seconds: (team as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null },
+      teamAge,
+      { quarter_length_seconds: g.quarter_length_seconds },
+    ),
+    periodLabels(sport, teamAge),
+  );
   const fixScores: FixScoresProps | undefined =
     isFinal && summaryEvents && ranInSiren && canManageMatch && (team as { track_scoring?: boolean } | null)?.track_scoring
       ? {
@@ -461,6 +473,12 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                     teamOnFieldSize(planAgeCfg, (team as { on_field_size?: number | null } | null)?.on_field_size ?? null) && (
                   <span className="ml-1 font-medium text-warn">(short-handed)</span>
                 )}
+                {/* How long the periods are, the game's own else the
+                    team's (Settings) else the age group's: a coach who
+                    changed it can see today's game took it (Stagehand
+                    round 11, #11). */}
+                {" · "}
+                <span data-testid="game-period-format">{periodFormat}</span>
               </p>
               {g.notes && (
                 <p className="mt-3 whitespace-pre-wrap text-sm text-ink-dim">
