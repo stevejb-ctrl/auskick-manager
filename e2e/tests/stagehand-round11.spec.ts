@@ -8,6 +8,7 @@ import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
 import { largeText } from "../helpers/a11y";
+import { finishedGame, playPeriod } from "../helpers/finished-game";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -118,3 +119,26 @@ test.describe("#4 signed out", () => {
   }
 });
 
+// ─── #5 Season balance says one thing ───────────────────────────
+// Stats said "✓ Everyone's within a quarter of even." right above
+// "12 of 25 kids within a quarter of even" (and "7 of 10" on netball):
+// the tick only looked at kids owed time, the count at kids over too.
+
+test("#5 the season-balance tick never contradicts the count under it", async ({ page }) => {
+  test.setTimeout(90_000);
+  // Two quarters, nobody moved: each kid is a quarter-plus over in their
+  // line, and owed under a quarter in the other two.
+  const { team } = await finishedGame("afl", 12, (ids) => [
+    { type: "lineup_set", metadata: { lineup: { back: ids.slice(0, 4), hback: [], mid: ids.slice(4, 8), hfwd: [], fwd: ids.slice(8, 12), bench: [] } } },
+    ...playPeriod(1, []),
+    ...playPeriod(2, []),
+    { type: "game_finalised", metadata: { quarter: 2 } },
+  ]);
+  await page.goto(`/teams/${team.id}/stats`);
+  await waitForHydration(page);
+  const summary = page.getByTestId("season-balance-summary");
+  await expect(summary).toContainText(/\d+\s*of\s*\d+/, { timeout: 15_000 });
+  const [, within, total] = (await summary.textContent())!.match(/(\d+)\s*of\s*(\d+)/)!;
+  expect(Number(within)).toBeLessThan(Number(total));
+  await expect(page.getByTestId("season-balance-verdict")).not.toContainText(/everyone's within/i);
+});
