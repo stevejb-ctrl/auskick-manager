@@ -6,6 +6,7 @@ import { TagChip, TAG_COLORS } from "@/components/admin/TagChip";
 import { createTag, deleteTag, updateTag } from "@/app/(app)/admin/actions";
 import type { ContactTag } from "@/lib/types";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 interface TagManagerProps {
   initialTags: ContactTag[];
@@ -16,6 +17,7 @@ export function TagManager({ initialTags }: TagManagerProps) {
   const [name, setName] = useState("");
   const [color, setColor] = useState<string>("brand");
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<ContactTag | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editColor, setEditColor] = useState<string>("brand");
@@ -80,12 +82,10 @@ export function TagManager({ initialTags }: TagManagerProps) {
   }
 
   function handleDelete(id: string) {
-    if (!confirm("Delete this tag? It will be removed from everyone it's assigned to.")) {
-      return;
-    }
     setError(null);
     startTransition(async () => {
       const res = await deleteTag(id);
+      setDeleting(null);
       if (!res.success) {
         setError(res.error);
         return;
@@ -172,7 +172,7 @@ export function TagManager({ initialTags }: TagManagerProps) {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => handleDelete(t.id)}
+                          onClick={() => setDeleting(t)}
                         >
                           Delete
                         </Button>
@@ -185,6 +185,19 @@ export function TagManager({ initialTags }: TagManagerProps) {
           </ul>
         )}
       </div>
+      {deleting && (
+        <ConfirmDialog
+          title={`Delete the tag “${deleting.name}”?`}
+          confirmLabel="Delete tag"
+          pendingLabel="Deleting…"
+          destructive
+          pending={pending}
+          onConfirm={() => handleDelete(deleting.id)}
+          onCancel={() => setDeleting(null)}
+        >
+          <p>It comes off everyone it&apos;s on. This can&apos;t be undone.</p>
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

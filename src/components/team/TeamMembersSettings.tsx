@@ -21,8 +21,7 @@ import { emailError, isEmail } from "@/lib/email/validate";
 import { publicOrigin } from "@/lib/platform";
 import type { TeamRole } from "@/lib/types";
 import { InlineAlert } from "@/components/ui/InlineAlert";
-import { Modal } from "@/components/ui/Modal";
-import { SFButton } from "@/components/sf";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { hasDisplayName, memberDisplayName } from "@/lib/members/displayName";
 
 // Mirror of RESEND_THROTTLE_MS on the server. Used for the countdown
@@ -121,6 +120,7 @@ function JoinCodeSection({
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [confirming, setConfirming] = useState(false);
 
   async function copy() {
     try {
@@ -134,16 +134,9 @@ function JoinCodeSection({
 
   function handleRegenerate() {
     setError(null);
-    if (
-      !confirm(
-        "Regenerate the team code? The old one will stop working immediately. " +
-          "Anyone using the old code will need the new one to join.",
-      )
-    ) {
-      return;
-    }
     startTransition(async () => {
       const res = await regenerateJoinCode(teamId);
+      setConfirming(false);
       if (!res.success) {
         setError(res.error);
         return;
@@ -176,12 +169,30 @@ function JoinCodeSection({
           type="button"
           size="sm"
           variant="ghost"
-          onClick={handleRegenerate}
+          onClick={() => {
+            setError(null);
+            setConfirming(true);
+          }}
           loading={isPending}
         >
           Regenerate
         </Button>
       </div>
+      {confirming && (
+        <ConfirmDialog
+          title="Make a new team code?"
+          confirmLabel="Make a new code"
+          pendingLabel="Making a new code…"
+          pending={isPending}
+          onConfirm={handleRegenerate}
+          onCancel={() => setConfirming(false)}
+        >
+          <p>
+            The old code stops working straight away. Anyone who hasn&apos;t
+            joined yet will need the new one.
+          </p>
+        </ConfirmDialog>
+      )}
       {error && (
         <p className="text-xs text-danger" role="alert">
           {error}
@@ -279,22 +290,21 @@ function MemberRowItem({
       )}
 
       {confirmingRemove && (
-        <Modal label={`Remove ${label}?`} onClose={isPending ? undefined : () => setConfirmingRemove(false)}>
-          <h2 className="text-center text-lg font-bold text-danger">Remove {label}?</h2>
-          <p className="mt-2 text-sm text-ink-dim">
+        <ConfirmDialog
+          title={`Remove ${label}?`}
+          confirmLabel={`Remove ${label}`}
+          pendingLabel="Removing…"
+          destructive
+          pending={isPending}
+          onConfirm={handleRemove}
+          onCancel={() => setConfirmingRemove(false)}
+        >
+          <p>
             They lose access to the team straight away, and the invite they
             joined with stops working. The team code still lets anyone join as
             a Parent: regenerate it below if you need to.
           </p>
-          <div className="mt-5 flex flex-col gap-2">
-            <SFButton variant="alarm" size="md" loading={isPending} onClick={handleRemove}>
-              Remove {label}
-            </SFButton>
-            <SFButton variant="ghost" size="sm" onClick={() => setConfirmingRemove(false)} disabled={isPending}>
-              Cancel
-            </SFButton>
-          </div>
-        </Modal>
+        </ConfirmDialog>
       )}
     </li>
   );
@@ -771,6 +781,7 @@ function InviteRow({
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resendNote, setResendNote] = useState<string | null>(null);
+  const [confirmingRevoke, setConfirmingRevoke] = useState(false);
 
   // Ticks every second while we're inside the resend throttle window
   // so the button label can count down ("Sent 28s ago"). After the
@@ -806,10 +817,9 @@ function InviteRow({
 
   function handleRevoke() {
     setError(null);
-    if (!confirm("Revoke this invite? The link will stop working immediately."))
-      return;
     startTransition(async () => {
       const res = await revokeInvite(teamId, invite.id);
+      setConfirmingRevoke(false);
       if (!res.success) setError(res.error);
     });
   }
@@ -890,13 +900,32 @@ function InviteRow({
           type="button"
           size="sm"
           variant="ghost"
-          onClick={handleRevoke}
+          onClick={() => {
+            setError(null);
+            setConfirmingRevoke(true);
+          }}
           loading={isPending}
           className="text-danger hover:bg-danger/10 hover:text-danger"
         >
           Revoke
         </Button>
       </div>
+      {confirmingRevoke && (
+        <ConfirmDialog
+          title="Revoke this invite?"
+          confirmLabel="Revoke invite"
+          pendingLabel="Revoking…"
+          destructive
+          pending={isPending}
+          onConfirm={handleRevoke}
+          onCancel={() => setConfirmingRevoke(false)}
+        >
+          <p>
+            {recipient ? <>The link for <strong className="text-ink">{recipient}</strong></> : "The link"} stops
+            working straight away. You can make a new one any time.
+          </p>
+        </ConfirmDialog>
+      )}
     </li>
   );
 }
