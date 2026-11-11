@@ -71,3 +71,29 @@ test.describe("#2 signed out", () => {
     });
   }
 });
+
+// ─── #3 The help search finds "subs" ─────────────────────────────
+// The help's search box matched topic titles only, so a coach typing
+// "subs" (or "injury", "fix score") on the main help got "No topics
+// match": the answers live under Rotations and The Live Screen.
+
+test.describe("#3 signed out", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+  test("#3 the help search finds the topic for subs, injuries and fixing a score", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/help");
+    await waitForHydration(page);
+    const nav = page.getByRole("navigation", { name: "Help topics" });
+    const search = nav.getByRole("searchbox", { name: /search help topics/i });
+    for (const [q, topic] of [
+      ["subs", "Rotations"],
+      ["injury", "The Live Screen"],
+      ["fix score", "Keeping Score"],
+    ] as const) {
+      await search.fill(q);
+      await expect(nav.getByTestId("help-nav-topics").getByRole("link", { name: topic }), q).toBeVisible();
+      await expect(nav.getByText("No topics match.")).toHaveCount(0);
+    }
+  });
+});
+

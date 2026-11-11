@@ -83,7 +83,16 @@ const linkClass = (active: boolean) =>
 function NavContents({ pathname, hub, query, setQuery, onLinkClick }: NavContentsProps) {
   const q = query.trim().toLowerCase();
   const matches = (text: string) => text.toLowerCase().includes(q);
-  const topics = HELP_PAGES.filter((p) => matches(p.title));
+  // A topic matches on its blurb too, word by word on each word's stem:
+  // "subs" finds Rotations ("the next sub"), "injury" The Live Screen
+  // ("injuries"), "fix score" Keeping Score ("fixing scores"). Titles
+  // alone answered "No topics match" (Stagehand round 11).
+  const stems = q.split(/\s+/).filter(Boolean).map((w) => w.slice(0, Math.max(3, w.length - 2)));
+  const topicMatches = (p: { title: string; description: string }) => {
+    const text = `${p.title} ${p.description}`.toLowerCase();
+    return matches(p.title) || (stems.length > 0 && stems.every((s) => text.includes(s)));
+  };
+  const topics = HELP_PAGES.filter(topicMatches);
   const sports = SPORT_HELP.filter(
     (h) => matches(h.title) || (h === hub && h.sections.some((s) => matches(s.title))),
   );
