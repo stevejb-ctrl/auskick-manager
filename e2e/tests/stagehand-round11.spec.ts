@@ -7,6 +7,7 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
+import { largeText } from "../helpers/a11y";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -95,5 +96,25 @@ test.describe("#3 signed out", () => {
       await expect(nav.getByText("No topics match.")).toHaveCount(0);
     }
   });
+});
+
+// ─── #4 The site's header at large text ─────────────────────────
+// On a phone at 200% text the header ran 100 px off the screen: Start
+// free was cut in half and every page scrolled sideways.
+
+test.describe("#4 signed out", () => {
+  test.use({ storageState: { cookies: [], origins: [] }, viewport: { width: 412, height: 915 } });
+  for (const path of ["/", "/netball", "/why-siren"]) {
+    test(`#4 ${path} at 200% text keeps the header's Start free on screen, nothing scrolls sideways`, async ({ page }) => {
+      await page.goto(path);
+      await page.waitForLoadState("networkidle");
+      await largeText(page, 200);
+      const start = page.getByRole("banner").getByRole("link", { name: "Start free" });
+      await expect(start).toBeVisible();
+      const box = (await start.boundingBox())!;
+      expect(box.x + box.width).toBeLessThanOrEqual(412);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(412);
+    });
+  }
 });
 

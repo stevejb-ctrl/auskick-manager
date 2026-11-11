@@ -6,15 +6,20 @@ import { SportsMenu } from "@/components/marketing/SportsMenu";
 // Static header — the auth-aware Dashboard / Sign in CTA is isolated
 // in MarketingAuthCTAs and the Sports menu's open state in SportsMenu
 // (client islands), so the rest of the tree can be prerendered.
+//
+// At large text on a phone the row is wider than the screen, so it
+// wraps: the links go under the wordmark rather than off the edge
+// (Stagehand round 11: at 200% Start free was cut in half and every
+// page scrolled sideways).
 export function MarketingHeader() {
   return (
     <header className="sticky top-0 z-20 border-b border-hairline bg-warm/80 backdrop-blur supports-[backdrop-filter]:bg-warm/70">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:px-6">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6">
         <Link href="/" className="flex items-center gap-2" aria-label="Siren home">
           <SirenWordmark size="sm" pulsing />
         </Link>
 
-        <nav aria-label="Main" className="flex items-center gap-1 sm:gap-3">
+        <nav aria-label="Main" className="flex flex-wrap items-center justify-end gap-1 sm:gap-3">
           <SportsMenu />
           <Link
             href="/why-siren"
@@ -24,7 +29,7 @@ export function MarketingHeader() {
           </Link>
           <Link
             href="/demo"
-            className="rounded-md px-3 py-1.5 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-surface-alt hover:text-ink"
+            className="whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-surface-alt hover:text-ink"
           >
             Try demo
           </Link>
