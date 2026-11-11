@@ -1,7 +1,9 @@
 "use client";
 
 // ─── MixedRuleSettings ───────────────────────────────────────
-// Team › Season › Mixed team (touch, Oztag): boys and girls play
+// Team › How we play › Mixed team (touch, Oztag; under Season until
+// Stagehand round 11, #6, and in the wizard's How we play step too):
+// boys and girls play
 // together, with at most so many boys on the field and at least so many
 // girls and boys (.planning/FOUR-SPORTS-PLAN.md, "Mixed teams"). The
 // sport's own rule is the preset (touch 3 / 1 / 1, Oztag 4 / 1 / 0), and
