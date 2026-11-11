@@ -128,8 +128,10 @@ export function AddPlayerForm({
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-3">
-      <div className="flex gap-3">
-        <div className="flex-1 space-y-1">
+      {/* Wraps: at large text the number box (sized in rem) goes under
+          the name rather than squeezing it to "e.g" (Stagehand round 11). */}
+      <div className="flex flex-wrap gap-3">
+        <div className="min-w-[min(12rem,100%)] flex-1 space-y-1">
           <Label htmlFor="player-name">Player name</Label>
           <Input
             id="player-name"

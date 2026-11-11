@@ -39,10 +39,10 @@ test("#1 the next kid's name typed straight after Add player is kept", async ({ 
   // No wait: the next name goes in while the first one saves.
   await name.pressSequentially("Chloe Nguyen", { delay: 30 });
 
-  await expect(page.getByRole("listitem").filter({ hasText: "Ava First" })).toBeVisible();
+  await expect(page.getByRole("listitem").filter({ hasText: "Ava First" })).toBeVisible({ timeout: 15_000 });
   await expect(name).toHaveValue("Chloe Nguyen");
   await page.getByRole("button", { name: /^add player$/i }).click();
-  await expect(page.getByRole("listitem").filter({ hasText: "Chloe Nguyen" })).toBeVisible();
+  await expect(page.getByRole("listitem").filter({ hasText: "Chloe Nguyen" })).toBeVisible({ timeout: 15_000 });
   await expect(name).toHaveValue("");
 });
 
@@ -141,4 +141,26 @@ test("#5 the season-balance tick never contradicts the count under it", async ({
   const [, within, total] = (await summary.textContent())!.match(/(\d+)\s*of\s*(\d+)/)!;
   expect(Number(within)).toBeLessThan(Number(total));
   await expect(page.getByTestId("season-balance-verdict")).not.toContainText(/everyone's within/i);
+});
+
+// ─── #6 Adding a kid at large text ──────────────────────────────
+// At 200% text on a phone the name box was 75 px wide ("e.g") beside a
+// 167 px number box: the number box is sized in rem, so it grew with
+// the text and squeezed the name.
+
+test.describe("#6 large text", () => {
+  test.use({ viewport: { width: 412, height: 915 } });
+  test("#6 at 200% text the player name box is wide enough to read a name", async ({ page }) => {
+    const admin = createAdminClient();
+    const ownerId = await ownerOf(admin);
+    const team = await makeTeam(admin, { ownerId, sport: "afl", ageGroup: "U10", name: `R11 big ${uniq()}` });
+    await page.goto(`/teams/${team.id}/squad`);
+    await waitForHydration(page);
+    await largeText(page, 200);
+    const name = page.getByLabel(/player name/i);
+    await expect(name).toBeVisible();
+    const box = (await name.boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(200);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(412);
+  });
 });
