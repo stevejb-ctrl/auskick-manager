@@ -170,6 +170,24 @@ export function replayNetballGameForStats(
     const key = a < b ? `${a}:${b}` : `${b}:${a}`;
     pairThirdMs[key] = (pairThirdMs[key] ?? 0) + ms;
   };
+  // Pair time is credited when a quarter closes, for as long as it ran:
+  // a full nominal quarter per lineup event read "30 min together" in a
+  // game that ran 19:47, and a lineup set twice counted twice (Stagehand
+  // round 11). The lineup on court is the last one set; a quarter closes
+  // at quarter_end (its elapsed_ms), at game_finalised, or when the next
+  // lineup arrives with no quarter_end (the full quarter, as before).
+  let onCourt: string[][] = [];
+  let quarterOpen = false;
+  const creditQuarter = (ms: number) => {
+    if (!quarterOpen) return;
+    quarterOpen = false;
+    for (const group of onCourt) {
+      for (let i = 0; i < group.length; i++) {
+        for (let j = i + 1; j < group.length; j++) incPair(group[i], group[j], ms);
+      }
+    }
+  };
+  const elapsedOr = (ms: unknown) => (typeof ms === "number" && ms > 0 ? ms : quarterLengthMs);
 
   for (const ev of sorted) {
     const meta = (ev.metadata ?? {}) as {
@@ -199,13 +217,8 @@ export function replayNetballGameForStats(
           (byThird[t] ??= []).push(pid);
         }
       }
-      for (const ids of Object.values(byThird)) {
-        for (let i = 0; i < ids.length; i++) {
-          for (let j = i + 1; j < ids.length; j++) {
-            incPair(ids[i], ids[j], quarterLengthMs);
-          }
-        }
-      }
+      creditQuarter(quarterLengthMs);
+      onCourt = Object.values(byThird);
       // Bench appearances also seed playerIds so the snapshot's
       // squad list matches "anyone who showed up in any lineup".
       for (const pid of lineup.bench ?? []) {
@@ -213,6 +226,9 @@ export function replayNetballGameForStats(
       }
     } else if (ev.type === "quarter_start" && meta.quarter) {
       currentQuarter = meta.quarter;
+      quarterOpen = true;
+    } else if (ev.type === "quarter_end" || ev.type === "game_finalised") {
+      creditQuarter(elapsedOr(meta.elapsed_ms));
     } else if (ev.type === "goal") {
       teamGoalsByQtr[goalQ] = (teamGoalsByQtr[goalQ] ?? 0) + 1;
       if (ev.player_id) {
