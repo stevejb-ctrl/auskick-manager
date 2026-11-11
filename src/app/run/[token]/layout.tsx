@@ -11,6 +11,7 @@ import { GameGoneWatcher } from "@/components/live/GameGoneWatcher";
 import { RunWhoseProvider, type RunWhose } from "@/components/live/RunWhose";
 import { getSportConfig, teamSport } from "@/lib/sports";
 import { teamAgeGroup } from "@/lib/sports/teamAgeGroup";
+import { DemoFrame } from "@/components/marketing/DemoSignupFooter";
 
 // Back-target resolution. /run/{token} is reached by two distinct
 // audiences:
@@ -34,7 +35,7 @@ type Whose = RunWhose;
 
 async function resolveBackTarget(
   token: string,
-): Promise<{ backHref: string; players: NamedPlayer[]; gameId: string | null; whose: Whose | null }> {
+): Promise<{ backHref: string; players: NamedPlayer[]; gameId: string | null; whose: Whose | null; isDemo: boolean }> {
   const admin = createAdminClient();
   const { data: row } = await admin
     .from("games")
@@ -64,7 +65,8 @@ async function resolveBackTarget(
         };
       })()
     : null;
-  return { backHref: teamRow?.is_demo ? "/demo" : "/", players, gameId: (row?.id as string | undefined) ?? null, whose };
+  const isDemo = teamRow?.is_demo === true;
+  return { backHref: isDemo ? "/demo" : "/", players, gameId: (row?.id as string | undefined) ?? null, whose, isDemo };
 }
 
 // The tab, and the link preview in the group chat, name the game: the
@@ -88,26 +90,29 @@ export default async function RunLayout({
   params: { token: string };
 }) {
   noStore();
-  const { backHref, players, gameId, whose } = await resolveBackTarget(params.token);
+  const { backHref, players, gameId, whose, isDemo } = await resolveBackTarget(params.token);
 
   // No header of its own (design review, Oct 2026): every screen on the
   // link opens with LiveTopBar, which says whose game it is (RunWhose)
   // and owns the one way out, EXIT. The old banner above it took 16% of
   // the phone, and its "‹ Siren" went to the homepage mid-game. The EXIT
   // page (/left) links home, or back to the demo picker for demo games.
+  const game = (
+    <main>
+      <RunWhoseProvider whose={whose}>
+        <SquadNamesProvider players={players}>
+          <ScoringForProvider>{children}</ScoringForProvider>
+        </SquadNamesProvider>
+      </RunWhoseProvider>
+      {/* The coach deleting the game (or replacing the link) shows here. */}
+      {gameId && <GameGoneWatcher auth={{ kind: "token", token: params.token }} gameId={gameId} exitHref={backHref} />}
+    </main>
+  );
+  // A demo game has a sign-up footer under it (Stagehand round 11); a
+  // real team's game-day link never does.
   return (
     <div>
-      <DeviceFrame>
-        <main>
-          <RunWhoseProvider whose={whose}>
-            <SquadNamesProvider players={players}>
-              <ScoringForProvider>{children}</ScoringForProvider>
-            </SquadNamesProvider>
-          </RunWhoseProvider>
-          {/* The coach deleting the game (or replacing the link) shows here. */}
-          {gameId && <GameGoneWatcher auth={{ kind: "token", token: params.token }} gameId={gameId} exitHref={backHref} />}
-        </main>
-      </DeviceFrame>
+      <DeviceFrame>{isDemo ? <DemoFrame>{game}</DemoFrame> : game}</DeviceFrame>
     </div>
   );
 }
