@@ -116,7 +116,8 @@ test("AFL game-detail: planner opens, rows render, copy text populates, tap-to-s
   // AFL rolls subs, so the plan reads as an interchange queue with a sub
   // cadence — who is where each quarter, not whole-quarter blocks.
   await expect(planText).toContainText("Interchange (on first → last):");
-  await expect(planText).toContainText(/subs ~every \d+ min/);
+  // The one sub-interval phrase (Stagehand round 11, #5).
+  await expect(planText).toContainText(/sub every \d+ min/);
   // The plan is who-is-where only — no per-player game-time footer.
   await expect(planText).not.toContainText(/planned game time/i);
   // The editor's bench card is relabelled to the interchange queue.
@@ -227,11 +228,11 @@ test("AFL pre-kickoff: Game plan follows the lineup's field size and sub interva
   const fewer = Number(await size.inputValue()) - 1;
   await size.selectOption(String(fewer));
   await page.locator("#sub-minutes").fill("10");
-  await expect(page.getByText("Sub every 10m")).toBeVisible();
+  await expect(page.getByText("Sub every 10 min")).toBeVisible();
 
   await page.getByRole("button", { name: /^game plan$/i }).click();
   await expect(page.getByRole("heading", { name: /^game plan$/i })).toBeVisible({ timeout: 10_000 });
-  await expect(page.locator("#game-plan-text")).toContainText("subs ~every 10 min");
+  await expect(page.locator("#game-plan-text")).toContainText("sub every 10 min");
   // Q1 is the lineup itself; Q2 on is projected, at the lineup's size.
   const onField = page.locator('[data-testid^="game-plan-group-"] [data-player-id]');
   await expect(onField).toHaveCount(fewer);

@@ -45,6 +45,7 @@ import { SUB_MINUTES_MAX, SUB_MINUTES_MIN, subMinutesFrom } from "@/lib/live/sub
 import { squadLoanAverage } from "@/lib/live/liveChrome";
 import { useKeptSetting } from "@/components/lineup/useKeptSetting";
 import { noteLiveResult } from "@/lib/live/liveSync";
+import { subEveryText } from "@/lib/live/subIntervalText";
 // Rotations each player gets to sit on the bench over the whole game.
 // Bigger benches → more rotations per player (shorter stints each).
 function restsPerPlayer(benchSize: number): number {
@@ -861,7 +862,8 @@ export function LineupPicker({
                 // Showing it unconditionally means the coach can
                 // scan the closed header and know exactly how
                 // their game's pacing is set up.
-                bits.push(`Sub every ${effectiveSubMin}m`);
+                // One phrase in every sport (lib/live/subIntervalText).
+                bits.push(subEveryText(Math.round(effectiveSubMin * 60)));
                 bits.push(
                   lentPlayers.length > 0
                     ? `${lentPlayers.length} lent`

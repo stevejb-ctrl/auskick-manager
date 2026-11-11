@@ -83,8 +83,9 @@ describe("formatGamePlan — structure & header", () => {
     // U10 AFL rolls subs, so the subhead also carries the interchange cadence.
     const mins = Math.round(plan.periodMinutes);
     const subMin = Math.round((plan.subIntervalSeconds ?? 0) / 60);
+    // The one sub-interval phrase (Stagehand round 11, #5).
     expect(text.split("\n")[1]).toBe(
-      `4 quarters · ~${mins} min each · subs ~every ${subMin} min`,
+      `4 quarters · ~${mins} min each · sub every ${subMin} min`,
     );
   });
 

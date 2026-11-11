@@ -74,6 +74,7 @@ import { TOUCH_LINE_LABEL, TOUCH_LINE_ONE, touchStrategyLabel } from "./touchWor
 import type { TouchSport } from "@/lib/sports/registry";
 import { squadLoanAverage } from "@/lib/live/liveChrome";
 import { noteLiveResult } from "@/lib/live/liveSync";
+import { subEveryText } from "@/lib/live/subIntervalText";
 
 interface TouchLineupPickerProps {
   auth: LiveAuth;
@@ -297,7 +298,7 @@ export function TouchLineupPicker({
     `${onFieldSize} on the field`,
     touchStrategyLabel(strategy),
     ...(laneShapes.length > 1 ? [shape.id] : []),
-    `Subs every ${Math.round((subIntervalSeconds / 60) * 10) / 10} min`,
+    subEveryText(subIntervalSeconds),
     ...(lentPlayers.length > 0 ? [`${lentPlayers.length} lent`] : []),
   ].join(" · ");
 

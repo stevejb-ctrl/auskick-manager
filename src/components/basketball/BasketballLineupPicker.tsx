@@ -68,6 +68,7 @@ import { BASKETBALL_LINE_LABEL } from "./BasketballPlayerTile";
 import { basketballStrategyLabel } from "./basketballWords";
 import { squadLoanAverage } from "@/lib/live/liveChrome";
 import { noteLiveResult } from "@/lib/live/liveSync";
+import { subEveryText } from "@/lib/live/subIntervalText";
 
 const POSITION_LABEL = Object.fromEntries(BASKETBALL_POSITION_DEFS.map((p) => [p.key, p.label])) as Record<string, string>;
 
@@ -264,7 +265,7 @@ export function BasketballLineupPicker({
     `${onCourtSize} on court`,
     basketballStrategyLabel(strategy),
     ...(lineShapes.length > 1 ? [shape.id] : []),
-    `Subs every ${Math.round((subIntervalSeconds / 60) * 10) / 10} min`,
+    subEveryText(subIntervalSeconds),
     ...(lentPlayers.length > 0 ? [`${lentPlayers.length} lent`] : []),
   ].join(" · ");
 
