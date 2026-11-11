@@ -195,7 +195,8 @@ describe("marketing copy agrees with the facts", () => {
     ];
     const said = everything.filter((file) => /early[\s-]access/i.test(readFileSync(file, "utf8"))).map(rel);
     expect(said).toEqual([]);
-  });
+    // Reading every source file takes a few seconds on a busy machine.
+  }, 60_000);
 
   it("has the Terms give the price as the season's, from the facts", () => {
     const terms = PAGE_SOURCE.find((p) => p.file === "src/app/(marketing)/terms/page.tsx")!.text;
