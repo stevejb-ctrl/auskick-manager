@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { unstable_noStore as noStore } from "next/cache";
+import { notFound } from "next/navigation";
 import { runLinkTitle } from "@/lib/share/runLinkTitle";
 import { DeviceFrame } from "@/components/DeviceFrame";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -92,6 +93,10 @@ export default async function RunLayout({
 }) {
   noStore();
   const { backHref, players, gameId, whose, isDemo } = await resolveBackTarget(params.token);
+  // A link to no game (replaced, deleted, mistyped) is a 404 here, before
+  // the screen's loading boundary starts streaming: once it has, the
+  // page's own notFound() can only render the not-found page under a 200.
+  if (!gameId) notFound();
 
   // No header of its own (design review, Oct 2026): every screen on the
   // link opens with LiveTopBar, which says whose game it is (RunWhose)
