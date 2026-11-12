@@ -7,6 +7,7 @@
 // here but didn't get on.
 
 import type { Player } from "@/lib/types";
+import { summaryStatusNote } from "@/lib/live/wentHome";
 import { shortName, shortNames } from "@/lib/names";
 import { DIDNT_GET_ON, didntGetOn } from "@/lib/live/presentPlayers";
 import { byJerseyThenName } from "@/lib/share/neutralOrder";
@@ -61,10 +62,12 @@ export function buildBasketballSummary(input: BasketballSummaryInput): string {
   const played = Object.keys(state.ms)
     .map((id) => ({ id, ms: basketballGameMs(state, id), guard: state.ms[id]?.guard ?? 0, forward: state.ms[id]?.forward ?? 0 }))
     .filter((r) => r.ms >= 1000);
+  // A kid still off at full time says why: hurt, or gone home.
+  const status = { injured: new Set(state.injuredIds), wentHome: new Set(state.wentHomeIds) };
   const rows = played.map(({ id, ms, guard, forward }) => {
     const p = byId.get(id);
     const split = guard >= 1000 && forward >= 1000 ? ` (G ${fmtMs(guard)}, F ${fmtMs(forward)})` : "";
-    return { id, text: `${jersey(p)}${first(p)} — ${fmtMs(ms)}${split}${fouledOut.has(id) ? " · fouled out" : ""}` };
+    return { id, text: `${jersey(p)}${first(p)} — ${fmtMs(ms)}${split}${fouledOut.has(id) ? " · fouled out" : summaryStatusNote(id, status)}` };
   });
   for (const id of didntGetOn(presentIds, played.map((r) => r.id))) {
     const p = byId.get(id);

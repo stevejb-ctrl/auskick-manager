@@ -275,3 +275,38 @@ export async function basketballGame(opts: { name: string; elapsedSec?: number; 
   ]);
   return { admin, ownerId, team, game, players };
 }
+
+/** AFL U10 (12 a side, 16 kids) in Q1, started `elapsedSec` ago: back 0–3, mid 4–7, fwd 8–11, bench 12–15. */
+export async function aflGame(opts: { name: string; elapsedSec?: number; names?: string[] }) {
+  const admin = createAdminClient();
+  const ownerId = await ownerOf(admin);
+  const team = await makeTeam(admin, { ownerId, sport: "afl", ageGroup: "U10", name: `${opts.name} ${Date.now() % 100000}` });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 16, ageGroup: "U10" });
+  const names = opts.names ?? [];
+  for (let i = 0; i < names.length; i++) {
+    await admin.from("players").update({ full_name: names[i] }).eq("id", players[i].id);
+    players[i].full_name = names[i];
+  }
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  await admin.from("games").update({ sub_interval_seconds: 600 }).eq("id", game.id);
+  await admin
+    .from("game_availability")
+    .insert(players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })));
+  const ids = players.map((p) => p.id);
+  const lineup = { back: ids.slice(0, 4), hback: [], mid: ids.slice(4, 8), hfwd: [], fwd: ids.slice(8, 12), bench: ids.slice(12) };
+  await seedEvents(admin, game.id, ownerId, Date.now() - (opts.elapsedSec ?? 60) * 1000, [
+    { type: "lineup_set", metadata: { lineup } },
+    { type: "quarter_start", metadata: { quarter: 1 } },
+  ]);
+  return { admin, ownerId, team, game, players };
+}
+
+/** What a screen reader calls an element: its accessible name, read from the accessibility tree. */
+export async function accessibleName(el: Locator): Promise<string> {
+  const snapshot = await el.ariaSnapshot();
+  // `- button "Zara Q, Back"`, YAML-quoted as `- 'button "…: …"'` when the name has a colon.
+  let line = snapshot.split("\n")[0].replace(/^- /, "");
+  if (line.startsWith("'")) line = line.slice(1).replace(/'(:|$).*$/, "").replace(/''/g, "'");
+  const m = line.match(/^[\w-]+ "((?:[^"\\]|\\.)*)"/);
+  return m ? m[1].replace(/\\"/g, '"') : "";
+}

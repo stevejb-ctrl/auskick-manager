@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient, getUser, getMembership } from "@/lib/supabase/server";
-import { AFL_SCORE_TYPES, standingScores } from "@/lib/live/undoStack";
+import { AFL_SCORE_TYPES, savedScoreKeys, standingScores } from "@/lib/live/undoStack";
 import { getSeasonEvents } from "@/lib/season";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { roleModelFor, rolesFromPrefs } from "@/lib/playbook/roles";
@@ -8,6 +8,7 @@ import { withThirdsToday } from "@/lib/playbook/dayLines";
 import { replayLocks } from "@/lib/live/locks";
 import type { RoleSheetConfig } from "@/components/playbook/useRoleSheet";
 import { aflPlaybookInput, withBalanceSeason, withSnapshot } from "@/lib/sports/afl/engine";
+import { aflAwayMs, aflBigField } from "@/lib/sports/afl/bigField";
 import { netballPlaybookInput, withNetballSnapshot } from "@/lib/sports/netball/engine";
 import { leaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
 import { seasonBalanceWeight, withKickoffSnapshot } from "@/lib/playbook/seasonBalance";
@@ -36,7 +37,6 @@ import type { TouchSeasonBalance } from "@/lib/sports/touch/suggest";
 import { touchAgeGroupForTeam } from "@/lib/sports/touch/family";
 import { touchHowWePlay } from "@/lib/sports/touch/familyPlaybook";
 import { girlsTryCountsDouble, teamMixedRule } from "@/lib/sports/touch/mixed";
-import { AflWalkthroughOffer, LeagueWalkthroughOffer } from "@/components/live/WalkthroughOffer";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { ParentScoreboard } from "@/components/live/ParentScoreboard";
 import { GameDayAvailabilityPanel } from "@/components/games/GameDayAvailabilityPanel";
@@ -923,19 +923,8 @@ async function LivePageBody({ params }: LivePageProps) {
               seasonEvents={leagueSeasonEvents as GameEvent[]}
               initialLoanedIds={leagueLoanedIds}
               initialDraft={initialDraft}
-              walkthroughOffer={
-                <LeagueWalkthroughOffer
-                  sport={sport}
-                  trackScoring={trackScoring}
-                  periodLabel={periodLabels(sport, ageCfgL).label}
-                  vests={{ fr: ageCfgL.vestRequirements?.fr ?? false, dh: ageCfgL.vestRequirements?.dh ?? false }}
-                  kickingAllowed={ageCfgL.kickingAllowed === true}
-                  goalsFromPlay={ageCfgL.goalsFromPlay === true}
-                  kickRotations={ageCfgL.kickRotations === true}
-                  unbrokenPeriods={ageCfgL.unbrokenPeriods === true}
-                  trackZoneTime={leagueTrackZoneTime}
-                />
-              }
+              // The first-visit tour is offered on the live screen before
+              // the whistle now, over its Start H1 (live v3), not here.
               chipLabels={{
                 a: teamChipLabels.a,
                 b: teamChipLabels.b,
@@ -1147,8 +1136,8 @@ async function LivePageBody({ params }: LivePageProps) {
     // Page-level clearance exists ONLY for the Q-break's fixed
     // "Ready for Q{n+1}" CTA, which reserves no flow space of its
     // own (Steve 2026-10-16: "the scroll goes too low, big gaps").
-    //   - Live play is NOT here: the shared LiveStickyScoreBar
-    //     renders a measured in-flow spacer of the bar's height.
+    //   - Live play is NOT here: the live v3 shell (LiveShell)
+    //     pins its own score bar and keeps the page from scrolling.
     //   - Pre-kickoff is NOT here: the picker's Save/Start footer
     //     is sticky — in flow at the end of the picker — so there
     //     is nothing to clear (mirrors the AFL branch, which never
@@ -1322,6 +1311,16 @@ async function LivePageBody({ params }: LivePageProps) {
     );
     const loanMins = seasonLoanMinutes(allTeamEvents);
     const seasonAvail = seasonAvailability(allTeamEvents);
+    // Big fields (15/16/18 a side, named positions): the formation and
+    // who's in which position, from the log (live v3, Phase 11).
+    const bigField = aflBigField({
+      playbook,
+      aflPlaybook,
+      onFieldSize: g.on_field_size,
+      zoneModel: positionModel,
+      events: (thisGameEvents ?? []) as GameEvent[],
+      lineup: state.lineup,
+    });
     // Page-level sticky-bar clearance — kicks in at a Q-break
     // (sticky "Ready for Q{n+1}" CTA in QuarterBreak) AND during
     // live play (sticky scorebug at the bottom in LiveGame —
@@ -1338,9 +1337,8 @@ async function LivePageBody({ params }: LivePageProps) {
     //   - Q-break    → "Ready for Q{n+1}" CTA (QuarterKickoffBar,
     //                  fixed on phones, no spacer of its own)
     //   - finalised  → "Finish game" CTA (same)
-    // Live play is NOT here: LiveStickyScoreBar renders a measured
-    // in-flow spacer of exactly the bar's height, so a page pb on
-    // top of it was pure dead scroll (~144px of it).
+    // Live play is NOT here: the live v3 shell (LiveShell) pins its
+    // own score bar, so a page pb on top of it was pure dead scroll.
     // FT review (post-Q4, pre-finalise) is intentionally excluded —
     // the user is still reconciling scores there and we don't want
     // a competing CTA at the bottom.
@@ -1362,6 +1360,7 @@ async function LivePageBody({ params }: LivePageProps) {
             chrome itself. */}
         <LiveGame
           standingScores={standingScores((thisGameEvents ?? []) as GameEvent[], AFL_SCORE_TYPES)}
+          savedScoreKeys={savedScoreKeys((thisGameEvents ?? []) as GameEvent[], AFL_SCORE_TYPES)}
           auth={{ kind: "team", teamId: params.teamId }}
           gameId={params.gameId}
           game={g}
@@ -1384,6 +1383,8 @@ async function LivePageBody({ params }: LivePageProps) {
           defaultOnFieldSize={teamOnFieldSize(ageCfg, (teamRow as { on_field_size?: number | null } | null)?.on_field_size)}
           chipModeByKey={teamChipModes}
           aflPlaybook={aflPlaybook}
+          bigField={bigField ?? undefined}
+          awayMs={aflAwayMs((thisGameEvents ?? []) as GameEvent[], quarterMs, state.currentQuarter)}
           exitHref={`/teams/${params.teamId}/games/${params.gameId}`}
           isAdmin={isAdmin}
           songUrl={songUrl}
@@ -1558,7 +1559,8 @@ async function LivePageBody({ params }: LivePageProps) {
           defaultSubMinutes={g.sub_interval_seconds / 60}
           fullPeriodMs={quarterMs}
           backHref={`/teams/${params.teamId}/games/${params.gameId}`}
-          walkthroughOffer={<AflWalkthroughOffer trackScoring={trackScoring} />}
+          // The first-visit tour is offered on the live screen before
+          // kickoff now, over its Start Q1 (live v3), not here.
           gamePlan={{
             sport,
             ageGroup: ageCfg,
@@ -1580,6 +1582,15 @@ async function LivePageBody({ params }: LivePageProps) {
           initialLoanedIds={initialLoanedIds}
           initialLocks={replayLocks((thisGameEvents ?? []) as GameEvent[])}
           seasonLoanMinutes={seasonLoanMinutes((seasonEvents ?? []) as GameEvent[])}
+          // Big fields: the formation the live screen will draw (live v3).
+          bigField={aflBigField({
+            playbook,
+            aflPlaybook,
+            onFieldSize: g.on_field_size,
+            zoneModel: positionModel,
+            events: [],
+            lineup: null,
+          })}
         />
       )}
     </div>

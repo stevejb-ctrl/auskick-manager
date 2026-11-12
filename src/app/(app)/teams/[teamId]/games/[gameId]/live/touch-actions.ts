@@ -27,14 +27,24 @@ import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { updateLiveGame } from "@/lib/games/updateLiveGame";
 import { getSportConfig, isTouch, teamSport, type TouchSport } from "@/lib/sports/registry";
 import { touchAgeGroupForTeam } from "@/lib/sports/touch/family";
 import { countMixedGroups, girlsTryCountsDouble, mixedFieldPlan, teamMixedRule } from "@/lib/sports/touch/mixed";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
 import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvailability";
-import { checkPeriodWrite, periodWordOf, revalidateLivePage, scoreRowsOf, staleRefusal } from "@/lib/live/liveWriteGuard";
+import {
+  checkPeriodWrite,
+  kickoffRaceRefusal,
+  periodWordOf,
+  raceVerdictOf,
+  revalidateLivePage,
+  scoreRowsOf,
+  staleRefusal,
+} from "@/lib/live/liveWriteGuard";
 import { lineupWrite, type PeriodWrite } from "@/lib/live/periodGuard";
+import { cleanBatchLeft } from "@/lib/live/subAnchor";
 import { resolveUndoTarget, undoArgs, type UndoTargetRef } from "@/lib/live/undoTarget";
 import type { ActionResult, LiveAuth, MixedGroup } from "@/lib/types";
 import { normalizeTouchLineup, touchOnField, validateTouchLineup, type TouchLineup } from "@/lib/sports/touch/lineup";
@@ -45,6 +55,7 @@ import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
 import type { PlaybookSnapshot } from "@/lib/playbook/types";
 import { gameWriteError } from "@/lib/games/gameWriteError";
+import { reopenLineup } from "./actions";
 
 interface Writer {
   supabase: SupabaseClient;
@@ -161,6 +172,10 @@ async function insertEvent(
     idempotency_key: idempotencyKey ?? null,
   });
   if (error) {
+    // The other phone's start or Finish landed after the guard looked.
+    const race = await raceVerdictOf(w.supabase, gameId, error, { type, guard }, await periodWordFor(w.teamId), idempotencyKey);
+    if (race?.kind === "stale") return staleRefusal(auth, w.teamId, gameId, race.message);
+    if (race?.kind === "duplicate") return { success: true };
     // Unique-violation on the idempotency_key partial index means this
     // op already landed (write queue retry). Treat as success.
     if (error.code === "23505" && idempotencyKey) return { success: true };
@@ -210,7 +225,10 @@ export async function startTouchGame(
   const firstError = check.issues.find((i) => i.kind === "error");
   if (firstError) return { success: false, error: firstError.message };
 
+  // Their ids, so a kickoff that loses the race can take them back out.
+  const written = [crypto.randomUUID()];
   const { error: insertError } = await w.supabase.from("game_events").insert({
+    id: written[0],
     game_id: gameId,
     type: "lineup_set",
     metadata: { lineup, sport },
@@ -223,7 +241,10 @@ export async function startTouchGame(
     const here = [...touchOnField(lineup), ...lineup.bench];
     const plan = mixedFieldPlan(mixed, size, countMixedGroups(here, (id) => groups.get(id)));
     if (plan.short) {
+      const shrinkId = crypto.randomUUID();
+      written.push(shrinkId);
       const { error: shrinkError } = await w.supabase.from("game_events").insert({
+        id: shrinkId,
         game_id: gameId,
         type: "roster_shrink",
         metadata: { on_field_size: plan.size, quarter: 0, elapsed_ms: 0, sport },
@@ -240,7 +261,11 @@ export async function startTouchGame(
       metadata: { quarter: 1, sport },
       created_by: w.userId,
     });
-    if (startError) return { success: false, error: startError.message };
+    if (startError) {
+      const raced = await kickoffRaceRefusal(gameId, written, startError, await periodWordFor(w.teamId));
+      if (raced) return staleRefusal(auth, w.teamId, gameId, raced);
+      return { success: false, error: startError.message };
+    }
   }
 
   const gameUpdate: {
@@ -257,7 +282,7 @@ export async function startTouchGame(
   if (subIntervalSeconds != null) {
     gameUpdate.sub_interval_seconds = Math.round(Math.min(10 * 60, Math.max(60, subIntervalSeconds)));
   }
-  const { error: gameError } = await w.supabase.from("games").update(gameUpdate).eq("id", gameId);
+  const { error: gameError } = await updateLiveGame(w.supabase, gameId, gameUpdate);
   // A refused write says so (UX round 3: soccer's kick-off went on with
   // the game still "Upcoming").
   if (gameError) return { success: false, error: gameWriteError(gameError) };
@@ -272,6 +297,32 @@ export async function startTouchGame(
   }
   revalidatePath(`/run/${auth.token}`, "layout");
   return { success: true };
+}
+
+// ─── reopenTouchLineup ───────────────────────────────────────
+// ⋯ → Edit lineup before the first whistle (live v3): the picker comes
+// back with the side as set. AFL's reopenLineup moves the lineup into the
+// draft and takes the lineup_set out; a mixed team short of girls also
+// started on the field its rule allows (a roster_shrink before the
+// start), which goes with it, so the next Ready works the size out again
+// from who's here then.
+export async function reopenTouchLineup(auth: LiveAuth, gameId: string): Promise<ActionResult> {
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+  const admin = createAdminClient();
+  const { data: started, error: readError } = await admin
+    .from("game_events")
+    .select("id")
+    .eq("game_id", gameId)
+    .in("type", ["quarter_start", "game_finalised"])
+    .limit(1);
+  if (readError) return { success: false, error: readError.message };
+  // Under way: reopenLineup refuses it, in its words.
+  if ((started ?? []).length === 0) {
+    const { error: shrinkError } = await admin.from("game_events").delete().eq("game_id", gameId).eq("type", "roster_shrink");
+    if (shrinkError) return { success: false, error: shrinkError.message };
+  }
+  return reopenLineup(auth, gameId);
 }
 
 // ─── saveTouchLineupDraft ────────────────────────────────────
@@ -369,7 +420,7 @@ export async function finaliseTouchGame(
   }, idempotencyKey);
   if (!finalise.success) return finalise;
 
-  const { error: updateError } = await w.supabase.from("games").update({ status: "completed" }).eq("id", gameId);
+  const { error: updateError } = await updateLiveGame(w.supabase, gameId, { status: "completed" });
   if (updateError) return { success: false, error: updateError.message };
 
   await writeGameRollup(w.supabase, gameId);
@@ -411,7 +462,8 @@ const lineOrUndefined = (v: unknown): TouchLine | undefined =>
 // ─── recordTouchSwap ─────────────────────────────────────────
 // A rolling sub: the kid coming on takes the lane of the kid going off.
 // `line` names the spot when the kid going off has already left (hurt,
-// lent), or an empty place.
+// lent), or an empty place. `batch_left`: one pair of the planned sub,
+// how many are still to make (lib/live/subAnchor holds the sub clock).
 export async function recordTouchSwap(
   auth: LiveAuth,
   gameId: string,
@@ -421,12 +473,16 @@ export async function recordTouchSwap(
     line?: TouchLine;
     quarter: number;
     elapsed_ms: number;
+    batch_left?: number;
     /** By hand, off the rotation's cadence: the sub clock doesn't restart (lib/live/subAnchor). */
     manual?: boolean;
+    /** Undo putting a swap back: no "just subbed" mark (lib/live/swapRecency). */
+    undo?: boolean;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {
   const line = lineOrUndefined(input.line);
+  const batchLeft = cleanBatchLeft(input.batch_left);
   return insertEvent(
     auth,
     gameId,
@@ -439,7 +495,9 @@ export async function recordTouchSwap(
         ...(line ? { line } : {}),
         quarter: input.quarter,
         elapsed_ms: input.elapsed_ms,
+        ...(batchLeft ? { batch_left: batchLeft } : {}),
         ...(input.manual === true ? { manual: true } : {}),
+        ...(input.undo === true ? { undo: true } : {}),
       },
     },
     idempotencyKey,

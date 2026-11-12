@@ -4,18 +4,24 @@
 // One screen for every sport's quarter- or half-time break (docs/
 // handoffs/siren-footy-break-redesign-HANDOFF.md): the header, a score
 // chip and a status chip, the 4-up strategy picker, the issues card, the
-// zones from the sport's config (lib/sports/break.ts) as 2-column tiles
-// with the bench last, and the sticky Start footer. Tap two tiles to
-// swap them, across zones or with the bench.
+// next period's lineup on the sport's own field, drawn as its live
+// screen draws it (FieldLines: the surface, markings and lines; Steve,
+// 10 Nov 2026), the zones from the sport's config (lib/sports/break.ts)
+// as its lines, the bench under it (KidBench), and the sticky Start
+// footer. Tap two tiles to swap them, across lines or with the bench.
 //
 // It never asks which sport it's showing. Each sport's adapter (AFL's
 // QuarterBreak, NetballQuarterBreak, SoccerBreak, BasketballBreak,
 // LeagueBreak) turns its engine into these props: the slots, the rule
 // check, the strategies, its writers. What differs between sports lives
-// in config or in the adapter, never in a branch here.
+// in config or in the adapter, never in a branch here: the field too,
+// whose surface, markings and line shapes each adapter takes from the
+// helper its live screen uses (ovalField, netballCourt, …), so the two
+// can't drift apart.
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
+import { lostScoreText, takeLostScore } from "@/lib/live/lostScore";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { QuarterKickoffBar } from "@/components/quarter-break/QuarterKickoffBar";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
@@ -29,7 +35,10 @@ import {
   type BreakPlayer,
   type BreakSettingsProps,
 } from "@/components/quarter-break/BreakSettingsSheet";
-import { ZONE_SWATCH, ZONE_TEXT } from "@/components/quarter-break/breakZoneTokens";
+import { FieldLines, type FieldLine, type FieldLinesProps } from "@/components/live/FieldLines";
+import { KidBench } from "@/components/live/KidBench";
+import { LentList } from "@/components/lineup/LentList";
+import { useSquadNames } from "@/components/live/SquadNames";
 import {
   BENCH,
   averageMs,
@@ -40,8 +49,10 @@ import {
   type BoardSlot,
 } from "@/lib/live/break/board";
 import type { BreakIssues } from "@/lib/live/break/issues";
+import { kidsMoved, marginWords, replanUndoneText, replannedText } from "@/lib/live/break/breakWords";
 import type { BreakScoreLine, SportBreakConfig } from "@/lib/sports/break";
-import type { Game } from "@/lib/types";
+import type { BreakZoneDef } from "@/lib/sports/types";
+import type { Game, MixedGroup } from "@/lib/types";
 import { announce } from "@/lib/a11y/announce";
 
 export type { BreakPlayer } from "@/components/quarter-break/BreakSettingsSheet";
@@ -56,10 +67,31 @@ const STRATEGIES: { id: BreakStrategy; label: string }[] = [
   { id: "manual", label: "Manual" },
 ];
 
+/** A spot on the break's field: its slot and the tile drawn for it. */
+export interface BreakFieldCell {
+  slot: BoardSlot;
+  node: ReactNode;
+}
+
+/** How a line's kids stand, where it isn't a plain grid (FieldLine). */
+export type BreakLineShape = Partial<Pick<FieldLine, "rows" | "rowsAlign" | "rowSide" | "cols">>;
+
+/**
+ * The sport's field at the break, the same as its live screen's: the
+ * surface and markings (and the room each end keeps, the tile width),
+ * from the helper the live screen uses, and how each zone's kids stand
+ * (netball's zigzag, rugby's formation, Oztag's 3-2-3).
+ */
+export interface BreakField extends Pick<FieldLinesProps, "surface" | "marks" | "endsPx" | "tileWidth" | "dense"> {
+  shape?: (zone: BreakZoneDef, cells: BreakFieldCell[]) => BreakLineShape | undefined;
+}
+
 export interface PeriodBreakProps {
   /** The live screen's top bar: Exit, the title and Help. */
   header: { exitHref?: string; game: Game; onHelp?: () => void };
   config: SportBreakConfig;
+  /** The sport's field, as its live screen draws it. */
+  field: BreakField;
   /** The period about to start (1-based). */
   nextPeriod: number;
   /** The staged lineup as slots (lib/live/break/board.ts). */
@@ -82,10 +114,28 @@ export interface PeriodBreakProps {
   previousPositions?: Readonly<Record<string, string>>;
   /** Kids who can't play, and why: "Injured", "Lent", "Fouled out". */
   sidelined: Readonly<Record<string, string>>;
+  /**
+   * A mixed team's G or B per kid (MixedMark), coach view only: the
+   * sport passes it on a mixed team, to a coach, for kids whose
+   * Girl/Boy is set.
+   */
+  groups?: Readonly<Record<string, MixedGroup>>;
   onSwap: (a: BoardSlot, b: BoardSlot) => void;
   onLongPress?: (playerId: string) => void;
   strategy: BreakStrategy;
   onStrategy: (next: BreakStrategy) => void;
+  /**
+   * How many times the break has re-planned its lineup on its own
+   * (useBreakReplan: who can play changed). Each new one is said under
+   * the strategy picker, "Lineup re-planned: 3 kids moved." (Stagehand
+   * round 11, #2), until the coach next changes the lineup themselves.
+   */
+  replanned?: number;
+  /**
+   * Put back the lineup from before the re-plan (useBreakReplan's
+   * `undo`): an Undo beside the line, while there's one to put back.
+   */
+  onUndoReplan?: () => void;
   issues: BreakIssues;
   /** The score chip; absent when the team isn't keeping score. */
   score?: { line: BreakScoreLine; editor?: ReactNode };
@@ -172,6 +222,7 @@ export function PeriodBreak(props: PeriodBreakProps) {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, [nextPeriod]);
 
+  const squadNames = useSquadNames();
   const sidelinedSet = useMemo(() => new Set(Object.keys(sidelined)), [sidelined]);
   const places = useMemo(() => placeIndex(config.zones), [config.zones]);
   const periodName = config.periodName(nextPeriod);
@@ -201,6 +252,33 @@ export function PeriodBreak(props: PeriodBreakProps) {
     if (start.error) setConfirmOpen(false);
   }, [start.error]);
 
+  // The break re-planned on its own: say so, with how many kids moved,
+  // against the lineup on screen the render before.
+  const [replanNote, setReplanNote] = useState<string | null>(null);
+  const placedBefore = useRef<Record<string, string>>({});
+  const replanSeen = useRef(props.replanned ?? 0);
+  useEffect(() => {
+    const placed: Record<string, string> = {};
+    for (const s of slots) if (s.playerId) placed[s.playerId] = s.zone === BENCH ? BENCH : s.group;
+    const stamp = props.replanned ?? 0;
+    if (stamp !== replanSeen.current) {
+      replanSeen.current = stamp;
+      const moved = kidsMoved(placedBefore.current, placed, BENCH, sidelinedSet);
+      // A re-plan that moved nobody leaves the line (and its Undo) as it was.
+      if (moved > 0) setReplanNote(replannedText(moved));
+    }
+    placedBefore.current = placed;
+  }, [slots, props.replanned, sidelinedSet]);
+  useEffect(() => setReplanNote(null), [nextPeriod]);
+  // Undo: the lineup goes back and the line says so, with focus on it
+  // (the button that had it goes).
+  const replanLineRef = useRef<HTMLParagraphElement>(null);
+  function undoReplan() {
+    props.onUndoReplan?.();
+    setReplanNote(replanUndoneText);
+    requestAnimationFrame(() => replanLineRef.current?.focus({ preventScroll: true }));
+  }
+
   const average = useMemo(() => {
     const healthy = slots.map((s) => s.playerId).filter((id): id is string => !!id && !sidelinedSet.has(id));
     return averageMs(healthy, gameMs);
@@ -208,17 +286,14 @@ export function PeriodBreak(props: PeriodBreakProps) {
 
   function tileFor(slot: BoardSlot): BreakTileModel {
     const zone = config.zones.find((z) => z.key === slot.zone);
-    const color = zone?.color ?? "bench";
     const id = slot.playerId;
     if (!id) {
       return {
         playerId: null,
         tag: slot.label ?? "",
         tagIsBib: !!slot.label,
-        zoneColor: color,
         name: "",
         movement: "",
-        fromColor: "bench",
         time: "",
         lowTime: false,
         sidelined: false,
@@ -235,14 +310,14 @@ export function PeriodBreak(props: PeriodBreakProps) {
       playerId: id,
       tag: bib ?? jersey,
       tagIsBib: !!bib,
-      zoneColor: color,
       name: p?.name ?? "Player",
+      shown: p ? squadNames.tile({ id, full_name: p.name }) : undefined,
       score: props.scores?.[id],
       tags: props.tags?.[id],
+      group: props.groups?.[id],
       movement:
         why ??
         movementText(prev, slot.group, places, props.positions ? { from: props.previousPositions?.[id], to: bib } : undefined),
-      fromColor: places[prev]?.color ?? "bench",
       time: clock(ms),
       lowTime: !why && isLowTime(ms, average, config.lowTimeMs),
       sidelined: !!why,
@@ -267,6 +342,7 @@ export function PeriodBreak(props: PeriodBreakProps) {
     }
     props.onSwap(selectedSlot, slot);
     setSelected(null);
+    setReplanNote(null);
   }
 
   function fix(issueId: string) {
@@ -276,16 +352,64 @@ export function PeriodBreak(props: PeriodBreakProps) {
     // apply swaps to the latest draft, so they compose in order.
     for (const [a, b] of swaps) props.onSwap(a, b);
     setSelected(null);
+    setReplanNote(null);
   }
 
-  const sections = [
-    ...config.zones.map((z) => ({ key: z.key, label: z.label, color: z.color as keyof typeof ZONE_SWATCH })),
-    { key: BENCH, label: "BENCH", color: "bench" as const },
-  ];
+  // One tile, on the field or the bench, keyed by its spot (and kid).
+  function tileNode(s: BoardSlot, i: number, place: "field" | "bench"): ReactNode {
+    return (
+      <div key={`${s.group}-${s.index}-${s.playerId ?? "empty"}`} className="min-w-0">
+        <BreakPlayerTile
+          tile={tileFor(s)}
+          place={place}
+          dense={place === "field" && field.dense}
+          testId={s.playerId ? `player-tile-${s.playerId}` : undefined}
+          selected={selected === i}
+          target={selected !== null && selected !== i && !!selectedSlot && canSwap(selectedSlot, s, sidelinedSet)}
+          onTap={() => tap(i)}
+          onLongPress={props.onLongPress && s.playerId ? () => props.onLongPress?.(s.playerId as string) : undefined}
+        />
+      </div>
+    );
+  }
 
+  // The field: a line per zone, attack up the page, each in the shape
+  // the sport's live screen gives it. A line says how many are on
+  // ("FORWARD 4 on"), underlined when it's short.
+  const { field } = props;
+  const fieldLines: FieldLine[] = config.zones.flatMap((zone) => {
+    const cells = slots.flatMap((s, i) => (s.zone === zone.key ? [{ slot: s, node: tileNode(s, i, "field") }] : []));
+    if (cells.length === 0) return [];
+    const on = cells.filter((c) => c.slot.playerId && !sidelined[c.slot.playerId]).length;
+    return [
+      {
+        key: zone.key,
+        label: titleCase(zone.label),
+        tiles: cells.map((c) => c.node),
+        count: { text: `${on} on`, short: on < zone.slots },
+        ...field.shape?.(zone, cells),
+      },
+    ];
+  });
+
+  // The bench: who can come on, then who's out, as in play (KidBench).
+  const benchCells = slots.map((s, i) => ({ s, i })).filter(({ s }) => s.zone === BENCH);
+  const benchOut = new Map<string, number>();
+  for (const { s } of benchCells) {
+    const why = s.playerId ? sidelined[s.playerId] : undefined;
+    if (why) benchOut.set(why.toLowerCase(), (benchOut.get(why.toLowerCase()) ?? 0) + 1);
+  }
+  const benchOutCount = Array.from(benchOut.values()).reduce((a, b) => a + b, 0);
+  const benchCount = [String(benchCells.length - benchOutCount), ...Array.from(benchOut.entries()).map(([why, n]) => `${n} ${why}`)].join(" + ");
+
+  const lentKids = props.settings.lent?.players ?? [];
   const brokenCount = issues.broken.length;
   const selectedName = selectedSlot?.playerId ? players.get(selectedSlot.playerId)?.name ?? "Player" : null;
   const selectedEmpty = selectedSlot && !selectedSlot.playerId ? selectedSlot.label ?? config.zones.find((z) => z.key === selectedSlot.zone)?.short : null;
+
+  // A score the other phone's period end cut off (lib/live/lostScore).
+  const [lostScore, setLostScore] = useState<string | null>(null);
+  useEffect(() => setLostScore(takeLostScore()), []);
 
   return (
     <div ref={rootRef} className="pb-40">
@@ -301,7 +425,7 @@ export function PeriodBreak(props: PeriodBreakProps) {
         />
       ) : (
         <div className="px-1 py-2 text-center">
-          <h1 tabIndex={-1} className="text-[17px] font-bold text-ink outline-none">
+          <h1 tabIndex={-1} className="text-[1.0625rem] font-bold text-ink outline-none">
             {periodName} lineup
           </h1>
           <p className="text-xs text-ink-dim">
@@ -311,6 +435,24 @@ export function PeriodBreak(props: PeriodBreakProps) {
       )}
 
       <div className="mt-3 space-y-3">
+        {/* The period's over, said plainly, in every sport: at the hooter
+            nine of them turned into this screen without a word, and a
+            parent running the game didn't know the quarter had ended or
+            what to do (Stagehand round 8, #8). AFL's end-of-quarter modal
+            comes first there; this is the same line once it's gone. */}
+        {nextPeriod > 1 && (
+          <div data-testid="period-over" role="status" className="rounded-md border border-hairline bg-surface px-4 py-3 shadow-card">
+            <p className="text-base font-bold text-ink">{config.periodName(nextPeriod - 1)} is over</p>
+            <p className="mt-0.5 text-sm text-ink-dim">
+              Check the {periodName} lineup below, then tap Start {periodName}.
+            </p>
+          </div>
+        )}
+        {lostScore && (
+          <div data-testid="lost-score-notice">
+            <InlineAlert kind="warn">{lostScoreText(lostScore)}</InlineAlert>
+          </div>
+        )}
         {/* Context row: the score and who's out. */}
         <div className="flex items-center gap-2">
           {props.score && (
@@ -318,20 +460,22 @@ export function PeriodBreak(props: PeriodBreakProps) {
               type="button"
               onClick={() => setScoreOpen(true)}
               disabled={!props.score.editor}
-              aria-label={`Score ${props.score.line.main}. Review and update scores`}
+              aria-label={`Score ${props.score.line.main}, ${marginWords(props.score.line.margin).toLowerCase()}. Review and update scores`}
               className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-[12px] border border-hairline bg-surface px-3 text-left disabled:cursor-default"
             >
-              <span className="whitespace-nowrap font-mono text-[15px] font-semibold tabular-nums text-ink">
+              <span className="whitespace-nowrap font-mono text-[0.9375rem] font-semibold tabular-nums text-ink">
                 {props.score.line.main}
               </span>
-              {props.score.line.margin !== 0 && (
-                <span
-                  // win green, not ok: ok is 4.05:1 on white (UX round 3, e4).
-                  className={`whitespace-nowrap text-[13px] font-semibold ${props.score.line.margin > 0 ? "text-win" : "text-danger"}`}
-                >
-                  {props.score.line.margin > 0 ? `+${props.score.line.margin}` : props.score.line.margin}
-                </span>
-              )}
+              {/* The margin, said: "Up by 1", not "+1" (Stagehand round 11, #3). */}
+              <span
+                data-testid="break-margin"
+                // win green, not ok: ok is 4.05:1 on white (UX round 3, e4).
+                className={`whitespace-nowrap text-[0.8125rem] font-semibold ${
+                  props.score.line.margin > 0 ? "text-win" : props.score.line.margin < 0 ? "text-danger" : "text-ink-dim"
+                }`}
+              >
+                {marginWords(props.score.line.margin)}
+              </span>
               <span className="ml-auto truncate text-xs text-ink-dim">{props.score.line.detail}</span>
             </button>
           )}
@@ -357,7 +501,7 @@ export function PeriodBreak(props: PeriodBreakProps) {
               props.statusChip.attention ? "border-due/50 bg-due-tint" : "border-hairline bg-surface"
             }`}
           >
-            <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">{props.statusChip.title}</span>
+            <span className="font-mono text-micro font-bold uppercase tracking-micro text-ink-dim">{props.statusChip.title}</span>
             <span className={`min-w-0 flex-1 truncate font-medium ${props.statusChip.attention ? "text-due" : "text-ink"}`}>
               {props.statusChip.summary}
             </span>
@@ -374,59 +518,69 @@ export function PeriodBreak(props: PeriodBreakProps) {
           value={props.strategy}
           onChange={(next) => {
             setSelected(null);
+            setReplanNote(null);
             props.onStrategy(next);
           }}
         />
 
+        {replanNote && (
+          <div className="flex items-center gap-2 rounded-md border border-hairline bg-surface-alt py-0.5 pl-3 pr-1">
+            <p
+              ref={replanLineRef}
+              tabIndex={-1}
+              data-testid="break-replanned"
+              role="status"
+              className="min-w-0 flex-1 py-1.5 text-sm font-medium text-ink outline-none"
+            >
+              {replanNote}
+            </p>
+            {/* Put back the lineup from before (Steve, 12 Nov 2026). */}
+            {props.onUndoReplan && replanNote !== replanUndoneText && (
+              <button
+                type="button"
+                data-testid="break-replan-undo"
+                onClick={undoReplan}
+                aria-label="Undo the re-plan"
+                className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md px-3 text-sm font-semibold text-ink underline underline-offset-2 hover:bg-ink/5 active:bg-ink/10"
+              >
+                Undo
+              </button>
+            )}
+          </div>
+        )}
+
         <BreakIssuesCard issues={issues} onFix={fix} />
+
+        {/* Kids lent to the other team, each with a plain Bring back:
+            getting one back at the break was only in Game settings, as
+            a ×, and four coaches in Stagehand round 9 didn't find it.
+            Every sport hands over its lent kids with their writer. */}
+        <LentList
+          testId="break-lent"
+          players={lentKids}
+          note={`Bring them back and they join the bench for ${periodName}.`}
+          pending={props.settings.pending}
+          buttonTestId={(id) => `break-bring-back-${id}`}
+          onBringBack={(id) => props.settings.lent?.onToggle(id, false)}
+        />
 
         <p className="text-center text-xs text-ink-dim">Tap two players to swap — any position or bench</p>
         {props.banner}
 
-        {sections.map((section) => {
-          const inSection = slots.map((s, i) => ({ s, i })).filter(({ s }) => s.zone === section.key);
-          if (section.key === BENCH && inSection.length === 0) return null;
-          const out = inSection.filter(({ s }) => s.playerId && sidelined[s.playerId]);
-          const outCounts = new Map<string, number>();
-          for (const { s } of out) {
-            const why = sidelined[s.playerId as string].toLowerCase();
-            outCounts.set(why, (outCounts.get(why) ?? 0) + 1);
-          }
-          const count =
-            section.key === BENCH
-              ? [String(inSection.length - out.length), ...Array.from(outCounts.entries()).map(([why, n]) => `${n} ${why}`)].join(" + ")
-              : `${inSection.filter(({ s }) => s.playerId).length} on`;
-          return (
-            <section key={section.key} role="group" aria-label={titleCase(section.label)} className="space-y-1.5">
-              <div className="flex items-center gap-2 px-0.5">
-                <span aria-hidden className={`h-2.5 w-2.5 rounded-[3px] ${ZONE_SWATCH[section.color]}`} />
-                <span className={`font-mono text-xs font-semibold tracking-[0.12em] ${ZONE_TEXT[section.color]}`}>
-                  {section.label}
-                </span>
-                <span className="ml-auto text-xs text-ink-dim">{count}</span>
-              </div>
-              {/* Two columns, or one once the text is large: a column is at
-                  least 8.5rem, which at 150% text and up is more than half a
-                  phone (UX round 3, e4: at 200% names cut to "Leo…"). */}
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(max(8.5rem,calc(50%_-_3px)),1fr))] gap-[6px]">
-                {inSection.map(({ s, i }) => {
-                  const tile = tileFor(s);
-                  return (
-                    <BreakPlayerTile
-                      key={`${s.group}-${s.index}-${s.playerId ?? "empty"}`}
-                      tile={tile}
-                      testId={s.playerId ? `player-tile-${s.playerId}` : undefined}
-                      selected={selected === i}
-                      target={selected !== null && selected !== i && !!selectedSlot && canSwap(selectedSlot, s, sidelinedSet)}
-                      onTap={() => tap(i)}
-                      onLongPress={props.onLongPress && s.playerId ? () => props.onLongPress?.(s.playerId as string) : undefined}
-                    />
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })}
+        {/* The field, drawn as in play, and the bench under it. */}
+        <div data-testid="break-field" className="flex flex-col">
+          <FieldLines
+            lines={fieldLines}
+            surface={field.surface}
+            marks={field.marks}
+            endsPx={field.endsPx}
+            tileWidth={field.tileWidth}
+            dense={field.dense}
+          />
+        </div>
+        {benchCells.length > 0 && (
+          <KidBench count={benchCount} tiles={benchCells.map(({ s, i }) => tileNode(s, i, "bench"))} />
+        )}
 
         {props.extras}
 
@@ -447,7 +601,7 @@ export function PeriodBreak(props: PeriodBreakProps) {
         }
         prompt={
           selectedSlot ? (
-            <div className="flex items-center gap-2 text-[13px] text-ink" aria-live="polite">
+            <div className="flex items-center gap-2 text-[0.8125rem] text-ink" aria-live="polite">
               <span className="min-w-0 truncate">
                 {selectedName ? (
                   <>
@@ -462,7 +616,7 @@ export function PeriodBreak(props: PeriodBreakProps) {
               <button
                 type="button"
                 onClick={() => setSelected(null)}
-                className="ml-auto h-9 shrink-0 rounded-lg border border-hairline bg-surface px-3 text-[13px] font-medium text-ink"
+                className="ml-auto h-9 shrink-0 rounded-lg border border-hairline bg-surface px-3 text-[0.8125rem] font-medium text-ink"
               >
                 Cancel
               </button>

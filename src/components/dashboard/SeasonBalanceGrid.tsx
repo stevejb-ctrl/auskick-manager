@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { SegTabs } from "@/components/sf/SegTabs";
-import type { SeasonGrid } from "@/lib/playbook/seasonGrid";
+import { owedPlayers, type SeasonGrid } from "@/lib/playbook/seasonGrid";
 import { EmptyState } from "./EmptyState";
 
 interface SeasonBalanceGridProps {
@@ -17,7 +17,7 @@ interface SeasonBalanceGridProps {
 type Sort = "gap" | "name";
 
 function cellTone(owed: number): string {
-  if (owed >= 1) return "bg-warn-soft text-warn font-semibold";
+  if (owed >= 1) return "bg-warn-soft text-warn-ink font-semibold";
   if (owed <= -1) return "bg-surface-alt text-ink-mute";
   return "text-ink";
 }
@@ -41,9 +41,37 @@ export function SeasonBalanceGrid({ grid, periodWord, sinceLabel }: SeasonBalanc
     sort === "gap" ? b.biggestGap - a.biggestGap || a.name.localeCompare(b.name) : a.name.localeCompare(b.name),
   );
   const mins = (ms: number) => Math.round(ms / 60000);
+  // The answer first (design review, Oct 2026): who's owed time, or that
+  // nobody is. The table under it is the working.
+  const owed = owedPlayers(grid);
+  const shown = owed.slice(0, 4);
 
   return (
     <div className="space-y-3">
+      <div
+        data-testid="season-balance-verdict"
+        className={`rounded-md px-3 py-2.5 text-sm ${owed.length === 0 ? "bg-win-soft text-win" : "bg-warn-soft text-ink"}`}
+      >
+        {owed.length === 0 ? (
+          <p className="font-semibold">
+            <span aria-hidden="true">✓ </span>
+            {/* "Within" counts kids over a line too, and the tick only kids
+                owed: when some are over (and so not within), the tick says
+                what it knows (Stagehand round 11: "Everyone's within" above
+                "12 of 25 kids within"). */}
+            {grid.within === grid.total
+              ? <>Everyone&apos;s within a {periodWord} of even.</>
+              : <>Nobody&apos;s owed a {periodWord} anywhere.</>}
+          </p>
+        ) : (
+          <p>
+            <span className="font-semibold text-warn">Owed time: </span>
+            {shown.join(", ")}
+            {owed.length > shown.length && ` and ${owed.length - shown.length} more`}
+            <span className="block text-xs text-ink-dim">Siren leans their way in the next lineups.</span>
+          </p>
+        )}
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-ink" data-testid="season-balance-summary">
           <strong className="tabular-nums">{grid.within}</strong> of{" "}
@@ -65,7 +93,7 @@ export function SeasonBalanceGrid({ grid, periodWord, sinceLabel }: SeasonBalanc
       <div className="overflow-x-auto">
         <table className="w-full text-sm" aria-label="Season balance">
           <thead>
-            <tr className="text-left font-mono text-[10px] uppercase tracking-micro text-ink-mute">
+            <tr className="text-left font-mono text-nano uppercase tracking-micro text-ink-mute">
               <th className="py-1.5 pr-2 font-bold">Player</th>
               {grid.units.map((u) => (
                 <th key={u.key} className="px-1 py-1.5 text-center font-bold">
@@ -100,7 +128,7 @@ export function SeasonBalanceGrid({ grid, periodWord, sinceLabel }: SeasonBalanc
         </table>
       </div>
       <p className="text-xs text-ink-mute">
-        Minutes this season. <span className="rounded-xs bg-warn-soft px-1 text-warn">Tinted</span> = owed at
+        Minutes this season. <span className="rounded-xs bg-warn-soft px-1 text-warn-ink">Tinted</span> = owed at
         least a {periodWord} there.
       </p>
     </div>

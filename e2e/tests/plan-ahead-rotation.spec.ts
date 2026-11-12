@@ -43,26 +43,28 @@ import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
 import { aflPositionModel, getAgeGroupConfig } from "../../src/lib/sports";
 import type { Lineup } from "../../src/lib/types";
+import { openPairs, subDueAlert } from "../helpers/liveShell";
 
 test.describe.configure({ mode: "parallel" });
 
-// ─── Inline SwapCard override (F1 inline) ─────────────────────────
+// ─── Inline pair override (F1 inline) ─────────────────────────────
 // The same override the planner does, but WITHOUT leaving the field:
-// the coach taps a chip on the SwapCard, picks a different player from
+// the coach opens the pairs (the info line, live v3; it was the swap
+// card's open view) and taps a name, picks a different player from
 // the inline picker, and that choice is pinned via the SAME
 // plannedRotation slice — the SwapCard shows it "Edited" and "Do all"
 // applies the coach's pick, not the engine's.
 //
 //   1. Seed an AFL game mid-Q1 with a swappable bench (as F1 above).
 //   2. Reach the sub-due moment, dismiss the sub-due banner once.
-//   3. Expand the SwapCard, tap pair 0's outgoing chip, and pick a
+//   3. Open the pairs (the info line), tap pair 0's outgoing name, and pick a
 //      teammate the engine did NOT already have coming off there.
 //   4. Assert: the pair shows the "Edited" badge (the inline edit
 //      pinned, same as the planner's "Pin this sub").
-//   5. "Do all", then assert a `swap` event landed taking the
+//   5. "Make all", then assert a `swap` event landed taking the
 //      coach-picked player off — proving the inline override was
 //      honoured end-to-end.
-test("F1-inline: overriding the incoming player on the SwapCard pins it and is honoured", async ({
+test("F1-inline: overriding a pair on the pairs sheet pins it and is honoured", async ({
   page,
 }) => {
   test.setTimeout(120_000);
@@ -135,16 +137,9 @@ test("F1-inline: overriding the incoming player on the SwapCard pins it and is h
     timeout: 10_000,
   });
 
-  // Reach sub-due and clear the modal so the inline SwapCard is editable.
-  await expect(
-    page.getByRole("button", { name: /^got it$/i }),
-  ).toBeVisible({ timeout: 60_000 });
-  await page.getByRole("button", { name: /^got it$/i }).click();
-
-  // Expand the SwapCard and open pair 0's incoming picker.
-  const toggle = page.getByTestId("swapcard-toggle");
-  await expect(toggle).toBeVisible({ timeout: 5_000 });
-  await toggle.click();
+  // Reach sub-due (the info line's alert), then open the pairs.
+  await expect(subDueAlert(page)).toBeVisible({ timeout: 60_000 });
+  await openPairs(page);
   // Override who comes OFF. (The incoming side has no spare: with three
   // on the bench the suggester brings all three on, so pair 0's only
   // "bring on instead" option is its own pick.)
@@ -405,9 +400,8 @@ test("a kid just swapped off isn't suggested straight back on", async ({ page })
   });
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.getByRole("button", { name: /^got it$/i })).toBeVisible({ timeout: 60_000 });
-  await page.getByRole("button", { name: /^got it$/i }).click();
-  await page.getByTestId("swapcard-toggle").click();
+  await expect(subDueAlert(page)).toBeVisible({ timeout: 60_000 });
+  await openPairs(page);
 
   // Make the first suggested swap on its own.
   await page.getByRole("button", { name: /^swap .+ off, .+ on$/i }).first().click();
@@ -419,10 +413,60 @@ test("a kid just swapped off isn't suggested straight back on", async ({ page })
   const [offId] = await swaps();
   const offName = players.find((p) => p.id === offId)!.full_name;
 
-  // Whatever the card suggests next, the kid who just came off isn't
+  // Whatever the pairs suggest next, the kid who just came off isn't
   // coming back on.
-  const toggle = page.getByTestId("swapcard-toggle");
-  if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+  if ((await page.getByTestId("swapcard-apply-all").count()) === 0) await openPairs(page);
   await expect(page.locator('[data-testid^="swap-pair-"][data-testid$="-on"]').first()).toBeVisible();
   await expect(page.locator('[data-testid^="swap-pair-"][data-testid$="-on"]').filter({ hasText: offName })).toHaveCount(0);
+});
+
+// Stagehand round 9 (chaotic-substitution-coach): with one kid injured
+// and one lent mid-Q1, Plan Q2's "Plan for the group chat" text listed
+// two raw player ids on the bench. Both still sat on the live bench;
+// the planner (rightly) left them out of its players, so the copy
+// text had no names for them.
+//
+// Pre-fix this FAILS: the plan text contains the two kids' ids.
+test("Plan Q2's group-chat text never shows a kid's id for the injured or the lent", async ({ page }) => {
+  test.setTimeout(90_000);
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers();
+  const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  // A short quarter, so Plan Q2 is offered on load (as F2 above).
+  await admin
+    .from("games")
+    .update({ clock_multiplier: 1, sub_interval_seconds: 45, quarter_length_seconds: 50 })
+    .eq("id", game.id);
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  const zoneCaps = zoneCapsFor(game.on_field_size, aflPositionModel(getAgeGroupConfig("afl", team.ageGroup)));
+  const lineup: Lineup = { back: [], hback: [], mid: [], hfwd: [], fwd: [], bench: [] };
+  let cursor = 0;
+  for (const z of ALL_ZONES) for (let i = 0; i < zoneCaps[z]; i++) lineup[z].push(players[cursor++].id);
+  lineup.bench = players.slice(cursor).map((p) => p.id);
+  // Two kids on the bench: one hurt, one lent to the other side.
+  const [hurt, lent] = lineup.bench;
+  const at = (msAgo: number) => new Date(Date.now() - msAgo).toISOString();
+  await admin.from("game_events").insert([
+    { game_id: game.id, type: "lineup_set", metadata: { lineup }, created_by: ownerId, created_at: at(13_000) },
+    { game_id: game.id, type: "quarter_start", metadata: { quarter: 1 }, created_by: ownerId, created_at: at(12_000) },
+    { game_id: game.id, type: "injury", player_id: hurt, metadata: { injured: true, quarter: 1, elapsed_ms: 3_000 }, created_by: ownerId, created_at: at(9_000) },
+    { game_id: game.id, type: "player_loan", player_id: lent, metadata: { loaned: true, quarter: 1, elapsed_ms: 4_000 }, created_by: ownerId, created_at: at(8_000) },
+  ]);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await page.getByTestId("plan-next-period-entry").click({ timeout: 15_000 });
+  const text = page.locator("#game-plan-text");
+  await expect(text).toContainText("Game plan —");
+  for (const id of [hurt, lent]) await expect(text).not.toContainText(id);
+  await expect(text).not.toContainText(/[0-9a-f]{8}-[0-9a-f]{4}-/);
 });

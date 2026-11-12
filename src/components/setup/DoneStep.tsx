@@ -50,13 +50,13 @@ export function DoneStep({
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-lg border border-hairline bg-surface p-4 text-center shadow-card">
           <p className="text-2xl font-bold text-ink">{playerCount}</p>
-          <p className="mt-0.5 text-[11px] font-medium uppercase tracking-micro text-ink-mute">
+          <p className="mt-0.5 text-micro font-medium uppercase tracking-micro text-ink-mute">
             {playerCount === 1 ? "Player" : "Players"}
           </p>
         </div>
         <div className="rounded-lg border border-hairline bg-surface p-4 text-center shadow-card">
           <p className="text-2xl font-bold text-ink">{gameCount}</p>
-          <p className="mt-0.5 text-[11px] font-medium uppercase tracking-micro text-ink-mute">
+          <p className="mt-0.5 text-micro font-medium uppercase tracking-micro text-ink-mute">
             {gameCount === 1 ? "Game" : "Games"}
           </p>
         </div>
@@ -64,7 +64,7 @@ export function DoneStep({
           <p className="text-2xl font-bold text-ink">
             {scoringEnabled ? "On" : "Off"}
           </p>
-          <p className="mt-0.5 text-[11px] font-medium uppercase tracking-micro text-ink-mute">
+          <p className="mt-0.5 text-micro font-medium uppercase tracking-micro text-ink-mute">
             Scoring
           </p>
         </div>
@@ -82,7 +82,8 @@ export function DoneStep({
           </h2>
           <p className="mt-1 text-sm text-ink-dim">
             The mixed rule caps the boys on the field, so Siren needs to know who
-            counts as which. It&rsquo;s only used for the rule, and shows nowhere else.
+            counts as which. It&rsquo;s only used for the rule, as a small G or B on your
+            lineup. Parents never see it.
           </p>
           <Link
             href={`/teams/${teamId}/setup?step=squad`}

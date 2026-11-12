@@ -33,8 +33,8 @@ interface SegTabsProps {
 
 // Every size is a 44 pt target (UX plan Phase 6); size sets the type.
 const HEIGHT: Record<Size, string> = {
-  sm: "h-11 text-[12px]",
-  md: "h-11 text-[13px]",
+  sm: "h-11 text-xs",
+  md: "h-11 text-[0.8125rem]",
   lg: "h-11 text-sm",
 };
 
@@ -47,8 +47,9 @@ const HEIGHT: Record<Size, string> = {
  *   2. **Routed nav** — pass `href` on each option; the active option
  *      is determined by the parent (typically via `usePathname`).
  *
- * Colour: active tab is `surface` on a `surface-alt` track, with
- * `shadow-card`. Inactive tabs are `text-ink-dim`.
+ * Colour: the active tab is the filled primary (ink on the chalk page,
+ * chalk at night) on a `surface-alt` track, as the v3 segmented control
+ * draws it. Inactive tabs are `text-ink-dim`.
  */
 export function SegTabs({
   options,
@@ -80,7 +81,7 @@ export function SegTabs({
             {opt.count != null && (
               <span
                 className={`
-                  ml-0.5 rounded-full font-mono text-[10px] font-bold
+                  ml-0.5 rounded-full font-mono text-nano font-bold
                   ${active
                     ? "bg-surface-alt px-1.5 py-px text-ink-dim"
                     : "text-ink-mute"
@@ -99,7 +100,7 @@ export function SegTabs({
           ${HEIGHT[size]}
           ${full ? "flex-1" : ""}
           ${active
-            ? "bg-surface text-ink shadow-card"
+            ? "bg-primary text-on-primary"
             : "bg-transparent text-ink-dim hover:text-ink"
           }
         `;

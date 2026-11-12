@@ -57,7 +57,7 @@ export function VestPlanPill({
       } motion-safe:active:scale-[0.97]`}
     >
       <span
-        className={`rounded-sm px-1 font-mono text-[9px] font-bold uppercase tracking-micro ${tagBg}`}
+        className={`rounded-sm px-1 font-mono text-nano font-bold uppercase tracking-micro ${tagBg}`}
       >
         {label}
       </span>
@@ -132,7 +132,7 @@ export function VestPlanCandidatePicker({
                 >
                   <span className="flex items-center gap-1">
                     {isCurrent && (
-                      <span aria-hidden className="text-[10px]">
+                      <span aria-hidden className="text-nano">
                         ✓
                       </span>
                     )}
@@ -141,7 +141,7 @@ export function VestPlanCandidatePicker({
                     </span>
                   </span>
                   {showCounts && (
-                    <span className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-micro text-ink-mute">
+                    <span className="flex items-center gap-2 font-mono text-nano uppercase tracking-micro text-ink-mute">
                       <span
                         className={
                           vest === "fr" ? "font-bold text-warn" : ""
@@ -172,7 +172,7 @@ export function VestPlanCandidatePicker({
           <button
             type="button"
             onClick={onClear}
-            className="text-[11px] font-medium text-ink-mute underline-offset-2 hover:text-ink hover:underline"
+            className="text-micro font-medium text-ink-mute underline-offset-2 hover:text-ink hover:underline"
           >
             Clear pick
           </button>

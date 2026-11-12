@@ -83,8 +83,9 @@ describe("formatGamePlan — structure & header", () => {
     // U10 AFL rolls subs, so the subhead also carries the interchange cadence.
     const mins = Math.round(plan.periodMinutes);
     const subMin = Math.round((plan.subIntervalSeconds ?? 0) / 60);
+    // The one sub-interval phrase (Stagehand round 11, #5).
     expect(text.split("\n")[1]).toBe(
-      `4 quarters · ~${mins} min each · subs ~every ${subMin} min`,
+      `4 quarters · ~${mins} min each · sub every ${subMin} min`,
     );
   });
 
@@ -233,5 +234,28 @@ describe("formatGamePlan — when, where and who's out (UX round 2, 24 Oct 2026)
     const text = formatGamePlan(aflPlan(), { teamName: "Hawks", playerName: nameOf, details: { out: [] } });
     expect(text).not.toContain("Out:");
     expect(text.split("\n")[1]).toMatch(/^4 quarters/);
+  });
+});
+
+describe("formatGamePlan — the rotation that made it (Steve, 12 Nov 2026)", () => {
+  // The plan sheet said "Rotation: Suggested"; the copied text didn't.
+  it("names the rotation under the cadence, before who's out", () => {
+    const text = formatGamePlan(aflPlan(), {
+      teamName: "Hawks",
+      playerName: nameOf,
+      details: { out: ["Noah"] },
+      rotation: "Suggested",
+    });
+    const lines = text.split("\n");
+    expect(lines[1]).toMatch(/^4 quarters/);
+    expect(lines[2]).toBe("Rotation: Suggested");
+    expect(lines[3]).toBe("Out: Noah");
+  });
+
+  it("leaves the line out when there's no rotation name", () => {
+    for (const rotation of [undefined, null, "", "  "]) {
+      const text = formatGamePlan(aflPlan(), { teamName: "Hawks", playerName: nameOf, rotation });
+      expect(text).not.toContain("Rotation:");
+    }
   });
 });

@@ -13,7 +13,7 @@ export function MarketingBanner() {
   const { banner } = getBrandCopy(brand.id);
   return (
     <div className="bg-ink text-warm">
-      <div className="mx-auto flex max-w-6xl items-center justify-center gap-2 px-4 py-2 text-center font-mono text-[11px] font-semibold uppercase tracking-[0.08em] sm:px-6 sm:text-[12px]">
+      <div className="mx-auto flex max-w-6xl items-center justify-center gap-2 px-4 py-2 text-center font-mono text-micro font-semibold uppercase tracking-[0.08em] sm:px-6 sm:text-xs">
         <span className="text-brand-500">
           <PulseMark size={12} pulsing />
         </span>

@@ -4,7 +4,7 @@
 // (src/app/(marketing)/[sport]/page.tsx, content/marketing/sports.json).
 //
 // Covers: src/app/(marketing)/[sport]/page.tsx, SportsMenu,
-// SportChips, SharedFeatures, src/lib/public-routes.ts (sport pages are
+// SportChips, FieldBand, GameTour, src/lib/public-routes.ts (sport pages are
 // public and in the sitemap).
 
 import { test, expect } from "@playwright/test";
@@ -50,16 +50,69 @@ for (const sport of SPORTS) {
   });
 }
 
-test("a sport with its own tour scrolls through it; one without shows the shared six", async ({ page }) => {
-  await page.goto("/netball");
-  // Netball's own tour (content/marketing/brands/netball.json).
-  await expect(page.getByText("Every kid gets a turn in the").first()).toBeAttached();
+// The v3 site (docs/marketing/V3-SITE-DESIGN.md): each sport page sits on
+// its own ground and tours one game in its own screenshots.
+const SURFACES: Record<string, { surface: string; rgb: string }> = {
+  "/netball": { surface: "court", rgb: "rgb(30, 70, 95)" },
+  "/futsal": { surface: "court", rgb: "rgb(30, 70, 95)" },
+  "/basketball": { surface: "wood", rgb: "rgb(90, 56, 32)" },
+};
+const GRASS = { surface: "field", rgb: "rgb(15, 76, 43)" };
 
-  await page.goto("/oztag");
-  const features = page.locator("#features");
-  await expect(features.locator("li")).toHaveCount(6);
-  await expect(features).toContainText("Shown in netball");
-  await expect(features).toContainText("The same six things in every sport, Oztag included.");
+for (const sport of SPORTS) {
+  test(`${sport.path} is on its own ground, with a six-step tour in its own screenshots`, async ({ page }) => {
+    await page.goto(sport.path);
+    const slug = sport.path.slice(1);
+
+    // The hero band is the sport's playing surface, as the live screen draws it.
+    const want = SURFACES[sport.path] ?? GRASS;
+    const hero = page.locator("main > section").first();
+    await expect(hero).toHaveAttribute("data-surface", want.surface);
+    await expect(hero).toHaveCSS("background-color", want.rgb);
+
+    // One game in six moments, each over its own screen.
+    const steps = page.locator("#features ol > li");
+    await expect(steps).toHaveCount(6);
+    for (const stamp of ["Full time", "After the game"]) await expect(steps.filter({ hasText: stamp })).toHaveCount(1);
+
+    // Every picture on the page is this sport's own: no other sport's
+    // folder (the AFL and league shots used to stand in for others).
+    const srcs = await page.locator("main img").evaluateAll((imgs) =>
+      imgs.map((img) => {
+        const src = (img as HTMLImageElement).getAttribute("src") ?? "";
+        const url = new URL(src, location.href);
+        return decodeURIComponent(url.searchParams.get("url") ?? url.pathname);
+      }),
+    );
+    expect(srcs.length).toBeGreaterThanOrEqual(7);
+    for (const src of srcs) expect(src, src).toMatch(new RegExp(`^/marketing/screenshots/${slug}/(live|pairs|scoring|break|fulltime|stats)\\.png$`));
+    // And every one of them has words for anyone who can't see it.
+    const alts = await page.locator("main img").evaluateAll((imgs) => imgs.map((img) => img.getAttribute("alt")));
+    expect(alts.filter((a) => a !== "" && (a ?? "").length < 20)).toEqual([]);
+  });
+}
+
+// Steve, 10 Nov 2026: the sign-up band on a wide screen sliced AFL's oval
+// to a strip, so its two ends and 50 m arcs read as stray circles. The
+// short band draws the whole ground instead, centred behind the words.
+test("the sign-up band draws the whole ground on a wide screen", async ({ page }) => {
+  await page.setViewportSize({ width: 1900, height: 900 });
+  for (const path of ["/afl", "/"]) {
+    await page.goto(path, { waitUntil: "domcontentloaded" });
+    const glyph = page.locator("#signup svg[data-sport-field]").filter({ visible: true });
+    await expect(glyph).toHaveCount(1);
+    await expect(glyph).toHaveAttribute("preserveAspectRatio", "xMidYMid meet");
+  }
+});
+
+test("the sport pages and the homepage fit a phone: nothing scrolls sideways at 390", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const path of ["/", ...SPORTS.map((s) => s.path)]) {
+    await page.goto(path, { waitUntil: "domcontentloaded" });
+    const wide = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(wide, path).toBeLessThanOrEqual(390);
+  }
 });
 
 test("a sport Siren doesn't run has no page", async ({ page }) => {

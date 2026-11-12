@@ -65,7 +65,8 @@ export default async function SettingsPage({ params, searchParams }: SettingsPag
 
   if (!team) notFound();
   // Parents follow the team read-only — no Team tab (UX plan §6).
-  if (membership?.role === "parent") redirect(`/teams/${params.teamId}`);
+  // Today then says why (round 9: a parent helper's settings "opened blank").
+  if (membership?.role === "parent") redirect(`/teams/${params.teamId}?coachOnly=settings`);
 
   // Read `join_code` in its own query so a deploy that beats the
   // migration to prod still renders the rest of the page. Migration
@@ -191,6 +192,24 @@ export default async function SettingsPage({ params, searchParams }: SettingsPag
           Only the coach can change the team&rsquo;s settings. {MANAGER_CAN}
         </ReadOnlyNote>
       )}
+      {/* A way to jump, not ten screens of scrolling (design review,
+          Oct 2026). Plain links to the sections' anchors. */}
+      <nav aria-label="Team settings sections" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+        {[
+          ["how-we-play", "How we play"],
+          ["people", "People"],
+          ["season", "Season"],
+          ["game-day", "Game day"],
+        ].map(([id, label]) => (
+          <a
+            key={id}
+            href={`#${id}`}
+            className="inline-flex min-h-[44px] shrink-0 items-center whitespace-nowrap rounded-full border border-hairline bg-surface px-3.5 text-sm font-semibold text-ink shadow-card transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+          >
+            {label}
+          </a>
+        ))}
+      </nav>
       <TeamNameSettings
         teamId={params.teamId}
         currentName={team.name}
@@ -199,6 +218,7 @@ export default async function SettingsPage({ params, searchParams }: SettingsPag
 
       <SettingsSection
         title="How we play"
+        anchor="how-we-play"
         description="How your team rotates on game day."
       >
         <HowWePlayCard
@@ -214,6 +234,20 @@ export default async function SettingsPage({ params, searchParams }: SettingsPag
           players={(squadRows ?? []).map((p) => ({ id: p.id as string, name: p.full_name as string }))}
           isAdmin={isAdmin}
           trackScoring={team.track_scoring ?? false}
+          // Touch and Oztag: the mixed team's boys/girls cap, how the
+          // team plays (Stagehand round 11, #6: it was under Season).
+          mixed={
+            isTouch(sport) ? (
+              <MixedRuleSettings
+                teamId={params.teamId}
+                sportName={getSportConfig(sport).shortName}
+                preset={touchAgeGroup(sport, ageGroupCfg.id).mixedPreset}
+                initialRule={mixedRule}
+                maxOnField={ageGroupCfg.maxOnFieldSize}
+                isAdmin={isAdmin}
+              />
+            ) : undefined
+          }
         />
         {/* Rugby league §6 (two unbroken quarters at U6–U9, one half at
             U10–U12) has no switch: it's the laws, a locked rule in How we
@@ -253,7 +287,7 @@ export default async function SettingsPage({ params, searchParams }: SettingsPag
         />
       </SettingsSection>
 
-      <SettingsSection title="Season">
+      <SettingsSection title="Season" anchor="season">
         <AgeGroupSettings
           teamId={params.teamId}
           current={ageGroupCfg.id}
@@ -306,16 +340,7 @@ export default async function SettingsPage({ params, searchParams }: SettingsPag
             isAdmin={isAdmin}
           />
         )}
-        {isTouch(sport) && (
-          <MixedRuleSettings
-            teamId={params.teamId}
-            sportName={getSportConfig(sport).shortName}
-            preset={touchAgeGroup(sport, ageGroupCfg.id).mixedPreset}
-            initialRule={mixedRule}
-            maxOnField={ageGroupCfg.maxOnFieldSize}
-            isAdmin={isAdmin}
-          />
-        )}
+        {/* A mixed team's cap is on How we play now (Stagehand round 11, #6). */}
         <QuarterLengthInput
           // Fresh after an age or a halves/quarters change: its default moves.
           key={`${ageGroupCfg.id}:${ageGroupCfg.periodCount}`}
@@ -335,7 +360,7 @@ export default async function SettingsPage({ params, searchParams }: SettingsPag
         />
       </SettingsSection>
 
-      <SettingsSection title="Game-day extras">
+      <SettingsSection title="Game-day extras" anchor="game-day">
         <TrackScoringToggle
           teamId={params.teamId}
           initialEnabled={team.track_scoring ?? false}
@@ -374,7 +399,7 @@ export default async function SettingsPage({ params, searchParams }: SettingsPag
         )}
       </SettingsSection>
 
-      <SettingsSection title="Danger zone" tone="danger">
+      <SettingsSection title="Danger zone" tone="danger" anchor="danger-zone">
         <DangerZone
           teamId={params.teamId}
           teamName={team.name}

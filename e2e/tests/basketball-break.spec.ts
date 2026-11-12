@@ -58,13 +58,19 @@ test("basketball's half-time break has the other sports' shape", async ({ page }
   await page.getByRole("button", { name: "Done" }).click();
 
   // UX audit 23 Oct 2026: guards were green on court and blue at the
-  // break. One colour each, everywhere: guards green, forwards orange.
-  const zoneC = "rgb(4, 120, 87)";
-  await expect(page.getByRole("group", { name: "Guards", exact: true }).getByText("GUARDS", { exact: true })).toHaveCSS("color", zoneC);
+  // break. Since 10 Nov 2026 the break draws the court as play does (the
+  // wood, its paint, a line per group, no line colours), so the two
+  // can't differ: the guards are a line of their own on the wood.
+  const breakCourt = page.getByTestId("break-field");
+  await expect(breakCourt.getByTestId("wood-markings")).toBeAttached();
+  await expect(breakCourt.getByRole("group", { name: "Guards", exact: true }).locator("[data-testid^='player-tile-']")).toHaveCount(2);
 
   // Start the 2nd half from the shared footer, as AFL's Start Q2.
   await startFromBreak(page, /^start 2nd half/i);
   await expect(page.getByRole("button", { name: /^clock — h2, running$/i })).toBeVisible({ timeout: 15_000 });
-  // On court a guard's line label is the same green.
-  await expect(page.locator("[data-testid^='player-tile-']").getByText("G", { exact: true }).first()).toHaveCSS("color", zoneC);
+  // On court (live v3) the guards are a line of their own on the wood,
+  // named in the margin: the court draws no line colours at all, so
+  // there's no second green to drift from the break's.
+  const guards = page.getByRole("region", { name: "On court" }).getByRole("group", { name: "Guards", exact: true });
+  await expect(guards.locator("[data-testid^='player-tile-']")).toHaveCount(2);
 });

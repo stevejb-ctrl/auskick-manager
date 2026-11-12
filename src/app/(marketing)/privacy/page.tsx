@@ -328,17 +328,17 @@ export default function PrivacyPage() {
             to remember your preferences (for example, which team you last
             viewed). PostHog stores an identifier in a first-party cookie and in
             local storage (named
-            <code className="mx-1 rounded bg-surface-alt px-1 font-mono text-[13px]">
+            <code className="mx-1 rounded bg-surface-alt px-1 font-mono text-[0.8125rem]">
               ph_*_posthog
             </code>
             ) to tell visits from the same device apart; switching off Share
             usage data stops it collecting. On our public website pages, Google
             Analytics sets its own cookies (typically
-            <code className="mx-1 rounded bg-surface-alt px-1 font-mono text-[13px]">
+            <code className="mx-1 rounded bg-surface-alt px-1 font-mono text-[0.8125rem]">
               _ga
             </code>
             and
-            <code className="mx-1 rounded bg-surface-alt px-1 font-mono text-[13px]">
+            <code className="mx-1 rounded bg-surface-alt px-1 font-mono text-[0.8125rem]">
               _ga_*
             </code>
             ) to count visits and sessions in aggregate. We do not use
@@ -395,7 +395,7 @@ function Section({
   return (
     <section className="space-y-3">
       <h2 className="text-xl font-semibold text-ink">{title}</h2>
-      <div className="space-y-3 text-[15px] leading-relaxed [&_a]:text-brand-700 [&_a:hover]:underline [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-6 [&_strong]:text-ink">
+      <div className="space-y-3 text-[0.9375rem] leading-relaxed [&_a]:text-brand-700 [&_a:hover]:underline [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-6 [&_strong]:text-ink">
         {children}
       </div>
     </section>

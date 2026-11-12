@@ -12,11 +12,14 @@
 //      as AFL's are, and an injury still replaces the keeper mid-quarter.
 
 import { test, expect, type Page } from "@playwright/test";
+import { watchPageErrors } from "../helpers/pageErrors";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
 import { pickBreakStrategy, startFromBreak } from "../helpers/break";
+import { readySoccer } from "../helpers/kickoff";
+import { openGameMenu } from "../helpers/liveShell";
 
 test.describe.configure({ mode: "serial" });
 
@@ -48,9 +51,9 @@ function helpers(admin: SupabaseClient, gameId: string) {
   };
 }
 
-/** End the period in play from the clock menu ("End Q1 now", then confirm). */
+/** End the period in play from the clock menu ("End Q1 now", then confirm). The clock adds ", sub due" when one is (live v3). */
 async function endPeriod(page: Page, tag: string) {
-  await page.getByRole("button", { name: new RegExp(`^clock — ${tag}, running$`, "i") }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: new RegExp(`^clock — ${tag}, running(, sub due)?$`, "i") }).click({ timeout: 15_000 });
   await page.getByRole("button", { name: new RegExp(`^end ${tag} now$`, "i") }).click();
   await page.getByRole("button", { name: new RegExp(`^end\\s*${tag[0]}\\s*${tag.slice(1)}$`, "i") }).click();
 }
@@ -68,7 +71,7 @@ async function startPeriod(page: Page, tag: string) {
 test("hockey U9: 7 a side in halves, keepers change only at the break, with a kit-up heads-up", async ({ page }) => {
   test.setTimeout(240_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
 
@@ -100,9 +103,12 @@ test("hockey U9: 7 a side in halves, keepers change only at the break, with a ki
   for (const line of ["Defenders", "Midfield", "Strikers"]) {
     await expect(field.getByRole("group", { name: line }).locator("[data-testid^='player-tile-']")).toHaveCount(2);
   }
-  await expect(field.getByRole("group", { name: "Strikers" })).toContainText("STR");
+  // Live v3: the line says how many are on (the old tiles' STR tag went).
+  await expect(field.getByRole("group", { name: "Strikers" })).toContainText("2 on");
   await expect(page.getByRole("group", { name: "Bench" }).locator("[data-testid^='player-tile-']")).toHaveCount(2);
 
+  // Live v3: the picker's Ready, then Start H1 on the live screen's bar.
+  await readySoccer(page);
   await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
   await page.getByRole("button", { name: /^start h1 now$/i }).click({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: /^clock — h1, running$/i })).toBeVisible({ timeout: 15_000 });
@@ -111,12 +117,15 @@ test("hockey U9: 7 a side in halves, keepers change only at the break, with a ki
   expect(h1Keeper).toBeTruthy();
 
   // ─── No mid-half keeper change ─────────────────────────────────
-  // The keeper's actions offer no "Replace keeper"…
+  // The keeper's actions show "Replace keeper" disabled, saying why
+  // (live v3: it was hidden, Phase 12)…
   await page.getByTestId(`player-tile-${h1Keeper}`).click({ timeout: 10_000 });
-  await page.getByRole("button", { name: /^player actions/i }).click({ timeout: 5_000 });
+  await page.getByTestId("kid-bar").getByRole("button", { name: /^more$/i }).click({ timeout: 5_000 });
   const actions = page.getByRole("dialog");
   await expect(actions.getByRole("button", { name: /mark injured/i })).toBeVisible();
-  await expect(actions.getByRole("button", { name: /replace keeper/i })).toHaveCount(0);
+  const replace = actions.getByRole("button", { name: /replace keeper/i });
+  await expect(replace).toBeDisabled();
+  await expect(replace).toContainText(/not mid-half: the keeper's kitted up/i);
   await actions.getByRole("button", { name: /^(close|cancel)$/i }).first().click();
   await expect(actions).toHaveCount(0);
   // …and a tap-swap with the keeper is refused, with the reason.
@@ -130,12 +139,15 @@ test("hockey U9: 7 a side in halves, keepers change only at the break, with a ki
   // An outfielder's actions know they're on the field (not "bring them on")…
   const outfielder = [...h1.lines.def, ...h1.lines.mid, ...h1.lines.att][0];
   await page.getByTestId(`player-tile-${outfielder}`).click({ timeout: 10_000 });
-  await page.getByRole("button", { name: /^player actions/i }).click({ timeout: 5_000 });
+  await page.getByTestId("kid-bar").getByRole("button", { name: /^more$/i }).click({ timeout: 5_000 });
   await expect(actions.getByRole("button", { name: /switch player/i })).toContainText(/bench player to sub off/i);
   await actions.getByRole("button", { name: /^(close|cancel)$/i }).first().click();
   await expect(actions).toHaveCount(0);
-  // …and Game settings (the sub interval) sits in the row.
-  await expect(page.getByRole("button", { name: "Game settings", exact: true })).toBeVisible();
+  // …and Game settings (the sub interval) is in the ⋯ game menu (live v3).
+  const menu = await openGameMenu(page);
+  await expect(menu.getByRole("button", { name: /^game settings/i })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
 
   // ─── Two minutes before half-time: the next keeper kits up ────
   // Wind the half on to 18:30 of 20:00 (every event so far moves back).
@@ -196,7 +208,7 @@ test("hockey U13: 4 × 15 quarters, named keepers rotate at the breaks, an injur
 }) => {
   test.setTimeout(300_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
   const admin = createAdminClient();
   const ownerId = await superAdminId(admin);
 
@@ -231,6 +243,8 @@ test("hockey U13: 4 × 15 quarters, named keepers rotate at the breaks, an injur
   const startCard = page.getByRole("region", { name: "Keeper" });
   await expect(startCard).toContainText(`${firstName(keeperA.id)} starts in goal.`);
 
+  // Live v3: the picker's Ready, then Start Q1 on the live screen's bar.
+  await readySoccer(page, "Q1");
   await page.getByRole("button", { name: /^start q1$/i }).click({ timeout: 15_000 });
   await page.getByRole("button", { name: /^start q1 now$/i }).click({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: /^clock — q1, running$/i })).toBeVisible({ timeout: 15_000 });
@@ -246,7 +260,7 @@ test("hockey U13: 4 × 15 quarters, named keepers rotate at the breaks, an injur
   // ─── An injury still replaces the keeper mid-quarter ──────────
   const benchKid = (await lineup()).bench[0];
   await page.getByTestId(`player-tile-${keeperB.id}`).click({ timeout: 10_000 });
-  await page.getByRole("button", { name: /^player actions/i }).click({ timeout: 5_000 });
+  await page.getByTestId("kid-bar").getByRole("button", { name: /^more$/i }).click({ timeout: 5_000 });
   await page.getByRole("dialog").getByRole("button", { name: /mark injured/i }).click({ timeout: 5_000 });
   await page.getByRole("dialog").getByRole("button", { name: new RegExp(firstName(benchKid)) }).first().click({ timeout: 10_000 });
   await expect.poll(() => count("swap")).toBe(1);

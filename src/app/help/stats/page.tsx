@@ -9,7 +9,7 @@ import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
 export const metadata = {
   title: "Stats · Help · Siren",
   description:
-    "Per-player stats, season balance, and the cards each sport adds: AFL scoring, netball chemistry, league laws.",
+    "Per-player stats and season balance in every sport, and the cards each adds: AFL scoring, netball chemistry, rugby league laws, keepers, fouls and lanes.",
   alternates: { canonical: "/help/stats" },
 };
 
@@ -20,8 +20,9 @@ export default function StatsPage() {
       <p className="mt-3 text-base leading-relaxed text-ink-dim">
         The Stats tab builds up over the course of your season. It draws on every
         finished game to show how fairly the squad is being used, who&apos;s
-        scoring, and much more. The cards differ by sport: AFL, netball and
-        league each show what matters for their game.
+        scoring, and much more. Season balance and player stats are in every
+        sport; the other cards differ by sport, showing what matters for its
+        game.
       </p>
       <p className="mt-2 text-sm text-ink-dim">
         Stats only appear for <strong className="text-ink">finished</strong> games:
@@ -56,8 +57,16 @@ export default function StatsPage() {
             kickoffs taken, and games where the unbroken-period rule was met;
             from Under 13 these are replaced by penalty goals and field goals.
             A row of team totals sits above the table: games, tries and
-            points, conversions made and points conceded
+            points, conversions made and points conceded. Union shows the
+            same, with penalty and drop goals
           </li>
+          <li>
+            Football, futsal and hockey: games, minutes, goals and time in goal,
+            under totals for the season (games, goals, conceded, won · drawn ·
+            lost)
+          </li>
+          <li>Basketball: the same totals, with points, fouls and guard / forward time</li>
+          <li>Touch and Oztag: the same totals, with tries and time in each lane</li>
         </ul>
         <p className="mt-3 text-sm text-ink-dim">
           <strong className="text-ink">Needs:</strong> At least one finished
@@ -73,11 +82,10 @@ export default function StatsPage() {
         <h2 className="text-xl font-semibold text-ink">Season balance</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           Every sport has this card. It shows each player&apos;s minutes this
-          season in each line or position — AFL Fwd / Cen / Back; netball Att
-          / Cen / Def, or GS to GK if your team balances by position; league
-          Fwds / Backs, or your named positions — and tints any spot where a
-          kid is owed at
-          least a quarter (a half, for league from Under 10). The line at the
+          season in each line or position, in your sport&apos;s words (AFL
+          Fwd / Cen / Back; netball thirds or bibs; forwards and backs; keeper
+          and lines; lanes) — and tints any spot where a kid is owed at least
+          a quarter (or a half, in games of halves). The line at the
           top counts how many kids are within a quarter (or half) of even.
           Sort by <strong className="text-ink">Biggest gap</strong> to see
           who&apos;s owed the most.
@@ -89,13 +97,13 @@ export default function StatsPage() {
 
         <HelpFigure
           src="/help-screenshots/stats-minutes-equity.png"
-          alt="AFL stats cards before any games are finished, each showing a No data yet note"
-          caption="Before your first finished game, each card shows a No data yet note."
+          alt="The AFL Season balance card: kids owed time, how many are within a quarter of even, and each kid's minutes forward, centre and back"
+          caption="Season balance (AFL shown). Tinted spots are where a kid is owed time."
         />
       </section>
 
       <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Unbroken-period shortfalls (league)</h2>
+        <h2 className="text-xl font-semibold text-ink">Unbroken-period shortfalls (rugby league)</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">
           League Under 6 to Under 12 only. If any player has finished a game
           without banking the unbroken quarters or half that Junior Laws §6
@@ -147,8 +155,8 @@ export default function StatsPage() {
 
         <HelpFigure
           src="/help-screenshots/stats-combinations.png"
-          alt="The AFL Position fit, Head-to-head by opponent, Quarter-by-quarter scoring and Attendance cards, before any games are finished"
-          caption="The lower AFL cards: Position fit, Head-to-head, Quarter-by-quarter scoring and Attendance."
+          alt="The AFL Head-to-head by opponent card, with wins, losses and scores against three teams, and the Quarter-by-quarter scoring card"
+          caption="Head-to-head and Quarter-by-quarter scoring (AFL)."
         />
       </section>
 
@@ -190,7 +198,7 @@ export default function StatsPage() {
         Stats that depend on scoring (AFL position fit and quarter-by-quarter
         scoring, head-to-head, and the scoring columns in every sport) need{" "}
         <Link href="/help/track-scoring" className="font-medium underline">
-          Track scoring
+          scoring
         </Link>{" "}
         to be on for those games.
       </HelpCallout>

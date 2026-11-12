@@ -12,28 +12,28 @@ import {
 import { LockModal } from "@/components/live/LockModal";
 import { aflStoreLocks, type PlayerLock } from "@/lib/live/locks";
 import type { ChipKey, ChipMode } from "@/lib/chips";
-import { Field } from "@/components/live/Field";
-import { Bench } from "@/components/live/Bench";
+import { ovalField } from "@/components/live/FieldLines";
+import { ZONE_SHORT } from "@/components/live/Field";
+import { LentList } from "@/components/lineup/LentList";
+import { LendSetting } from "@/components/lineup/LendSetting";
+import { PickerField, type PickerCell, type PickerKidLook, type PickerLine } from "@/components/lineup/PickerField";
+import { formationRows } from "@/lib/live/formationRows";
+import { fitSeats, seatLabels, seedSeats } from "@/lib/live/positionSeats";
+import { AFL_BIG_FIELD_FROM, aflSeatInput, type AflBigField } from "@/lib/sports/afl/bigField";
+import { AFL_SEASON_SHORT, aflSeasonLines, seasonLeastWords } from "@/lib/live/seasonWords";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
-import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
-import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
-import {
-  Eyebrow,
-  SFButton,
-  SFIcon,
-} from "@/components/sf";
+import { SFIcon } from "@/components/sf";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import type { Lineup, Player, PositionModel, Zone } from "@/lib/types";
 import { zoneCapsFor, type PlayerZoneMinutes } from "@/lib/fairness";
 import { aflOpeningLineup } from "@/lib/sports/afl/openingLineup";
-import { positionsFor, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
+import { positionsFor, ZONE_LABELS, ZONE_SHORT_LABELS } from "@/lib/ageGroups";
 
 import { aflRuleCheck, assignPositionLabels, type AflPlaybookInput } from "@/lib/sports/afl/engine";
-import { getSportConfig } from "@/lib/sports/registry";
 import { onSurfaceLabel } from "@/lib/sports/words";
 import { RuleCheckBar } from "@/components/playbook/RuleCheckBar";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
@@ -45,6 +45,7 @@ import { SUB_MINUTES_MAX, SUB_MINUTES_MIN, subMinutesFrom } from "@/lib/live/sub
 import { squadLoanAverage } from "@/lib/live/liveChrome";
 import { useKeptSetting } from "@/components/lineup/useKeptSetting";
 import { noteLiveResult } from "@/lib/live/liveSync";
+import { subEveryText } from "@/lib/live/subIntervalText";
 // Rotations each player gets to sit on the bench over the whole game.
 // Bigger benches → more rotations per player (shorter stints each).
 function restsPerPlayer(benchSize: number): number {
@@ -150,6 +151,12 @@ interface LineupPickerProps {
    * squad-size heuristic only when omitted (legacy runner-token mount).
    */
   defaultSubMinutes?: number;
+  /**
+   * Big fields (14+ on with named positions, lib/sports/afl/bigField):
+   * the formation the live screen draws. The picker draws the same, each
+   * kid in the seat Ready deals them. Absent: the zone lines.
+   */
+  bigField?: AflBigField | null;
 }
 
 type Slot = Zone | "bench";
@@ -202,6 +209,7 @@ export function LineupPicker({
   initialLoanedIds = [],
   defaultSubMinutes,
   seasonLoanMinutes = {},
+  bigField = null,
 }: LineupPickerProps) {
   const router = useRouter();
   // Pre-game loaned-player set. Hydrated from any player_loan events
@@ -638,66 +646,28 @@ export function LineupPicker({
     />
   ) : null;
 
-  // Two-step kickoff (Steve 2026-05-13): tapping "Ready for Q1" used
-  // to fire startGame immediately, writing lineup_set + flipping
-  // status. The LiveGame's StartQuarterModal then asked "Start Q1?"
-  // — but "Back to lineup" on that modal was a dead-end (lineup_set
-  // already committed, no way back to the editable LineupPicker).
-  // Now: Ready opens the modal here, in-place; only Start Q1
-  // commits. "Back to lineup" dismisses the modal cleanly with
-  // zero server state changed.
-  const [startModalOpen, setStartModalOpen] = useState(false);
-
-  // Anchor for walking up the DOM to reset scrolled ancestors before
-  // the modal mounts — see handleOpenStartModal for the why.
-  const lineupPickerRootRef = useRef<HTMLDivElement>(null);
-
-  function handleOpenStartModal() {
+  // Ready sets the lineup; Start Q1 is on the live screen's bar (live
+  // v3, B4). History: in May 2026 "Ready for Q1" fired startGame at
+  // once, writing lineup_set, and the live screen's "Start Q1?" confirm
+  // then had a "Back to lineup" that was a dead end, the lineup already
+  // committed. So the confirm moved in here and committed both writes on
+  // its Start (startQuarterToo). Now the live screen holds the start
+  // again, every sport's way, and the dead end is gone a different way:
+  // until Q1 starts, ⋯ → "Edit lineup" brings this picker back with the
+  // lineup (reopenLineup puts it back in the draft and takes the
+  // lineup_set out). The lineup is saved here, the clock starts there.
+  function handleReady() {
     setServerError(null);
     if (onFieldCount === 0) return;
-    // Same scroll-reset as QuarterBreak. The public /run/{token}
-    // demo wraps the app in DeviceFrame, whose `translateZ(0)` makes
-    // it a containing block for `position: fixed` descendants. With
-    // the GM scrolled mid-picker, the modal then renders at the top
-    // of the framed area and its primary "Start Q1" button can fall
-    // below the visible scroll window. Reset every scrolled ancestor
-    // so the modal centres in view. window.scrollTo covers the non-
-    // framed (mobile / installed PWA) case.
-    if (typeof document !== "undefined") {
-      let el = lineupPickerRootRef.current?.parentElement ?? null;
-      while (el) {
-        if (el.scrollTop > 0) el.scrollTop = 0;
-        el = el.parentElement;
-      }
-    }
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "auto" });
-    }
-    setStartModalOpen(true);
-  }
-
-  function handleConfirmStart() {
-    setServerError(null);
     const subSeconds = Math.round(effectiveSubMin * 60);
     startTransition(async () => {
-      // startQuarterToo=true → server writes lineup_set AND
-      // quarter_start atomically in one round-trip, then redirects
-      // (team-auth) or returns success (token-auth). The clock
-      // starts via LiveGame's init() auto-resume path on the next
-      // mount because quarterStartedAt is now set.
-      const result = await startGame(
-        auth,
-        gameId,
-        lineup,
-        subSeconds,
-        onFieldSize,
-        true,
-      );
+      // startQuarterToo=false: lineup_set only. The team page redirects
+      // to the live screen; the game-day link reloads its own.
+      const result = await startGame(auth, gameId, lineup, subSeconds, onFieldSize, false);
       // Refused because another phone already started: say so over the page.
       noteLiveResult(result);
       if (result && !result.success) {
         setServerError(result.error);
-        setStartModalOpen(false);
         return;
       }
       if (auth.kind === "token") {
@@ -736,33 +706,84 @@ export function LineupPicker({
     });
   }
 
-  // Season time in zone, in ms for the field tiles' zone bars.
-  const seasonMsByPlayer = useMemo(() => {
-    const out: Record<string, (typeof season)[string]> = {};
-    for (const [pid, z] of Object.entries(season)) {
-      out[pid] = {
-        back: z.back * 60_000,
-        hback: z.hback * 60_000,
-        mid: z.mid * 60_000,
-        hfwd: z.hfwd * 60_000,
-        fwd: z.fwd * 60_000,
-      };
-    }
-    return out;
-  }, [season]);
-  // Each kid's season total, beside their tile's zone bar: PlayerTile
-  // draws the bar only with a total, so after game 1 the "Season time in
-  // zone" key sat over tiles with no bars (UX round 2, 24 Oct 2026). Only
-  // once anyone has history, as the key.
-  const seasonTotalMsByPlayer = useMemo(() => {
-    if (!anySeasonHistory) return undefined;
-    const out: Record<string, number> = {};
-    for (const p of players) {
-      const z = seasonMsByPlayer[p.id];
-      out[p.id] = z ? z.back + z.hback + z.mid + z.hfwd + z.fwd : 0;
-    }
-    return out;
-  }, [anySeasonHistory, players, seasonMsByPlayer]);
+  // ── The field, as the live screen draws it (live v3) ──
+  // Big fields (14+ on with named positions): the formation, line by
+  // line, each kid in the seat Ready will deal them (seedSeats, as the
+  // lineup_set the live screen replays), so the picture doesn't change
+  // when the game opens. Elsewhere a line per zone, attack up the page.
+  const seatInput = bigField && onFieldSize >= AFL_BIG_FIELD_FROM ? aflSeatInput(bigField.positions, aflPlaybook) : null;
+  const bigSeats = seatInput ? fitSeats(seedSeats(lineup, seatInput), lineup, seatInput.positions) : null;
+  const positionLabels =
+    bigSeats && seatInput ? seatLabels(bigSeats.seats, seatInput.positions) : assignPositionLabels(lineup, aflPlaybook);
+  const aimedZone = selected?.kind === "empty" ? selected.zone : null;
+  const kidCell = (pid: string, zone: Zone, key: string): PickerCell => ({
+    key,
+    playerId: pid,
+    pos: positionLabels?.[pid] ?? null,
+    place: positionLabels?.[pid] ?? ZONE_LABELS[zone],
+    emptyLabel: "",
+    onTap: () => tapPlayer(pid),
+  });
+  const emptyCell = (zone: Zone, key: string, label?: string): PickerCell => ({
+    key,
+    playerId: null,
+    pos: label ?? null,
+    emptyLabel: `Empty ${label ?? ZONE_SHORT[zone]} spot`,
+    aimed: aimedZone === zone,
+    onTap: () => tapEmpty(zone),
+  });
+  const fieldLines: PickerLine[] = bigSeats && bigField
+    ? formationRows(bigField.positions).map((fl) => {
+        const zone = fl.line as Zone;
+        const rows = fl.rows.map((row) =>
+          row.map((p) => {
+            const pid = bigSeats.seats[p.key];
+            return pid ? kidCell(pid, zone, p.key) : emptyCell(zone, p.key, p.label);
+          }),
+        );
+        const spare = (bigSeats.spare[zone] ?? []).map((pid) => kidCell(pid, zone, `spare-${pid}`));
+        if (spare.length > 0) rows.push(spare);
+        const sizes = rows.map((r) => r.length);
+        return {
+          key: zone,
+          label: ZONE_LABELS[zone],
+          cells: rows.flat(),
+          // The formation's rows, as in play (formationRows).
+          shape: (tiles) => {
+            let at = 0;
+            return { rows: sizes.map((n) => tiles.slice(at, (at += n))) };
+          },
+        };
+      })
+    : displayZones.flatMap((zone) => {
+        const ids = lineup[zone];
+        const cap = displayZoneCaps[zone] ?? 0;
+        if (cap === 0 && ids.length === 0) return [];
+        return [
+          {
+            key: zone,
+            label: ZONE_LABELS[zone],
+            cells: Array.from({ length: Math.max(cap, ids.length) }, (_, slot) =>
+              ids[slot] ? kidCell(ids[slot], zone, `slot-${slot}`) : emptyCell(zone, `slot-${slot}`),
+            ),
+          },
+        ];
+      });
+
+  // What each kid's tile says: the line they've had least of this
+  // season ("Least Fwd"), and a lock for a hold or a season keep-on.
+  const keepOn = keepOnIds(roles.roles);
+  const kidLook = (pid: string): PickerKidLook => {
+    const said = seasonLeastWords(aflSeasonLines(season[pid], zones, AFL_SEASON_SHORT, ZONE_LABELS));
+    const hold = holds.lockedIds.includes(pid) ? "Field locked" : holds.zoneLockedPlayers[pid] ? "Zone locked" : null;
+    const lockLabel = hold ?? (keepOn.has(pid) ? "Plays every minute" : null);
+    return {
+      words: said ? { text: said.text, tone: "calm", spoken: said.spoken } : null,
+      locked: !!lockLabel,
+      lockLabel,
+      states: [lockLabel],
+    };
+  };
 
   const playingShortHanded = onFieldSize < defaultOnFieldSize;
 
@@ -773,7 +794,6 @@ export function LineupPicker({
     // element that sticky released its pin partway down the scroll
     // (Steve 2026-05-20 demo fix).
     <div
-      ref={lineupPickerRootRef}
       role="region"
       aria-label="Starting lineup"
       className="space-y-4"
@@ -786,40 +806,14 @@ export function LineupPicker({
           lent players straight from the picker (recall was previously only
           reachable inside the Game settings collapse). "Bring back" returns
           them to the bench, ready to place. */}
-      {lentPlayers.length > 0 && (
-        <div className="rounded-lg border border-warn/40 bg-warn-soft/60 px-3 py-2">
-          <p className="text-xs font-semibold text-warn">Lent to the other team</p>
-          <p className="mt-0.5 text-[11px] text-warn/80">
-            Tap “Bring back” to return a player to your bench.
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            {lentPlayers.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => handleLendToggle(p.id, false)}
-                disabled={loanPending}
-                data-testid={`picker-recall-lent-${p.id}`}
-                aria-label={`Bring ${p.full_name} back`}
-                className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-60 motion-safe:active:scale-[0.97]"
-              >
-                {p.jersey_number != null && (
-                  <span className="tabular-nums font-semibold">{p.jersey_number}</span>
-                )}
-                <span>{p.full_name}</span>
-                <span className="ml-0.5 text-[11px] font-semibold text-warn/80">
-                  Bring back
-                </span>
-              </button>
-            ))}
-          </div>
-          {loanError && (
-            <p className="mt-1 text-xs text-danger" role="alert">
-              {loanError}
-            </p>
-          )}
-        </div>
-      )}
+      <LentList
+        players={lentPlayers.map((p) => ({ id: p.id, name: p.full_name }))}
+        note="Bring them back and they join the bench, ready to place."
+        pending={loanPending}
+        error={loanError}
+        buttonTestId={(id) => `picker-recall-lent-${id}`}
+        onBringBack={(id) => handleLendToggle(id, false)}
+      />
 
       {/* ── Game settings (collapsible) ──────────────────────────────────
           Steve 2026-05-13: the three pre-game controls (rotation
@@ -840,7 +834,7 @@ export function LineupPicker({
           aria-controls="lineup-game-settings"
         >
           <span className="flex flex-1 items-center gap-3 text-sm">
-            <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+            <span className="font-mono text-micro font-bold uppercase tracking-micro text-ink-mute">
               Game settings
             </span>
             <span className="text-xs text-ink-mute">
@@ -868,7 +862,8 @@ export function LineupPicker({
                 // Showing it unconditionally means the coach can
                 // scan the closed header and know exactly how
                 // their game's pacing is set up.
-                bits.push(`Sub every ${effectiveSubMin}m`);
+                // One phrase in every sport (lib/live/subIntervalText).
+                bits.push(subEveryText(Math.round(effectiveSubMin * 60)));
                 bits.push(
                   lentPlayers.length > 0
                     ? `${lentPlayers.length} lent`
@@ -996,52 +991,7 @@ export function LineupPicker({
               </div>
             </div>
 
-            {/* Lend a player */}
-            <div>
-              <p className="text-xs font-semibold text-ink">Lend a player</p>
-              <p className="mt-0.5 text-xs text-ink-mute">
-                Lent players sit out for the rest of the game until you
-                bring them back.
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                {lentPlayers.map((p) => (
-                  <span
-                    key={p.id}
-                    className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-warn-soft px-2.5 py-1 text-xs font-medium text-warn"
-                  >
-                    {p.jersey_number != null && (
-                      <span className="tabular-nums font-semibold">
-                        {p.jersey_number}
-                      </span>
-                    )}
-                    <span>{p.full_name}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleLendToggle(p.id, false)}
-                      disabled={loanPending}
-                      aria-label={`Bring ${p.full_name} back`}
-                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60 motion-safe:active:scale-[0.97]"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setLendPickerOpen(true)}
-                  disabled={loanPending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60 motion-safe:active:scale-[0.97]"
-                >
-                  <span aria-hidden>+</span>
-                  Lend a player
-                </button>
-              </div>
-              {loanError && (
-                <p className="mt-1 text-xs text-danger" role="alert">
-                  {loanError}
-                </p>
-              )}
-            </div>
+            <LendSetting lentCount={lentPlayers.length} onLend={() => setLendPickerOpen(true)} pending={loanPending} error={loanError} />
           </div>
         )}
       </div>
@@ -1078,74 +1028,34 @@ export function LineupPicker({
         />
       )}
 
-      {/* ── Zone + bench cards ───────────────────────────────────────── */}
-      {/* Key for the season time-in-zone %s under each player — helps
-          a coach placing the lineup by hand spot who's had least of a
-          zone and start them there. Steve 2026-07-07. On a squad with
-          NO history yet (fresh team), the key + 13 identical per-row
-          "No season time yet" lines were pure noise — collapse to one
-          note instead (UX review #8, Steve 2026-07-08). */}
-      {anySeasonHistory ? (
-        <div className="flex items-center justify-between px-1">
-          <span className="text-[11px] font-medium text-ink-dim">
-            Season time in zone
-          </span>
-          <ZoneTimeLegend
-            items={[
-              { label: "Fwd", swatchClassName: "bg-zone-f", textClassName: "text-zone-f" },
-              { label: "Centre", swatchClassName: "bg-zone-c", textClassName: "text-zone-c" },
-              { label: "Back", swatchClassName: "bg-zone-b", textClassName: "text-zone-b" },
-            ]}
-          />
-        </div>
-      ) : (
-        <p className="rounded-md border border-dashed border-hairline bg-surface-alt px-3 py-2 text-[11px] text-ink-mute">
-          Zone history appears under each player after your first game.
-        </p>
-      )}
-
       {/* Rule check (UX plan 4.3): the team's rules, the game-time
           floor and season balance against this lineup. */}
       {ruleCheck && <RuleCheckBar items={ruleCheck.items} />}
 
-      {/* The same field the live game uses (UX plan principle 2: one
-          lineup, one picture). Tap a player then another to swap them
-          — across zones or with the bench; tap a player then an empty
-          spot to move them; tap an empty spot first to pick from the
-          bench. The zone bar on each tile is season time in zone. */}
+      {/* The field the live game draws (live v3: chalk on the oval, the
+          kids as KidTiles, the bench under it), so the lineup looks the
+          same before and after Ready. Tap a player then another to swap
+          them, across lines or with the bench; tap a player then an
+          empty spot to move them; tap an empty spot first to pick from
+          the bench. Season time in zone is said in words under each kid
+          ("Least Fwd"), where the old tiles drew a three-colour bar. */}
       <div className="space-y-3">
-        <Field
-          playersById={playerById}
-          lineup={lineup}
-          selectedPlayerId={selected?.kind === "player" ? selected.id : null}
-          primedEmptyZone={selected?.kind === "empty" ? selected.zone : null}
-          dimUnselected={false}
-          onTapField={(pid, zone) => (pid ? tapPlayer(pid) : tapEmpty(zone))}
+        <PickerField
+          ground={ovalField(!!bigSeats)}
+          lines={fieldLines}
+          bench={lineup.bench.map((pid) => ({ playerId: pid, onTap: () => tapPlayer(pid) }))}
+          players={playerById}
+          selectedId={selected?.kind === "player" ? selected.id : null}
+          aiming={selected?.kind === "empty"}
+          look={kidLook}
           onLongPress={setHoldPlayerId}
-          lockedIds={holds.lockedIds}
-          zoneLockedPlayers={holds.zoneLockedPlayers}
-          totalMsByPlayer={seasonTotalMsByPlayer}
-          zoneMsByPlayer={seasonMsByPlayer}
-          zoneCaps={displayZoneCaps}
-          displayZoneCaps={displayZoneCaps}
-          positionModel={positionModel}
-          chipModeByKey={chipModeByKey}
-          positionLabels={assignPositionLabels(lineup, aflPlaybook)}
-          keepOnIds={keepOnIds(roles.roles)}
-        />
-        <Bench
-          playersById={playerById}
-          lineup={lineup}
-          selectedPlayerId={selected?.kind === "player" ? selected.id : null}
-          dimUnselected={false}
-          onTapBench={tapPlayer}
-          onLongPress={setHoldPlayerId}
-          lockedIds={holds.lockedIds}
-          zoneLockedPlayers={holds.zoneLockedPlayers}
-          totalMsByPlayer={seasonTotalMsByPlayer}
-          zoneMsByPlayer={seasonMsByPlayer}
-          chipModeByKey={chipModeByKey}
-          keepOnIds={keepOnIds(roles.roles)}
+          benchNote={
+            !anySeasonHistory ? (
+              <p className="px-1 text-center text-micro text-ink-mute">
+                Season time shows under each player after your first game.
+              </p>
+            ) : null
+          }
         />
         {holdPlayerId && playerById.get(holdPlayerId) && (() => {
           // The same long-press menu as in the game (UX: one "Keep on"):
@@ -1202,30 +1112,11 @@ export function LineupPicker({
         savePending={savePending}
         savedAt={savedAt}
         savePlanDisabled={onFieldCount === 0 || isPending}
-        onConfirm={handleOpenStartModal}
-        confirmLabel="Start Q1"
+        onConfirm={handleReady}
+        confirmLabel="Ready"
         confirmDisabled={onFieldCount === 0 || isPending}
         confirmIconAfter={<SFIcon.chevronRight color="currentColor" />}
       />
-
-      {/* Await-kickoff modal — owned by LineupPicker (Steve
-          2026-05-13). Renders only after the coach has confirmed
-          their lineup with "Ready for Q1". The modal's "Start Q1"
-          handler runs the actual server commit (lineup_set +
-          quarter_start atomically via startGame's
-          startQuarterToo=true flag). "Back to lineup" just closes
-          the modal — zero server writes, the picker is still
-          editable in the background. */}
-      {startModalOpen && (
-        <StartQuarterModal
-          quarter={1}
-          cue={getSportConfig("afl").words.startCue}
-          shortSide={{ playing: onFieldCount, size: defaultOnFieldSize, min: minOnFieldSize }}
-          loading={isPending}
-          onStart={handleConfirmStart}
-          onCancel={() => setStartModalOpen(false)}
-        />
-      )}
 
       {/* Empty-slot picker sheet — opens when the coach taps an
           unfilled position with no player pre-selected. Lists every

@@ -20,7 +20,7 @@ interface PlayerInsightSummaryProps {
 }
 
 const SECTION_LABEL =
-  "font-mono text-[10px] font-bold uppercase tracking-micro text-ink-mute";
+  "font-mono text-nano font-bold uppercase tracking-micro text-ink-mute";
 
 export function PlayerInsightSummary({ input }: PlayerInsightSummaryProps) {
   const vm = buildPlayerInsight(input);
@@ -118,7 +118,7 @@ export function PlayerInsightSummary({ input }: PlayerInsightSummaryProps) {
               <span className="text-ink-mute">{z.label}</span>{" "}
               <span className="font-semibold text-ink tabular-nums">{z.pct}%</span>
               {z.owed && (
-                <span className="ml-1 rounded-xs bg-warn-soft px-1 font-semibold text-warn">owed</span>
+                <span className="ml-1 rounded-xs bg-warn-soft px-1 font-semibold text-warn-ink">owed</span>
               )}
             </span>
           ))}

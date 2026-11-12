@@ -1,20 +1,19 @@
 import Link from "next/link";
 
 /**
- * Login screen footer — `SF / V0.4` mono version stamp on the left,
- * Help / Privacy / Terms link row on the right.
+ * Login screen footer — Help / Privacy / Terms link row.
  *
  * Routes are wired to existing pages: `/help`, `/privacy`, `/terms`.
- * Hardcoded version stamp for now; swap to `process.env`-driven
- * once we have a build-time variable for it.
+ * The old "SF / V0.4" stamp went (design review, Oct 2026): an
+ * internal version label means nothing to a coach signing in.
  */
 export function LoginFooter() {
+  // Wraps: at 320 px with 200% text the links ran 20 px off the screen
+  // (R6 follow-up, 25 Oct 2026). The links go onto their own lines when
+  // a row can't hold them.
   return (
-    <div className="flex items-center justify-between border-t border-hairline pt-3 text-xs text-ink-dim">
-      <span className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-ink-mute">
-        SF / V0.4
-      </span>
-      <div className="flex gap-4">
+    <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 border-t border-hairline pt-3 text-xs text-ink-dim">
+      <div className="flex flex-wrap gap-x-4 gap-y-2">
         <FooterLink href="/help">Help</FooterLink>
         <FooterLink href="/privacy">Privacy</FooterLink>
         <FooterLink href="/terms">Terms</FooterLink>

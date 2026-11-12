@@ -11,8 +11,8 @@ interface PillProps {
 const TONE_CLASSES: Record<Tone, string> = {
   neutral: "bg-surface-alt text-ink",
   ok: "bg-brand-50 text-brand-700",
-  warn: "bg-warn-soft text-warn",
-  live: "bg-alarm-soft text-alarm",
+  warn: "bg-warn-soft text-warn-ink",
+  live: "bg-alarm-soft text-alarm-ink",
   info: "bg-surface-alt text-ink-dim border border-hairline",
   danger: "bg-loss-soft text-loss",
 };
@@ -27,7 +27,7 @@ export function Pill({ tone = "neutral", children, className = "" }: PillProps) 
     <span
       className={`
         inline-flex items-center rounded-full px-2.5 py-1
-        font-mono text-[11px] font-bold uppercase tracking-[0.1em]
+        font-mono text-micro font-bold uppercase tracking-[0.1em]
         ${TONE_CLASSES[tone]}
         ${className}
       `}

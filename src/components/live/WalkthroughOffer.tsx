@@ -58,21 +58,24 @@ export function WalkthroughOffer({ storageKey, steps }: WalkthroughOfferProps) {
   return (
     <>
       {visible && (
-        <div className="flex items-center gap-3 rounded-lg border border-brand-600/30 bg-brand-50 px-4 py-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-ink">First game day with Siren?</p>
-            <p className="text-xs text-ink-dim">
-              A one-minute tour of the clock, subs and breaks.
-            </p>
-          </div>
-          <div className="flex shrink-0 gap-1.5">
-            <SFButton variant="ghost" size="sm" onClick={markSeen}>
-              Not now
-            </SFButton>
-            <SFButton variant="accent" size="sm" onClick={() => setOpen(true)}>
-              Show me
-            </SFButton>
-          </div>
+        // One slim row (design review, Oct 2026): as a two-line card with
+        // two buttons it pushed the lineup and Start below the fold.
+        <div className="flex items-center gap-2 rounded-lg border border-brand-600/30 bg-brand-50 py-1 pl-4 pr-1">
+          <p className="min-w-0 flex-1 text-sm text-ink">
+            <span className="font-semibold">First game day with Siren?</span>{" "}
+            <span className="text-ink-dim">A one-minute tour.</span>
+          </p>
+          <SFButton variant="accent" size="sm" onClick={() => setOpen(true)}>
+            Show me
+          </SFButton>
+          <button
+            type="button"
+            onClick={markSeen}
+            aria-label="Not now"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-lg leading-none text-ink-dim transition-colors duration-fast ease-out-quart hover:bg-brand-100 hover:text-ink"
+          >
+            <span aria-hidden="true">×</span>
+          </button>
         </div>
       )}
       {open && (

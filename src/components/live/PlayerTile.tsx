@@ -1,9 +1,11 @@
 "use client";
 
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useId, useRef, useState } from "react";
 import type { Player, Zone } from "@/lib/types";
 import type { ZoneMinutes } from "@/lib/fairness";
+import { ZONE_LABELS } from "@/lib/ageGroups";
 import { ZONE_SHORT } from "@/components/live/Field";
+import { tileName } from "@/components/live/tileName";
 import { type ChipKey, type ChipMode } from "@/lib/chips";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
@@ -34,6 +36,8 @@ interface PlayerTileProps {
   /** Zone-minute distribution for the current game — shown as a mini stacked bar at the tile bottom. */
   zoneMs?: ZoneMinutes;
   injured?: boolean;
+  /** Injured with reason "out": the kid went home (lib/live/wentHome). */
+  wentHome?: boolean;
   /** Currently lent to the opposition. Rendered like an unavailable player. */
   loaned?: boolean;
   /** "field" = never subbed; "zone" = can sub but only to their locked zone */
@@ -70,7 +74,7 @@ function formatMinSec(ms: number): string {
 }
 
 // Top-row chips share one shape: 16px tall mono caps.
-const CHIP = "inline-flex h-4 shrink-0 items-center rounded-xs px-[5px] font-mono text-[10px] font-bold leading-4";
+const CHIP = "inline-flex h-4 shrink-0 items-center rounded-xs px-[5px] font-mono text-nano font-bold leading-4";
 
 // In-game re-skin (design session 17 Oct 2026, canvas "Siren in-game
 // UI"): three left-aligned rows on the 4px grid — 8 + 16 + 20 + 16 + 8
@@ -89,6 +93,7 @@ function PlayerTileImpl({
   totalMs,
   zoneMs,
   injured,
+  wentHome = false,
   loaned,
   lockMode,
   score,
@@ -141,8 +146,8 @@ function PlayerTileImpl({
     ? "bg-brand-50 ring-2 ring-brand-500 shadow-pop"
     : isOff
       ? swapDue
-        ? "bg-due-tint shadow-[inset_0_0_0_2px_#A8590F,0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
-        : "bg-surface shadow-[inset_0_0_0_1.5px_#A8590F,0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
+        ? "bg-due-tint shadow-[inset_0_0_0_2px_rgb(var(--l-due)),0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
+        : "bg-surface shadow-[inset_0_0_0_1.5px_rgb(var(--l-due)),0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
       : isOn
         ? "bg-brand-50 shadow-lift-field ring-1 ring-inset ring-brand-500"
         : injured
@@ -159,6 +164,28 @@ function PlayerTileImpl({
   const displayName = useSquadNames().tile(player);
 
   const zoneLabel = positionLabel ?? (currentZone ? ZONE_SHORT[currentZone] : null);
+
+  // One accessible name, read once: kid, zone, number, time, chips
+  // (tileName). The zone split is the description.
+  const splitId = useId();
+  const zoneSplit =
+    totalMs !== undefined && zoneMs
+      ? `Fwd ${formatMinSec(zoneMs.fwd)}, Mid ${formatMinSec(zoneMs.mid)}, Back ${formatMinSec(zoneMs.back)}`
+      : null;
+  const spokenName = tileName({
+    name: player.full_name,
+    place: positionLabel ?? (currentZone ? ZONE_LABELS[currentZone] : null),
+    number: player.jersey_number,
+    time: totalMs !== undefined ? formatMinSec(totalMs) : null,
+    states: [
+      isOn && (swap?.zone ? `Going on to ${ZONE_LABELS[swap.zone]}, pair ${swap.pair}` : `Going on, pair ${swap?.pair}`),
+      isOff && `Coming off next, pair ${swap?.pair}`,
+      hasScore && score && `${score.goals} goals, ${score.behinds} behinds`,
+      injured && "Injured",
+      loaned && !injured && "Lent to opposition",
+      !!lockMode && !injured && !loaned && (lockMode === "field" ? "Field locked" : "Zone locked"),
+    ],
+  });
 
   // Swap commit (design session 17 Oct 2026): the field keys tiles by
   // slot, so when an OFF-marked player is swapped out this same tile
@@ -204,6 +231,8 @@ function PlayerTileImpl({
     <button
       type="button"
       data-testid={`player-tile-${player.id}`}
+      aria-label={spokenName}
+      aria-describedby={zoneSplit ? splitId : undefined}
       onClick={handleClick}
       {...longPressHandlers}
       disabled={!onClick && !onLongPress}
@@ -234,19 +263,19 @@ function PlayerTileImpl({
       {/* Bench tile going on — target-zone strip (planning, not on the field). */}
       {isOn && swap?.zone && (
         <div
-          className={`flex items-center justify-center gap-1 rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-micro ${swapZoneAccent}`}
+          className={`flex items-center justify-center gap-1 rounded-t-[11px] border-b px-1 py-0.5 font-mono text-micro font-bold uppercase leading-none tracking-micro ${swapZoneAccent}`}
           aria-label={`Going on to ${ZONE_SHORT[swap.zone]}, pair ${swap.pair}`}
         >
-          {showPairNumber && <span className="rounded-xs bg-black/15 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}
+          {showPairNumber && <span className="rounded-xs bg-black/15 px-1 py-0.5 text-nano">#{swap.pair}</span>}
           <span>→ {ZONE_SHORT[swap.zone]}</span>
         </div>
       )}
       {isOn && !swap?.zone && (
         <div
-          className="flex items-center justify-center gap-1 rounded-t-[11px] border-b border-brand-700 bg-brand-600 px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-micro text-white"
+          className="flex items-center justify-center gap-1 rounded-t-[11px] border-b border-brand-700 bg-brand-600 px-1 py-0.5 font-mono text-micro font-bold uppercase leading-none tracking-micro text-white"
           aria-label={`Going on, pair ${swap.pair}`}
         >
-          {showPairNumber && <span className="rounded-xs bg-white/25 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}
+          {showPairNumber && <span className="rounded-xs bg-white/25 px-1 py-0.5 text-nano">#{swap.pair}</span>}
           <span>→ ON</span>
         </div>
       )}
@@ -258,12 +287,12 @@ function PlayerTileImpl({
         {/* Row 1 · labels left, status chip right. */}
         <span className="flex h-4 items-center gap-1.5">
           {zoneLabel && (
-            <span className={`font-mono text-[10px] font-bold uppercase leading-4 tracking-micro ${zoneAccent}`}>
+            <span className={`font-mono text-nano font-bold uppercase leading-4 tracking-micro ${zoneAccent}`}>
               {zoneLabel}
             </span>
           )}
           {player.jersey_number != null && (
-            <span className="nums font-mono text-[10px] font-semibold leading-4 text-ink-dim">
+            <span className="nums font-mono text-nano font-semibold leading-4 text-ink-dim">
               #{player.jersey_number}
             </span>
           )}
@@ -294,8 +323,8 @@ function PlayerTileImpl({
             </span>
           )}
           {injured && (
-            <span className={`${CHIP} bg-danger tracking-micro text-white`} aria-label="Injured">
-              INJ
+            <span className={`${CHIP} ${wentHome ? "bg-ink-mute" : "bg-danger"} tracking-micro text-white`} aria-label={wentHome ? "Went home" : "Injured"}>
+              {wentHome ? "HOME" : "INJ"}
             </span>
           )}
           {loaned && !injured && (
@@ -333,19 +362,19 @@ function PlayerTileImpl({
             <span
               aria-hidden
               style={{ animationDelay: "80ms" }}
-              className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-out-up motion-reduce:hidden"
+              className="block truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-out-up motion-reduce:hidden"
             >
               {handover.from}
             </span>
             <span
               style={{ animationDelay: "80ms" }}
-              className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-in-up motion-reduce:animate-xfade-in"
+              className="block truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-in-up motion-reduce:animate-xfade-in"
             >
               {displayName}
             </span>
           </span>
         ) : (
-          <span className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink">
+          <span className="block truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-ink">
             {displayName}
           </span>
         )}
@@ -386,6 +415,12 @@ function PlayerTileImpl({
         )}
       </div>
     </button>
+    {/* The tile's description, outside it so it isn't the tile's text. */}
+    {zoneSplit && (
+      <span id={splitId} hidden>
+        {zoneSplit}
+      </span>
+    )}
     </SirenPulseHalo>
   );
 }
@@ -424,6 +459,7 @@ function areEqual(a: PlayerTileProps, b: PlayerTileProps): boolean {
   if (a.selected !== b.selected) return false;
   if (a.dimmed !== b.dimmed) return false;
   if (a.injured !== b.injured) return false;
+  if (a.wentHome !== b.wentHome) return false;
   if (a.loaned !== b.loaned) return false;
   if (a.lockMode !== b.lockMode) return false;
   if (a.compact !== b.compact) return false;

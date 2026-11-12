@@ -20,7 +20,6 @@
 // screen and the live screen says why.
 
 import { useState } from "react";
-import { SFButton, Guernsey } from "@/components/sf";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import {
   conversionCycle,
@@ -30,6 +29,7 @@ import {
 } from "@/lib/sports/rugby_league/kicks";
 import type { GameEvent, Player } from "@/lib/types";
 import { Modal } from "@/components/ui/Modal";
+import { SHEET_CANCEL, SHEET_EYEBROW, SHEET_TITLE } from "@/components/ui/sheetChrome";
 
 interface RecordConversionDialogProps {
   /** All squad players — used to look up names for the rows. */
@@ -105,29 +105,29 @@ export function RecordConversionDialog({
     onClose();
   }
 
+  // Live v3's sheet (sheetChrome, as the scorer sheet and Scores and
+  // fixes): the eyebrow and title, each kicker on a white plate with
+  // Made (filled) and Missed (outlined), the way out at the foot.
   return (
     <Modal size="md" placement="sheet" label="Record conversion" onClose={onClose} padding="p-0">
         {/* Header — pinned, never scrolls out of view */}
-        <header className="flex flex-shrink-0 items-center justify-between px-4 pt-4 pb-3">
-          <div>
-            <h2 className="text-sm font-bold uppercase tracking-wide text-ink-dim">
-              Record conversion
-            </h2>
-            <p className="text-xs text-ink-mute">
-              {rotation ? "Pick the kicker — laws §15 rotation enforced." : "Pick the kicker."}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md px-2 py-1 text-sm text-ink-mute hover:bg-surface-alt"
-          >
-            Cancel
-          </button>
+        <header className="flex-shrink-0 px-5 pb-3 pt-6 sm:pt-5">
+          <p className={SHEET_EYEBROW}>Conversion</p>
+          <h2 className={`mt-0.5 ${SHEET_TITLE}`}>Who&apos;s kicking?</h2>
+          <p className="mt-1 text-sm text-ink-dim">
+            {/* Plain words, and that there's a way out: a parent who
+                doesn't know rugby didn't know the kick could be skipped
+                ("laws §15", Stagehand round 8, #14). */}
+            {rotation
+              ? "Pick the kicker: each kid takes a turn, as junior laws say. Or Skip."
+              : hasTryToConvert
+                ? "Pick the kicker, or Skip."
+                : "Pick the kicker."}
+          </p>
         </header>
 
         {/* Alerts + scrollable player list */}
-        <div className="flex-1 overflow-y-auto px-4">
+        <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain px-3.5 pb-1">
           {!hasTryToConvert && (
             <InlineAlert kind="warn">
               {rotation
@@ -149,7 +149,7 @@ export function RecordConversionDialog({
             </InlineAlert>
           )}
 
-          <div className="mt-2 space-y-1.5 pb-1">
+          <ul className="space-y-1.5">
             {onFieldPlayers.map((p) => {
               const canPick = force || (hasTryToConvert && eligible.has(p.id));
               const alreadyKickedInCycle = cycle.attempted.has(p.id);
@@ -171,77 +171,82 @@ export function RecordConversionDialog({
                   ? `Kicked ${totalAttemptsForPlayer}× this game — fresh sub-on goes first`
                   : null;
               return (
-                <div
+                <li
                   key={p.id}
-                  className={[
-                    "flex items-center justify-between rounded-lg border px-3 py-2",
-                    canPick
-                      ? "border-hairline bg-surface hover:border-brand-600"
-                      : "border-hairline bg-surface-alt opacity-60",
-                  ].join(" ")}
+                  data-testid="conversion-row"
+                  className={`${KICKER_ROW} ${canPick ? "" : "opacity-60"}`}
                 >
-                  <div className="flex items-center gap-2">
-                    <Guernsey
-                      num={p.jersey_number != null ? String(p.jersey_number) : ""}
-                      size={26}
-                    />
-                    <div className="text-sm">
-                      <span className="font-medium text-ink">{p.full_name}</span>
-                      {statusLabel && (
-                        <span className="ml-2 text-xs text-ink-mute">
-                          {statusLabel}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  {p.jersey_number != null && (
+                    <span
+                      aria-hidden="true"
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-alt font-mono text-micro font-bold tabular-nums text-ink"
+                    >
+                      {p.jersey_number}
+                    </span>
+                  )}
+                  <span className="min-w-0 flex-1 text-sm">
+                    <span className="block truncate font-bold text-ink">{p.full_name}</span>
+                    {statusLabel && <span className="block text-micro text-ink-mute">{statusLabel}</span>}
+                  </span>
                   {/* Named for the kicker: fifteen rows of "Made" and
                       "Missed" read the same (UX round 3, e4). */}
-                  <div className="flex gap-1">
-                    <SFButton
-                      size="sm"
-                      variant="primary"
+                  <span className="flex flex-none gap-1.5">
+                    <button
+                      type="button"
                       disabled={!canPick}
                       onClick={() => commit(p.id, true)}
                       aria-label={`Made, ${p.full_name}`}
+                      className={`${KICK_BUTTON} bg-primary text-on-primary hover:bg-primary/90`}
                     >
                       Made
-                    </SFButton>
-                    <SFButton
-                      size="sm"
-                      variant="ghost"
+                    </button>
+                    <button
+                      type="button"
                       disabled={!canPick}
                       onClick={() => commit(p.id, false)}
                       aria-label={`Missed, ${p.full_name}`}
+                      className={`${KICK_BUTTON} bg-transparent text-ink shadow-[inset_0_0_0_1.5px_rgb(var(--l-hairline))] hover:bg-surface-alt`}
                     >
                       Missed
-                    </SFButton>
-                  </div>
-                </div>
+                    </button>
+                  </span>
+                </li>
               );
             })}
-          </div>
+          </ul>
         </div>
 
-        {/* Force-toggle footer — pinned, never scrolls out of view.
-            Junior laws only: international laws have no rotation, and a
-            kick from a penalty is a penalty goal. */}
-        {rotation && (
-        <div className="flex-shrink-0 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-0">
-          <label className="mt-3 flex items-center gap-2 rounded-md bg-surface-alt px-3 py-2 text-xs text-ink-dim">
-            <input
-              type="checkbox"
-              checked={force}
-              onChange={(e) => setForce(e.target.checked)}
-              className="h-4 w-4 rounded border-hairline accent-brand-600"
-            />
-            <span>
-              <strong className="text-ink">Force</strong> — bypass rotation
-              (try-scorer fouled in the act of scoring, laws §15 carve-out).
-            </span>
-          </label>
+        {/* Force (junior laws only: international laws have no rotation,
+            and a kick from a penalty is a penalty goal), then the way out.
+            Pinned, never scrolled out of view. */}
+        <div className="flex-shrink-0 px-3.5 pb-[14px] pt-2.5">
+          {rotation && (
+            <label className="mb-2 flex items-center gap-2 rounded-[12px] bg-surface-alt px-3 py-2 text-xs text-ink-dim">
+              <input
+                type="checkbox"
+                checked={force}
+                onChange={(e) => setForce(e.target.checked)}
+                className="h-4 w-4 rounded border-hairline accent-brand-600"
+              />
+              <span>
+                <strong className="text-ink">Force</strong> — bypass rotation
+                (try-scorer fouled in the act of scoring, laws §15 carve-out).
+              </span>
+            </label>
+          )}
+          <button type="button" onClick={onClose} className={SHEET_CANCEL}>
+            {hasTryToConvert ? "Skip" : "Cancel"}
+          </button>
         </div>
-        )}
-        {!rotation && <div className="pb-[calc(1rem+env(safe-area-inset-bottom))]" />}
       </Modal>
   );
 }
+
+/** A kicker's row: the sheet's white plate (SHEET_OPTION), holding two buttons. */
+const KICKER_ROW =
+  "flex min-h-[54px] items-center gap-3 rounded-[15px] bg-surface px-3 py-2 shadow-[inset_0_0_0_1.5px_rgb(var(--l-hairline))]";
+
+/** Made / Missed: the bar's button type, 44 px, a size down. */
+const KICK_BUTTON =
+  "inline-flex min-h-[44px] min-w-[64px] items-center justify-center rounded-[12px] px-3 font-display stretch-85 text-[0.9375rem] font-extrabold uppercase " +
+  "transition-colors duration-fast ease-out-quart disabled:pointer-events-none";

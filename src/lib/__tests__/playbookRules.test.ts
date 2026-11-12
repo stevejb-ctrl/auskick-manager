@@ -50,7 +50,7 @@ describe("rule catalogue (UX plan §7.4)", () => {
       "Nobody sits on the bench 2 quarters in a row",
     );
     const apart = { ...newRule("keep-apart"), params: { playerIds: ["mia", "ava"] } };
-    expect(ruleSentence(apart, ruleWords("afl", "quarter", false), names)).toBe("Keep MIA and AVA apart");
+    expect(ruleSentence(apart, ruleWords("afl", "quarter", false), names)).toBe("Keep MIA and AVA in different lines");
   });
 
   it("shows policy rules locked, with their source", () => {

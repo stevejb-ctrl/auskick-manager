@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { useHelpHref } from "@/lib/help/helpHref";
 
 export interface WalkthroughStep {
   emoji: string;
@@ -9,47 +10,102 @@ export interface WalkthroughStep {
   body: string;
 }
 
+/**
+ * The words on the live and break screens, in one place, last in every
+ * sport's walkthrough. Parents who don't know the sport stopped at each
+ * of these (Stagehand round 8, #14).
+ */
+export const GLOSSARY_STEP: WalkthroughStep = {
+  emoji: "📖",
+  title: "Words you'll see",
+  body:
+    "Off next, On next → DEF: the kid's part in the next sub, and the same number on both kids of a pair. Off now, On now: the sub is due. " +
+    "Stays: keeps their spot at the break. From bench, From C: where a kid is coming from. " +
+    "Suggested, Rotate, Repeat, Manual: how the next lineup is picked (Siren's pick, everyone moves round, the same as last time, or you choose). " +
+    "+G, +B, +T, +C, +2: add a goal, behind, try, conversion or basket for that team. Undo takes back the latest score; tap the score to fix an earlier one.",
+};
+
+/** A walkthrough ends on the words, once. */
+export function withGlossary(steps: WalkthroughStep[]): WalkthroughStep[] {
+  return steps.some((s) => s.title === GLOSSARY_STEP.title) ? steps : [...steps, GLOSSARY_STEP];
+}
+
+/**
+ * The walkthrough for the sports on the shared live chrome (football,
+ * futsal, hockey, basketball, touch, Oztag), which had no "?" at all: a
+ * parent "found only a feedback form" (Stagehand round 8).
+ */
+export function buildSharedWalkthroughSteps(): WalkthroughStep[] {
+  return withGlossary([
+    {
+      emoji: "⏱️",
+      title: "Starting",
+      body: "Check the lineup, then tap Start on the bar at the bottom. The clock runs on its own: tap it to pause, or to end the period early.",
+    },
+    {
+      emoji: "🔄",
+      title: "Subs",
+      body: "The Next sub line under the score counts down and says how many swaps; tap it to see the pairs. When subs are due, tap Make all swaps on the bar. Or tap a kid, then another, to swap just them: it happens straight away, with Undo for a few seconds.",
+    },
+    {
+      emoji: "👆",
+      title: "Tap a kid",
+      body: "Tapping a kid opens their bar at the bottom: score for them, Injured, or More for the rest. Their minutes are there too. Tap × to put them down.",
+    },
+    {
+      emoji: "➕",
+      title: "Scores",
+      body: "Tap + on the bar to add a score. Ours asks who scored. Undo under the score takes back the latest; tap the score to fix an earlier one.",
+    },
+    {
+      emoji: "⋯",
+      title: "The ⋯ menu",
+      body: "Late arrivals, game settings, scores, this tour and the game-day link (so another parent can run the clock) are under ⋯ at the top.",
+    },
+    {
+      emoji: "🏁",
+      title: "The break",
+      body: "When a period ends, the break shows the next lineup. Change anything you like, then tap Start.",
+    },
+  ]);
+}
+
 export function buildWalkthroughSteps(trackScoring: boolean): WalkthroughStep[] {
   const steps: WalkthroughStep[] = [
     {
       emoji: "⏱️",
       title: "Starting the game",
-      body: "Tap Start Q1, then confirm when the siren goes — the clock starts then and runs automatically. Tap the clock pill to pause if there's a break in play, then tap it again to resume.",
+      body: "Tap Start Q1 on the bar at the bottom, then Start Q1 now when the siren goes. The clock runs on its own: tap it to pause for a stoppage, or to end the quarter early.",
     },
     {
       emoji: "🏟️",
       title: "Field & bench",
-      body: "The field shows your players in their zones — Forward at the top, Centre in the middle, Back at the bottom. Anyone not on the field sits on the bench below.",
+      body: "The kids sit on the field in their lines: forwards at the top, centres in the middle, backs at the bottom. Anyone not on the field is on the bench underneath.",
+    },
+    {
+      emoji: "⚡",
+      title: "The next sub",
+      body: "Siren tracks everyone's minutes and plans fair subs. The Next sub line under the score counts down and says how many swaps. The kids in it say Off next or On next → FWD, with the same number on both kids of a pair. Tap the line to see the pairs.",
+    },
+    {
+      emoji: "🔔",
+      title: "Sub due",
+      body: "When it's time, the clock turns orange, the kids say Off now and On now, and the bar shows Make all swaps. Tap it to do them in one go, or Pairs to check or change them first. You can still score.",
     },
     {
       emoji: "🔄",
       title: "Making a substitution",
-      body: "Tap a field player to select them (they'll highlight), then tap a bench player to swap them. A confirmation screen appears before anything changes. Empty slots on the field work the same way — tap one with a bench player selected to send them on.",
+      body: "Tap a kid, then tap another: a bench kid swaps on, a field kid swaps lines. It happens straight away, and Undo shows for a few seconds if you picked the wrong pair. Tap an empty spot to fill it.",
     },
     {
-      emoji: "🔀",
-      title: "Swapping zones on the field",
-      body: "Tap a field player, then tap another field player in a different zone. They'll exchange positions without anyone going off.",
-    },
-    {
-      emoji: "⚡",
-      title: "Auto-rotation",
-      body: "The app tracks how long each player has been on field and suggests fair subs. Players due to come off get an amber badge (↓), players ready to come on get a green badge (↑).",
-    },
-    {
-      emoji: "🔔",
-      title: "Sub timer alert",
-      body: "When it's time for subs, a Sub due banner appears under the top bar and the sub card opens with the suggested swaps. Tap Make all swaps to do them in one go, or do it yourself. The banner never blocks scoring.",
-    },
-    {
-      emoji: "👇",
-      title: "Tap for player actions",
-      body: "Tap a player, then Player actions at the bottom of the screen to open the actions sheet. From here you can Switch player, Keep on field (never subbed), Keep in their zone (rotates off but always back to the same spot), Mark injured (sits on the bench, skipped by auto-rotation), or Lend to opposition (counts toward season fairness).",
+      emoji: "👆",
+      title: "Tap a kid for their bar",
+      body: "Tapping a kid opens their bar at the bottom, with their minutes this game. From there: Injured, or More to Switch, Keep on field (never subbed), Keep in their line, or Lend to the other team. Tap × to put them down.",
     },
     {
       emoji: "↩️",
       title: "Bringing someone back",
-      body: "Injured and lent players show a red INJ or amber LENT badge on the bench. Just tap them — the actions sheet opens straight to Mark recovered or Bring back, one tap and they're available for the next sub.",
+      body: "Injured and lent kids sit on the bench marked INJ or LENT. Tap them to bring them back, ready for the next sub.",
     },
   ];
 
@@ -57,15 +113,22 @@ export function buildWalkthroughSteps(trackScoring: boolean): WalkthroughStep[] 
     steps.push({
       emoji: "⚽",
       title: "Recording scores",
-      body: "Tap a field player, then tap + GOAL or + BEHIND at the bottom to credit them — their score appears on their tile. For the opposition, tap the + beside their score in the header. Made a mistake? Tap Undo on the strip above the scoreboard to take back the latest score.",
+      body: "Tap + Goal or + Behind on the bar and pick who scored (or tap a kid first). For the other team, tap their +G or +B. Undo under the score takes back the latest; tap the score to fix any of them.",
     });
   }
 
-  steps.push({
-    emoji: "🏁",
-    title: "Ending a quarter",
-    body: "The quarter ends when the clock runs out (or tap the clock, then End Q1 now). You'll get a break screen where you can shuffle the lineup before the next quarter starts. After Q4, check the full-time review and tap Finish game so it flows into your season stats.",
-  });
+  steps.push(
+    {
+      emoji: "⋯",
+      title: "The ⋯ menu",
+      body: "Late arrivals, game settings, scores and fixes, this tour and the game-day link (so another parent can run the clock) are under ⋯ at the top.",
+    },
+    {
+      emoji: "🏁",
+      title: "Ending a quarter",
+      body: "The quarter ends when the clock runs out (or tap the clock, then End Q1 now). The break shows the next lineup to change before you start the next quarter. After Q4, check the full-time review and tap Finish game so it counts in your season stats.",
+    },
+  );
 
   return steps;
 }
@@ -79,7 +142,11 @@ interface WalkthroughModalProps {
 // interstitial is gone: the tour is offered on the lineup screen before
 // kickoff (WalkthroughOffer) or opened from the "?" button, and both of
 // those already ask the question (UX plan H1).
-export function WalkthroughModal({ steps, onClose }: WalkthroughModalProps) {
+export function WalkthroughModal({ steps: stepsProp, onClose }: WalkthroughModalProps) {
+  // Every walkthrough ends on the words (GLOSSARY_STEP).
+  const steps = withGlossary(stepsProp);
+  // The full help for this team's sport, in a new tab so the game stays open.
+  const helpHref = useHelpHref();
   const [idx, setIdx] = useState(0);
 
   // Direction tracking for step-content slide animations. The
@@ -164,6 +231,17 @@ export function WalkthroughModal({ steps, onClose }: WalkthroughModalProps) {
           >
             Skip walkthrough
           </button>
+        )}
+        {isLast && (
+          <a
+            href={helpHref}
+            target="_blank"
+            rel="noopener"
+            data-testid="walkthrough-help-link"
+            className="mt-3 block w-full text-center text-xs text-ink-mute underline transition-colors duration-fast ease-out-quart hover:text-ink-dim"
+          >
+            More in the help pages (opens a new tab)
+          </a>
         )}
       </Modal>
   );

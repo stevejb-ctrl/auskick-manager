@@ -1,7 +1,10 @@
 "use client";
 
-import { useId, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
+import { markLostScore } from "@/lib/live/lostScore";
 import { useDialogFocus } from "@/components/ui/useDialogFocus";
+import { SheetEntranceShield, useSheetTapGuard } from "@/components/ui/useSheetTapGuard";
+import { SHEET_CANCEL, SHEET_CARD, SHEET_EYEBROW, SHEET_OPTION, SHEET_TITLE, SheetGrab } from "@/components/ui/sheetChrome";
 import { useSquadNames } from "@/components/live/SquadNames";
 
 // ─── Slot Fill Sheet ─────────────────────────────────────────
@@ -96,27 +99,58 @@ interface Props {
     subLabel?: string;
     onSelect: () => void;
   }[];
+  /**
+   * A scorer sheet, for what's being scored ("goal", "try"): closed with
+   * nobody picked and no Cancel (the other phone ended the period and
+   * the screen became the break), it's noted so the break can say the
+   * score wasn't saved (lib/live/lostScore, Stagehand round 8).
+   */
+  lostScore?: string;
 }
 
 export function SlotFillSheet({
   slotLabel,
   candidates,
-  onPick,
-  onCancel,
+  onPick: pickProp,
+  onCancel: cancelProp,
   titleVerb = "Fill",
   title,
   eyebrow = "Pick a player",
   subtitle,
   emptyMessage,
   dismissOnBackdrop = false,
-  extraOption,
-  extraOptions = [],
+  extraOption: extraOptionProp,
+  extraOptions: extraOptionsProp = [],
+  lostScore,
 }: Props) {
+  // Any answer settles the sheet; closing unanswered is a lost score.
+  const settled = useRef(false);
+  const settle = <A extends unknown[]>(fn: (...a: A) => void) => (...a: A) => {
+    settled.current = true;
+    fn(...a);
+  };
+  const onPick = settle(pickProp);
+  const onCancel = settle(cancelProp);
+  const extraOptions = [...(extraOptionProp ? [extraOptionProp] : []), ...extraOptionsProp].map((o) => ({ ...o, onSelect: settle(o.onSelect) }));
+  const lostRef = useRef(lostScore);
+  lostRef.current = lostScore;
+  useEffect(() => {
+    // Not dev's StrictMode remount, which closes it at once.
+    const openedAt = Date.now();
+    return () => {
+      if (lostRef.current && !settled.current && Date.now() - openedAt > 250) markLostScore(lostRef.current);
+    };
+  }, []);
   // Focus in, Tab kept inside, Escape cancels, focus back to the chip
   // that opened it (UX round 3, e4: Tab walked the score chips behind
   // the backdrop and Escape did nothing).
   const sheetRef = useRef<HTMLDivElement>(null);
   useDialogFocus(sheetRef, true, onCancel);
+  // No taps until the sheet has risen: a tap aimed at Mia's row landed on
+  // the row above while it moved, and the goal went to the wrong kid
+  // (Stagehand round 9). And a moment's shield over the field once a
+  // pick closes it (useSheetTapGuard).
+  const entering = useSheetTapGuard(sheetRef, true);
   const titleId = useId();
   // Two kids with the same full name read "Jack Smith (1)" / "(2)" (or
   // their numbers), as their tiles do; any other label stays as given.
@@ -150,7 +184,7 @@ export function SlotFillSheet({
       // 12px down. The top bar's back link showed through that strip,
       // so a stray tap at the top left the live screen with the pick
       // unmade (UX audit 23 Oct 2026, the scorer-sheet backdrop tests).
-      className="fixed inset-0 z-[60] !m-0 flex items-end sm:items-center justify-center bg-ink/60 p-[16px] motion-safe:animate-fade-in"
+      className="fixed inset-0 z-[60] !m-0 flex items-end justify-center bg-scrim/60 pt-[16px] motion-safe:animate-fade-in sm:items-center sm:p-[16px]"
       onClick={dismissOnBackdrop ? onCancel : undefined}
     >
       <div
@@ -172,46 +206,47 @@ export function SlotFillSheet({
         // heading and Cancel (UX round 3, e4: a fixed max-h-72 list and no
         // cap put union's heading above a phone held sideways and Cancel
         // below it; at 200% text the heading sat at y = -41).
-        className="flex max-h-[calc(100dvh-32px)] w-full max-w-md flex-col rounded-t-lg sm:rounded-lg border border-hairline bg-surface shadow-modal outline-none motion-safe:animate-sheet-up-mobile sm:motion-safe:animate-pop-in"
+        className={`relative flex max-h-[calc(100dvh-16px)] w-full max-w-md flex-col ${SHEET_CARD} outline-none motion-safe:animate-sheet-up-mobile sm:max-h-[calc(100dvh-32px)] sm:motion-safe:animate-pop-in`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="shrink-0 border-b border-hairline px-5 py-4">
-          <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+        <SheetGrab />
+        <div className="shrink-0 px-5 pb-3 pt-6 sm:pt-5">
+          <p className={SHEET_EYEBROW}>
             {eyebrow}
           </p>
           <h2
             id={titleId}
-            className="text-base font-semibold text-ink"
+            className={`mt-0.5 ${SHEET_TITLE}`}
           >
             {title ?? `${titleVerb} ${slotLabel}`}
           </h2>
-          <p className="mt-1 text-xs text-ink-mute">
+          <p className="mt-1 text-sm text-ink-dim">
             {subtitle ?? `Pick a player to place in the ${slotLabel} slot.`}
           </p>
         </div>
 
         {/* Extra rows and the kids scroll together between the heading
             and Cancel. */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          {[...(extraOption ? [extraOption] : []), ...extraOptions].map((option) => (
+        <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain px-3.5 pb-1">
+          {extraOptions.map((option) => (
             <button
               key={option.label}
               type="button"
               onClick={option.onSelect}
-              className="flex w-full items-center gap-3 border-b border-hairline bg-surface-alt px-5 py-3 text-left text-sm hover:bg-surface"
+              className={`${SHEET_OPTION} text-sm`}
             >
               <span
                 aria-hidden="true"
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-hairline bg-surface font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-alt font-mono text-micro font-bold uppercase tracking-micro text-ink-mute"
               >
                 —
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium text-ink">
+                <span className="block truncate font-bold text-ink">
                   {option.label}
                 </span>
                 {option.subLabel && (
-                  <span className="block truncate text-[11px] text-ink-mute">
+                  <span className="block truncate text-micro text-ink-mute">
                     {option.subLabel}
                   </span>
                 )}
@@ -220,32 +255,32 @@ export function SlotFillSheet({
           ))}
 
           {candidates.length === 0 ? (
-            <p className="px-5 py-8 text-center text-sm text-ink-mute">
+            <p className="px-2 py-8 text-center text-sm text-ink-dim">
               {emptyMessage ?? "Nobody available — every player is already on field."}
             </p>
           ) : (
-            <ul className="divide-y divide-hairline">
+            <ul className="space-y-1.5">
               {candidates.map((c) => (
                 <li key={c.id}>
                   <button
                     type="button"
                     onClick={() => onPick(c.id)}
-                    className="flex w-full items-center gap-3 px-5 py-3 text-left text-sm text-ink hover:bg-surface-alt"
+                    className={`${SHEET_OPTION} text-sm text-ink`}
                   >
                     {c.jerseyNumber != null && c.jerseyNumber !== "" && (
                       <span
                         aria-hidden="true"
-                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-hairline bg-surface-alt font-mono text-[11px] font-bold tabular-nums text-ink"
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-alt font-mono text-micro font-bold tabular-nums text-ink"
                       >
                         {c.jerseyNumber}
                       </span>
                     )}
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium text-ink">
+                      <span className="block truncate font-bold text-ink">
                         {label(c)}
                       </span>
                       {c.subLabel && (
-                        <span className="block truncate text-[11px] text-ink-mute">
+                        <span className="block truncate text-micro text-ink-mute">
                           {c.subLabel}
                         </span>
                       )}
@@ -257,16 +292,25 @@ export function SlotFillSheet({
           )}
         </div>
 
-        <div className="shrink-0 border-t border-hairline px-5 py-3">
+        <div className="shrink-0 px-3.5 pb-[max(14px,env(safe-area-inset-bottom))] pt-2.5">
+          {/* A scorer sheet stays put on a tap outside (so the score
+              isn't lost by accident): say how to leave it (Stagehand
+              round 8, #14: "tapping outside didn't close it"). */}
+          {lostScore && !dismissOnBackdrop && (
+            <p data-testid="scorer-sheet-hint" className="mb-2 text-center text-xs text-ink-dim">
+              Nothing&apos;s saved until you pick. Tap Cancel if nobody scored.
+            </p>
+          )}
           <button
             type="button"
             onClick={onCancel}
-            className="min-h-[44px] w-full rounded-md border border-hairline bg-surface px-3 py-2 text-sm font-medium text-ink hover:bg-surface-alt"
+            className={SHEET_CANCEL}
           >
             Cancel
           </button>
         </div>
       </div>
+      <SheetEntranceShield on={entering} />
     </div>
   );
 }

@@ -89,8 +89,8 @@ export function SportsMenu() {
                     <SportFieldGlyph sport={sport.sport} weight={1.2} className="h-full w-full" />
                   </span>
                   <span className="flex min-w-0 flex-col">
-                    <span className="text-[15px] font-semibold text-ink">{sport.label}</span>
-                    <span className="truncate text-[13px] text-ink-dim">{sportPageCopy(sport.sport).menuLine}</span>
+                    <span className="text-[0.9375rem] font-semibold text-ink">{sport.label}</span>
+                    <span className="truncate text-[0.8125rem] text-ink-dim">{sportPageCopy(sport.sport).menuLine}</span>
                   </span>
                 </Link>
               </li>

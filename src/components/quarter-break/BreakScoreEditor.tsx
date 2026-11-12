@@ -6,9 +6,14 @@
 // per-period breakdown (the shared QuarterScoreTable) and the scores a
 // coach missed in play, each side's buttons the sport's own
 // (basketball's +1 / +2 / +3, touch's +T, Oztag's +1 and +2 (girl)).
+// Then (`fix`) the game's scores, each with "Change who scored" and ×:
+// the live Scores and fixes sheet's list (LiveScoreFix), so a wrong kid
+// isn't "take it off and add it again" (Stagehand round 9).
 
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
+import { LiveScoreFix } from "@/components/live/ScoresSheet";
 import { SCORE_CHIP } from "@/components/live/scoreChip";
+import type { LiveAuth } from "@/lib/types";
 
 export interface BreakScoreChip {
   key: string;
@@ -36,6 +41,8 @@ interface BreakScoreEditorProps {
   missedNote: string;
   onUndo: () => void;
   undoDisabled?: boolean;
+  /** The game, for the score list with "Change who scored" (whoever's running it). */
+  fix?: { auth: LiveAuth; gameId: string };
 }
 
 export function BreakScoreEditor({
@@ -53,6 +60,7 @@ export function BreakScoreEditor({
   missedNote,
   onUndo,
   undoDisabled = false,
+  fix,
 }: BreakScoreEditorProps) {
   return (
     <div className="space-y-4">
@@ -93,7 +101,7 @@ export function BreakScoreEditor({
                   aria-label={c.label}
                 >
                   {c.text}
-                  {c.sub && <span className="mt-0.5 text-[9px] font-semibold uppercase tracking-micro text-ink-dim">{c.sub}</span>}
+                  {c.sub && <span className="mt-0.5 text-nano font-semibold uppercase tracking-micro text-ink-dim">{c.sub}</span>}
                 </button>
               ))}
             </span>
@@ -110,6 +118,11 @@ export function BreakScoreEditor({
           </button>
         )}
       </div>
+      {fix && (teamPoints > 0 || opponentPoints > 0) && (
+        <div className="border-t border-hairline pt-4">
+          <LiveScoreFix auth={fix.auth} gameId={fix.gameId} version={`${teamPoints}:${opponentPoints}`} />
+        </div>
+      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { BAND_PRIMARY, BAND_SECONDARY } from "@/components/marketing/bandStyles";
 import { createClient } from "@/lib/supabase/client";
 
 /**
@@ -46,7 +47,7 @@ export function MarketingAuthCTAs({ variant }: MarketingAuthCTAsProps) {
     return signedIn ? (
       <Link
         href="/dashboard"
-        className="inline-flex items-center rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
+        className="inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-on-primary transition-colors duration-fast ease-out-quart hover:bg-primary/85"
       >
         Dashboard
       </Link>
@@ -63,7 +64,7 @@ export function MarketingAuthCTAs({ variant }: MarketingAuthCTAsProps) {
         </Link>
         <Link
           href="/login"
-          className="inline-flex items-center rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
+          className="inline-flex items-center whitespace-nowrap rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-on-primary transition-colors duration-fast ease-out-quart hover:bg-primary/85"
         >
           Start free
         </Link>
@@ -80,14 +81,14 @@ export function MarketingAuthCTAs({ variant }: MarketingAuthCTAsProps) {
     return signedIn ? (
       <Link
         href="/dashboard"
-        className="inline-flex items-center justify-center rounded-md bg-brand-600 px-5 py-2.5 text-base font-medium text-warm shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-700"
+        className={BAND_PRIMARY}
       >
         Go to dashboard
       </Link>
     ) : (
       <Link
         href="/login"
-        className="inline-flex items-center justify-center rounded-md bg-brand-600 px-5 py-2.5 text-base font-medium text-warm shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-700"
+        className={BAND_PRIMARY}
       >
         Sign in via web
       </Link>
@@ -98,7 +99,7 @@ export function MarketingAuthCTAs({ variant }: MarketingAuthCTAsProps) {
   return signedIn ? (
     <Link
       href="/dashboard"
-      className="inline-flex items-center justify-center rounded-md bg-warm px-6 py-3 text-base font-semibold text-brand-800 shadow-card transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+      className={BAND_PRIMARY}
     >
       Go to dashboard
     </Link>
@@ -106,13 +107,13 @@ export function MarketingAuthCTAs({ variant }: MarketingAuthCTAsProps) {
     <>
       <Link
         href="/login"
-        className="inline-flex items-center justify-center rounded-md bg-warm px-6 py-3 text-base font-semibold text-brand-800 shadow-card transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+        className={BAND_PRIMARY}
       >
         Create your team
       </Link>
       <Link
         href="/login"
-        className="inline-flex items-center justify-center rounded-md border border-warm/30 px-6 py-3 text-base font-medium text-warm transition-colors duration-fast ease-out-quart hover:bg-brand-700"
+        className={BAND_SECONDARY}
       >
         Sign in
       </Link>

@@ -10,7 +10,8 @@
 // fouling out; none at no fouls), OUT for a foul-out, points as "n PTS",
 // and a sit-out's countdown.
 
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useId, useRef, useState } from "react";
+import { tileName } from "@/components/live/tileName";
 import type { Player } from "@/lib/types";
 import type { BasketballLine } from "@/lib/sports/basketball/types";
 import { BASKETBALL_LINE_ZONE } from "@/lib/sports/basketball";
@@ -84,6 +85,8 @@ interface BasketballPlayerTileProps {
   /** This game's time at guard and forward: the bar. */
   lineMs?: BasketballLineMs;
   injured?: boolean;
+  /** Injured with reason "out": the kid went home (lib/live/wentHome). */
+  wentHome?: boolean;
   loaned?: boolean;
   /** Fouled out: out for the game. */
   fouledOut?: boolean;
@@ -109,7 +112,7 @@ function formatMinSec(ms: number): string {
   return `${m}:${r.toString().padStart(2, "0")}`;
 }
 
-const CHIP = "inline-flex h-4 shrink-0 items-center rounded-xs px-[5px] font-mono text-[10px] font-bold leading-4";
+const CHIP = "inline-flex h-4 shrink-0 items-center rounded-xs px-[5px] font-mono text-nano font-bold leading-4";
 
 function BasketballPlayerTileImpl({
   player,
@@ -122,6 +125,7 @@ function BasketballPlayerTileImpl({
   totalMs,
   lineMs,
   injured,
+  wentHome = false,
   loaned,
   fouledOut,
   fouls = null,
@@ -163,8 +167,8 @@ function BasketballPlayerTileImpl({
     ? "bg-brand-50 ring-2 ring-brand-500 shadow-pop"
     : isOff
       ? swapDue
-        ? "bg-due-tint shadow-[inset_0_0_0_2px_#A8590F,0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
-        : "bg-surface shadow-[inset_0_0_0_1.5px_#A8590F,0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
+        ? "bg-due-tint shadow-[inset_0_0_0_2px_rgb(var(--l-due)),0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
+        : "bg-surface shadow-[inset_0_0_0_1.5px_rgb(var(--l-due)),0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
       : isOn
         ? "bg-brand-50 shadow-lift-field ring-1 ring-inset ring-brand-500"
         : injured || fouledOut
@@ -181,6 +185,32 @@ function BasketballPlayerTileImpl({
   const displayName = useSquadNames().tile(player);
 
   const lineLabel = positionLabel ?? (line ? BASKETBALL_LINE_SHORT[line] || null : null);
+
+  // One accessible name, read once: kid, line or position, number,
+  // time, chips (tileName). The time at guard and forward is the description.
+  const splitId = useId();
+  const lineSplit =
+    totalMs !== undefined && lineMs
+      ? BAR_ORDER.filter((u) => (lineMs[u] ?? 0) > 0)
+          .map((u) => `${BASKETBALL_LINE_LABEL[u]} ${formatMinSec(lineMs[u] ?? 0)}`)
+          .join(", ") || null
+      : null;
+  const spokenName = tileName({
+    name: player.full_name,
+    place: positionLabel ?? (line && BASKETBALL_LINE_SHORT[line] ? BASKETBALL_LINE_LABEL[line] : null),
+    number: player.jersey_number,
+    time: totalMs !== undefined ? formatMinSec(totalMs) : null,
+    states: [
+      isOn && `Going on${swap?.line && swap.line !== "court" ? ` to ${BASKETBALL_LINE_LABEL[swap.line]}` : ""}, pair ${swap?.pair}`,
+      isOff && `Coming off next, pair ${swap?.pair}`,
+      fouledOut ? "Fouled out" : injured && "Injured",
+      loaned && !injured && !fouledOut && "Lent to opposition",
+      sittingOut && !injured && !fouledOut && `Sitting out, ${formatMinSec(sitOutMsLeft ?? 0)} left`,
+      fouls !== null && foulCount > 0 && !fouledOut && `${foulCount} ${foulCount === 1 ? "foul" : "fouls"}`,
+      !!lockMode && !away && (lockMode === "field" ? "Kept on" : "Line locked"),
+      hasPoints && !isOff && `${points} ${points === 1 ? "point" : "points"}`,
+    ],
+  });
 
   // The swap handover, as AFL's tile: a tile marked OFF that receives
   // the kid coming on pops a green ✓ and rolls the names.
@@ -210,6 +240,8 @@ function BasketballPlayerTileImpl({
       <button
         type="button"
         data-testid={`player-tile-${player.id}`}
+        aria-label={spokenName}
+        aria-describedby={lineSplit ? splitId : undefined}
         onClick={handleClick}
         {...longPressHandlers}
         disabled={!onClick && !onLongPress}
@@ -225,12 +257,12 @@ function BasketballPlayerTileImpl({
       >
         {isOn && (
           <div
-            className={`flex items-center justify-center gap-1 rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-micro ${
+            className={`flex items-center justify-center gap-1 rounded-t-[11px] border-b px-1 py-0.5 font-mono text-micro font-bold uppercase leading-none tracking-micro ${
               swap?.line ? LINE_STRIP[swap.line] : LINE_STRIP.court
             }`}
             aria-label={`Going on${swap?.line && swap.line !== "court" ? ` to ${BASKETBALL_LINE_LABEL[swap.line]}` : ""}, pair ${swap.pair}`}
           >
-            {showPairNumber && <span className="rounded-xs bg-black/15 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}
+            {showPairNumber && <span className="rounded-xs bg-black/15 px-1 py-0.5 text-nano">#{swap.pair}</span>}
             <span>→ {swapLabel}</span>
           </div>
         )}
@@ -241,13 +273,13 @@ function BasketballPlayerTileImpl({
           <span className="flex h-4 items-center gap-1.5">
             {lineLabel && (
               <span
-                className={`font-mono text-[10px] font-bold uppercase leading-4 tracking-micro ${line ? LINE_TEXT[line] : "text-ink-dim"}`}
+                className={`font-mono text-nano font-bold uppercase leading-4 tracking-micro ${line ? LINE_TEXT[line] : "text-ink-dim"}`}
               >
                 {lineLabel}
               </span>
             )}
             {player.jersey_number != null && (
-              <span className="nums font-mono text-[10px] font-semibold leading-4 text-ink-dim">
+              <span className="nums font-mono text-nano font-semibold leading-4 text-ink-dim">
                 #{player.jersey_number}
               </span>
             )}
@@ -275,8 +307,8 @@ function BasketballPlayerTileImpl({
                   OUT
                 </span>
               ) : injured ? (
-                <span className={`${CHIP} bg-danger tracking-micro text-white`} aria-label="Injured">
-                  INJ
+                <span className={`${CHIP} ${wentHome ? "bg-ink-mute" : "bg-danger"} tracking-micro text-white`} aria-label={wentHome ? "Went home" : "Injured"}>
+                  {wentHome ? "HOME" : "INJ"}
                 </span>
               ) : null}
               {loaned && !injured && !fouledOut && (
@@ -328,19 +360,19 @@ function BasketballPlayerTileImpl({
               <span
                 aria-hidden
                 style={{ animationDelay: "80ms" }}
-                className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-out-up motion-reduce:hidden"
+                className="block truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-out-up motion-reduce:hidden"
               >
                 {handover.from}
               </span>
               <span
                 style={{ animationDelay: "80ms" }}
-                className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-in-up motion-reduce:animate-xfade-in"
+                className="block truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-in-up motion-reduce:animate-xfade-in"
               >
                 {displayName}
               </span>
             </span>
           ) : (
-            <span className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink">
+            <span className="block truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-ink">
               {displayName}
             </span>
           )}
@@ -372,6 +404,12 @@ function BasketballPlayerTileImpl({
           )}
         </div>
       </button>
+      {/* The time at guard and forward, outside the tile so it isn't the tile's text. */}
+      {lineSplit && (
+        <span id={splitId} hidden>
+          {lineSplit}
+        </span>
+      )}
     </SirenPulseHalo>
   );
 }
@@ -390,6 +428,7 @@ function areEqual(a: BasketballPlayerTileProps, b: BasketballPlayerTileProps): b
     a.selected !== b.selected ||
     a.dimmed !== b.dimmed ||
     a.injured !== b.injured ||
+    a.wentHome !== b.wentHome ||
     a.loaned !== b.loaned ||
     a.fouledOut !== b.fouledOut ||
     a.fouls !== b.fouls ||

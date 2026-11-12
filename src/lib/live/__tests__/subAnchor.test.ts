@@ -4,7 +4,7 @@
 // when the batch is done.
 
 import { describe, expect, it } from "vitest";
-import { mergeSubAnchor, openSubBatch, resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
+import { cleanBatchLeft, mergeSubAnchor, openSubBatch, resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
 import type { GameEvent } from "@/lib/types";
 
 let seq = 0;
@@ -131,5 +131,34 @@ describe("mergeSubAnchor: AFL's sub clock, from the events and this phone", () =
       anchorMs: 8 * MIN,
       batchLeft: 1,
     });
+  });
+});
+
+// The swap actions keep batch_left only as a whole number above 0
+// (basketball, touch and league joined soccer, 9 Nov 2026).
+describe("cleanBatchLeft", () => {
+  it("keeps a whole number above 0", () => {
+    expect(cleanBatchLeft(1)).toBe(1);
+    expect(cleanBatchLeft(3)).toBe(3);
+  });
+  it("drops 0, negatives, fractions and anything not a number", () => {
+    for (const v of [0, -1, 1.5, NaN, "2", null, undefined]) expect(cleanBatchLeft(v)).toBeUndefined();
+  });
+});
+
+describe("undoing one pair of a batch (Stagehand round 10)", () => {
+  // The 8:00 batch has three swaps; the coach makes one early, then
+  // undoes it. The swap back says the whole batch is open again.
+  const events = [
+    ev("quarter_start", { quarter: 1 }),
+    swap(4 * MIN, "a", "x"),
+    swap(7 * MIN, "b", "y", { batch_left: 2 }),
+    swap(7 * MIN + 5_000, "y", "b", { batch_left: 3 }),
+  ];
+  it("keeps the anchor at the last full rotation", () => {
+    expect(resolveSubAnchorElapsed(events, 1)).toBe(4 * MIN);
+  });
+  it("opens the whole batch again", () => {
+    expect(openSubBatch(events, 1)).toBe(3);
   });
 });

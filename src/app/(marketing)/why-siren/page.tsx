@@ -39,7 +39,7 @@ export default function WhySirenPage() {
         />
         <div className="relative mx-auto max-w-3xl px-4 py-16 sm:px-6 md:py-24">
           <RevealOnScroll>
-            <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-brand-500">
+            <p className="font-mono text-micro font-semibold uppercase tracking-micro text-brand-500">
               Why Siren
             </p>
             <h1 className="mt-3 text-4xl font-bold leading-[1.02] tracking-tightest text-ink [text-wrap:balance] sm:text-5xl md:text-6xl">
@@ -59,7 +59,7 @@ export default function WhySirenPage() {
       <section className="border-b border-hairline bg-warm">
         <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 md:py-20">
           <RevealOnScroll>
-            <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-brand-500">
+            <p className="font-mono text-micro font-semibold uppercase tracking-micro text-brand-500">
               The sideline reality
             </p>
             <h2 className="mt-3 text-3xl font-bold leading-[1.05] tracking-tightest text-ink [text-wrap:balance] sm:text-4xl md:text-5xl">
@@ -92,7 +92,7 @@ export default function WhySirenPage() {
         <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 md:py-28">
           <div className="grid grid-cols-1 items-start gap-12 lg:grid-cols-2 lg:gap-16">
             <RevealOnScroll>
-              <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-brand-500">
+              <p className="font-mono text-micro font-semibold uppercase tracking-micro text-brand-500">
                 The difference
               </p>
               <h2 className="mt-3 text-3xl font-bold leading-[1.05] tracking-tightest text-ink [text-wrap:balance] sm:text-4xl md:text-5xl">
@@ -142,7 +142,7 @@ export default function WhySirenPage() {
       <section className="border-b border-hairline bg-warm">
         <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 md:py-20">
           <RevealOnScroll>
-            <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-brand-500">
+            <p className="font-mono text-micro font-semibold uppercase tracking-micro text-brand-500">
               Built for our game
             </p>
             <h2 className="mt-3 text-3xl font-bold leading-[1.05] tracking-tightest text-ink [text-wrap:balance] sm:text-4xl md:text-5xl">
@@ -172,7 +172,7 @@ export default function WhySirenPage() {
         <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6 md:py-20">
           <RevealOnScroll>
             <div className="rounded-lg border border-hairline bg-surface p-6 shadow-card sm:p-8">
-              <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-brand-500">
+              <p className="font-mono text-micro font-semibold uppercase tracking-micro text-brand-500">
                 A note from the coach who built it
               </p>
               <div className="mt-4 space-y-4 text-base leading-relaxed text-ink-dim">
@@ -236,7 +236,7 @@ function PositionBarsDemo() {
     <div className="rounded-lg border border-hairline bg-surface p-5 shadow-card sm:p-6">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-ink">Time per area</h3>
-        <span className="text-[11px] font-medium text-ink-mute">
+        <span className="text-micro font-medium text-ink-mute">
           48 min game
         </span>
       </div>
@@ -274,7 +274,7 @@ function PositionBarsDemo() {
         {AREAS.map((a) => (
           <div
             key={a.id}
-            className="flex items-center gap-1.5 text-[11px] text-ink-dim"
+            className="flex items-center gap-1.5 text-micro text-ink-dim"
           >
             <span
               className={`h-2.5 w-2.5 rounded-sm ${a.colour}`}

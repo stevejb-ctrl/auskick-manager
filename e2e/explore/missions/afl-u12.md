@@ -31,7 +31,7 @@ Walk through:
 3. Start the game.
 4. Score 3 goals (3 different scorers — track who's been on
    the field longest) and 2 behinds.
-5. Use the Fix-scores panel to ADD a missed Q1 behind that
+5. Tap the score at the top (Scores and fixes) to ADD a missed Q1 behind that
    you forgot to record live (it happened 5 minutes in but
    you only logged it now, mid-Q2). Does the app handle the
    timing right? Does it tag the score "Q1 retro" or just

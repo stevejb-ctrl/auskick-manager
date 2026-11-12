@@ -7,19 +7,21 @@
 // from the lineup on.
 
 import { test, expect } from "@playwright/test";
+import { watchPageErrors } from "../helpers/pageErrors";
 import { createAdminClient } from "../fixtures/supabase";
 import { makePlayers } from "../fixtures/factories";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
+import { readySoccer } from "../helpers/kickoff";
 
 test("hockey: the wizard makes a U13 team in quarters, every page opens, and the team switches to halves", async ({ page }) => {
   test.setTimeout(180_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
   const admin = createAdminClient();
 
   await gotoStable(page, "/teams/new");
   await waitForHydration(page);
-  const pill = page.getByRole("button", { name: "Junior Hockey" });
+  const pill = page.getByRole("radio", { name: "Junior Hockey" });
   // Every sport left beta with the ten-sport homepage.
   await expect(pill).not.toContainText("Beta");
   await pill.click();
@@ -91,7 +93,9 @@ test("hockey: the wizard makes a U13 team in quarters, every page opens, and the
   await gotoStable(page, `/teams/${teamId}/games/${gameId}/live`);
   await waitForHydration(page);
   await expect(page.getByRole("heading", { name: /under 13 starting lineup/i })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole("button", { name: /^start h1$/i })).toBeVisible();
+  // Live v3: the picker's Ready, then Start H1 on the live screen's bar.
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible();
+  await readySoccer(page);
   await page.getByRole("button", { name: /^start h1$/i }).click();
   await expect(page.getByRole("button", { name: /^start h1 now$/i })).toBeVisible({ timeout: 10_000 });
 

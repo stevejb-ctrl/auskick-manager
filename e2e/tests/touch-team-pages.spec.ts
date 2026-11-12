@@ -8,6 +8,7 @@
 // mixed team).
 
 import { test, expect } from "@playwright/test";
+import { watchPageErrors } from "../helpers/pageErrors";
 import { createAdminClient } from "../fixtures/supabase";
 import { makePlayers } from "../fixtures/factories";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
@@ -21,15 +22,15 @@ async function ownerIdOf() {
 test("touch: the wizard makes a mixed U11 team, every page opens, one period and the mixed rule save, Girl/Boy on the squad", async ({ page }) => {
   test.setTimeout(240_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
   const { admin, ownerId } = await ownerIdOf();
 
   await gotoStable(page, "/teams/new");
   await waitForHydration(page);
-  const pill = page.getByRole("button", { name: "Junior Touch football" });
+  const pill = page.getByRole("radio", { name: "Junior Touch football" });
   // Every sport left beta with the ten-sport homepage.
   await expect(pill).not.toContainText("Beta");
-  await expect(page.getByRole("button", { name: "Junior Oztag" })).not.toContainText("Beta");
+  await expect(page.getByRole("radio", { name: "Junior Oztag" })).not.toContainText("Beta");
   await pill.click();
   const teamName = `TCH-WIZ-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   await page.getByLabel(/team name/i).fill(teamName);
@@ -166,12 +167,12 @@ test("touch: the wizard makes a mixed U11 team, every page opens, one period and
 test("oztag: the wizard makes a mixed U12 team, every page opens, and the girl's try turns off", async ({ page }) => {
   test.setTimeout(180_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
   const { admin } = await ownerIdOf();
 
   await gotoStable(page, "/teams/new");
   await waitForHydration(page);
-  await page.getByRole("button", { name: "Junior Oztag" }).click();
+  await page.getByRole("radio", { name: "Junior Oztag" }).click();
   const teamName = `OZT-WIZ-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   await page.getByLabel(/team name/i).fill(teamName);
   await page.getByLabel(/age group/i).selectOption("U12");

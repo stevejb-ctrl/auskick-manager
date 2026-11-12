@@ -8,7 +8,8 @@
 // Flow:
 //   1. Pre-kickoff: the lineup picker draws all fifteen on union's
 //      field (its 22 m line, not league's 20 m) with no vest card.
-//   2. Start H1 from the picker.
+//   2. Ready on the picker, then Start H1 on the live screen's bar
+//      (live v3).
 //   3. A try (5) and its conversion (2) with no rotation, a penalty
 //      goal (3) and a drop goal (3) for us, a drop goal for them.
 //   4. The score bug reads union's points and words (13 to 3, DG).
@@ -20,9 +21,11 @@
 // says each score in union's words, and a tap-tap sub asks, then toasts.
 
 import { test, expect } from "@playwright/test";
+import { watchPageErrors } from "../helpers/pageErrors";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
+import { readyRugby, startRugbyFirst } from "../helpers/kickoff";
 import { startFromBreak } from "../helpers/break";
 
 test.describe.configure({ mode: "serial" });
@@ -30,7 +33,7 @@ test.describe.configure({ mode: "serial" });
 test("rugby union U12: 15 a side, try → conversion → penalty and drop goals → finish", async ({ page }) => {
   test.setTimeout(240_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
 
   const admin = createAdminClient();
   const { data: su } = await admin.auth.admin.listUsers();
@@ -66,7 +69,8 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
   const field = page.getByRole("region", { name: "On field" });
-  await expect(page.getByText("15 / 15").first()).toBeVisible({ timeout: 15_000 });
+  // Live v3: the old "15 / 15" count chip is each line's margin count.
+  await expect(field.getByRole("group", { name: "Forwards" })).toContainText("8 on", { timeout: 15_000 });
   await expect(field.locator("[data-testid^='league-player-tile-']")).toHaveCount(15);
   // Union's 15: eight forwards and seven backs, on the shared card tiles.
   await expect(field.getByRole("group", { name: "Forwards" }).locator("[data-testid^='league-player-tile-']")).toHaveCount(8);
@@ -74,9 +78,9 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
   await expect(page.getByText(/First Receiver|Dummy Half/)).toHaveCount(0);
 
   // ─── 2. Start H1 ───────────────────────────────────────────────
-  await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click({ timeout: 10_000 });
-  await expect(page.getByRole("button", { name: /^clock — h1, running$/i })).toBeVisible({ timeout: 15_000 });
+  // Live v3: the picker's Ready, then Start H1 on the live screen's bar.
+  await readyRugby(page);
+  await startRugbyFirst(page);
   // No kickoff rotation in union.
   await expect(page.getByText(/kicking off this period/i)).toHaveCount(0);
 
@@ -110,7 +114,7 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
   await expect(conversion).toBeVisible({ timeout: 5_000 });
   await expect(conversion).not.toContainText(/rotation/i);
   const kickerName = players.find((p) => p.id === kicker)!.full_name;
-  await conversion.locator("div.rounded-lg").filter({ hasText: kickerName }).getByRole("button", { name: /^made\b/i }).click();
+  await conversion.getByTestId("conversion-row").filter({ hasText: kickerName }).getByRole("button", { name: /^made\b/i }).click();
   await expect.poll(() => count("conversion_attempt")).toBe(1);
 
   // A penalty goal and a drop goal for us, from the player's dock.
@@ -125,7 +129,7 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
   await expect.poll(() => count("opponent_field_goal")).toBe(1);
   await expect(strip).toContainText("Easts Juniors drop goal");
 
-  // A tap-tap sub: a bench kid, then a back. AFL's confirm, then its toast.
+  // A tap-tap sub: a bench kid, then a back. At once, then its toast (AFL's).
   const benchKid = players.find((p) => !onField.forwards.includes(p.id) && !onField.backs.includes(p.id))!;
   const offKid = onField.backs[1];
   // Fifteen on the field put the bench below an iPhone's fold, where the
@@ -134,9 +138,6 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
   await benchTile.evaluate((el) => el.scrollIntoView({ block: "center" }));
   await benchTile.click({ timeout: 10_000 });
   await page.getByTestId(`league-player-tile-${offKid}`).click({ timeout: 10_000 });
-  const confirm = page.getByRole("dialog", { name: /manually sub/i });
-  await expect(confirm).toContainText(`${benchKid.full_name} (Bench) for ${nameOf(offKid)} (Backs)`);
-  await confirm.getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByTestId("swap-toast")).toContainText(`${nameOf(offKid)} → ${benchKid.full_name}`);
   await expect.poll(() => count("swap")).toBe(1);
 
@@ -145,7 +146,7 @@ test("rugby union U12: 15 a side, try → conversion → penalty and drop goals 
   await expect(page.getByTestId("league-points-team")).toHaveText("13");
   await expect(page.getByTestId("league-points-opponent")).toHaveText("3");
   await expect(page.getByTestId("league-score-line-team")).toHaveText("1T·1C·1PG·1DG");
-  await expect(page.getByTestId("league-score-line-opponent")).toHaveText("0T·0C·1DG");
+  await expect(page.getByTestId("league-score-line-opponent")).toHaveText("1DG");
 
   // ─── 5. End H1, H2, finish ────────────────────────────────────
   await page.getByRole("button", { name: /^clock — h1, running$/i }).click();

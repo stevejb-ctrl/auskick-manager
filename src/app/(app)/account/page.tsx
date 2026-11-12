@@ -4,6 +4,7 @@ import { createClient, getUser } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import { Eyebrow, SFCard, SFIcon } from "@/components/sf";
 import { MotionPreferenceSettings } from "@/components/preferences/MotionPreferenceSettings";
+import { ThemePreferenceSettings } from "@/components/preferences/ThemePreferenceSettings";
 import { UsageDataSettings } from "@/components/preferences/UsageDataSettings";
 import { LeaveTeamButton } from "@/components/team/LeaveTeamButton";
 import { DeleteAccountSection } from "@/components/account/DeleteAccountSection";
@@ -103,7 +104,7 @@ export default async function AccountPage() {
       <SFCard>
         <dl className="space-y-3 text-sm">
           <div>
-            <dt className="font-mono text-[11px] font-semibold uppercase tracking-micro text-ink-dim">
+            <dt className="font-mono text-micro font-semibold uppercase tracking-micro text-ink-dim">
               Email
             </dt>
             <dd className="mt-1 break-all text-ink">
@@ -111,7 +112,7 @@ export default async function AccountPage() {
             </dd>
           </div>
           <div>
-            <dt className="font-mono text-[11px] font-semibold uppercase tracking-micro text-ink-dim">
+            <dt className="font-mono text-micro font-semibold uppercase tracking-micro text-ink-dim">
               Name
             </dt>
             <dd>
@@ -156,9 +157,10 @@ export default async function AccountPage() {
       </section>
 
       {/* Personal preferences live with the account, not a team page
-          (UX plan §6) — motion is per person, per device. */}
+          (UX plan §6) — theme and motion are per person, per device. */}
       <section className="space-y-2">
         <Eyebrow>Preferences</Eyebrow>
+        <ThemePreferenceSettings />
         <MotionPreferenceSettings />
         <UsageDataSettings />
       </section>

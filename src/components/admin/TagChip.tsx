@@ -9,7 +9,7 @@ interface TagChipProps {
 // the admin picks from a fixed palette, not arbitrary hex.
 const colorClasses: Record<string, string> = {
   brand: "bg-brand-100 text-brand-700",
-  warn: "bg-warn-soft text-warn",
+  warn: "bg-warn-soft text-warn-ink",
   ok: "bg-ok/10 text-ok",
   info: "bg-info/10 text-info",
   danger: "bg-danger/10 text-danger",
@@ -27,7 +27,7 @@ export function TagChip({ name, color, onRemove, className = "" }: TagChipProps)
         <button
           type="button"
           onClick={onRemove}
-          className="-mr-1 rounded-full px-1 text-[10px] leading-none opacity-70 hover:opacity-100 motion-safe:active:scale-[0.97]"
+          className="-mr-1 rounded-full px-1 text-nano leading-none opacity-70 hover:opacity-100 motion-safe:active:scale-[0.97]"
           aria-label={`Remove tag ${name}`}
         >
           ×

@@ -33,6 +33,8 @@ import { emptyZoneCaps, positionsFor, zoneCapsFor, type ZoneCaps } from "@/lib/a
 import { replayLocks, type PlayerLock } from "@/lib/live/locks";
 import { lastClockPause, type ClockPauseMark } from "@/lib/live/clockPause";
 import { openSubBatch, resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
+import { createSwapRecency, isUndoSwap } from "@/lib/live/swapRecency";
+import { positionSwapAsZoneSwap } from "@/lib/live/positionSwap";
 import {
   type ChipKey,
   type ChipMode,
@@ -126,6 +128,31 @@ function emptyZM(): ZoneMinutes {
 
 export function emptyZoneMs(): ZoneMinutes {
   return emptyZM();
+}
+
+/**
+ * Two on-field kids trade places: `a` (in `zoneA`) takes `b`'s spot in
+ * `zoneB` and `b` takes `a`'s. Mutates `zones` (callers clone first
+ * where they need to). Inside one zone it swaps the two spots: mapping
+ * that zone twice, once per kid, turned [A, B] into [A, A].
+ */
+export function swapFieldPlayers(
+  zones: Record<Zone, string[]>,
+  a: string,
+  zoneA: Zone,
+  b: string,
+  zoneB: Zone,
+): void {
+  if (zoneA === zoneB) {
+    const row = zones[zoneA];
+    const i = row.indexOf(a);
+    const j = row.indexOf(b);
+    if (i < 0 || j < 0) return;
+    zones[zoneA] = row.map((p, k) => (k === i ? b : k === j ? a : p));
+    return;
+  }
+  zones[zoneA] = zones[zoneA].map((p) => (p === a ? b : p));
+  zones[zoneB] = zones[zoneB].map((p) => (p === b ? a : p));
 }
 
 function zoneOf(lineup: Lineup, playerId: string): Zone | null {
@@ -1162,6 +1189,8 @@ export interface GameState {
    */
   pastQuarterZones: Record<string, Record<number, Zone>>;
   injuredIds: string[];
+  /** Of the injured, the kids who went home (an injury with reason "out", lib/live/wentHome). */
+  wentHomeIds: string[];
   loanedIds: string[];
   loanStartMs: Record<string, number>;
   basePlayedLoanMs: Record<string, number>;
@@ -1199,6 +1228,7 @@ function emptyQuarterScore(): { ours: QuarterScore; theirs: QuarterScore } {
 }
 
 export function replayGame(events: GameEvent[]): GameState {
+  const recency = createSwapRecency();
   const sorted = [...events].sort((a, b) =>
     a.created_at.localeCompare(b.created_at)
   );
@@ -1222,6 +1252,7 @@ export function replayGame(events: GameEvent[]): GameState {
     lastSubbedOffMs: {},
     completedQuarterMs: 0,
     injuredIds: [],
+    wentHomeIds: [],
     loanedIds: [],
     loanStartMs: {},
     basePlayedLoanMs: {},
@@ -1284,7 +1315,10 @@ export function replayGame(events: GameEvent[]): GameState {
   const inLineup = (pid: string) =>
     !!state.lineup && (state.lineup.bench.includes(pid) || zoneOf(state.lineup, pid) != null);
 
-  for (const ev of sorted) {
+  for (const raw of sorted) {
+    // A position change across lines moves the kids between lines as a
+    // zone swap does; inside one line it leaves the lineup be.
+    const ev = positionSwapAsZoneSwap(raw) ?? raw;
     const meta = ev.metadata as {
       lineup?: Partial<Lineup>;
       quarter?: number;
@@ -1294,7 +1328,9 @@ export function replayGame(events: GameEvent[]): GameState {
       elapsed_ms?: number;
     };
     const elapsed = meta.elapsed_ms ?? 0;
-    if (ev.type === "swap") state.subCount++;
+    // "Undo swaps" writes the batch back as swaps marked `undo`: each
+    // takes back one of the batch's, so a batch and its undo net to zero.
+    if (ev.type === "swap") state.subCount = Math.max(0, state.subCount + ((ev.metadata as { undo?: unknown }).undo === true ? -1 : 1));
 
     if (ev.type === "lineup_set" && meta.lineup) {
       const prevOnField = state.lineup ? onFieldSet(state.lineup) : new Set<string>();
@@ -1380,7 +1416,9 @@ export function replayGame(events: GameEvent[]): GameState {
       // moved them since the event's zone was read).
       const offZone = off ? zoneOf(state.lineup, off) : null;
       const z = offZone ?? meta.zone;
-      if (zoneOf(state.lineup, on)) {
+      const duplicate = !!zoneOf(state.lineup, on);
+      const settle = duplicate ? () => {} : recency.swap(state, off, on, isUndoSwap(ev.metadata));
+      if (duplicate) {
         // Already on (a replayed duplicate): nothing to do.
       } else if (off && offZone) {
         closeStint(off, offZone, elapsed);
@@ -1408,6 +1446,7 @@ export function replayGame(events: GameEvent[]): GameState {
       // Stamp the absolute frame so it survives the next quarter_start
       // reset (which only zeroes the per-quarter stintStartMs).
       state.lastSubbedOnMs[on] = state.completedQuarterMs + elapsed;
+      settle();
     } else if (ev.type === "field_zone_swap" && state.lineup) {
       // Two on-field players swap zones (e.g. mid ↔ fwd). Mirrors the
       // store's applyFieldZoneSwap action: close each player's open
@@ -1440,12 +1479,7 @@ export function replayGame(events: GameEvent[]): GameState {
           closeStint(pid, fromZone, elapsed);
         }
         // Swap the two players in the lineup arrays.
-        state.lineup[zoneA] = state.lineup[zoneA].map((p) =>
-          p === pidA ? pidB : p,
-        );
-        state.lineup[zoneB] = state.lineup[zoneB].map((p) =>
-          p === pidB ? pidA : p,
-        );
+        swapFieldPlayers(state.lineup, pidA, zoneA, pidB, zoneB);
         // Open new stints at the swapped zones.
         openStint(pidA, zoneB, elapsed);
         openStint(pidB, zoneA, elapsed);
@@ -1467,8 +1501,10 @@ export function replayGame(events: GameEvent[]): GameState {
     } else if (ev.type === "injury" && state.lineup && ev.player_id) {
       const pid = ev.player_id;
       const injured = (ev.metadata as { injured?: boolean }).injured ?? true;
+      state.wentHomeIds = state.wentHomeIds.filter((p) => p !== pid);
       if (injured) {
         if (!state.injuredIds.includes(pid)) state.injuredIds.push(pid);
+        if ((ev.metadata as { reason?: string }).reason === "out") state.wentHomeIds.push(pid);
         const z = zoneOf(state.lineup, pid);
         if (z) {
           closeStint(pid, z, elapsed);

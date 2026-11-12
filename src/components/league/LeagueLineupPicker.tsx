@@ -34,6 +34,7 @@
 // the squad page.
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { LEAGUE_LINEUP_TAP_HINT } from "@/components/lineup/lineupHints";
 import { useKeptSetting } from "@/components/lineup/useKeptSetting";
 import { useRouter } from "next/navigation";
 import { LineupPickerBreadcrumb } from "@/components/lineup/LineupPickerBreadcrumb";
@@ -43,7 +44,6 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { SFButton, SFCard } from "@/components/sf";
 import { LockModal } from "@/components/live/LockModal";
-import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { VestPlanPill, VestPlanCandidatePicker } from "./VestPlanRow";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
@@ -65,8 +65,12 @@ import type {
   LiveAuth,
   Player,
 } from "@/lib/types";
-import { LeagueField } from "./LeagueField";
-import { LeagueBenchStrip } from "./LeagueBenchStrip";
+import { leagueFieldLayout } from "./LeagueFieldLines";
+import { rugbyField } from "./RugbyMarks";
+import { vestLabel } from "./PlayerVestBadge";
+import { LentList } from "@/components/lineup/LentList";
+import { LendSetting } from "@/components/lineup/LendSetting";
+import { PickerField, type PickerCell } from "@/components/lineup/PickerField";
 
 import { assignLeaguePositionLabels, withLeagueSlots } from "@/lib/sports/rugby_league/engine";
 import { vestStartBlocker } from "@/lib/sports/rugby_league/vests";
@@ -83,6 +87,7 @@ import { rugbyForwards } from "@/lib/sports/rugby/lines";
 import { seasonLoanMinutes } from "@/lib/fairness";
 import { squadLoanAverage } from "@/lib/live/liveChrome";
 import { noteLiveResult } from "@/lib/live/liveSync";
+import { subEveryText } from "@/lib/live/subIntervalText";
 // Sub-minute formula from the previous picker — kept inline so the
 // spike doesn't fan-out into shared modules until we know it
 // sticks. RL §6 lock minutes are subtracted from rotateable time
@@ -931,13 +936,10 @@ export function LeagueLineupPicker({
     }
   }
 
-  // Two-step kickoff mirrors AFL's LineupPicker (Steve 2026-05-13):
-  // tapping "Ready for Q1/H1" opens StartQuarterModal in-place — only
-  // the modal's "Start" button writes lineup_set + quarter_start to the
-  // server. "Back to lineup" dismisses the modal cleanly with zero
-  // server state changed.
-  const [startModalOpen, setStartModalOpen] = useState(false);
-
+  // Ready sets the lineup; Start H1 is on the live screen's bar (live
+  // v3, as AFL's picker). It used to open "Start H1?" here and write the
+  // lineup and the first whistle at once. Until H1 starts, ⋯ → Edit
+  // lineup brings this picker back (reopenLeagueLineup).
   function handleStartGame() {
     if (fieldIds.length === 0) {
       setError("Pick at least one player for the field.");
@@ -951,13 +953,8 @@ export function LeagueLineupPicker({
       setError(`Pick a Dummy Half — required at ${ageGroup.label}.`);
       return;
     }
-    // Under the minimum: the kickoff confirm says so (shortSide), as in
-    // every sport, instead of a browser confirm.
-    // Reset scrolled ancestors before kickoff so the live view
-    // lands at the top of the DeviceFrame on the public /run demo.
-    // See LeagueLiveGame.handleStartNextPeriod for the full
-    // rationale — same DeviceFrame containing-block bug. Mirrors
-    // AFL's fix in ff771c6.
+    // Reset scrolled ancestors so the live screen opens at the top of the
+    // DeviceFrame on the public /run demo (AFL's fix in ff771c6).
     if (typeof document !== "undefined") {
       let el = pickerRootRef.current?.parentElement ?? null;
       while (el) {
@@ -969,29 +966,23 @@ export function LeagueLineupPicker({
       window.scrollTo({ top: 0, behavior: "auto" });
     }
     setError(null);
-    setStartModalOpen(true);
-  }
-
-  function handleConfirmStart() {
-    setError(null);
-    // vestPlan is a memoized derivation — already in scope.
     startTransition(async () => {
+      // startQuarterToo=false: the lineup and the vest plan, no whistle.
+      // The team page redirects to the live screen; the game-day link's
+      // page re-renders on its own.
       const result = await startLeagueGame(
         auth,
         gameId,
         // Named positions: record each kid's slot (UX plan 5.7).
         withLeagueSlots(lineup, leaguePlaybook),
         fieldIds.length,
-        true,
+        false,
         vestPlan,
         subIntervalSeconds,
       );
       // Refused because another phone already started: say so over the page.
       noteLiveResult(result);
-      if (!result.success) {
-        setError(result.error ?? "Couldn't start the game.");
-        setStartModalOpen(false);
-      }
+      if (result && !result.success) setError(result.error ?? "Couldn't set the lineup.");
     });
   }
 
@@ -1008,7 +999,7 @@ export function LeagueLineupPicker({
       lineupMode === "suggested" ? "Suggested lineup" : "Manual lineup",
     );
     if (onFieldSize !== defaultOnFieldSize) bits.push(`${onFieldSize} on field`);
-    bits.push(`${(subIntervalSeconds / 60).toFixed(1)} min subs`);
+    bits.push(subEveryText(subIntervalSeconds));
     if (lentPlayers.length > 0) bits.push(`${lentPlayers.length} lent`);
     return bits.join(" · ");
   })();
@@ -1022,6 +1013,20 @@ export function LeagueLineupPicker({
   const actionZone = actionSheetPlayerId ? zoneOf(actionSheetPlayerId) : null;
   const fwdLabel = "Forwards";
   const backLabel = "Backs";
+
+  // ── The field (PickerField), as the live screen lays it out ──
+  const positionLabels = assignLeaguePositionLabels({ forwards: forwardIds, backs: backIds }, leaguePlaybook);
+  const keepOn = keepOnIds(playerRoles.roles);
+  const fieldLayout = leagueFieldLayout({
+    forwardsBySize: ageGroup.forwardsBySize,
+    forwardPlayers,
+    backPlayers,
+    onFieldSize,
+    vestRequirements: reqs,
+    vestByPlayer,
+    positionLabels,
+    positionOrder: linePositionOrder(leaguePlaybook?.positions),
+  });
 
   return (
     <div
@@ -1041,10 +1046,6 @@ export function LeagueLineupPicker({
         <h1 className="text-xl font-bold text-ink">
           {ageGroup.label} starting lineup
         </h1>
-        <p className="text-xs text-ink-mute">
-          Tap a player to select, tap a second to swap. Long-press for
-          FR / DH / position / bench.
-        </p>
       </header>
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
@@ -1059,7 +1060,7 @@ export function LeagueLineupPicker({
           aria-controls="lineup-game-settings"
         >
           <span className="flex flex-1 items-center gap-3 text-sm">
-            <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+            <span className="font-mono text-micro font-bold uppercase tracking-micro text-ink-mute">
               Game settings
             </span>
             <span className="text-xs text-ink-mute">{settingsSummary}</span>
@@ -1150,8 +1151,8 @@ export function LeagueLineupPicker({
                 onBlur={() => setSubMinInput(String(subMinutesFrom(subMinInput, suggestedSubMin)))}
                 className="w-32"
               />
-              <p className="text-[11px] text-ink-mute">
-                Suggested: {suggestedSubMin.toFixed(1)} min
+              <p className="text-micro text-ink-mute">
+                Suggested: {formatMinutes(suggestedSubMin)} min
                 {requiredUnbroken > 0 ? (
                   <>
                     {" "}(keeps {requiredUnbroken} unbroken{" "}
@@ -1162,145 +1163,67 @@ export function LeagueLineupPicker({
                 )}
               </p>
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Lend a player</Label>
-              <p className="text-[11px] text-ink-mute">
-                Lent players sit out for the rest of the game until
-                you bring them back.
-              </p>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {lentPlayers.map((p) => (
-                  <span
-                    key={p.id}
-                    className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-warn-soft px-2.5 py-1 text-xs font-medium text-warn"
-                  >
-                    {p.jersey_number != null && (
-                      <span className="font-semibold tabular-nums">
-                        {p.jersey_number}
-                      </span>
-                    )}
-                    <span>{p.full_name}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleLendToggle(p.id, false)}
-                      disabled={loanPending}
-                      aria-label={`Bring ${p.full_name} back`}
-                      className="ml-0.5 rounded-full px-1 text-[11px] font-bold leading-none text-warn/80 hover:bg-warn/15 hover:text-warn disabled:opacity-60 motion-safe:active:scale-[0.97]"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setLendPickerOpen(true)}
-                  disabled={loanPending}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-brand-500/40 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60 motion-safe:active:scale-[0.97]"
-                >
-                  <span aria-hidden>+</span>
-                  Lend a player
-                </button>
-              </div>
-              {loanError && (
-                <p className="mt-1 text-xs text-danger" role="alert">
-                  {loanError}
-                </p>
-              )}
-            </div>
+            <LendSetting lentCount={lentPlayers.length} onLend={() => setLendPickerOpen(true)} pending={loanPending} error={loanError} />
           </div>
         )}
       </div>
 
       {/* ── Selection helper banner ──────────────────────────── */}
-      {selectedPlayerId && (
-        <div className="rounded-md border border-brand-300 bg-brand-50 px-3 py-2 text-xs text-brand-800">
-          Selected{" "}
-          <strong className="font-semibold">
-            {playerById.get(selectedPlayerId)?.full_name ?? "player"}
-          </strong>
-          . Tap another tile to swap, or tap an empty slot to move them
-          there.{" "}
-          <button
-            type="button"
-            onClick={() => setSelectedPlayerId(null)}
-            className="ml-1 underline-offset-2 hover:underline"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-
-      {/* ── Field (formation) + Bench ────────────────────────── */}
-      <SFCard pad={0} className="overflow-hidden">
-        <div className="flex items-center gap-3 border-b border-hairline px-4 py-3">
-          <span
-            aria-hidden="true"
-            className="block h-5 w-1 rounded-sm bg-brand-600"
-          />
-          <div className="min-w-0 flex-1">
-            <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink">
-              Starting field
-            </h3>
-            <p className="mt-0.5 text-[11px] text-ink-mute">
-              Tap two players to switch positions. Long-press a
-              player for other actions.
-            </p>
-          </div>
-          <span
-            className={`inline-flex items-center rounded-full px-2.5 py-0.5 font-mono text-xs font-bold tabular-nums ${
-              fieldIds.length === onFieldSize
-                ? "bg-brand-600/15 text-brand-700"
-                : fieldIds.length < onFieldSize
-                  ? "bg-warn/15 text-warn"
-                  : "bg-alarm/15 text-alarm"
-            }`}
-          >
-            {fieldIds.length} / {onFieldSize}
-          </span>
-        </div>
-        <div className="p-3">
-          <LeagueField
-            sport={sport}
-            forwardsBySize={ageGroup.forwardsBySize}
-            players={fieldPlayers}
-            forwardPlayers={forwardPlayers}
-            backPlayers={backPlayers}
-            onFieldSize={onFieldSize}
-            vestRequirements={reqs}
-            vestByPlayer={vestByPlayer}
-            positionLabels={assignLeaguePositionLabels(
-              { forwards: forwardIds, backs: backIds },
-              leaguePlaybook,
-            )}
-            positionOrder={linePositionOrder(leaguePlaybook?.positions)}
-            keepOnIds={keepOnIds(playerRoles.roles)}
-            selectedPlayerId={selectedPlayerId}
-            chipModes={chipModes}
-            onPlayerClick={handleTileTap}
-            onPlayerLongPress={handleTileLongPress}
-            onVacantSpotTap={
-              // Wire empty-slot taps for ANY selection — bench OR
-              // field. Pre-game equivalent of the live-game short-
-              // squad fix: a coach with 10 players in an 11-on-field
-              // game wants to choose which zone holds the blank, not
-              // get it auto-assigned. Steve 2026-05-23.
-              selectedPlayerId ? handleVacantSpotTap : undefined
-            }
-            vacantSpotPrimed={Boolean(selectedPlayerId)}
-            disabled={isPending}
-          />
-        </div>
-      </SFCard>
-
-      <LeagueBenchStrip
-        players={benchPlayers}
-        vestByPlayer={vestByPlayer}
-        keepOnIds={keepOnIds(playerRoles.roles)}
-        selectedPlayerId={selectedPlayerId}
-        chipModes={chipModes}
-        onPlayerClick={handleTileTap}
-        onPlayerLongPress={handleTileLongPress}
-        disabled={isPending}
+      <LentList
+        players={lentPlayers.map((p) => ({ id: p.id, name: p.full_name }))}
+        note="Bring them back and they join the bench."
+        pending={loanPending}
+        buttonTestId={(id) => `picker-recall-lent-${id}`}
+        onBringBack={(id) => handleLendToggle(id, false)}
+      />
+      {/* ── The field and bench, as the live screen draws them ──
+          Live v3: rugby's grass with this code's lines and posts, the
+          formation's rows (leagueFieldLayout: vest wearers in their
+          vest's spot, the last back at fullback, union's named positions
+          in theirs), each kid a KidTile with their FR / DH flag and
+          position, the bench under it. Tap two players to swap; with a
+          player picked, tap an empty spot to move them there. */}
+      <PickerField
+        ground={rugbyField(sport, { dense: fieldLayout.dense, tileWidth: fieldLayout.tileWidth })}
+        lines={fieldLayout.lines.map(({ line, rows }) => {
+          const zone: LeagueZone = line === "forwards" ? "forward" : "back";
+          const sizes = rows.map((r) => r.length);
+          return {
+            key: line,
+            label: line === "forwards" ? "Forwards" : "Backs",
+            cells: rows.flat().map(
+              (s): PickerCell => ({
+                key: s.key,
+                playerId: s.player?.id ?? null,
+                pos: s.player ? positionLabels[s.player.id] ?? null : null,
+                place: s.player ? positionLabels[s.player.id] || (zone === "forward" ? "Forwards" : "Backs") : null,
+                emptyLabel: selectedPlayerId ? `Move selected player to ${line}` : `Empty ${line === "forwards" ? "forward" : "back"} spot`,
+                onTap: s.player ? () => handleTileTap(s.player!.id) : () => handleVacantSpotTap(zone),
+              }),
+            ),
+            // The formation's rows, as in play.
+            shape: (tiles) => {
+              let at = 0;
+              return { rows: sizes.map((n) => tiles.slice(at, (at += n))) };
+            },
+          };
+        })}
+        bench={benchPlayers.map((p) => ({ playerId: p.id, onTap: () => handleTileTap(p.id) }))}
+        players={playerById}
+        selectedId={selectedPlayerId}
+        hint={LEAGUE_LINEUP_TAP_HINT}
+        look={(pid) => {
+          const vest = vestByPlayer[pid] ?? null;
+          const lockLabel = keepOn.has(pid) ? "Plays every minute" : null;
+          return {
+            testId: `league-player-tile-${pid}`,
+            flag: vest ? vest.toUpperCase() : null,
+            locked: !!lockLabel,
+            lockLabel,
+            states: [vest ? vestLabel(vest) : null, lockLabel],
+          };
+        }}
+        onLongPress={handleTileLongPress}
       />
 
       {/* ── Vest rotation plan ─────────────────────────────────
@@ -1319,10 +1242,10 @@ export function LeagueLineupPicker({
               className="block h-5 w-1 rounded-sm bg-warn"
             />
             <div className="min-w-0 flex-1">
-              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink">
+              <h3 className="font-mono text-micro font-bold uppercase tracking-micro text-ink">
                 Vest rotation plan
               </h3>
-              <p className="text-[11px] text-ink-mute">
+              <p className="text-micro text-ink-mute">
                 Auto-picked from fairness — tap any pick to swap.
                 Once a player wears a vest, they don&rsquo;t wear one
                 again this game.
@@ -1338,7 +1261,7 @@ export function LeagueLineupPicker({
               return (
                 <li key={periodIdx} className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <span className="w-12 flex-shrink-0 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim">
+                    <span className="w-12 flex-shrink-0 font-mono text-nano font-bold uppercase tracking-micro text-ink-dim">
                       {periodAbbrev}
                       {periodNum}
                     </span>
@@ -1458,9 +1381,7 @@ export function LeagueLineupPicker({
         savedAt={savedAt}
         savePlanDisabled={fieldIds.length === 0 || isPending}
         onConfirm={handleStartGame}
-        confirmLabel={
-          `Start ${periodLabels(sport, ageGroup).label.charAt(0).toUpperCase()}1`
-        }
+        confirmLabel="Ready"
         confirmDisabled={confirmDisabled}
         confirmHint={
           fieldIds.length > 0
@@ -1508,22 +1429,6 @@ export function LeagueLineupPicker({
       )}
       {playerRoles.sheet}
 
-      {/* Two-step kickoff modal — mirrors AFL's LineupPicker. Opens
-          on "Ready for Q1/H1", the modal's primary button is what
-          actually commits lineup_set + quarter_start. Period label
-          tracks the age group (U6–U9 quarters, U10+ halves). */}
-      {startModalOpen && (
-        <StartQuarterModal
-          quarter={1}
-          periodLabel={periodLabels(sport, ageGroup).label}
-          shortSide={{ playing: fieldIds.length, size: defaultOnFieldSize, min: minOnFieldSize }}
-          cue={getSportConfig(sport).words.startCue}
-          loading={isPending}
-          onStart={handleConfirmStart}
-          onCancel={() => setStartModalOpen(false)}
-        />
-      )}
-
       {/* Lend-player picker modal — opens from the "+ Lend a
           player" button in Game settings. Same SlotFillSheet AFL
           uses for symmetry; candidates are every squad player
@@ -1550,4 +1455,9 @@ export function LeagueLineupPicker({
       )}
     </div>
   );
+}
+
+// "10 min", not "10.0 min"; a half minute keeps its decimal ("7.5 min").
+function formatMinutes(min: number): string {
+  return Number.isInteger(min) ? String(min) : min.toFixed(1);
 }

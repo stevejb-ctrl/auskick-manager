@@ -1,0 +1,28 @@
+// ─── A game's periods, said ──────────────────────────────────
+// The game page names its periods and how long they are ("4 × 10 min
+// quarters"), so a coach who changes the length in Settings can see
+// today's game took it (Stagehand round 11, #11). The length is the
+// game's own, else the team's, else the age group's
+// (getEffectiveQuarterSeconds); the count and words are the team's
+// halves, quarters or one period (teamAgeGroup).
+
+import { subIntervalDuration } from "@/lib/live/subIntervalText";
+
+export function periodFormatText(
+  count: number,
+  periodSeconds: number,
+  words: { label: string; plural: string },
+): string {
+  const length = subIntervalDuration(periodSeconds);
+  if (count === 1) return `One ${length} ${words.label}`;
+  return `${count} × ${length} ${words.plural}`;
+}
+
+/**
+ * The same, short, for the live screen's top bar: "4 × 10 min", or "One
+ * 25 min period" (Steve, 12 Nov 2026: the length during the game too).
+ */
+export function periodLengthText(count: number, periodSeconds: number): string {
+  const length = subIntervalDuration(periodSeconds);
+  return count === 1 ? `One ${length} period` : `${count} × ${length}`;
+}

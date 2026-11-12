@@ -32,6 +32,7 @@ import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { updateLiveGame } from "@/lib/games/updateLiveGame";
 import { getAgeGroupConfig, getSportConfig, isRugby, teamSport, type RugbySport } from "@/lib/sports/registry";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
@@ -47,14 +48,24 @@ import {
   unconvertedTryIds,
   RUGBY_SCORE_EVENT_TYPES,
 } from "@/lib/sports/rugby_league/kicks";
-import { checkPeriodWrite, periodWordOf, revalidateLivePage, scoreRowsOf, staleRefusal } from "@/lib/live/liveWriteGuard";
+import {
+  checkPeriodWrite,
+  kickoffRaceRefusal,
+  periodWordOf,
+  raceVerdictOf,
+  revalidateLivePage,
+  scoreRowsOf,
+  staleRefusal,
+} from "@/lib/live/liveWriteGuard";
 import { lineupWrite, type PeriodWrite } from "@/lib/live/periodGuard";
+import { cleanBatchLeft } from "@/lib/live/subAnchor";
 import { resolveUndoTarget, undoArgs, type UndoTargetRef } from "@/lib/live/undoTarget";
 import { replayRugbyGame, rugbyPoints, rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
 import type { PlaybookSnapshot } from "@/lib/playbook/types";
 import { gameWriteError } from "@/lib/games/gameWriteError";
+import { reopenLineup } from "./actions";
 
 // ─── Internal helpers (shape-matched to netball-actions) ──────
 
@@ -160,6 +171,10 @@ async function insertEvent(
     idempotency_key: idempotencyKey ?? null,
   });
   if (error) {
+    // The other phone's start or Finish landed after the guard looked.
+    const race = await raceVerdictOf(w.supabase, gameId, error, { type, guard }, await periodWordFor(w.teamId), idempotencyKey);
+    if (race?.kind === "stale") return staleRefusal(auth, w.teamId, gameId, race.message);
+    if (race?.kind === "duplicate") return { success: true };
     // Unique-violation on the idempotency_key partial index means
     // this op already landed (write queue retry). Treat as success.
     if (error.code === "23505" && idempotencyKey) {
@@ -314,7 +329,10 @@ export async function startLeagueGame(
   }
 
   const { sport } = await rugbyTeamOf(w);
+  // Its id, so a kickoff that loses the race can take it back out.
+  const lineupEventId = crypto.randomUUID();
   const { error: insertError } = await w.supabase.from("game_events").insert({
+    id: lineupEventId,
     game_id: gameId,
     type: "lineup_set",
     metadata: { lineup, sport },
@@ -331,7 +349,11 @@ export async function startLeagueGame(
         metadata: { quarter: 1, sport },
         created_by: w.userId,
       });
-    if (qStartError) return { success: false, error: qStartError.message };
+    if (qStartError) {
+      const raced = await kickoffRaceRefusal(gameId, [lineupEventId], qStartError, await periodWordFor(w.teamId));
+      if (raced) return staleRefusal(auth, w.teamId, gameId, raced);
+      return { success: false, error: qStartError.message };
+    }
   }
 
   // Atomic vest writes for EVERY planned period. One row per
@@ -414,7 +436,7 @@ export async function startLeagueGame(
     );
     gameUpdate.sub_interval_seconds = clamped;
   }
-  const { error: gameError } = await w.supabase.from("games").update(gameUpdate).eq("id", gameId);
+  const { error: gameError } = await updateLiveGame(w.supabase, gameId, gameUpdate);
   // A refused write says so (UX round 3: soccer's kick-off went on with
   // the game still "Upcoming").
   if (gameError) return { success: false, error: gameWriteError(gameError) };
@@ -431,6 +453,31 @@ export async function startLeagueGame(
   }
   revalidatePath(`/run/${auth.token}`, "layout");
   return { success: true };
+}
+
+// ─── reopenLeagueLineup ──────────────────────────────────────
+// ⋯ → Edit lineup before the first whistle (live v3): the picker comes
+// back with the lineup as set. AFL's reopenLineup moves the lineup into
+// the draft and takes the lineup_set out; rugby's kickoff also wrote the
+// vest plan (vest_assigned for each half), which goes with it, so the
+// next Ready writes the plan the coach picks then and only that.
+export async function reopenLeagueLineup(auth: LiveAuth, gameId: string): Promise<ActionResult> {
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+  const admin = createAdminClient();
+  const { data: started, error: readError } = await admin
+    .from("game_events")
+    .select("id")
+    .eq("game_id", gameId)
+    .in("type", ["quarter_start", "game_finalised"])
+    .limit(1);
+  if (readError) return { success: false, error: readError.message };
+  // Under way: reopenLineup refuses it, in its words.
+  if ((started ?? []).length === 0) {
+    const { error: vestError } = await admin.from("game_events").delete().eq("game_id", gameId).eq("type", "vest_assigned");
+    if (vestError) return { success: false, error: vestError.message };
+  }
+  return reopenLineup(auth, gameId);
 }
 
 // ─── saveLeagueLineupDraft ───────────────────────────────────
@@ -549,10 +596,7 @@ export async function finaliseLeagueGame(
   }, idempotencyKey);
   if (!finalise.success) return finalise;
 
-  const { error: updateError } = await w.supabase
-    .from("games")
-    .update({ status: "completed" })
-    .eq("id", gameId);
+  const { error: updateError } = await updateLiveGame(w.supabase, gameId, { status: "completed" });
   if (updateError) return { success: false, error: updateError.message };
 
   // Season time rollup for stats and season balance (UX plan 4.5).
@@ -582,18 +626,24 @@ export async function recordLeagueSwap(
     on_player_id: string;
     quarter: number;
     elapsed_ms: number;
+    /** One pair of the planned sub: how many are still to make (lib/live/subAnchor holds the sub clock). */
+    batch_left?: number;
     /** By hand, off the rotation's cadence: the sub clock doesn't restart (lib/live/subAnchor). */
     manual?: boolean;
+    /** Undo putting a swap back: no "just subbed" mark (lib/live/swapRecency). */
+    undo?: boolean;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {
+  const { batch_left, undo, ...rest } = input;
+  const batchLeft = cleanBatchLeft(batch_left);
   return insertEvent(
     auth,
     gameId,
     "swap",
     {
       player_id: input.on_player_id,
-      metadata: input,
+      metadata: { ...rest, ...(batchLeft ? { batch_left: batchLeft } : {}), ...(undo === true ? { undo: true } : {}) },
     },
     idempotencyKey,
   );
@@ -1075,10 +1125,7 @@ export async function setLeagueTrackZoneTime(
 ): Promise<ActionResult> {
   const writer = await resolveWriter(auth, gameId);
   if (writer.error) return { success: false, error: writer.error };
-  const { error: updateError } = await writer.supabase
-    .from("games")
-    .update({ track_zone_time: enabled })
-    .eq("id", gameId);
+  const { error: updateError } = await updateLiveGame(writer.supabase, gameId, { track_zone_time: enabled });
   if (updateError) {
     return { success: false, error: updateError.message };
   }
@@ -1164,10 +1211,7 @@ export async function setLeagueOnFieldSizeMidGame(
     };
   }
 
-  const { error: updErr } = await w.supabase
-    .from("games")
-    .update({ on_field_size: clampedSize })
-    .eq("id", gameId);
+  const { error: updErr } = await updateLiveGame(w.supabase, gameId, { on_field_size: clampedSize });
   if (updErr) return { success: false, error: updErr.message };
 
   invalidateSeasonEvents(w.teamId);
@@ -1198,10 +1242,7 @@ export async function setLeagueSubInterval(
     30,
     Math.min(600, Math.round(subIntervalSeconds)),
   );
-  const { error: updateError } = await writer.supabase
-    .from("games")
-    .update({ sub_interval_seconds: clamped })
-    .eq("id", gameId);
+  const { error: updateError } = await updateLiveGame(writer.supabase, gameId, { sub_interval_seconds: clamped });
   if (updateError) {
     return { success: false, error: updateError.message };
   }

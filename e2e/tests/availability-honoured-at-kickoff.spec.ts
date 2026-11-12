@@ -8,8 +8,9 @@
 //   2. Save a `game_lineup_drafts` row that PLACES player X on the
 //      field (so the picker hydrates X into its lineup state).
 //   3. Mark player X `game_availability.status = "unavailable"`.
-//   4. Drive the start flow through the picker UI (Ready for Q1 →
-//      Start Q1) so the per-sport start action commits the lineup.
+//   4. Drive the start flow through the picker UI (AFL: Ready, then
+//      Start Q1 on the live screen; the others: Start Q1) so the
+//      per-sport start action commits the lineup.
 //   5. Assert X is NOT in any zone array of the latest `lineup_set`
 //      event metadata, AND X is not rendered as an on-field tile.
 //
@@ -23,6 +24,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { readyAfl, readyNetball } from "../helpers/kickoff";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -133,6 +135,8 @@ test("AFL: a player marked unavailable pre-game is dropped from the kickoff line
 
   await suppressWalkthrough(page, "gm-walkthrough-seen");
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  // Live v3: Ready commits the lineup (startGame); the bar starts Q1.
+  await readyAfl(page);
   await page
     .getByRole("button", { name: /^start q1$/i })
     .click({ timeout: 15_000 });
@@ -205,6 +209,8 @@ test("netball: a player marked unavailable pre-game is dropped from the kickoff 
 
   await suppressWalkthrough(page, "nb-walkthrough-seen");
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  // Live v3: netball's Ready sets the lineup, the bar starts Q1.
+  await readyNetball(page);
   await page
     .getByRole("button", { name: /^start q1$/i })
     .click({ timeout: 15_000 });
@@ -275,7 +281,9 @@ test("rugby league: a player marked unavailable pre-game is dropped from the kic
 
   await suppressWalkthrough(page, "gm-walkthrough-seen");
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  // U10 RL plays HALVES — the picker labels the CTA "Start H1".
+  // Live v3 (Phase 8): the picker's Ready sets the lineup; U10 RL plays
+  // halves, so the live screen's bar holds Start H1.
+  await page.getByRole("button", { name: /^ready$/i }).click({ timeout: 15_000 });
   await page
     .getByRole("button", { name: /^start (h1|half 1|q1)$/i })
     .click({ timeout: 15_000 });

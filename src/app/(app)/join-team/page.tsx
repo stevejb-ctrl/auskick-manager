@@ -34,7 +34,7 @@ export default async function JoinTeamPage() {
   return (
     <div className="mx-auto max-w-md space-y-6 py-4 sm:py-8">
       <div className="space-y-2 text-center">
-        <p className="text-[11px] font-bold uppercase tracking-micro text-brand-700">
+        <p className="text-micro font-bold uppercase tracking-micro text-brand-700">
           Join a team
         </p>
         <h1 className="text-2xl font-bold tracking-tightest text-ink sm:text-3xl">

@@ -6,12 +6,12 @@
 // Flow (U12):
 //   1. Pre-tip-off: the picker draws five on court, two guards and three
 //      forwards, and three on the bench.
-//   2. Start H1 (two-step: the picker, then the start modal).
+//   2. Ready on the picker, then Start H1 on the live screen's bar.
 //   3. A 2 for us from the player's dock, a 3 for them from the
 //      scorebug (the undo strip says what each was). The live chrome,
 //      as AFL's: the scorer sheet asks "Who scored?" and survives a
-//      stray tap, a tap-tap sub asks first and toasts, the long-press
-//      sheet knows a kid's on court, and Game settings sits in the row.
+//      stray tap, a tap-tap sub is made at once and toasts, the long-press
+//      sheet knows a kid's on court, and Game settings is in ⋯.
 //   4. Five fouls on one kid: the fifth fouls them out, and the coach
 //      picks who comes on (an injury with reason "fouled_out", and the
 //      sub, the fouled-out kid on the bench for good).
@@ -24,10 +24,13 @@
 //   8. Every event basketball's actions write carries the team's sport.
 
 import { test, expect, type Page } from "@playwright/test";
+import { watchPageErrors } from "../helpers/pageErrors";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
 import { startFromBreak } from "../helpers/break";
+import { readyShell, startShellFirst } from "../helpers/kickoff";
+import { openGameMenu } from "../helpers/liveShell";
 
 test.describe.configure({ mode: "serial" });
 
@@ -43,16 +46,16 @@ async function ownerIdOf() {
   return { admin, ownerId: su.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id };
 }
 
-/** Select a kid on court and open their actions from the dock. */
+/** Select a kid on court and open their actions from the kid bar's More (live v3). */
 async function openActions(page: Page, playerId: string) {
   await page.getByTestId(`player-tile-${playerId}`).click({ timeout: 10_000 });
-  await page.getByRole("button", { name: /player actions/i }).click({ timeout: 5_000 });
+  await page.getByTestId("kid-bar").getByRole("button", { name: /^more$/i }).click({ timeout: 5_000 });
 }
 
 test("basketball U12: guards and forwards, baskets each way, a foul-out, a sit-out, the break, finish", async ({ page }) => {
   test.setTimeout(300_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
 
   const { admin, ownerId } = await ownerIdOf();
   const team = await makeTeam(admin, {
@@ -100,9 +103,11 @@ test("basketball U12: guards and forwards, baskets each way, a foul-out, a sit-o
   await expect(page.getByRole("group", { name: "Bench" }).locator("[data-testid^='player-tile-']")).toHaveCount(3);
 
   // ─── 2. Start H1 ───────────────────────────────────────────────
-  await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
-  await page.getByRole("button", { name: /^start h1 now$/i }).click({ timeout: 10_000 });
-  await expect(page.getByRole("button", { name: /^clock — h1, running$/i })).toBeVisible({ timeout: 15_000 });
+  // Live v3: the picker's Ready sets the lineup; the live screen's bar
+  // has Start H1, and "Start H1 now" starts the clock.
+  await readyShell(page);
+  await expect(court.locator("[data-testid^='player-tile-']")).toHaveCount(5);
+  await startShellFirst(page);
 
   const h1 = await lineup();
   expect(h1.lines.guard).toHaveLength(2);
@@ -133,13 +138,14 @@ test("basketball U12: guards and forwards, baskets each way, a foul-out, a sit-o
   await scorerSheet.getByRole("button", { name: "Cancel" }).click();
   await expect(scorerSheet).toHaveCount(0);
 
-  // A tap-tap sub asks first, then toasts, as AFL's does.
+  // A tap-tap sub happens at once and toasts, with Undo, as AFL's does.
   const [benchKid] = h1.bench;
   const offKid = h1.lines.forward[2];
   await page.getByTestId(`player-tile-${benchKid}`).click({ timeout: 10_000 });
   await page.getByTestId(`player-tile-${offKid}`).click({ timeout: 10_000 });
-  await page.getByRole("dialog", { name: /manually sub/i }).getByRole("button", { name: "Confirm" }).click({ timeout: 5_000 });
   await expect(page.getByTestId("swap-toast")).toContainText(`${nameOf(offKid)} → ${nameOf(benchKid)}`);
+  await expect(page.getByTestId("undo-strip")).toContainText(`Undo: ${nameOf(benchKid)} on for ${nameOf(offKid)}`);
+  await expect(page.getByRole("dialog", { name: /manually sub/i })).toHaveCount(0);
   await expect.poll(() => count("swap")).toBe(1);
 
   // A kid on court: Switch swaps with a teammate or a bench player.
@@ -148,10 +154,14 @@ test("basketball U12: guards and forwards, baskets each way, a foul-out, a sit-o
   await expect(actions.getByRole("button", { name: /switch player/i })).toContainText(/bench player to sub off/i);
   await actions.getByRole("button", { name: "Cancel" }).click();
   await expect(actions).toHaveCount(0);
-  // Game settings (the sub interval) sits in the row; the kid who isn't
-  // here yet can be added late.
-  await expect(page.getByRole("button", { name: "Game settings", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "+ Add late arrival" })).toBeVisible();
+  // Game settings (the sub interval) is in ⋯, as AFL's; the kid who
+  // isn't here yet can be added late (⋯, and the bench's + Late).
+  const menu = await openGameMenu(page);
+  await expect(menu.getByRole("button", { name: "Game settings" })).toBeVisible();
+  await expect(menu.getByRole("button", { name: "+ Add late arrival" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "Bench" }).getByRole("button", { name: /\+ late/i })).toBeVisible();
 
   // ─── 4. Five fouls: the fifth fouls the kid out ────────────────
   const fouler = h1.lines.guard[0];
@@ -159,7 +169,7 @@ test("basketball U12: guards and forwards, baskets each way, a foul-out, a sit-o
     await page.getByTestId(`player-tile-${fouler}`).click({ timeout: 10_000 });
     await page.getByTestId("basketball-foul").click({ timeout: 5_000 });
     await expect.poll(() => count("foul")).toBe(i);
-    if (i < 5) await expect(page.getByTestId(`fouls-${fouler}`)).toHaveText(`${i}F`, { timeout: 10_000 });
+    if (i < 5) await expect(page.getByTestId(`fouls-${fouler}`)).toHaveText(`F${i}`, { timeout: 10_000 });
   }
   const outModal = page.getByRole("dialog");
   await expect(outModal).toContainText(/has fouled out/i, { timeout: 10_000 });
@@ -173,7 +183,9 @@ test("basketball U12: guards and forwards, baskets each way, a foul-out, a sit-o
     .single();
   expect(foulOut?.player_id).toBe(fouler);
   expect(foulOut?.metadata).toMatchObject({ injured: true, reason: "fouled_out" });
-  await expect(page.getByTestId(`player-tile-${fouler}`).getByLabel("Fouled out")).toHaveText("OUT");
+  // The fouled-out kid's line says so (kidWords), and a screen reader hears it.
+  await expect(page.getByTestId(`player-tile-${fouler}`)).toContainText("FOULED OUT");
+  await expect(page.getByTestId(`player-tile-${fouler}`)).toHaveAccessibleName(/Fouled out/);
   await expect(court.locator("[data-testid^='player-tile-']")).toHaveCount(5);
 
   // ─── 5. A sit-out: off for 5 minutes, someone on ───────────────
@@ -254,7 +266,7 @@ test("basketball U12: guards and forwards, baskets each way, a foul-out, a sit-o
 test("basketball quarters under All five positions: 1 to 5 on court, Q1 starts, the runner link opens", async ({ page }) => {
   test.setTimeout(180_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
 
   const { admin, ownerId } = await ownerIdOf();
   const team = await makeTeam(admin, {
@@ -290,9 +302,12 @@ test("basketball quarters under All five positions: 1 to 5 on court, Q1 starts, 
     await expect(court.getByText(label, { exact: true })).toHaveCount(1);
   }
 
-  await page.getByRole("button", { name: /^start q1$/i }).click({ timeout: 15_000 });
-  await page.getByRole("button", { name: /^start q1 now$/i }).click({ timeout: 10_000 });
-  await expect(page.getByRole("button", { name: /^clock — q1, running$/i })).toBeVisible({ timeout: 15_000 });
+  // Ready, then the live screen's Start Q1: the kids keep their positions.
+  await readyShell(page, "Q1");
+  for (const label of ["PG", "SG", "SF", "PF", "C"]) {
+    await expect(court.getByText(label, { exact: true })).toHaveCount(1);
+  }
+  await startShellFirst(page, "Q1");
   const { data } = await admin
     .from("game_events")
     .select("metadata")

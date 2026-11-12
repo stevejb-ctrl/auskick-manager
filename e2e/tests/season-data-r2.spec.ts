@@ -47,7 +47,7 @@ async function openLineup(page: Page, teamId: string, gameId: string) {
   });
   await gotoStable(page, `/teams/${teamId}/games/${gameId}/live`);
   await waitForHydration(page);
-  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
 }
 
 /** A card on the Season settings page, by its field's label. */
@@ -160,7 +160,7 @@ test("a kid added mid-season is In for the next game; one missed before is 'Not 
   await expect(page.getByTestId(`player-tile-${ollie!.id}`)).toBeVisible();
 });
 
-test("after game 1, AFL's lineup tiles draw the season time in zone its key describes", async ({ page }) => {
+test("after game 1, AFL's lineup tiles say each kid's season time in zone", async ({ page }) => {
   const { admin, team, players } = await finishedGame("afl", 4, ([a, b, c, d]) => [
     { type: "lineup_set", metadata: { lineup: { back: [a], hback: [], mid: [b], hfwd: [], fwd: [c], bench: [d] } } },
     ...playPeriod(1, [], 720_000),
@@ -171,11 +171,16 @@ test("after game 1, AFL's lineup tiles draw the season time in zone its key desc
   await allIn(next.id, players.map((p) => p.id), by);
 
   await openLineup(page, team.id, next.id);
-  await expect(page.getByText("Season time in zone")).toBeVisible();
-  // The kid who played forward in game 1 has a bar, and his season total.
+  // Live v3 (10 Nov 2026): words, not bars. The old tiles drew a
+  // three-colour bar under a "Season time in zone" key; now the kid who
+  // played forward in game 1 says the line they've had least of, and a
+  // screen reader hears the whole split.
+  await expect(page.getByText("Season time in zone")).toHaveCount(0);
   const tile = page.getByTestId(`player-tile-${players[2].id}`);
-  await expect(tile.locator('[aria-label^="Fwd 12:00"]')).toBeVisible();
-  await expect(tile).toContainText("12:00");
+  await expect(tile).toContainText(/Least (Back|Centre)/);
+  await expect(tile).toHaveAccessibleName(/Least season time at (Back|Centre): .*Forward 100%/);
+  // The kid who sat on the bench all game has no season time to say.
+  await expect(page.getByTestId(`player-tile-${players[3].id}`)).not.toContainText("Least");
 });
 
 test("futsal: the scorers card counts a goal nobody was named for", async ({ page }) => {

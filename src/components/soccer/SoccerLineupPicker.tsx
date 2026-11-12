@@ -7,9 +7,10 @@
 // and availability panel, a collapsible "Game settings" card, the pitch
 // and bench drawn as the live game draws them, tap a kid then a second
 // to swap, long-press for the shared player actions, and the shared
-// footer with Save plan and "Start H1" (hockey's quarters: "Start Q1"),
-// which opens the shared StartQuarterModal (two-step kick-off: only its
-// Start writes anything).
+// footer with Save plan and Ready. Ready sets the lineup and opens the
+// live screen before the whistle, where the bar's Start H1 (hockey's
+// quarters: Start Q1) starts the clock (live v3, as AFL's picker). Until
+// then, the live screen's ⋯ → Edit lineup brings this picker back.
 //
 // The suggestion comes from the family's engine (suggestSoccerLineup):
 // the keeper by the age group's keeper strategy and season keeper
@@ -24,9 +25,9 @@ import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { RadioChips } from "@/components/ui/RadioChips";
 import { SFButton } from "@/components/sf";
 import { LockModal } from "@/components/live/LockModal";
-import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { SUB_MINUTES_MAX, SUB_MINUTES_MIN, subMinutesFrom } from "@/lib/live/subCadence";
@@ -59,8 +60,10 @@ import {
   type SoccerUnit,
 } from "@/lib/sports/soccer/types";
 import type { SoccerKeeperPrefs } from "@/lib/sports/soccer/keeper";
-import { SoccerField } from "./SoccerField";
-import { SoccerBench } from "./SoccerBench";
+import { soccerField } from "./SoccerField";
+import { LentList } from "@/components/lineup/LentList";
+import { PickerField, type PickerCell, type PickerKidLook, type PickerLine } from "@/components/lineup/PickerField";
+import { outWords } from "@/lib/live/kidWords";
 import { KeeperHandoverCard } from "./KeeperHandoverCard";
 import { soccerKeeperNote, soccerSubModeNote } from "./soccerWords";
 import { squadLoanAverage } from "@/lib/live/liveChrome";
@@ -130,7 +133,6 @@ export function SoccerLineupPicker({
   const rules = soccerFamilyRules(sport);
   const words = rules.lineLabels;
   const periodWord = periodLabels(sport, ageGroup).label;
-  const firstPeriod = `${periodWord.charAt(0).toUpperCase()}1`;
 
   const clampSize = (n: number) => Math.max(ageGroup.minOnFieldSize, Math.min(ageGroup.maxOnFieldSize, n));
   // Settings are kept through a Who's here change (useKeptSetting): the
@@ -190,7 +192,6 @@ export function SoccerLineupPicker({
   const [fillUnit, setFillUnit] = useState<SoccerUnit | null>(null);
   const [actionPlayerId, setActionPlayerId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [startModalOpen, setStartModalOpen] = useState(false);
   const [savePending, setSavePending] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(initialDraft?.updated_at ?? null);
   const [subMinInput, setSubMinInput] = useKeptSetting(gameId, "subMinutes", String(defaultSubMinutes));
@@ -279,26 +280,20 @@ export function SoccerLineupPicker({
     }
     window.scrollTo({ top: 0, behavior: "auto" });
     setError(null);
-    setStartModalOpen(true);
-  }
-
-  function handleConfirmStart() {
-    setError(null);
     startTransition(async () => {
+      // startHalfToo=false: the lineup only, no whistle. The team page
+      // redirects to the live screen; the game-day link's page re-renders.
       const result = await startSoccerGame(
         auth,
         gameId,
         lineup,
         onFieldSize,
-        true,
+        false,
         ageGroup.subMode.kind === "rolling" ? subIntervalSeconds : null,
       );
       // Refused because another phone already started: say so over the page.
       noteLiveResult(result);
-      if (!result.success) {
-        setError(result.error ?? "Couldn't start the game.");
-        setStartModalOpen(false);
-      }
+      if (result && !result.success) setError(result.error ?? "Couldn't set the lineup.");
     });
   }
 
@@ -316,6 +311,35 @@ export function SoccerLineupPicker({
     ...(lentPlayers.length > 0 ? [`${lentPlayers.length} lent`] : []),
   ].join(" · ");
 
+  // ── The field (PickerField), as SoccerLiveGame draws it ──
+  const cellsFor = (unit: SoccerUnit, ids: string[], cap: number): PickerCell[] =>
+    Array.from({ length: Math.max(cap, ids.length) }, (_, slot) => {
+      const pid = ids[slot] ?? null;
+      return {
+        key: `slot-${slot}`,
+        playerId: pid,
+        place: words[unit].short ? words[unit].label : null,
+        emptyLabel: `Empty ${words[unit].label.toLowerCase()} spot`,
+        onTap: () => handleTap(pid ?? "", unit),
+      };
+    });
+  const fieldLines: PickerLine[] = formation.keeper
+    ? [
+        ...(["att", "mid", "def"] as const)
+          .filter((l) => Math.max(lineCaps[l] ?? 0, lineup.lines[l].length) > 0)
+          .map((l) => ({ key: l, label: words[l].label, cells: cellsFor(l, lineup.lines[l], lineCaps[l] ?? 0) })),
+        { key: "gk", label: words.gk.label, noCount: true, cells: cellsFor("gk", lineup.keeper ? [lineup.keeper] : [], 1) },
+      ]
+    : [{ key: "field", label: words.field.label, cells: cellsFor("field", lineup.lines.field, lineCaps.field ?? 0) }];
+  // The bench: who can come on, then who's lent (LENT, tap to bring back).
+  const benchOrder = [...lineup.bench.filter((id) => !loanedIds.has(id)), ...lineup.bench.filter((id) => loanedIds.has(id))];
+  const kidLook = (pid: string, cell: PickerCell | null): PickerKidLook => {
+    if (loanedIds.has(pid)) return { out: "lent", words: outWords({ kind: "lent" }) };
+    // The keeper: a small "GK" flag on the tile's corner, as in play.
+    const keeper = !!cell && lineup.keeper === pid;
+    return { flag: keeper ? words.gk.short : null };
+  };
+
   return (
     <div ref={pickerRootRef} role="region" aria-label="Starting lineup" className="space-y-4 pb-32">
       <LineupPickerBreadcrumb availabilityHref={availabilityHref ?? undefined} />
@@ -323,9 +347,6 @@ export function SoccerLineupPicker({
 
       <header className="space-y-1 px-1">
         <h1 className="text-xl font-bold text-ink">{ageGroup.label} starting lineup</h1>
-        <p className="text-xs text-ink-mute">
-          Tap a player to select, tap a second to swap. Long-press for the bench or to lend a player.
-        </p>
       </header>
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
@@ -340,7 +361,7 @@ export function SoccerLineupPicker({
           aria-controls="soccer-game-settings"
         >
           <span className="flex flex-1 items-center gap-3 text-sm">
-            <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">Game settings</span>
+            <span className="font-mono text-micro font-bold uppercase tracking-micro text-ink-mute">Game settings</span>
             <span className="text-xs text-ink-mute">{settingsSummary}</span>
           </span>
           <span aria-hidden className="text-ink-mute">
@@ -382,27 +403,15 @@ export function SoccerLineupPicker({
             {shapes.length > 1 && (
               <div className="space-y-2">
                 <Label className="text-xs">Shape</Label>
-                <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Shape">
-                  {shapes.map((f) => (
-                    <button
-                      key={f.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={f.id === formation.id}
-                      onClick={() => {
-                        setFormationId(f.id);
-                        resuggest(onFieldSize, f.id);
-                      }}
-                      className={`rounded-full border px-3 py-1 font-mono text-xs font-semibold ${
-                        f.id === formation.id
-                          ? "border-ink bg-ink text-warm"
-                          : "border-hairline bg-surface text-ink-dim hover:bg-surface-alt"
-                      }`}
-                    >
-                      {f.id}
-                    </button>
-                  ))}
-                </div>
+                <RadioChips
+                  label="Shape"
+                  options={shapes.map((f) => ({ id: f.id, label: f.id }))}
+                  value={formation.id}
+                  onChange={(id) => {
+                    setFormationId(id);
+                    resuggest(onFieldSize, id);
+                  }}
+                />
               </div>
             )}
             {ageGroup.subMode.kind === "rolling" ? (
@@ -422,7 +431,7 @@ export function SoccerLineupPicker({
                   onBlur={() => setSubMinInput(String(subMinutesFrom(subMinInput, defaultSubMinutes)))}
                   className="w-32"
                 />
-                <p className="text-[11px] text-ink-mute">{rules.rollingSubs.label}: {rules.rollingSubs.note}.</p>
+                <p className="text-micro text-ink-mute">{rules.rollingSubs.label}: {rules.rollingSubs.note}.</p>
               </div>
             ) : (
               <p className="text-xs text-ink-dim">{soccerSubModeNote(ageGroup.subMode, subIntervalSeconds, periodWord, rules.rollingSubs.label)}</p>
@@ -443,54 +452,40 @@ export function SoccerLineupPicker({
           to={lineup.keeper ? playerById.get(lineup.keeper) ?? null : null}
           candidates={players.filter((p) => !loanedIds.has(p.id))}
           suggestedId={suggestedKeeper}
-          strategyNote={soccerKeeperNote(keeperStrategy ?? ageGroup.keeper)}
+          strategyNote={soccerKeeperNote(keeperStrategy ?? ageGroup.keeper, keeperPrefs?.namedKeepers?.length ?? 0)}
           onPick={pickKeeper}
           pending={isPending}
         />
       )}
 
-      <SoccerField
-        words={words}
-        surface={rules.surface}
-        lineup={lineup}
-        lineCaps={lineCaps}
-        hasKeeper={formation.keeper}
-        playersById={playerById}
-        onTap={(pid, unit) => handleTap(pid, unit)}
+      {/* The pitch, futsal's court or the hockey pitch, as the live
+          screen draws it (live v3): the lines attack up the page, the
+          keeper alone at the foot with the GK flag, the bench under it. */}
+      <PickerField
+        ground={soccerField(rules.surface, Math.max(onFieldSize, fieldIds.length) >= 11)}
+        regionLabel={rules.surface === "court" ? "On court" : "On field"}
+        surfaceName={rules.surface}
+        lines={fieldLines}
+        bench={benchOrder.map((pid) => ({
+          playerId: pid,
+          // A lent kid's tap opens their sheet (Bring back), as in play.
+          onTap: loanedIds.has(pid) ? () => setActionPlayerId(pid) : () => handleTap(pid, null),
+        }))}
+        players={playerById}
+        selectedId={selectedId}
+        look={kidLook}
         onLongPress={setActionPlayerId}
-        selectedPlayerId={selectedId}
-        dimUnselected={false}
-      />
-      <SoccerBench
-        words={words}
-        bench={lineup.bench}
-        playersById={playerById}
-        onTap={(pid) => handleTap(pid, null)}
-        onLongPress={setActionPlayerId}
-        selectedPlayerId={selectedId}
-        dimUnselected={false}
-        loanedIds={Array.from(loanedIds)}
+        denseBench={benchOrder.length > 6}
       />
 
-      {lentPlayers.length > 0 && (
-        <div className="rounded-lg border border-warn/40 bg-warn-soft/60 px-3 py-2">
-          <p className="text-xs font-semibold text-warn">Lent to the other team</p>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            {lentPlayers.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => handleLend(p.id, false)}
-                aria-label={`Bring ${p.full_name} back`}
-                className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 motion-safe:active:scale-[0.97]"
-              >
-                <span>{p.full_name}</span>
-                <span className="ml-0.5 text-[11px] font-semibold text-warn/80">Bring back</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Kids lent before kickoff, each with a plain Bring back (LentList,
+          as the break lists them). */}
+      <LentList
+        players={lentPlayers.map((p) => ({ id: p.id, name: p.full_name }))}
+        note="Bring them back and they join the bench."
+        buttonTestId={(id) => `picker-recall-lent-${id}`}
+        onBringBack={(id) => handleLend(id, false)}
+      />
 
       <LineupPickerFooter
         onFieldCount={fieldIds.length}
@@ -501,7 +496,7 @@ export function SoccerLineupPicker({
         savedAt={savedAt}
         savePlanDisabled={fieldIds.length === 0 || isPending}
         onConfirm={handleStartGame}
-        confirmLabel={`Start ${firstPeriod}`}
+        confirmLabel="Ready"
         confirmDisabled={fieldIds.length === 0 || isPending}
         confirmLoading={isPending}
       />
@@ -556,18 +551,6 @@ export function SoccerLineupPicker({
             setLineup((lu) => placeInSoccerLineup(lu, pid, unit));
           }}
           onCancel={() => setFillUnit(null)}
-        />
-      )}
-
-      {startModalOpen && (
-        <StartQuarterModal
-          quarter={1}
-          periodLabel={periodWord}
-          cue="whistle goes"
-          shortSide={{ playing: fieldIds.length, size: initialSize, min: ageGroup.minOnFieldSize }}
-          loading={isPending}
-          onStart={handleConfirmStart}
-          onCancel={() => setStartModalOpen(false)}
         />
       )}
     </div>

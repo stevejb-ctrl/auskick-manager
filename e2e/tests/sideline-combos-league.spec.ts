@@ -16,6 +16,7 @@ import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { playerMsOnField, replayLeagueGame } from "../../src/lib/sports/rugby_league/fairness";
 import type { GameEvent } from "../../src/lib/types";
 import { openGameSettings, pickBreakStrategy, startFromBreak } from "../helpers/break";
+import { waitForHydration } from "../helpers/navigation";
 
 test("rugby league: lend a forward, fill the gap, a back is hurt and replaced, then the lent kid comes back", async ({
   page,
@@ -69,15 +70,17 @@ test("rugby league: lend a forward, fill the gap, a back is hurt and replaced, t
     expect.poll(async () => what(await events()), { timeout: 15_000 }).toBe(true);
   const tile = (pid: string) => page.getByTestId(`league-player-tile-${pid}`);
 
-  // H1: lend a forward.
+  // H1: lend a forward. A lend from the field asks who comes on, as
+  // AFL's (Stagehand round 9); this one plays short, so the spot stays
+  // empty.
   await tile(lent.id).click({ delay: 600 });
   await page.getByRole("button", { name: /lend to opposition/i }).click();
+  await page.getByRole("dialog", { name: /who comes on at/i }).getByRole("button", { name: "Lend without replacement" }).click();
   await landed((evs) => evs.some((e) => e.type === "player_loan" && e.player_id === lent.id));
 
-  // Bring a bench kid into the gap: AFL's confirm, then its toast.
+  // Bring a bench kid into the gap: at once, then its toast (AFL's).
   await tile(filler.id).click();
   await page.getByRole("button", { name: /move selected player to forwards/i }).click();
-  await page.getByRole("dialog", { name: `Move ${filler.full_name} to Forwards?` }).getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByTestId("swap-toast")).toContainText(`${filler.full_name} on`);
   await landed((evs) => evs.filter((e) => e.type === "lineup_set").length === 2);
 
@@ -270,6 +273,9 @@ test("rugby league: the kickoff picker offers only kids on the field who can pla
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
+  await waitForHydration(page);
+  // Live v3: the Kickoff prompt under the top bar opens the picker's sheet.
+  await page.getByTestId("kickoff-prompt").getByRole("button", { name: "Pick" }).click({ timeout: 15_000 });
   const picker = page.locator("section").filter({ has: page.getByRole("heading", { name: /^kickoff$/i }) });
   await expect(picker).toBeVisible({ timeout: 15_000 });
   await expect(picker.getByRole("button", { name: new RegExp(players[1].full_name) })).toBeVisible();
@@ -383,6 +389,9 @@ test("rugby league: after a lend, tapping the empty spot brings a bench kid on t
   const [lent, onKid] = [players[0], players[13]];
   await page.getByTestId(`league-player-tile-${lent.id}`).click({ delay: 600 });
   await page.getByRole("button", { name: /lend to opposition/i }).click();
+  // A lend from the field asks who comes on (Stagehand round 9); this one
+  // plays short, and the gap is filled from its empty slot below.
+  await page.getByRole("dialog", { name: /who comes on at/i }).getByRole("button", { name: "Lend without replacement" }).click();
   const lineupSets = async () => {
     const { data } = await admin
       .from("game_events")
@@ -693,11 +702,10 @@ test("rugby league: a try, its undo and a sub show before the server saves", asy
   await strip.getByRole("button", { name: "Undo" }).click();
   await expect(theirs).toHaveText("0", { timeout: 1_500 });
 
-  // A bench kid on for a forward: asks first, then shows at once.
+  // A bench kid on for a forward: no confirm, it shows at once.
   const [benchKid, fwd] = [players[13], players[0]];
   await page.getByTestId(`league-player-tile-${benchKid.id}`).click();
   await page.getByTestId(`league-player-tile-${fwd.id}`).click();
-  await page.getByRole("dialog", { name: /manually sub/i }).getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByTestId("swap-toast")).toContainText(`${fwd.full_name} → ${benchKid.full_name}`, { timeout: 1_500 });
   await expect(page.getByRole("group", { name: "Forwards" }).getByTestId(`league-player-tile-${benchKid.id}`)).toBeVisible({
     timeout: 1_500,

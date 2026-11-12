@@ -6,18 +6,19 @@
 // stops for soccer or borrows another sport's screen.
 
 import { test, expect } from "@playwright/test";
+import { watchPageErrors } from "../helpers/pageErrors";
 import { createAdminClient } from "../fixtures/supabase";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
 
 test("soccer: the wizard makes a U9 team with MiniRoos rules, and every team page opens", async ({ page }) => {
   test.setTimeout(180_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
   const admin = createAdminClient();
 
   await gotoStable(page, "/teams/new");
   await waitForHydration(page);
-  const pill = page.getByRole("button", { name: "Junior Football (soccer)" });
+  const pill = page.getByRole("radio", { name: "Junior Football (soccer)" });
   // Every sport left beta with the ten-sport homepage.
   await expect(pill).not.toContainText("Beta");
   await pill.click();

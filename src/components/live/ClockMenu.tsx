@@ -15,6 +15,12 @@ interface ClockMenuProps {
   /** Opens the end-early confirm. Omit when ending isn't allowed. */
   onEndEarly?: () => void;
   onClose: () => void;
+  /**
+   * Live v3 (AFL's shell): the time left, "7:40". The sheet then reads
+   * as the v3 clock sheet: "Q2 CLOCK" over "Running · 7:40 left", and
+   * Pause (or Resume) is its one filled row.
+   */
+  remaining?: string;
 }
 
 /**
@@ -31,7 +37,9 @@ export function ClockMenu({
   onResume,
   onEndEarly,
   onClose,
+  remaining,
 }: ClockMenuProps) {
+  const v3 = remaining !== undefined;
   const actions: ActionSheetAction[] = [
     running
       ? {
@@ -39,8 +47,15 @@ export function ClockMenu({
           label: "Pause clock",
           description: "For a stoppage, like an injury.",
           onSelect: onPause,
+          tone: v3 ? "ink" : undefined,
         }
-      : { id: "resume", label: "Resume clock", onSelect: onResume },
+      : {
+          id: "resume",
+          label: "Resume clock",
+          description: v3 ? `Picks up from ${remaining}.` : undefined,
+          onSelect: onResume,
+          tone: v3 ? "oval" : undefined,
+        },
   ];
   if (onEndEarly) {
     // Default tone, not danger: ending a period is a routine
@@ -54,6 +69,17 @@ export function ClockMenu({
       description: clockEndEarlyHint(sport),
       onSelect: onEndEarly,
     });
+  }
+  if (v3) {
+    return (
+      <ActionSheet
+        eyebrow={`${periodAbbr} clock`}
+        label={`${periodAbbr} clock`}
+        title={`${running ? "Running" : "Paused"} · ${remaining} left`}
+        actions={actions}
+        onClose={onClose}
+      />
+    );
   }
   return (
     <ActionSheet

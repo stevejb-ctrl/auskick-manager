@@ -21,6 +21,10 @@ const PAGE = [247, 245, 241] as const; // warm, the page background
 const WHITE = [255, 255, 255] as const; // surface
 const ALT = [239, 236, 230] as const; // surface-alt
 
+// A 44 px target, give or take subpixel layout: WebKit lays a 44 px
+// button out at 43.99997 when its rows are rem-based fractions.
+const TARGET = 44 - 0.01;
+
 test("muted text passes AA on the page, on white and on surface-alt", async ({ page }) => {
   const admin = createAdminClient();
   const team = await makeTeam(admin, { ownerId: await ownerOf(admin), sport: "netball", ageGroup: "go", name: `A11Y-CON ${Date.now() % 100000}` });
@@ -35,48 +39,64 @@ test("muted text passes AA on the page, on white and on surface-alt", async ({ p
   expect(contrast(fg, [...ALT]), "on surface-alt").toBeGreaterThanOrEqual(4.5);
 });
 
-test("basketball's sub card: bench pair badges pass AA and Make swap is a 44 px target", async ({ page }) => {
+// Live v3 (Phase 10): basketball's sub card is the bench kids' pair
+// badges and "On now →" words, the bar's "Make all N swaps" and the pairs
+// sheet's Make on each pair.
+test("basketball's planned sub: bench pair badges and words pass AA, and each Make is a 44 px target", async ({ page }) => {
   // Eight kids, five on: three on the bench, due 2 minutes in.
   const { team, game } = await basketballGame({ name: "A11Y-CON-BB", subIntervalSec: 120, elapsedSec: 130 });
   await skipHints(page);
   await openLive(page, team.id, game.id);
 
   const bench = page.getByRole("group", { name: "Bench" });
-  const badge = bench.getByLabel(/^Going on/).first();
+  const badge = bench.getByTestId("pair-badge").first();
   await expect(badge).toBeVisible({ timeout: 15_000 });
-  for (const text of await badge.locator("span").all()) {
-    expect(await contrastOf(text), `"${await text.textContent()}"`).toBeGreaterThanOrEqual(4.5);
-  }
+  expect(await contrastOf(badge), "the pair badge").toBeGreaterThanOrEqual(4.5);
+  const words = bench.getByText(/^On now/).first();
+  expect(await contrastOf(words), `"${await words.textContent()}"`).toBeGreaterThanOrEqual(4.5);
 
-  const make = page.locator("button", { hasText: /^Make swap$/ });
+  const all = page.getByTestId("bar-make-all");
+  await expect(all).toBeVisible();
+  expect((await boxOf(all)).height).toBeGreaterThanOrEqual(TARGET);
+  await page.getByRole("button", { name: /^pairs/i }).click();
+  const make = page.getByRole("dialog").locator("button", { hasText: /^Make$/ });
   await expect(make.first()).toBeVisible();
   for (const b of await make.all()) {
-    expect((await boxOf(b)).height).toBeGreaterThanOrEqual(44);
+    expect((await boxOf(b)).height).toBeGreaterThanOrEqual(TARGET);
     // Each names its kids for a screen reader ("Swap Ava off, Leo on").
     await expect(b).toHaveAccessibleName(/^Swap .+ off, .+ on$/);
   }
 });
 
-test("union's sub card: Make swap is a 44 px target", async ({ page }) => {
+// Live v3 (Phase 8): union's sub card is the bar's "Make all 3 swaps" and
+// the pairs sheet's Make on each pair.
+test("union's planned sub: Make all and each pair's Make are 44 px targets", async ({ page }) => {
   // 18 here, 15 on: three on the bench, due 2 minutes in.
   const { team, game } = await unionGame({ name: "A11Y-CON-RU", count: 18, subIntervalSec: 120, elapsedSec: 130 });
   await skipHints(page);
   await openLive(page, team.id, game.id);
-  const make = page.locator("button", { hasText: /^Make swap$/ });
-  await expect(make.first()).toBeVisible({ timeout: 15_000 });
-  for (const b of await make.all()) expect((await boxOf(b)).height).toBeGreaterThanOrEqual(44);
+  const all = page.getByTestId("bar-make-all");
+  await expect(all).toBeVisible({ timeout: 15_000 });
+  expect((await boxOf(all)).height).toBeGreaterThanOrEqual(TARGET);
+  await page.getByRole("button", { name: /^pairs/i }).click();
+  const make = page.getByRole("dialog").locator("button", { hasText: /^Make$/ });
+  await expect(make.first()).toBeVisible();
+  for (const b of await make.all()) expect((await boxOf(b)).height).toBeGreaterThanOrEqual(TARGET);
 });
 
-test("netball: the scorer dock's Cancel is a 44 px target", async ({ page }) => {
+test("netball: the scorer's kid bar puts them down with a 44 px ×", async ({ page }) => {
+  // Live v3 (Phase 7): the goal dock's Cancel is the kid bar's ×, as AFL's.
   const { team, game } = await netballGame({ name: "A11Y-CON-NB-DOCK" });
   await skipHints(page);
   await openLive(page, team.id, game.id);
 
-  await page.getByRole("button", { name: /^goal shooter, /i }).click();
-  await expect(page.getByText(/^Record goal for/)).toBeVisible();
-  const cancel = await boxOf(page.getByRole("button", { name: "Cancel", exact: true }));
-  expect(cancel.height).toBeGreaterThanOrEqual(44);
-  expect(cancel.width).toBeGreaterThanOrEqual(44);
+  await page.getByRole("button", { name: /^[^,]+, goal shooter(,|$)/i }).click();
+  const bar = page.getByTestId("kid-bar");
+  await expect(bar.getByRole("button", { name: /^\+ goal$/i })).toBeVisible();
+  const close = await boxOf(bar.getByRole("button", { name: /^Put .+ down$/ }));
+  expect(close.height).toBeGreaterThanOrEqual(TARGET);
+  expect(close.width).toBeGreaterThanOrEqual(TARGET);
+  for (const b of await bar.getByRole("button").all()) expect((await boxOf(b)).height).toBeGreaterThanOrEqual(TARGET);
 });
 
 test("netball's break: the score fix's × is a 44 px target that names the score", async ({ page }) => {
@@ -96,8 +116,8 @@ test("netball's break: the score fix's × is a 44 px target that names the score
   await expect(del.first()).toBeVisible({ timeout: 10_000 });
   for (const d of await del.all()) {
     const b = await boxOf(d);
-    expect(b.height).toBeGreaterThanOrEqual(44);
-    expect(b.width).toBeGreaterThanOrEqual(44);
+    expect(b.height).toBeGreaterThanOrEqual(TARGET);
+    expect(b.width).toBeGreaterThanOrEqual(TARGET);
   }
   // Each × names what it deletes.
   await expect(page.getByRole("button", { name: `Delete goal by ${players[0].full_name}` })).toBeVisible();
@@ -115,7 +135,8 @@ test("the break's margin passes AA", async ({ page }) => {
   await waitForHydration(page);
   const score = page.getByRole("button", { name: /^score /i });
   await expect(score).toBeVisible({ timeout: 15_000 });
-  const margin = score.getByText(/^\+\d+$/);
+  // The margin is words now: "Up by 5", "Down by 2", "Level" (round 11).
+  const margin = score.getByText(/^(Up by \d+|Down by \d+|Level)$/);
   await expect(margin).toBeVisible();
   expect(await contrastOf(margin)).toBeGreaterThanOrEqual(4.5);
 });

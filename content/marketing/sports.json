@@ -11,7 +11,46 @@
       { "stat": "7 · 3", "title": "Seven positions, three thirds", "body": "GS through GK, each kept to its thirds, with every kid's time in attack, centre and defence counted." },
       { "stat": "Q1–Q4", "title": "Changes at the breaks", "body": "Netball has no rolling subs, so Siren plans each quarter at the break and suggests who moves where." },
       { "stat": "5 or 7", "title": "NetSetGO to Open", "body": "Set plays 5 a side, Go and up play 7. Quarters are 10 minutes unless your league plays longer." }
-    ]
+    ],
+    "tourHeading": { "before": "From the first centre ", "italic": "pass", "after": " to the stats." },
+    "tour": {
+      "live": {
+        "stamp": "First quarter",
+        "title": { "before": "The court, ", "italic": "position", "after": " by position." },
+        "body": "Every bib on the court where it plays, GS at the top to GK at the bottom, with who's on the bench underneath and the clock running.",
+        "alt": "Netball live screen in the first quarter: the seven positions on the court, the bench below and the score"
+      },
+      "pairs": {
+        "stamp": "Before quarter time",
+        "title": { "before": "Next quarter, ", "italic": "planned", "after": " already." },
+        "body": "Netball has no rolling subs, so the changes wait for the break. Late in the quarter the game plan has the next lineup ready, position by position: tweak it, then pin it.",
+        "alt": "Netball game plan for the next quarter: each position with the kid who plays it, ready to pin"
+      },
+      "scoring": {
+        "stamp": "Goal",
+        "title": { "before": "Tap the goal, pick the ", "italic": "shooter", "after": "." },
+        "body": "Only a goal shooter or goal attack can score, so the list is short. One tap each, and the other side's goals with one more.",
+        "alt": "Netball Record goal sheet: only the goal shooter and goal attack to pick from"
+      },
+      "break": {
+        "stamp": "Quarter time",
+        "title": { "before": "Every change, ", "italic": "before", "after": " the whistle." },
+        "body": "The break shows the next quarter's court with every kid's new bib, checks it against your rules, and starts the quarter when you're ready.",
+        "alt": "Netball quarter-time break: the next quarter's lineup with each kid's position"
+      },
+      "fulltime": {
+        "stamp": "Full time",
+        "title": { "before": "The score, ", "italic": "checked", "after": " before it's saved." },
+        "body": "Both sides' score quarter by quarter, and every goal with who scored it. Change a scorer, take one off or add one you missed, then finish the game.",
+        "alt": "Netball full time: the final score, the score each quarter, and the list of scores to check"
+      },
+      "stats": {
+        "stamp": "After the game",
+        "title": { "before": "The season, kept ", "italic": "even", "after": "." },
+        "body": "Every game adds up: each kid's minutes in attack, centre and defence across the season, and how close everyone is to even, so you can see who's owed time before next week.",
+        "alt": "Netball stats after the game: how close the team is to even, and each kid's minutes in attack, centre and defence"
+      }
+    }
   },
   "afl": {
     "tileLine": "Forward, centre and back time for every kid, across every quarter and the whole season.",
@@ -22,24 +61,102 @@
     "metaTitle": "Junior AFL rotation app: fair zones and subs | Siren",
     "metaDescription": "Junior AFL game-day app: fair time in forward, centre and back, sub alerts on the clock, quarter-break plans and season stats, Under 8 to Under 18. Free for the 2026 season.",
     "knows": [
-      { "stat": "F · C · B", "title": "Three zones", "body": "Siren balances each kid's minutes in forward, centre and back, not just their time on the ground." },
+      { "stat": "F · C · B", "title": "Zones, or your own positions", "body": "Run forward, centre and back only, or set your own positions if you want to: full forward, ruck, wing. Siren balances each kid's time in each, not just their time on the ground." },
       { "stat": "6–18", "title": "6 to 18 a side", "body": "From 6 a side at Under 8 to 18 a side at Under 18, with scores off until Under 11 as the junior rules have it." },
       { "stat": "Sub due", "title": "Subs on the clock", "body": "A sub alert every few minutes, with the swaps that even out time already picked." }
-    ]
+    ],
+    "tourHeading": { "before": "From the first ", "italic": "bounce", "after": " to the stats." },
+    "tour": {
+      "live": {
+        "stamp": "First quarter",
+        "title": { "before": "Forwards, centres, ", "italic": "backs", "after": "." },
+        "body": "The kids in their lines on the oval, the bench underneath, the clock and the next sub counting down. Nothing to read twice.",
+        "alt": "AFL live screen in the first quarter: forwards, centres and backs on the oval, the bench and the next sub counting down"
+      },
+      "pairs": {
+        "stamp": "Sub due",
+        "title": { "before": "Who comes off, who goes ", "italic": "on", "after": "." },
+        "body": "Siren pairs the swaps that even out time in each zone. Change any pair with a tap, or make them all at once.",
+        "alt": "AFL subs: each pair, who comes off and who goes on in which zone, and one button to make them all"
+      },
+      "scoring": {
+        "stamp": "Goal",
+        "title": { "before": "A goal or a behind, ", "italic": "and", "after": " who kicked it." },
+        "body": "Tap + Goal or + Behind and pick the kid. The other side's scores are one tap too, and every score can be fixed later.",
+        "alt": "AFL's Who scored? sheet: the kids on the ground to pick from"
+      },
+      "break": {
+        "stamp": "Quarter time",
+        "title": { "before": "Walk into every quarter with a ", "italic": "plan", "after": "." },
+        "body": "At the break Siren suggests the next quarter's lineup to even out each zone. Rule check updates as you swap players, so you know it's fair before the siren.",
+        "alt": "AFL quarter-time break: the next quarter's lineup by zone"
+      },
+      "fulltime": {
+        "stamp": "Full time",
+        "title": { "before": "The score, ", "italic": "checked", "after": " before it's saved." },
+        "body": "Both sides' score quarter by quarter, and every goal with who scored it. Change a scorer, take one off or add one you missed, then finish the game.",
+        "alt": "AFL full time: the final score, the score each quarter, and the list of scores to check"
+      },
+      "stats": {
+        "stamp": "After the game",
+        "title": { "before": "The season, kept ", "italic": "even", "after": "." },
+        "body": "Every game adds up: each kid's minutes in forward, centre and back across the season, and how close everyone is to even, so you can see who's owed time before next week.",
+        "alt": "AFL stats after the game: how close the team is to even, and each kid's minutes in forward, centre and back"
+      }
+    }
   },
   "rugby_league": {
     "tileLine": "Rolling subs, First Receiver and Dummy Half rotated, and the Junior Laws built in.",
     "menuLine": "Rolling subs, FR and DH",
     "eyebrow": "Junior rugby league · quarters, then halves from Under 10",
     "heroTitle": { "before": "Every kid gets a run, by the ", "italic": "Junior Laws", "after": "." },
-    "heroSubtitle": "Rolling subs, First Receiver and Dummy Half vests, kicks shared round, and every kid's unbroken period. Siren knows the Junior Laws that generic sub-timers miss, so you can stop juggling a clipboard and watch your kid play.",
+    "heroSubtitle": "Rolling subs, forwards and backs or your own positions, First Receiver and Dummy Half vests, kicks shared round, and every kid's unbroken period. Siren knows the Junior Laws that generic sub-timers miss, so you can stop juggling a clipboard and watch your kid play.",
     "metaTitle": "Junior rugby league team app: fair subs, vests and Junior Laws | Siren",
     "metaDescription": "Junior rugby league game-day app: rolling subs, First Receiver and Dummy Half vests rotated, conversions shared, every kid's unbroken period, Under 6 to Under 17. Free for the 2026 season.",
     "knows": [
       { "stat": "FR · DH", "title": "Vests rotated", "body": "First Receiver and Dummy Half move round the team each period, and no kid wears either twice." },
       { "stat": "Unbroken", "title": "An unbroken period each", "body": "Under 10 to Under 12, every kid plays at least one unbroken half; younger teams get two unbroken quarters." },
       { "stat": "4 + 2", "title": "Tries and conversions", "body": "A try is 4 and a conversion 2, and the kicks are shared round so everyone gets a shot at goal." }
-    ]
+    ],
+    "tourHeading": { "before": "From the ", "italic": "kick-off", "after": " to the stats." },
+    "tour": {
+      "live": {
+        "stamp": "First quarter",
+        "title": { "before": "The field, the bench, the ", "italic": "vests", "after": "." },
+        "body": "Forwards and backs on the field, First Receiver and Dummy Half marked, the bench underneath and the next sub counting down.",
+        "alt": "Rugby league live screen in the first quarter: forwards and backs on the field, the bench and the next sub"
+      },
+      "pairs": {
+        "stamp": "Sub due",
+        "title": { "before": "Rolling subs, ", "italic": "paired", "after": " for you." },
+        "body": "Siren picks who comes off and who goes on so every kid gets their run, unbroken period included. Change a pair or make them all.",
+        "alt": "Rugby league subs: each pair, who comes off and who goes on, and one button to make them all"
+      },
+      "scoring": {
+        "stamp": "Try",
+        "title": { "before": "A try, and ", "italic": "who", "after": " scored it." },
+        "body": "Tap + Try and pick the kid. Conversions and the other side's points are a tap each, and every score can be fixed later.",
+        "alt": "Rugby league's Who scored? sheet: the kids on the field to pick from"
+      },
+      "break": {
+        "stamp": "Quarter time",
+        "title": { "before": "The next quarter, by the ", "italic": "Junior Laws", "after": "." },
+        "body": "At the break Siren lines up the next quarter, moves the vests on and checks the rules before you start it.",
+        "alt": "Rugby league break: the next quarter's lineup"
+      },
+      "fulltime": {
+        "stamp": "Full time",
+        "title": { "before": "The score, ", "italic": "checked", "after": " before it's saved." },
+        "body": "Both sides' score quarter by quarter, and every try with who scored it. Change a scorer, take one off or add one you missed, then finish the game.",
+        "alt": "Rugby league full time: the final score, the score each quarter, and the list of scores to check"
+      },
+      "stats": {
+        "stamp": "After the game",
+        "title": { "before": "The season, kept ", "italic": "even", "after": "." },
+        "body": "Every game adds up: each kid's minutes in the forwards and the backs across the season, and how close everyone is to even, so you can see who's owed time before next week.",
+        "alt": "Rugby league stats after the game: how close the team is to even, and each kid's minutes in the forwards and the backs"
+      }
+    }
   },
   "soccer": {
     "tileLine": "A fair turn in goal for every kid and time in every line, from 4 a side to 11 a side.",
@@ -53,7 +170,46 @@
       { "stat": "GK", "title": "Keeper turns", "body": "From Under 8 Siren shares the keeper top fairly across the season; from Under 12 you can name your keepers instead." },
       { "stat": "D · M · A", "title": "Every line", "body": "Kids move through defence, midfield and attack over the season, so nobody's stuck at the back." },
       { "stat": "4–11", "title": "MiniRoos to 11 a side", "body": "4 a side with no keeper at Under 6, up to 11 a side, with scores off until Under 12." }
-    ]
+    ],
+    "tourHeading": { "before": "From the ", "italic": "kick-off", "after": " to the stats." },
+    "tour": {
+      "live": {
+        "stamp": "First half",
+        "title": { "before": "The keeper and every ", "italic": "line", "after": "." },
+        "body": "The keeper in goal and the kids in defence, midfield and attack, the bench underneath and the next sub counting down.",
+        "alt": "Football (soccer) live screen in the first half: the keeper, defence, midfield and attack, the bench and the next sub"
+      },
+      "pairs": {
+        "stamp": "Sub due",
+        "title": { "before": "Rolling subs, ", "italic": "paired", "after": " for you." },
+        "body": "Siren picks who comes off and who goes on to even out time in each line. Change a pair with a tap, or make them all.",
+        "alt": "Football (soccer) subs: each pair, who comes off and who goes on, and one button to make them all"
+      },
+      "scoring": {
+        "stamp": "Goal",
+        "title": { "before": "A goal, and ", "italic": "who", "after": " scored it." },
+        "body": "Tap + Goal and pick the kid, or count it without a name. The other side's goals are one tap.",
+        "alt": "Football (soccer) Who scored? sheet: the kids on the field to pick from"
+      },
+      "break": {
+        "stamp": "Half time",
+        "title": { "before": "The second half, ", "italic": "lined up", "after": "." },
+        "body": "At half time Siren suggests the next lineup, keeper included, and checks it against your rules before you start.",
+        "alt": "Football (soccer) half-time break: the second half's lineup"
+      },
+      "fulltime": {
+        "stamp": "Full time",
+        "title": { "before": "The score, ", "italic": "checked", "after": " before it's saved." },
+        "body": "Both sides' score half by half, and every goal with who scored it. Change a scorer, take one off or add one you missed, then finish the game.",
+        "alt": "Football (soccer) full time: the final score, the score each half, and the list of scores to check"
+      },
+      "stats": {
+        "stamp": "After the game",
+        "title": { "before": "The season, kept ", "italic": "even", "after": "." },
+        "body": "Every game adds up: each kid's minutes in attack, midfield and defence across the season, and how close everyone is to even, so you can see who's owed time before next week.",
+        "alt": "Football (soccer) stats after the game: how close the team is to even, and each kid's minutes in attack, midfield and defence"
+      }
+    }
   },
   "basketball": {
     "tileLine": "Subs at every dead ball, time at guard and forward for every kid, and the fouls counted for you.",
@@ -67,7 +223,46 @@
       { "stat": "G · F", "title": "Guards and forwards", "body": "Siren evens out each kid's time at guard and forward, not just their minutes on court." },
       { "stat": "5 fouls", "title": "Foul trouble, counted", "body": "Tap a foul on a kid's tile and Siren keeps the tally; at five they foul out and the rotation carries on without them." },
       { "stat": "1 · 2 · 3", "title": "Ones, twos and threes", "body": "Free throws, twos and threes on the scoreboard, with threes off until Under 12." }
-    ]
+    ],
+    "tourHeading": { "before": "From the ", "italic": "tip-off", "after": " to the stats." },
+    "tour": {
+      "live": {
+        "stamp": "First half",
+        "title": { "before": "Five on the ", "italic": "court", "after": "." },
+        "body": "Forwards and guards on the boards, each kid's points on their tile, the bench underneath and the next sub counting down.",
+        "alt": "Basketball live screen in the first half: guards and forwards on the court, the bench and the next sub"
+      },
+      "pairs": {
+        "stamp": "Sub due",
+        "title": { "before": "Subs at the next ", "italic": "dead ball", "after": "." },
+        "body": "Siren pairs who comes off and who goes on to even out time at guard and forward. Send them to the table together.",
+        "alt": "Basketball subs: each pair, who comes off and who goes on, and one button to make them all"
+      },
+      "scoring": {
+        "stamp": "Basket",
+        "title": { "before": "One, two or ", "italic": "three", "after": "." },
+        "body": "Tap +1, +2 or +3 and pick who scored, or count the points without a name. The other side's are a tap too.",
+        "alt": "Basketball's Who scored? sheet: the kids on court to pick from"
+      },
+      "break": {
+        "stamp": "Half time",
+        "title": { "before": "The second half, ", "italic": "lined up", "after": "." },
+        "body": "At the break Siren suggests the next five and the bench, and checks them before you start.",
+        "alt": "Basketball half-time break: the second half's lineup"
+      },
+      "fulltime": {
+        "stamp": "Full time",
+        "title": { "before": "The score, ", "italic": "checked", "after": " before it's saved." },
+        "body": "Both sides' score half by half, and every basket with who scored it. Change a scorer, take one off or add one you missed, then finish the game.",
+        "alt": "Basketball full time: the final score, the score each half, and the list of scores to check"
+      },
+      "stats": {
+        "stamp": "After the game",
+        "title": { "before": "The season, kept ", "italic": "even", "after": "." },
+        "body": "Every game adds up: each kid's minutes in the forwards and the guards across the season, and how close everyone is to even, so you can see who's owed time before next week.",
+        "alt": "Basketball stats after the game: how close the team is to even, and each kid's minutes in the forwards and the guards"
+      }
+    }
   },
   "rugby_union": {
     "tileLine": "TriTag to fifteen a side, with named positions numbered as on the jersey.",
@@ -78,10 +273,49 @@
     "metaTitle": "Junior rugby union team app: fair subs, forwards and backs | Siren",
     "metaDescription": "Junior rugby union game-day app: rolling subs, time across forwards and backs, named positions from 1 to 15, and your competition's side size from tag to 15 a side. Free for the 2026 season.",
     "knows": [
-      { "stat": "1–15", "title": "Named positions", "body": "From Under 12, positions are numbered as on the jersey, front row to fullback." },
+      { "stat": "1–15", "title": "Your own positions", "body": "From Under 10, run forwards and backs only, or set your own positions if you want to, numbered as on the jersey from front row to fullback." },
       { "stat": "F · B", "title": "Forwards and backs", "body": "Younger teams share time across forwards and backs, so every kid learns both." },
       { "stat": "5–15", "title": "Your competition's size", "body": "Tag at Under 6 and 7, then 7, 10, 12 and 15 a side, set to what your competition plays." }
-    ]
+    ],
+    "tourHeading": { "before": "From the ", "italic": "kick-off", "after": " to the stats." },
+    "tour": {
+      "live": {
+        "stamp": "First half",
+        "title": { "before": "Forwards and ", "italic": "backs", "after": "." },
+        "body": "The forwards and backs on the field, the bench underneath and the next sub counting down.",
+        "alt": "Rugby union live screen in the first half: forwards and backs on the field, the bench and the next sub"
+      },
+      "pairs": {
+        "stamp": "Sub due",
+        "title": { "before": "Rolling subs, ", "italic": "paired", "after": " for you." },
+        "body": "Siren picks who comes off and who goes on so every kid shares time in the forwards and the backs. Change a pair or make them all.",
+        "alt": "Rugby union subs: each pair, who comes off and who goes on, and one button to make them all"
+      },
+      "scoring": {
+        "stamp": "Try",
+        "title": { "before": "A try, and ", "italic": "who", "after": " scored it." },
+        "body": "Tap + Try and pick the kid. Conversions and the other side's points are a tap each.",
+        "alt": "Rugby union's Who scored? sheet: the kids on the field to pick from"
+      },
+      "break": {
+        "stamp": "Half time",
+        "title": { "before": "The second half, ", "italic": "lined up", "after": "." },
+        "body": "At half time Siren suggests the next lineup across the forwards and backs and checks it before you start.",
+        "alt": "Rugby union half-time break: the second half's lineup"
+      },
+      "fulltime": {
+        "stamp": "Full time",
+        "title": { "before": "The score, ", "italic": "checked", "after": " before it's saved." },
+        "body": "Both sides' score half by half, and every try with who scored it. Change a scorer, take one off or add one you missed, then finish the game.",
+        "alt": "Rugby union full time: the final score, the score each half, and the list of scores to check"
+      },
+      "stats": {
+        "stamp": "After the game",
+        "title": { "before": "The season, kept ", "italic": "even", "after": "." },
+        "body": "Every game adds up: each kid's minutes in the forwards and the backs across the season, and how close everyone is to even, so you can see who's owed time before next week.",
+        "alt": "Rugby union stats after the game: how close the team is to even, and each kid's minutes in the forwards and the backs"
+      }
+    }
   },
   "touch": {
     "tileLine": "Mixed teams kept legal: no more than three boys on, and time evened among the girls and among the boys.",
@@ -95,7 +329,46 @@
       { "stat": "≤ 3", "title": "The boys' cap", "body": "On a mixed team Siren never puts more than three boys on, and keeps a girl and a boy on the field." },
       { "stat": "G · B", "title": "Time evened in each group", "body": "Fair time is shared among the girls and among the boys, so the cap doesn't leave anyone on the bench." },
       { "stat": "5 or 6", "title": "Half field to full field", "body": "5 a side on a half field to Under 10, then 6 a side from Under 11." }
-    ]
+    ],
+    "tourHeading": { "before": "From the first ", "italic": "tap", "after": " to the stats." },
+    "tour": {
+      "live": {
+        "stamp": "First half",
+        "title": { "before": "Six on, and the cap ", "italic": "kept", "after": "." },
+        "body": "The kids on the field, the bench underneath and the next sub counting down, with never more boys on than your competition allows.",
+        "alt": "Touch football live screen in the first half: six on the field, the bench and the next sub"
+      },
+      "pairs": {
+        "stamp": "Sub due",
+        "title": { "before": "Subs that keep it ", "italic": "legal", "after": "." },
+        "body": "Siren pairs who comes off and who goes on, sharing time among the girls and among the boys, so the cap never leaves anyone out.",
+        "alt": "Touch football subs: each pair, who comes off and who goes on, and one button to make them all"
+      },
+      "scoring": {
+        "stamp": "Try",
+        "title": { "before": "A try, and ", "italic": "who", "after": " scored it." },
+        "body": "Tap + Try and pick the kid, or count it without a name. The other side's are a tap too.",
+        "alt": "Touch football's Who scored? sheet: the kids on the field to pick from"
+      },
+      "break": {
+        "stamp": "Half time",
+        "title": { "before": "The second half, ", "italic": "lined up", "after": "." },
+        "body": "At half time Siren suggests the next six, inside the cap, and checks it before you start.",
+        "alt": "Touch football half-time break: the second half's lineup"
+      },
+      "fulltime": {
+        "stamp": "Full time",
+        "title": { "before": "The score, ", "italic": "checked", "after": " before it's saved." },
+        "body": "Both sides' score half by half, and every try with who scored it. Change a scorer, take one off or add one you missed, then finish the game.",
+        "alt": "Touch football full time: the final score, the score each half, and the list of scores to check"
+      },
+      "stats": {
+        "stamp": "After the game",
+        "title": { "before": "The season, kept ", "italic": "even", "after": "." },
+        "body": "Every game adds up: each kid's minutes in each line across the season, and how close everyone is to even, so you can see who's owed time before next week.",
+        "alt": "Touch football stats after the game: how close the team is to even, and each kid's minutes in each line"
+      }
+    }
   },
   "oztag": {
     "tileLine": "Boys capped on the field in mixed teams, and a girl's try counts two when your competition says so.",
@@ -109,7 +382,46 @@
       { "stat": "≤ 4", "title": "The boys' cap", "body": "On a mixed team Siren keeps to your competition's cap: four boys on by default." },
       { "stat": "2 pts", "title": "Girls' tries", "body": "With double points on, a try by a girl counts two, for your team and the other." },
       { "stat": "6 or 8", "title": "6 to 8 a side", "body": "6 a side to Under 8, then 8 a side from Under 9." }
-    ]
+    ],
+    "tourHeading": { "before": "From the ", "italic": "tap", "after": " to the stats." },
+    "tour": {
+      "live": {
+        "stamp": "First half",
+        "title": { "before": "Eight on, and the cap ", "italic": "kept", "after": "." },
+        "body": "The kids on the field, the bench underneath and the next sub counting down, with the boys' cap kept for you.",
+        "alt": "Oztag live screen in the first half: eight on the field, the bench and the next sub"
+      },
+      "pairs": {
+        "stamp": "Sub due",
+        "title": { "before": "Subs that keep it ", "italic": "legal", "after": "." },
+        "body": "Siren pairs who comes off and who goes on, sharing time among the girls and among the boys.",
+        "alt": "Oztag subs: each pair, who comes off and who goes on, and one button to make them all"
+      },
+      "scoring": {
+        "stamp": "Try",
+        "title": { "before": "A try, and ", "italic": "who", "after": " scored it." },
+        "body": "Tap + Try and pick the kid. With double points on, a girl's try counts two.",
+        "alt": "Oztag's Who scored? sheet: the kids on the field to pick from"
+      },
+      "break": {
+        "stamp": "Half time",
+        "title": { "before": "The second half, ", "italic": "lined up", "after": "." },
+        "body": "At half time Siren suggests the next eight, inside the cap, and checks it before you start.",
+        "alt": "Oztag half-time break: the second half's lineup"
+      },
+      "fulltime": {
+        "stamp": "Full time",
+        "title": { "before": "The score, ", "italic": "checked", "after": " before it's saved." },
+        "body": "Both sides' score half by half, and every try with who scored it. Change a scorer, take one off or add one you missed, then finish the game.",
+        "alt": "Oztag full time: the final score, the score each half, and the list of scores to check"
+      },
+      "stats": {
+        "stamp": "After the game",
+        "title": { "before": "The season, kept ", "italic": "even", "after": "." },
+        "body": "Every game adds up: each kid's minutes in each line across the season, and how close everyone is to even, so you can see who's owed time before next week.",
+        "alt": "Oztag stats after the game: how close the team is to even, and each kid's minutes in each line"
+      }
+    }
   },
   "hockey": {
     "tileLine": "Keeper turns from Under 9, halves to Under 12 and quarters from Under 13.",
@@ -123,7 +435,46 @@
       { "stat": "GK", "title": "Keeper turns", "body": "From Under 9 Siren shares the keeper's turns fairly; from Under 13 you can name your keepers." },
       { "stat": "2 or 4", "title": "Halves or quarters", "body": "Halves to Under 12, then four 15-minute quarters from Under 13." },
       { "stat": "6–11", "title": "6 a side to 11 a side", "body": "6 a side with no keeper at Under 7 and 8, up to 11 a side from Under 12." }
-    ]
+    ],
+    "tourHeading": { "before": "From the first ", "italic": "push-back", "after": " to the stats." },
+    "tour": {
+      "live": {
+        "stamp": "First half",
+        "title": { "before": "The keeper and every ", "italic": "line", "after": "." },
+        "body": "The keeper in goal and the kids in their lines on the pitch, the bench underneath and the next sub counting down.",
+        "alt": "Hockey live screen in the first half: the keeper and the lines on the pitch, the bench and the next sub"
+      },
+      "pairs": {
+        "stamp": "Sub due",
+        "title": { "before": "Rolling subs, ", "italic": "paired", "after": " for you." },
+        "body": "Siren picks who comes off and who goes on to even out time in each line. Change a pair or make them all.",
+        "alt": "Hockey subs: each pair, who comes off and who goes on, and one button to make them all"
+      },
+      "scoring": {
+        "stamp": "Goal",
+        "title": { "before": "A goal, and ", "italic": "who", "after": " scored it." },
+        "body": "Tap + Goal and pick the kid, or count it without a name. The other side's goals are one tap.",
+        "alt": "Hockey's Who scored? sheet: the kids on the pitch to pick from"
+      },
+      "break": {
+        "stamp": "Half time",
+        "title": { "before": "The second half, ", "italic": "lined up", "after": "." },
+        "body": "At the break Siren suggests the next lineup, keeper included, and checks it before you start.",
+        "alt": "Hockey half-time break: the second half's lineup"
+      },
+      "fulltime": {
+        "stamp": "Full time",
+        "title": { "before": "The score, ", "italic": "checked", "after": " before it's saved." },
+        "body": "Both sides' score half by half, and every goal with who scored it. Change a scorer, take one off or add one you missed, then finish the game.",
+        "alt": "Hockey full time: the final score, the score each half, and the list of scores to check"
+      },
+      "stats": {
+        "stamp": "After the game",
+        "title": { "before": "The season, kept ", "italic": "even", "after": "." },
+        "body": "Every game adds up: each kid's minutes in the strikers, midfield and defenders across the season, and how close everyone is to even, so you can see who's owed time before next week.",
+        "alt": "Hockey stats after the game: how close the team is to even, and each kid's minutes in the strikers, midfield and defenders"
+      }
+    }
   },
   "futsal": {
     "tileLine": "Rolling subs on a court, keeper turns shared fairly, and named keepers once kids specialise.",
@@ -137,6 +488,45 @@
       { "stat": "GK", "title": "Keeper turns", "body": "To Under 11 Siren shares turns in goal fairly; from Under 12 you can name your keepers." },
       { "stat": "5", "title": "5 a side", "body": "Five on court with a keeper at every age, and the bench rolling on and off all game." },
       { "stat": "2 × 20", "title": "Halves", "body": "15-minute halves to Under 9, then 20-minute halves, with scores from Under 10." }
-    ]
+    ],
+    "tourHeading": { "before": "From the ", "italic": "kick-off", "after": " to the stats." },
+    "tour": {
+      "live": {
+        "stamp": "First half",
+        "title": { "before": "Five on the ", "italic": "court", "after": "." },
+        "body": "The keeper and four on court, the bench underneath and the next sub counting down.",
+        "alt": "Futsal live screen in the first half: the keeper and four on court, the bench and the next sub"
+      },
+      "pairs": {
+        "stamp": "Sub due",
+        "title": { "before": "Fast subs, ", "italic": "paired", "after": " for you." },
+        "body": "Siren picks who comes off and who goes on so the bench keeps rolling. Change a pair or make them all.",
+        "alt": "Futsal subs: each pair, who comes off and who goes on, and one button to make them all"
+      },
+      "scoring": {
+        "stamp": "Goal",
+        "title": { "before": "A goal, and ", "italic": "who", "after": " scored it." },
+        "body": "Tap + Goal and pick the kid, or count it without a name. The other side's goals are one tap.",
+        "alt": "Futsal's Who scored? sheet: the kids on court to pick from"
+      },
+      "break": {
+        "stamp": "Half time",
+        "title": { "before": "The second half, ", "italic": "lined up", "after": "." },
+        "body": "At half time Siren suggests the next five, keeper included, and checks them before you start.",
+        "alt": "Futsal half-time break: the second half's lineup"
+      },
+      "fulltime": {
+        "stamp": "Full time",
+        "title": { "before": "The score, ", "italic": "checked", "after": " before it's saved." },
+        "body": "Both sides' score half by half, and every goal with who scored it. Change a scorer, take one off or add one you missed, then finish the game.",
+        "alt": "Futsal full time: the final score, the score each half, and the list of scores to check"
+      },
+      "stats": {
+        "stamp": "After the game",
+        "title": { "before": "The season, kept ", "italic": "even", "after": "." },
+        "body": "Every game adds up: each kid's minutes in each line across the season, and how close everyone is to even, so you can see who's owed time before next week.",
+        "alt": "Futsal stats after the game: how close the team is to even, and each kid's minutes in each line"
+      }
+    }
   }
 }

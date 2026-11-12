@@ -28,12 +28,13 @@ Walk through:
 3. Start the game.
 4. Score 4 goals + 2 behinds, attributing accurately. The 4th
    goal is from your second-string ruck who never scores.
-   Verify the scoring chip on their tile updates.
+   Verify the tally after their name updates.
 5. Score 1 opp goal + 1 opp behind.
 6. At Q-break, EDIT the score breakdown — you realise you
-   credited Goal 2 to the wrong kid. Use the Fix-scores panel
-   to delete the wrong attribution and re-add it under the
-   correct kid. Verify the kid's per-game goal chip updates.
+   credited Goal 2 to the wrong kid. Use the score's fixes
+   (tap the score) to take off the wrong attribution and re-add it
+   under the correct kid. Verify the tally after each kid's name
+   updates.
 7. Reach Q2 with a corrected scoreline.
 
 Report through a U14 coach's eye:

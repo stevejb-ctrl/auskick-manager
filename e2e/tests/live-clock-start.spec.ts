@@ -29,6 +29,7 @@ import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { ALL_ZONES, zoneCapsFor } from "../../src/lib/fairness";
 import { aflPositionModel, getAgeGroupConfig } from "../../src/lib/sports";
 import type { Lineup } from "../../src/lib/types";
+import { readyAfl } from "../helpers/kickoff";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -96,8 +97,10 @@ test("Q1 kickoff: Start Q1 → modal → Start clock commits in one tap each", a
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // LineupPicker renders pre-kickoff with the sticky "Ready for Q1"
-  // CTA. Tap opens the StartQuarterModal in-place.
+  // Live v3: the picker's Ready sets the lineup (lineup_set) and opens
+  // the live screen before the first siren; its bar holds Start Q1.
+  // Tap opens the StartQuarterModal.
+  await readyAfl(page);
   await expect(
     page.getByRole("button", { name: /^start q1$/i }),
   ).toBeVisible({ timeout: 10_000 });
@@ -108,8 +111,8 @@ test("Q1 kickoff: Start Q1 → modal → Start clock commits in one tap each", a
     page.getByRole("heading", { name: /^start q1$/i }),
   ).toBeVisible({ timeout: 3_000 });
 
-  // Tap "Start Q1" in the modal. Single tap = server lineup_set +
-  // quarter_start + local clock start.
+  // Tap "Start Q1 now" in the modal. Single tap = quarter_start + local
+  // clock start.
   await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
 
   // Modal disappears, clock pill flips to running ("Clock — Q1, running").
@@ -145,17 +148,13 @@ test("Q1 kickoff: Start Q1 → modal → Start clock commits in one tap each", a
 test("AFL: 'Back to lineup' on the kickoff modal cancels without writing quarter_start", async ({
   page,
 }) => {
-  // Regression for "GM accidentally taps Ready before the lineup
-  // is ready" — the modal MUST offer an escape that cancels
-  // cleanly. Pre-2026-05-13 the modal lived in LiveGame and
-  // dismissing returned the user to a page-level "Start Q1"
-  // button. Post-rework the modal lives INSIDE LineupPicker, so
-  // dismissing returns to the same LineupPicker view with no
-  // server writes — both "Ready for Q1" and "Start Q1" are
-  // committed atomically by the modal's primary CTA. This test
-  // verifies the cancel path: open the modal, tap Back to lineup,
-  // assert NO quarter_start was written, and the LineupPicker
-  // CTA is still tappable for the real kickoff.
+  // Regression for "GM taps Start before the siren" — the modal MUST
+  // offer an escape that cancels cleanly. Live v3: the picker's Ready
+  // sets the lineup and the live screen's bar holds Start Q1, as every
+  // sport's does. Back to lineup closes the modal with no quarter_start
+  // written, the lineup on screen and Start Q1 still tappable for the
+  // real kickoff. (⋯ → Edit lineup reopens the picker itself:
+  // live-menu.spec.)
   const admin = createAdminClient();
   const { data: superAdmin } = await admin.auth.admin.listUsers();
   const ownerId = superAdmin.users.find(
@@ -181,7 +180,8 @@ test("AFL: 'Back to lineup' on the kickoff modal cancels without writing quarter
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // Open the modal via LineupPicker's "Ready for Q1" CTA.
+  // Ready on the picker, then the modal via the bar's Start Q1.
+  await readyAfl(page);
   const readyButton = page.getByRole("button", { name: /^start q1$/i });
   await expect(readyButton).toBeVisible({ timeout: 10_000 });
   await readyButton.click();
@@ -204,9 +204,8 @@ test("AFL: 'Back to lineup' on the kickoff modal cancels without writing quarter
     .eq("type", "quarter_start");
   expect(pre ?? []).toHaveLength(0);
 
-  // LineupPicker's "Ready for Q1" CTA is still tappable — second
-  // tap re-opens the modal, and the modal's "Start Q1" commits
-  // for real.
+  // The bar's Start Q1 is still tappable — second tap re-opens the
+  // modal, and the modal's "Start Q1 now" commits for real.
   await expect(readyButton).toBeVisible({ timeout: 2_000 });
   await readyButton.click();
   await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
@@ -325,7 +324,9 @@ test("Start Q2 from QuarterBreak advances to StartQuarterModal on a single tap",
 // Regression (UX plan H1 / 0.8): on a coach's first visit the
 // "Welcome to Game Manager" walkthrough auto-opened the moment LiveGame
 // mounted — i.e. right after Start Q1, over a running clock. The tour is
-// now offered on the lineup screen before kickoff and never auto-opens.
+// offered before kickoff and never auto-opens. Live v3: the offer sits
+// over the live screen's Start Q1, once the picker's Ready has set the
+// lineup.
 test("first-time coach is offered the walkthrough before kickoff, never over the clock", async ({
   page,
 }) => {
@@ -351,10 +352,12 @@ test("first-time coach is offered the walkthrough before kickoff, never over the
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // Offered inline on the lineup screen, not as a modal.
+  await readyAfl(page);
+  // Offered inline before kickoff, not as a modal.
   await expect(page.getByText(/first game day with siren\?/i)).toBeVisible({
     timeout: 10_000,
   });
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 
   await page.getByRole("button", { name: /^start q1$/i }).click();
   await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
@@ -393,6 +396,7 @@ test("the clock menu pauses and ends the quarter early", async ({ page }) => {
   });
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await readyAfl(page);
   await page.getByRole("button", { name: /^start q1$/i }).click();
   await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
 
@@ -448,6 +452,7 @@ test("legacy U16 team kicks off with its full lineup, not U8's max of 9", async 
   });
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await readyAfl(page);
   await page.getByRole("button", { name: /^start q1$/i }).click();
   await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   await expect(

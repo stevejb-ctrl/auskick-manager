@@ -1,4 +1,5 @@
 import type { CSSProperties, MouseEventHandler, ReactNode } from "react";
+import { ScrollToHashTarget } from "@/components/ui/ScrollToHashTarget";
 
 interface SFCardProps {
   children: ReactNode;
@@ -6,11 +7,17 @@ interface SFCardProps {
   pad?: number;
   /** Hover-lift treatment for clickable cards. Adds shadow-pop on hover. */
   interactive?: boolean;
+  /**
+   * Lift the card off the page with a soft shadow. Off by default:
+   * the v3 look is flat (a surface and a hairline, no shadow), so keep
+   * this for the rare card that floats over other content.
+   */
+  raised?: boolean;
   /** Click handler — if set, the card behaves like a button (cursor + interactive lift). */
   onClick?: MouseEventHandler<HTMLDivElement>;
   className?: string;
   style?: CSSProperties;
-  /** DOM id — lets a page link straight to a card ("#summary"). */
+  /** DOM id — lets a page link straight to a card ("#summary"); the card scrolls to itself when the hash names it. */
   id?: string;
 }
 
@@ -26,23 +33,31 @@ export function SFCard({
   children,
   pad = 18,
   interactive = false,
+  raised = false,
   onClick,
   className = "",
   style,
   id,
 }: SFCardProps) {
+  // Flat: a clickable card answers a hover with a deeper hairline and
+  // a faint chalk fill, not a lift.
   const interactiveClasses = interactive || onClick
-    ? "cursor-pointer transition-all duration-base ease-out-quart hover:-translate-y-px hover:shadow-pop"
+    ? "cursor-pointer transition-colors duration-base ease-out-quart hover:border-ink-mute/40 hover:bg-surface-alt/40"
     : "";
 
   return (
     <div
       id={id}
       onClick={onClick}
-      className={`rounded-lg border border-hairline bg-surface shadow-card ${interactiveClasses} ${className}`}
-      style={{ padding: pad, ...style }}
+      className={`rounded-lg border border-hairline bg-surface ${raised ? "shadow-pop" : ""} ${interactiveClasses} ${className}`}
+      // pad={0} leaves padding to the className: an inline 0 overrode the
+      // px-4 / py-3 that the Games rows asked for, so their text sat on
+      // the card's edge (design review, Oct 2026).
+      style={pad === 0 ? style : { padding: pad, ...style }}
     >
       {children}
+      {/* A link to the card by id lands on it even when the page streamed in late. */}
+      {id && <ScrollToHashTarget id={id} />}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { PolicyCard } from "@/components/playbook/PolicyCard";
 import { StrategyPicker } from "@/components/playbook/StrategyPicker";
@@ -88,6 +88,13 @@ interface HowWePlayCardProps {
   inWizard?: boolean;
   /** The team keeps score: a "no scores are kept" law isn't theirs. */
   trackScoring?: boolean;
+  /**
+   * Touch and Oztag: the Mixed team card (MixedRuleSettings), under How
+   * kids rotate. A mixed team's boys/girls cap is how the team plays, and
+   * coaches looked for it here (Stagehand round 11, #6); this is its one
+   * place, in Team settings and the wizard's How we play step.
+   */
+  mixed?: ReactNode;
 }
 
 /**
@@ -109,6 +116,7 @@ export function HowWePlayCard({
   isAdmin,
   inWizard = false,
   trackScoring = false,
+  mixed,
 }: HowWePlayCardProps) {
   const router = useRouter();
   const [row, setRow] = useState<HowWePlayRow>(
@@ -193,6 +201,8 @@ export function HowWePlayCard({
           onChange={changeStrategy}
         />
       </div>
+
+      {mixed}
 
       {/* Coach-named positions: AFL open ages AND rugby's named-position
           ages (Steve 2026-10-16 — choosing "Named positions" on a new

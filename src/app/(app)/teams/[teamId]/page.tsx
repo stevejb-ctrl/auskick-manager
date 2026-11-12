@@ -12,7 +12,8 @@ import {
   StatusPill,
 } from "@/components/sf";
 import { getSeasonEvents } from "@/lib/season";
-import { outcomeOf, scoreFromEvents, scoresKept, seasonRecord, type GameScore } from "@/lib/results";
+import { finalScoresByGame, outcomeOf, seasonRecord, type GameScore } from "@/lib/results";
+import { finalScoreOf } from "@/lib/games/playedScore";
 import type { Game, GameEvent, Sport } from "@/lib/types";
 import { getSportConfig, teamSport, type SurfaceArt } from "@/lib/sports";
 import { SurfaceMotif } from "@/components/brand/SurfaceMotif";
@@ -21,10 +22,12 @@ import { teamSportById } from "@/lib/sports/teamSportById";
 import { notFound } from "next/navigation";
 import { emptyHeroCopy } from "@/lib/teamHome/emptyHero";
 import { NotPlayedGames } from "@/components/games/NotPlayedGames";
-import { notPlayedCutoffIso, playedInSiren } from "@/lib/games/notPlayed";
+import { notPlayedCutoffIso } from "@/lib/games/notPlayed";
 
 interface TeamDashboardProps {
   params: { teamId: string };
+  /** `coachOnly`: a parent was sent here from the squad or settings. */
+  searchParams?: { coachOnly?: string };
 }
 
 /**
@@ -39,7 +42,7 @@ interface TeamDashboardProps {
  *   4. Last result + season snapshot (record across final games)
  *   5. More upcoming
  */
-export default async function TeamDashboardPage({ params }: TeamDashboardProps) {
+export default async function TeamDashboardPage({ params, searchParams }: TeamDashboardProps) {
   const supabase = createClient();
 
   const {
@@ -93,13 +96,13 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
 
     supabase
       .from("teams")
-      .select("sport, track_scoring")
+      .select("sport, track_scoring, name")
       .eq("id", params.teamId)
       .single(),
 
     supabase
       .from("games")
-      .select("id, opponent, scheduled_at, round_number, playbook_snapshot")
+      .select("id, opponent, scheduled_at, round_number, playbook_snapshot, played_score")
       .eq("team_id", params.teamId)
       .eq("status", "completed")
       .order("scheduled_at", { ascending: false }),
@@ -114,26 +117,18 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
   const trackScoring = teamRow?.track_scoring === true;
   const finals = (finalGames ?? []) as Pick<
     Game,
-    "id" | "opponent" | "scheduled_at" | "round_number" | "playbook_snapshot"
+    "id" | "opponent" | "scheduled_at" | "round_number" | "playbook_snapshot" | "played_score"
   >[];
   // Scores come from each final game's events (one cached read for the
   // whole season — the same cache the lineup suggester uses), for the
   // games that kept score: each game's own record, not the switch today
-  // (UX round 3, 24 Oct 2026: an unscored game read as a draw).
-  const scoresById = new Map<string, GameScore>();
-  if (finals.length > 0) {
-    const byGame = new Map<string, GameEvent[]>();
-    for (const ev of await getSeasonEvents(params.teamId)) {
-      const list = byGame.get(ev.game_id) ?? [];
-      list.push(ev);
-      byGame.set(ev.game_id, list);
-    }
-    for (const g of finals) {
-      // A game marked played (not run in Siren) has no score: not a 0–0.
-      const events = byGame.get(g.id) ?? [];
-      if (playedInSiren(events) && scoresKept(sport, g, trackScoring, events)) scoresById.set(g.id, scoreFromEvents(sport, events));
-    }
-  }
+  // (UX round 3, 24 Oct 2026: an unscored game read as a draw). A game
+  // marked played counts with the score it was given; without one it has
+  // no result, not a 0–0 (lib/games/playedScore).
+  const scoresById: Map<string, GameScore> =
+    finals.length > 0
+      ? finalScoresByGame(sport, trackScoring, finals, await getSeasonEvents(params.teamId), finalScoreOf)
+      : new Map();
   const lastFinal = finals[0] ?? null;
   const { data: notPlayedRaw } = await supabase
     .from("games")
@@ -185,6 +180,12 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
   return (
     <div className="space-y-4">
       {showSetupBanner && <FinishSetupBanner teamId={params.teamId} />}
+      {membership?.role === "parent" && searchParams?.coachOnly && (
+        <p data-testid="coach-only-note" role="status" className="rounded-md border border-hairline bg-surface px-4 py-3 text-sm text-ink-dim">
+          {searchParams.coachOnly === "squad" ? "The squad is" : "Team settings are"} the coach&apos;s. You joined as a
+          parent: you can follow games, see stats, and mark your child In or Out on each game.
+        </p>
+      )}
 
       {liveGame ? (
         <LiveHero teamId={params.teamId} game={liveGame} canRun={canRun} />
@@ -206,7 +207,13 @@ export default async function TeamDashboardPage({ params }: TeamDashboardProps) 
         />
       )}
 
-      <NotPlayedGames teamId={params.teamId} games={notPlayedRaw ?? []} canEdit={isAdmin} />
+      <NotPlayedGames
+        teamId={params.teamId}
+        sport={sport}
+        teamName={(teamRow as { name?: string } | null)?.name ?? "Us"}
+        games={notPlayedRaw ?? []}
+        canEdit={isAdmin}
+      />
 
       {todos.length > 0 && <TodoList todos={todos} />}
 
@@ -271,7 +278,7 @@ function LiveHero({ teamId, game, canRun }: { teamId: string; game: Game; canRun
           </span>
         </div>
         <div className="mt-4 flex items-baseline gap-3">
-          <span className="text-[11px] font-semibold uppercase tracking-micro text-warm/60">
+          <span className="text-micro font-semibold uppercase tracking-micro text-warm/60">
             vs
           </span>
           <span className="text-2xl font-bold tracking-tightest text-warm sm:text-3xl">
@@ -351,7 +358,7 @@ function LastResult({
 }) {
   const outcome = score ? outcomeOf(score) : null;
   const tone =
-    outcome === "W" ? "bg-ok/10 text-ok" : outcome === "L" ? "bg-alarm-soft text-alarm" : "bg-surface-alt text-ink";
+    outcome === "W" ? "bg-ok/10 text-ok" : outcome === "L" ? "bg-alarm-soft text-alarm-ink" : "bg-surface-alt text-ink";
   return (
     <section aria-label="Last result">
       <Link href={`/teams/${teamId}/games/${game.id}#summary`} className="block">
@@ -446,18 +453,20 @@ function NextUpHero({
         />
 
         <div className="relative">
-          <Eyebrow className="!text-warm/70">
-            Next up{game.round_number != null && ` · Round ${game.round_number}`}
-          </Eyebrow>
+          {/* The numeral says the round; the eyebrow said it again. */}
+          <Eyebrow className="!text-warm/70">Next up</Eyebrow>
           <div className="mt-2.5 flex items-start gap-4">
             {game.round_number != null && (
-              <div className="text-warm">
+              // Large text: the name needs the width more than the numeral.
+              <div className="text-warm bigtext:hidden">
                 <RoundNumeral n={game.round_number} size={56} />
               </div>
             )}
             <div className="min-w-0 flex-1">
               <div className="text-xs font-medium text-warm/70">vs</div>
-              <div className="mt-0.5 text-2xl font-bold leading-tight tracking-tightest sm:text-3xl">
+              {/* Long names wrap (hyphenated if a word won't fit) rather
+                  than clip: at 200% text "Sandringham" was cut to "Sandring". */}
+              <div className="mt-0.5 hyphens-auto break-words text-2xl font-bold leading-tight tracking-tightest sm:text-3xl bigtext:text-xl">
                 {game.opponent}
               </div>
               <div className="mt-2 flex flex-col gap-1 text-sm text-warm/85">
@@ -478,13 +487,12 @@ function NextUpHero({
 
       <div className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
         <div className="text-sm text-ink-dim">
+          {/* "16 of 16 available", in words (design review, Oct 2026:
+              "16 / 16 AVAIL" was a code). */}
           <span className="font-mono text-base font-bold tabular-nums text-ink">
             {available}
           </span>
-          <span className="text-ink-mute"> / {playerCount}</span>
-          <span className="ml-1.5 font-mono text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
-            avail
-          </span>
+          <span> of {playerCount} available</span>
         </div>
         {/* KickoffPulseWrapper renders a slow alarm-orange halo around
             the button when current time is within ±30min of kickoff —
@@ -590,7 +598,7 @@ function UpcomingRow({
         )}
 
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5 truncate text-base font-bold text-ink sm:text-[17px]">
+          <div className="flex items-center gap-1.5 truncate text-base font-bold text-ink sm:text-[1.0625rem]">
             <span className="text-ink-mute font-medium">vs</span>
             <span className="truncate">{game.opponent}</span>
           </div>
@@ -605,8 +613,8 @@ function UpcomingRow({
             {available}
             <span className="text-ink-mute">/{playerCount}</span>
           </div>
-          <div className="font-mono text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
-            avail
+          <div className="font-mono text-nano font-semibold uppercase tracking-micro text-ink-mute">
+            available
           </div>
         </div>
 

@@ -24,7 +24,7 @@ export function useScoreGhost(total: number) {
 
 /** The ghost's markup: anchored over the button row's leading edge. */
 export const SCORE_GHOST =
-  "pointer-events-none absolute -top-5 font-mono text-[13px] font-bold text-brand-600 motion-safe:animate-ghost-rise motion-reduce:animate-ghost-fade";
+  "pointer-events-none absolute -top-5 font-mono text-[0.8125rem] font-bold text-brand-600 motion-safe:animate-ghost-rise motion-reduce:animate-ghost-fade";
 
 interface RollingNumberProps {
   value: number | string;

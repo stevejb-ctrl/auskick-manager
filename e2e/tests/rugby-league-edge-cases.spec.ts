@@ -164,14 +164,15 @@ test("league half time: a kid brought back from loan is planned into H2", async 
   await expect(page.getByTestId("break-broken-rule")).toHaveCount(0);
 });
 
-test("league U9 lineup with one kid in: Start H1 says the vests need two", async ({ page }) => {
+test("league U9 lineup with one kid in: Ready says the vests need two", async ({ page }) => {
   test.setTimeout(120_000);
   const admin = createAdminClient();
   const { team, game } = await leagueGame(admin, { name: "RL-ONE-KID", ageGroup: "U9", count: 10, available: 1 });
   await skipWalkthroughs(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  const start = page.getByRole("button", { name: /^start q1$/i });
+  // The picker's Ready sets the lineup (live v3; Start Q1 is on the live bar).
+  const start = page.getByRole("button", { name: /^ready$/i });
   await expect(start).toBeVisible({ timeout: 15_000 });
   await expect(start).toBeDisabled();
   await expect(page.getByText("Need 2 on the field for the FR and DH vests")).toBeVisible();
@@ -211,7 +212,9 @@ test("league: the opponent can't convert a try they haven't scored", async ({ pa
   await page.getByRole("button", { name: "Record opponent try" }).click();
   await page.getByRole("button", { name: "Record opponent conversion" }).click();
   await expect.poll(conversions, { timeout: 15_000 }).toBe(1);
-  // One try, one conversion: a second kick has nothing to convert.
+  // One try, one conversion: a second kick has nothing to convert. A
+  // second apart: the chip drops a repeat within 0.9 s (lib/live/repeatTap).
+  await page.waitForTimeout(1_100);
   await page.getByRole("button", { name: "Record opponent conversion" }).click();
   await expect(page.getByText("They have no try to convert. Record their try first.")).toBeVisible();
   await page.waitForTimeout(1_000);

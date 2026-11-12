@@ -1,4 +1,4 @@
-import { HELP_PAGES } from "@/lib/help/pages";
+import { helpPageByPath } from "@/lib/help/pages";
 import { INDEXABLE_ROUTES } from "@/lib/public-routes";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -11,7 +11,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
  * server and the browser render the same text. Null off the help pages.
  */
 export function helpPageUpdated(pathname: string): { iso: string; label: string } | null {
-  if (!HELP_PAGES.some((p) => p.href === pathname)) return null;
+  if (!helpPageByPath(pathname)) return null;
   const iso = INDEXABLE_ROUTES.find((r) => r.path === pathname)?.lastModified;
   if (!iso) return null;
   const [year, month, day] = iso.split("-").map(Number);

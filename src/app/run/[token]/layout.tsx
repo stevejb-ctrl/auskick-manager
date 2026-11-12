@@ -1,12 +1,19 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 import { unstable_noStore as noStore } from "next/cache";
+import { notFound } from "next/navigation";
+import { runLinkTitle } from "@/lib/share/runLinkTitle";
 import { DeviceFrame } from "@/components/DeviceFrame";
-import { SirenWordmark } from "@/components/marketing/SirenWordmark";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SquadNamesProvider } from "@/components/live/SquadNames";
+import { ScoringForProvider } from "@/components/live/ScoringFor";
 import { loadSquadNames } from "@/lib/live/loadSquadNames";
 import type { NamedPlayer } from "@/lib/names";
 import { GameGoneWatcher } from "@/components/live/GameGoneWatcher";
+import { GameDayScreen } from "@/components/live/GameDayLoading";
+import { RunWhoseProvider, type RunWhose } from "@/components/live/RunWhose";
+import { getSportConfig, teamSport } from "@/lib/sports";
+import { teamAgeGroup } from "@/lib/sports/teamAgeGroup";
+import { DemoFrame } from "@/components/marketing/DemoSignupFooter";
 
 // Back-target resolution. /run/{token} is reached by two distinct
 // audiences:
@@ -25,22 +32,56 @@ import { GameGoneWatcher } from "@/components/live/GameGoneWatcher";
 //
 // The same read finds the squad, so the runner's tiles and sheets tell
 // two kids with the same short name apart (SquadNamesProvider).
+// Whose game this is goes to the live top bar (RunWhose).
+type Whose = RunWhose;
+
 async function resolveBackTarget(
   token: string,
-): Promise<{ backHref: string; players: NamedPlayer[]; gameId: string | null }> {
+): Promise<{ backHref: string; players: NamedPlayer[]; gameId: string | null; whose: Whose | null; isDemo: boolean }> {
   const admin = createAdminClient();
   const { data: row } = await admin
     .from("games")
-    .select("id, team_id, team:teams!inner(is_demo)")
+    .select("id, team_id, opponent, status, team:teams!inner(is_demo, name, sport, age_group, period_count)")
     .eq("share_token", token)
     .maybeSingle();
 
   // Defensive default: invalid tokens, lookup failures, or any
   // non-demo team fall through to the homepage. Only confirmed
   // demo games get the /demo back-target.
-  const teamRow = row?.team as { is_demo: boolean | null } | undefined;
+  const teamRow = row?.team as
+    | { is_demo: boolean | null; name: string | null; sport: string; age_group: string | null; period_count: number | null }
+    | undefined;
   const players = row ? await loadSquadNames(admin, row.team_id as string, row.id as string) : [];
-  return { backHref: teamRow?.is_demo ? "/demo" : "/", players, gameId: (row?.id as string | undefined) ?? null };
+  const whose: Whose | null = teamRow
+    ? (() => {
+        const sport = teamSport(teamRow.sport);
+        let age: string | null = null;
+        try {
+          age = teamAgeGroup(sport, teamRow.age_group, teamRow.period_count).label;
+        } catch {}
+        return {
+          team: teamRow.name ?? "your team",
+          opponent: (row?.opponent as string | null) ?? null,
+          what: [age, getSportConfig(sport).shortName].filter(Boolean).join(" · "),
+          finished: row?.status === "completed",
+        };
+      })()
+    : null;
+  const isDemo = teamRow?.is_demo === true;
+  return { backHref: isDemo ? "/demo" : "/", players, gameId: (row?.id as string | undefined) ?? null, whose, isDemo };
+}
+
+// The tab, and the link preview in the group chat, name the game: the
+// site's title is the host's brand, so a basketball or hockey link read
+// "Siren Footy" (Stagehand round 7, 28 Oct 2026).
+export async function generateMetadata({ params }: { params: { token: string } }): Promise<Metadata> {
+  const { data } = await createAdminClient()
+    .from("games")
+    .select("opponent, team:teams!inner(name)")
+    .eq("share_token", params.token)
+    .maybeSingle();
+  const team = (data?.team as { name: string | null } | undefined)?.name;
+  return data && team ? { title: runLinkTitle(team, data.opponent as string | null) } : {};
 }
 
 export default async function RunLayout({
@@ -51,55 +92,36 @@ export default async function RunLayout({
   params: { token: string };
 }) {
   noStore();
-  const { backHref, players, gameId } = await resolveBackTarget(params.token);
+  const { backHref, players, gameId, whose, isDemo } = await resolveBackTarget(params.token);
+  // A link to no game (replaced, deleted, mistyped) is a 404 here, before
+  // the screen's loading boundary starts streaming: once it has, the
+  // page's own notFound() can only render the not-found page under a 200.
+  if (!gameId) notFound();
 
+  // No header of its own (design review, Oct 2026): every screen on the
+  // link opens with LiveTopBar, which says whose game it is (RunWhose)
+  // and owns the one way out, EXIT. The old banner above it took 16% of
+  // the phone, and its "‹ Siren" went to the homepage mid-game. The EXIT
+  // page (/left) links home, or back to the demo picker for demo games.
+  const game = (
+    <main>
+      <RunWhoseProvider whose={whose}>
+        <SquadNamesProvider players={players}>
+          <ScoringForProvider>
+            {/* Marks the screen, so its loader stays out of a refresh (GameDayLoading). */}
+            <GameDayScreen>{children}</GameDayScreen>
+          </ScoringForProvider>
+        </SquadNamesProvider>
+      </RunWhoseProvider>
+      {/* The coach deleting the game (or replacing the link) shows here. */}
+      {gameId && <GameGoneWatcher auth={{ kind: "token", token: params.token }} gameId={gameId} exitHref={backHref} />}
+    </main>
+  );
+  // A demo game has a sign-up footer under it (Stagehand round 11); a
+  // real team's game-day link never does.
   return (
     <div>
-      {/* Non-sticky — scrolls with the page so it doesn't stack
-          with LiveTopBar (also sticky-top) once the runner reaches
-          the live game. The chevron+wordmark is still visible on
-          first paint of every route as a back-to-home affordance;
-          once the user scrolls / the live-game UI takes over,
-          LiveTopBar's "✕ Exit" carries the navigation duty.
-          Steve 2026-05-13 audit fix.
-
-          Link target is dynamic — `/demo` for demo games (so the
-          back arrow returns to the sport picker), `/` for real
-          run-tokens. See resolveBackTarget above. */}
-      <header className="border-b border-hairline bg-surface">
-        <div className="flex items-center px-3 py-2">
-          <Link
-            href={backHref}
-            className="flex items-center gap-1"
-            aria-label={backHref === "/demo" ? "Back to demo picker" : "Siren home"}
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              aria-hidden="true"
-              className="shrink-0 text-ink-dim"
-            >
-              <path
-                d="M15 18l-6-6 6-6"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <SirenWordmark size="sm" />
-          </Link>
-        </div>
-      </header>
-      <DeviceFrame>
-        <main>
-          <SquadNamesProvider players={players}>{children}</SquadNamesProvider>
-          {/* The coach deleting the game (or replacing the link) shows here. */}
-          {gameId && <GameGoneWatcher auth={{ kind: "token", token: params.token }} gameId={gameId} exitHref={backHref} />}
-        </main>
-      </DeviceFrame>
+      <DeviceFrame>{isDemo ? <DemoFrame>{game}</DemoFrame> : game}</DeviceFrame>
     </div>
   );
 }

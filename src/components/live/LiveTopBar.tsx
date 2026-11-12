@@ -6,6 +6,8 @@ import { useStickyInset } from "@/components/ui/useStickyInset";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import { FeedbackHeaderButton } from "@/components/feedback/FeedbackHeaderButton";
 import type { Game } from "@/lib/types";
+import { runWhoseLine, useRunWhose } from "@/components/live/RunWhose";
+import { periodLengthText } from "@/lib/games/periodFormatText";
 
 interface LiveTopBarProps {
   /** Where the Exit link takes the user. */
@@ -34,8 +36,8 @@ interface LiveTopBarProps {
   onHelp?: () => void;
   /**
    * A strip under the bar, inside its sticky container, so it stays on
-   * screen without covering the field or the score bar: the shared
-   * SubDueBanner while a sub is due, in every sport.
+   * screen without covering the field or the score bar: a screen's
+   * own notice.
    */
   banner?: ReactNode;
   /**
@@ -47,6 +49,21 @@ interface LiveTopBarProps {
   subtitle?: string;
   /** The feedback (chat) icon. Default on; the period break hides it. */
   feedback?: boolean;
+  /**
+   * Live v3 (AFL's shell): "‹ Exit", "vs X" over `subline`, and ⋯ on the
+   * right, which opens the game menu. The "?" and feedback icons move
+   * into that menu, so they don't show here.
+   */
+  onMenu?: () => void;
+  /** Live v3: the quiet line under "vs X" ("Round 6 · AFL U10"). */
+  subline?: string;
+  /**
+   * Live v3: the game's periods, at the length it runs (the game's, else
+   * the team's, else the age group's: getEffectiveQuarterSeconds), said
+   * at the end of the quiet line: "Round 6 · AFL U10 · 4 × 10 min".
+   * Kept whole when the line truncates (Steve, 12 Nov 2026).
+   */
+  periods?: { count: number; seconds: number };
 }
 
 /**
@@ -69,6 +86,9 @@ export function LiveTopBar({
   title,
   subtitle,
   feedback = true,
+  onMenu,
+  subline,
+  periods,
 }: LiveTopBarProps) {
   // Steve 2026-05-14: switched Exit from `<Link>` to an imperative
   // button + router.push because `<Link>` was silently no-op-ing on
@@ -85,6 +105,8 @@ export function LiveTopBar({
   // close" mid-game).
   const router = useRouter();
   const [exiting, startExitTransition] = useTransition();
+  // On the game-day link: whose game it is, under the opponent.
+  const whose = useRunWhose();
   // Focus scrolls clear of the bar (the page's scroll padding).
   const barRef = useRef<HTMLDivElement>(null);
   useStickyInset(barRef, "top");
@@ -93,50 +115,131 @@ export function LiveTopBar({
       router.push(exitHref);
     });
   };
+  if (onMenu) {
+    // Live v3's top bar: on the chalk, no rule under it, inside the shell
+    // (LiveShell), so it isn't pulled out to the page's edges. Sticky so
+    // the bar-finding checks still find it as the top bar.
+    return (
+      <div ref={barRef} className="sticky top-0 z-20 bg-warm pt-[env(safe-area-inset-top)]">
+        <div className="grid min-h-[46px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[6px] px-[8px]">
+          <a
+            href="#live-scores"
+            className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-ink focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-warm"
+          >
+            Skip to scores
+          </a>
+          <button
+            type="button"
+            onClick={handleExit}
+            disabled={exiting}
+            aria-label="Exit live game"
+            className="inline-flex min-h-[44px] min-w-[48px] items-center justify-center gap-[2px] rounded-[12px] px-[8px] font-display text-[0.9375rem] font-extrabold text-ink transition-colors hover:bg-surface-alt active:bg-surface-alt disabled:opacity-60"
+          >
+            {exiting ? "Exiting…" : (
+              <>
+                <span aria-hidden>‹</span> Exit
+              </>
+            )}
+          </button>
+          <div className="min-w-0 text-center">
+            {title ? (
+              <h1 tabIndex={-1} className="truncate font-display stretch-75 text-[1.125rem] font-extrabold leading-tight text-ink outline-none">
+                {title}
+              </h1>
+            ) : (
+              <p className="truncate font-display stretch-75 text-[1.125rem] font-extrabold leading-tight text-ink bigtext:line-clamp-2 bigtext:whitespace-normal bigtext:break-words">
+                vs {game.opponent}
+              </p>
+            )}
+            {(() => {
+              // The quiet line: whose game it is on the game-day link,
+              // else the screen's own; the periods' length after it.
+              const line = whose ? runWhoseLine(whose) : subtitle ?? subline;
+              const length = periods ? periodLengthText(periods.count, periods.seconds) : null;
+              if (!line && !length) return null;
+              return (
+                <p className="flex justify-center text-[0.71875rem] leading-4 text-ink-mute bigtext:hidden">
+                  {line && (
+                    <span data-testid={whose ? "run-whose" : undefined} className="min-w-0 truncate">
+                      {line}
+                    </span>
+                  )}
+                  {length && (
+                    <span data-testid="live-period-length" className="shrink-0 whitespace-nowrap">
+                      {line ? <>&nbsp;·&nbsp;</> : null}
+                      {length}
+                    </span>
+                  )}
+                </p>
+              );
+            })()}
+          </div>
+          <button
+            type="button"
+            onClick={onMenu}
+            aria-label="Game menu"
+            aria-haspopup="dialog"
+            className="inline-flex min-h-[44px] w-[48px] items-center justify-center rounded-[12px] text-[1.375rem] font-bold leading-none tracking-[0.06em] text-ink transition-colors hover:bg-surface-alt active:bg-surface-alt"
+          >
+            <span aria-hidden>⋯</span>
+          </button>
+        </div>
+        {banner}
+      </div>
+    );
+  }
   return (
     // Re-skin (design session 17 Oct 2026): a 48px bar, EXIT and the
     // icon rings in ink-dim (the old #8A948C was 3.0:1), the live title
     // in ink 15/600.
     <div ref={barRef} className="sticky top-0 z-20 -mx-4 border-b border-hairline bg-surface/90 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-surface/[0.85]">
       <div className="mx-auto flex min-h-12 max-w-4xl items-center justify-between gap-3 px-1 sm:px-3">
+        {/* Keyboard: straight to the score bar, first stop on the page.
+            The other team's score chip was 26 Tabs in (round 9). */}
+        <a
+          href="#live-scores"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-ink focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-warm"
+        >
+          Skip to scores
+        </a>
         <button
           type="button"
           onClick={handleExit}
           disabled={exiting}
           aria-label="Exit live game"
-          className="inline-flex min-h-[44px] items-center rounded-md px-3 font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim transition-colors hover:bg-ink/5 hover:text-ink active:bg-ink/10 disabled:opacity-60"
+          className="inline-flex min-h-[44px] items-center rounded-md px-3 font-mono text-micro font-bold uppercase tracking-micro text-ink-dim transition-colors hover:bg-ink/5 hover:text-ink active:bg-ink/10 disabled:opacity-60"
         >
           {exiting ? "Exiting…" : "Exit"}
         </button>
         {title ? (
           <div className="flex min-w-0 flex-1 flex-col items-center justify-center py-1 text-center">
             {/* Focusable by script: the break moves focus here as it opens. */}
-            <h1 tabIndex={-1} className="max-w-full truncate text-[17px] font-bold leading-tight tracking-[-0.01em] text-ink outline-none">
+            <h1 tabIndex={-1} className="max-w-full truncate text-[1.0625rem] font-bold leading-tight tracking-[-0.01em] text-ink outline-none">
               {title}
             </h1>
             {subtitle && <p className="max-w-full truncate text-xs leading-4 text-ink-dim">{subtitle}</p>}
           </div>
         ) : (
-        <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-center gap-x-2 text-xs text-ink-dim">
-          {isLive ? (
-            <span className="truncate text-[15px] font-semibold tracking-[-0.01em] text-ink">
-              vs {game.opponent}
-            </span>
-          ) : (
-            <>
-              {game.round_number != null && (
-                <span className="font-mono font-bold uppercase tracking-micro text-ink-dim">
-                  R{game.round_number}
-                </span>
-              )}
-              <span className="truncate">
-                <FormattedDateTime iso={game.scheduled_at} mode="long" />
-              </span>
-              {game.location && (
-                <span className="truncate">· {game.location}</span>
-              )}
-            </>
-          )}
+        // One header (design review, Oct 2026): the opponent always,
+        // with one quiet line under it. On the game-day link that line
+        // says whose game it is; on the coach's own screens before the
+        // start it's the round and kick-off (the lineup header used to
+        // show only the date, never who you were playing).
+        <div className="flex min-w-0 flex-1 flex-col items-center justify-center py-1 text-center">
+          <p className="max-w-full truncate text-[0.9375rem] font-semibold leading-tight tracking-[-0.01em] text-ink bigtext:line-clamp-2 bigtext:whitespace-normal bigtext:break-words">
+            vs {game.opponent}
+          </p>
+          {whose ? (
+            <p data-testid="run-whose" className="max-w-full truncate text-xs leading-4 text-ink-dim bigtext:hidden">
+              {runWhoseLine(whose)}
+            </p>
+          ) : !isLive ? (
+            <p className="max-w-full truncate text-xs leading-4 text-ink-dim">
+              {game.round_number != null && <>R{game.round_number} · </>}
+              <FormattedDateTime iso={game.scheduled_at} mode="short" />
+              {game.location && <> · {game.location}</>}
+            </p>
+          ) : null}
         </div>
         )}
         {/* Right-edge utility cluster: feedback + walkthrough "?".
@@ -153,7 +256,12 @@ export function LiveTopBar({
             Surfaces that legitimately need help on the right must
             wire onHelp to a modal; never a Link. */}
         <div className="-mr-1 flex items-center">
-          {feedback && <FeedbackHeaderButton />}
+          {feedback && (
+            // Large text: the opponent needs the room; feedback is in ?.
+            <span className="contents bigtext:hidden">
+              <FeedbackHeaderButton />
+            </span>
+          )}
 
           {/* The visible "?" pill is 28pt, but the surrounding button
               keeps the iOS-min 44pt tap target via `h-11 w-11`. Steve

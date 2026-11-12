@@ -29,6 +29,7 @@
 import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
+import { openGameMenu } from "../helpers/liveShell";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -65,10 +66,26 @@ async function setupNetballGame(opts: { trackScoring: boolean }) {
     ageGroup: "U10",
   });
   const game = await makeGame(admin, { teamId: team.id, ownerId });
+  // The lineup is set (the picker's Ready): the live screen before the
+  // first whistle, where the tour is offered over Start Q1 (live v3,
+  // Phase 7, as AFL's).
+  const keys = ["gs", "ga", "wa", "c", "wd", "gd", "gk"];
+  const lineup = {
+    positions: Object.fromEntries(keys.map((k, i) => [k, [players[i].id]])),
+    bench: players.slice(keys.length).map((p) => p.id),
+  };
+  await admin
+    .from("game_availability")
+    .insert(players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const })));
+  const { error } = await admin
+    .from("game_events")
+    .insert({ game_id: game.id, type: "lineup_set", metadata: { lineup, sport: "netball" }, created_by: ownerId });
+  if (error) throw new Error(error.message);
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
   return { team, players, game, ownerId, admin };
 }
 
-test("NETBALL-07: first visit offers the walkthrough on the lineup screen", async ({ page }) => {
+test("NETBALL-07: first visit offers the walkthrough before Start Q1", async ({ page }) => {
   const { team, game } = await setupNetballGame({ trackScoring: true });
 
   // CRITICAL: addInitScript runs BEFORE the page's own scripts, so it
@@ -81,8 +98,9 @@ test("NETBALL-07: first visit offers the walkthrough on the lineup screen", asyn
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
-  // The tour is offered inline on the pre-kickoff lineup screen (UX
-  // plan H1) — never auto-opened as a modal. "Show me" opens the steps.
+  // The tour is offered inline over the pre-kickoff bar's Start Q1 (UX
+  // plan H1; live v3) — never auto-opened as a modal. "Show me" opens
+  // the steps.
   await expect(page.getByText(/first game day with siren\?/i)).toBeVisible({
     timeout: 10_000,
   });
@@ -154,11 +172,11 @@ test("NETBALL-07: closing walkthrough persists nb-walkthrough-seen and a re-visi
     page.getByRole("heading", { name: /starting the game/i }),
   ).not.toBeVisible({ timeout: 2_000 });
 
-  // Bonus: confirm the "?" button in the top utility row CAN re-open
-  // the walkthrough on demand (NETBALL-07 implicit behaviour — Phase 4
-  // CONTEXT specifics). On re-open the modal has skipWelcome=true so
-  // the first step is rendered directly.
-  await page.getByRole("button", { name: /open walkthrough/i }).click();
+  // Bonus: ⋯ → "How the live screen works" re-opens the walkthrough on
+  // demand (live v3: the "?" moved into the game menu). On re-open the
+  // modal has skipWelcome=true so the first step is rendered directly.
+  const menu = await openGameMenu(page);
+  await menu.getByRole("button", { name: /^how the live screen works/i }).click();
   await expect(
     page.getByRole("heading", { name: /starting the game/i }),
   ).toBeVisible({ timeout: 2_000 });

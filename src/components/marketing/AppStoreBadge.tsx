@@ -35,7 +35,7 @@ export function AppStoreBadge({
     >
       <AppleMark className="h-6 w-6 shrink-0" />
       <span className="flex flex-col">
-        <span className="text-[9px] font-medium tracking-wide">
+        <span className="text-nano font-medium tracking-wide">
           Download on the
         </span>
         <span className="mt-0.5 text-sm font-semibold tracking-tight">

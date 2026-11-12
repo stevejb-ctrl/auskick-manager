@@ -80,6 +80,12 @@ interface LockModalProps {
    */
   vestReplaceHint?: string;
   /**
+   * The replace can't be done now: the button shows, disabled, with
+   * this reason in place of the hint (hockey's keeper mid-period:
+   * they're kitted up). Needs `vestReplaceLabel`, not `onReplaceVest`.
+   */
+  vestReplaceDisabledReason?: string;
+  /**
    * Rugby league position override. When supplied, surfaces a
    * "Move to {moveToLabel}" button that flips the player between
    * the forwards and backs buckets without changing field
@@ -147,6 +153,20 @@ interface LockModalProps {
    * isn't final (UX audit 23 Oct 2026, P1).
    */
   outForGameActions?: LockModalAction[];
+  /**
+   * The kid went home (an injury with reason "out"): the injured sheet
+   * says so, instead of "Injured". Stagehand round 7 (28 Oct 2026): a
+   * kid who left early read as hurt everywhere.
+   */
+  wentHome?: boolean;
+  /** "Went home": off the field and out of the rotation, not hurt. */
+  onWentHome?: () => void;
+  /**
+   * A line under the intro for what the sheet can't do here, and why:
+   * netball's "subs happen at the break" (Stagehand round 8: parents
+   * looked for Switch mid-quarter and gave up).
+   */
+  note?: string;
   onClose: () => void;
 }
 
@@ -164,9 +184,9 @@ export interface LockModalAction {
 function lockModalIntro(can: { switch: boolean; lock: boolean; injure: boolean; lend: boolean }): string {
   const parts: string[] = [];
   if (can.switch) parts.push("switch them out");
+  if (can.lend) parts.push("lend them to the opposition");
   if (can.lock) parts.push("lock them in place");
   if (can.injure) parts.push("flag an injury");
-  if (can.lend) parts.push("lend them to the opposition");
   if (parts.length === 0) return "";
   const text = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")}, or ${parts[parts.length - 1]}`;
   return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
@@ -194,6 +214,7 @@ export function LockModal({
   vestReplaceLabel,
   onReplaceVest,
   vestReplaceHint = "Pick a different player to take the vest this period",
+  vestReplaceDisabledReason,
   moveToLabel,
   onMovePosition,
   onAssignFr,
@@ -207,6 +228,9 @@ export function LockModal({
   extraActions,
   outForGameNote,
   outForGameActions,
+  wentHome = false,
+  onWentHome,
+  note,
   onClose,
 }: LockModalProps) {
   const firstName = useSquadNames().first(player);
@@ -241,7 +265,7 @@ export function LockModal({
     // basketball's long list pushed Cancel off the bottom with no way to
     // reach it (live-chrome contract, WebKit).
     <Modal size="xs" labelledBy="lock-modal-title" onClose={onClose} className="overflow-y-auto">
-        <p className="mb-1 text-center font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+        <p className="mb-1 text-center font-mono text-micro font-bold uppercase tracking-micro text-ink-mute">
           Player actions
         </p>
         <h2
@@ -299,8 +323,14 @@ export function LockModal({
           /* Currently injured — offer to mark recovered */
           <>
             <p className="mb-5 text-center text-sm text-ink-dim">
-              Injured — sitting on the bench and skipped by the sub
-              rotation until they&apos;re recovered.
+              {wentHome ? (
+                <>Went home — out of the sub rotation until you bring them back.</>
+              ) : (
+                <>
+                  Injured — sitting on the bench and skipped by the sub
+                  rotation until they&apos;re recovered.
+                </>
+              )}
             </p>
             <div className="flex flex-col gap-2">
               <button
@@ -382,6 +412,11 @@ export function LockModal({
           /* Unlocked, on the team — offer switch / lock / injure / loan */
           <>
             {intro && <p className="mb-4 text-center text-sm text-ink-dim">{intro}</p>}
+            {note && (
+              <p data-testid="lock-modal-note" className="mb-4 rounded-md bg-surface-alt px-3 py-2 text-center text-sm text-ink">
+                {note}
+              </p>
+            )}
             <div className="flex flex-col gap-2">
               {/* Switch — most common quick action, lives at the top.
                   Closes the modal and selects this player so the next
@@ -420,6 +455,42 @@ export function LockModal({
                   </span>
                   <span className="mt-0.5 text-xs opacity-80">
                     {vestReplaceHint}
+                  </span>
+                </button>
+              )}
+              {!onReplaceVest && vestReplaceLabel && vestReplaceDisabledReason && (
+                <button
+                  type="button"
+                  disabled
+                  aria-describedby="lock-modal-replace-why"
+                  className="flex w-full cursor-not-allowed flex-col items-center rounded-md bg-surface-alt px-4 py-3 text-ink-mute"
+                >
+                  <span className="text-sm font-bold">Replace {vestReplaceLabel}</span>
+                  <span id="lock-modal-replace-why" className="mt-0.5 text-xs">
+                    {vestReplaceDisabledReason}
+                  </span>
+                </button>
+              )}
+              {/* Lend, next after Switch (and a vest's Replace): it sat at
+                  the foot of the list and coaches scrolled past it
+                  (Stagehand round 9). */}
+              {onToggleLoan && (
+                <button
+                  type="button"
+                  data-testid="lock-modal-lend"
+                  onClick={onToggleLoan}
+                  className="flex w-full flex-col items-center rounded-md border border-hairline px-4 py-3 text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+                >
+                  <span className="text-sm font-bold">Lend to opposition</span>
+                  <span className="mt-0.5 text-center text-xs text-ink-dim">
+                    {loanedLabel === null ? (
+                      "Plays for the other team until you bring them back"
+                    ) : (
+                      <>
+                        Season total: <span className="font-semibold text-ink">{loanedLabel}m</span>
+                        {squadLabel > 0 && <> · squad avg {squadLabel}m</>}
+                      </>
+                    )}
                   </span>
                 </button>
               )}
@@ -543,25 +614,19 @@ export function LockModal({
                   </span>
                 </button>
                 )}
-              {onToggleLoan && (
+              {onWentHome && (
                 <button
                   type="button"
-                  onClick={onToggleLoan}
+                  onClick={onWentHome}
+                  data-testid="lock-modal-went-home"
                   className="flex w-full flex-col items-center rounded-md border border-hairline px-4 py-3 text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
                 >
-                  <span className="text-sm font-bold">Lend to opposition</span>
-                  <span className="mt-0.5 text-center text-xs text-ink-dim">
-                    {loanedLabel === null ? (
-                      "Plays for the other team until you bring them back"
-                    ) : (
-                      <>
-                        Season total: <span className="font-semibold text-ink">{loanedLabel}m</span>
-                        {squadLabel > 0 && <> · squad avg {squadLabel}m</>}
-                      </>
-                    )}
+                  <span className="text-sm font-bold">Went home</span>
+                  <span className="mt-0.5 text-xs text-ink-dim">
+                    Leaving early: off the field for the rest of the game
                   </span>
                 </button>
-                )}
+              )}
               {insightBlock}
               <button
                 type="button"

@@ -6,11 +6,12 @@ import { ZONE_LABELS } from "@/lib/ageGroups";
 
 import { Modal } from "@/components/ui/Modal";
 
-// AFL's manual-sub confirm (the reference), shared with the sports whose
-// hand subs can break a rule: touch and Oztag ask before a sub that
-// breaks a mixed team's boys' cap. They pass the place in their own
-// words and the rule it breaks; the buttons then read "Swap anyway" and
-// "Pick someone else".
+// The confirm before a hand sub that breaks a rule: touch and Oztag ask
+// before a sub that breaks a mixed team's boys' cap (useLiveChrome's
+// manualSwap with a ruleWarning). They pass the place in their own words
+// and the rule it breaks; the buttons read "Swap anyway" and "Pick
+// someone else". Every other hand sub happens at once with Undo on the
+// toast (live v3, Steve 8 Nov 2026), so nothing else mounts this.
 interface Props {
   off: string; // field player going to bench; "" = empty slot
   on: string; // bench player coming on
@@ -38,7 +39,7 @@ export function SwapConfirmDialog({ off, on, zone, spotName, playersById, ruleWa
     <Modal label={message} onClose={onCancel}>
         <p className="text-center text-sm font-semibold text-ink">{message}</p>
         {ruleWarning && (
-          <p className="mt-2 rounded-md bg-warn-soft px-3 py-2 text-center text-sm text-warn" data-testid="swap-rule-warning">
+          <p className="mt-2 rounded-md bg-warn-soft px-3 py-2 text-center text-sm text-warn-ink" data-testid="swap-rule-warning">
             {ruleWarning}.
           </p>
         )}

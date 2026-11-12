@@ -224,3 +224,33 @@ export function liveStatusFromEvents(events: GameEvent[]): LiveStatus {
   }
   return { period, periodEnded: period > 0 && endedPeriod >= period, finalised };
 }
+
+/**
+ * Each finished game's result, keyed by game id. Today's last result and
+ * the Games list both read it, so a result says the same thing in both
+ * places (design review, Oct 2026: the list showed no result at all).
+ * `scoreOf` is lib/games/playedScore's finalScoreOf: a game run in Siren
+ * is its events' score (if it kept score), and a game marked played is
+ * the score it was given (0076); with neither it has no result, not a
+ * 0–0. It's passed in because playedScore reads this module.
+ */
+export function finalScoresByGame<G extends { id: string; playbook_snapshot?: unknown; played_score?: unknown }>(
+  sport: Sport,
+  teamTrackScoring: boolean,
+  finals: G[],
+  seasonEvents: GameEvent[],
+  scoreOf: (sport: Sport, game: G, events: GameEvent[], teamTrackScoring: boolean) => GameScore | null,
+): Map<string, GameScore> {
+  const byGame = new Map<string, GameEvent[]>();
+  for (const ev of seasonEvents) {
+    const list = byGame.get(ev.game_id) ?? [];
+    list.push(ev);
+    byGame.set(ev.game_id, list);
+  }
+  const scores = new Map<string, GameScore>();
+  for (const g of finals) {
+    const score = scoreOf(sport, g, byGame.get(g.id) ?? [], teamTrackScoring);
+    if (score) scores.set(g.id, score);
+  }
+  return scores;
+}

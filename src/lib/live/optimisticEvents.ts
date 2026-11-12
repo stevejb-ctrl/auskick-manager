@@ -164,7 +164,7 @@ type At = { quarter: number; elapsed_ms: number };
 export const liveEvents = {
   /** recordSoccerSwap / recordBasketballSwap / recordTouchSwap / recordLeagueSwap. */
   swap(
-    input: { off_player_id: string | null; on_player_id: string; line?: string; batch_left?: number; manual?: boolean } & At,
+    input: { off_player_id: string | null; on_player_id: string; line?: string; batch_left?: number; manual?: boolean; undo?: boolean } & At,
   ): OptimisticEventInput {
     return {
       type: "swap",
@@ -177,6 +177,7 @@ export const liveEvents = {
         elapsed_ms: input.elapsed_ms,
         ...(input.batch_left ? { batch_left: input.batch_left } : {}),
         ...(input.manual ? { manual: true } : {}),
+        ...(input.undo ? { undo: true } : {}),
       },
     };
   },
@@ -192,6 +193,32 @@ export const liveEvents = {
         zone_b: input.zone_b,
         quarter: input.quarter,
         elapsed_ms: input.elapsed_ms,
+      },
+    };
+  },
+  /** recordPositionSwap (AFL big fields): a goes to position_b, b (if any) to position_a. */
+  positionSwap(input: {
+    player_a_id: string;
+    player_b_id: string | null;
+    position_a: string;
+    position_b: string;
+    zone_a: string;
+    zone_b: string;
+    undo?: boolean;
+  } & At): OptimisticEventInput {
+    return {
+      type: "position_swap",
+      player_id: input.player_a_id,
+      metadata: {
+        player_a_id: input.player_a_id,
+        player_b_id: input.player_b_id,
+        position_a: input.position_a,
+        position_b: input.position_b,
+        zone_a: input.zone_a,
+        zone_b: input.zone_b,
+        quarter: input.quarter,
+        elapsed_ms: input.elapsed_ms,
+        ...(input.undo ? { undo: true } : {}),
       },
     };
   },

@@ -76,7 +76,7 @@ export function MotionPreferenceSettings() {
             >
               <span className="flex flex-col">
                 <span className="font-semibold">{option.label}</span>
-                <span className="text-[11px] text-ink-mute">
+                <span className="text-micro text-ink-mute">
                   {option.hint}
                 </span>
               </span>

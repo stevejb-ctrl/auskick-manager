@@ -89,6 +89,18 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     }
   }
 
+  // Today's game first (design review, Oct 2026: a team playing tonight
+  // sat second behind one playing on Sunday). Live games, then the
+  // soonest next game, then teams with nothing scheduled, by name.
+  const sortedTeams = [...teams].sort((a, b) => {
+    const na = nextByTeam.get(a.id);
+    const nb = nextByTeam.get(b.id);
+    const rank = (g: typeof na) => (!g ? 2 : g.status === "in_progress" ? 0 : 1);
+    if (rank(na) !== rank(nb)) return rank(na) - rank(nb);
+    if (na && nb && na.scheduled_at !== nb.scheduled_at) return na.scheduled_at < nb.scheduled_at ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
   return (
     <div className="space-y-6">
       {searchParams.left && <StatusNotice>{`You left ${searchParams.left}.`}</StatusNotice>}
@@ -112,7 +124,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         // One card per team: sport · age group, and the next game, so a
         // coach with two teams can tell them apart at a glance (UX plan M1).
         <ul className="space-y-2">
-          {teams.map((team) => {
+          {sortedTeams.map((team) => {
             const sport = teamSport(team.sport);
             const sportName = getSportConfig(sport).shortName;
             const ageLabel = getAgeGroupConfig(sport, team.age_group).label;
@@ -139,7 +151,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                           )}
                         </p>
                       </div>
-                      <Badge variant={team.role}>{ROLE_LABEL[team.role]}</Badge>
+                      {/* Only the roles that aren't "your team": a coach's
+                          own teams don't each need a "Coach" pill. */}
+                      {team.role !== "admin" && (
+                        <Badge variant={team.role}>{ROLE_LABEL[team.role]}</Badge>
+                      )}
                       <span className="self-center text-ink-mute">
                         <SFIcon.chevronRight />
                       </span>

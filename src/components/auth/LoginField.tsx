@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type InputHTMLAttributes, type ReactNode } from "react";
+import { useId, useState, type InputHTMLAttributes, type ReactNode } from "react";
 
 interface LoginFieldProps
   extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange"> {
@@ -12,6 +12,8 @@ interface LoginFieldProps
   value: string;
   /** Receives the new string value. */
   onChange: (next: string) => void;
+  /** Shown under the field, in danger red, and read with it. */
+  error?: string | null;
 }
 
 /**
@@ -32,34 +34,46 @@ export function LoginField({
   hint,
   value,
   onChange,
+  error,
   ...inputProps
 }: LoginFieldProps) {
   const [focused, setFocused] = useState(false);
+  const errorId = useId();
+  // The error sits outside the label so it isn't part of the field's name.
   return (
-    <label className="flex flex-col gap-1.5">
-      <span className="flex items-baseline justify-between font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-ink-mute">
-        <span>{label}</span>
-        {hint}
-      </span>
-      <input
-        {...inputProps}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onFocus={(e) => {
-          setFocused(true);
-          inputProps.onFocus?.(e);
-        }}
-        onBlur={(e) => {
-          setFocused(false);
-          inputProps.onBlur?.(e);
-        }}
-        className={`h-11 rounded-md border bg-surface px-3.5 text-sm font-medium text-ink outline-none transition-[border-color,box-shadow] duration-fast ease-out-quart placeholder:text-ink-mute/70 ${
-          focused ? "border-ink" : "border-hairline"
-        }`}
-        style={{
-          boxShadow: focused ? "0 0 0 3px rgba(26,30,26,0.10)" : "none",
-        }}
-      />
-    </label>
+    <div className="flex flex-col gap-1.5">
+      <label className="flex flex-col gap-1.5">
+        <span className="flex items-baseline justify-between font-mono text-nano font-bold uppercase tracking-[0.12em] text-ink-mute">
+          <span>{label}</span>
+          {hint}
+        </span>
+        <input
+          {...inputProps}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={(e) => {
+            setFocused(true);
+            inputProps.onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            inputProps.onBlur?.(e);
+          }}
+          className={`h-11 rounded-md border bg-surface px-3.5 text-sm font-medium text-ink outline-none transition-[border-color,box-shadow] duration-fast ease-out-quart placeholder:text-ink-mute/70 ${
+            error ? "border-danger" : focused ? "border-ink" : "border-hairline"
+          }`}
+          style={{
+            boxShadow: focused ? "0 0 0 3px rgba(26,30,26,0.10)" : "none",
+          }}
+        />
+      </label>
+      {error && (
+        <span id={errorId} role="alert" className="text-xs text-danger motion-safe:animate-fade-in">
+          {error}
+        </span>
+      )}
+    </div>
   );
 }

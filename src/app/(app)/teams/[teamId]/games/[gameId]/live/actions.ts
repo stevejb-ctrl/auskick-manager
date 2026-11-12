@@ -5,7 +5,9 @@ import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAgeGroupConfig } from "@/lib/sports/registry";
+import { updateLiveGame } from "@/lib/games/updateLiveGame";
+import { gameWriteError } from "@/lib/games/gameWriteError";
+import { getAgeGroupConfig, getSportConfig } from "@/lib/sports/registry";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
 import { notifyGameStarted } from "@/lib/notifications/gameStarted";
@@ -13,8 +15,15 @@ import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvail
 import { isPlayerLock, type PlayerLock } from "@/lib/live/locks";
 import { isClockPauseInput, type ClockPauseInput } from "@/lib/live/clockPause";
 import { pairScoreUndos } from "@/lib/live/scoreUndo";
-import { checkPeriodWrite, revalidateLivePage, scoreRowsOf, staleRefusal } from "@/lib/live/liveWriteGuard";
-import type { PeriodWrite } from "@/lib/live/periodGuard";
+import {
+  checkPeriodWrite,
+  kickoffRaceRefusal,
+  raceVerdictOf,
+  revalidateLivePage,
+  scoreRowsOf,
+  staleRefusal,
+} from "@/lib/live/liveWriteGuard";
+import { lineupReopenRefusal, periodWordOf, type PeriodWrite } from "@/lib/live/periodGuard";
 import { resolveUndoTarget, undoArgs, type UndoTargetRef } from "@/lib/live/undoTarget";
 import { kickoffSnapshot } from "@/lib/playbook/snapshot";
 import { writeGameRollup } from "@/lib/playbook/rollupStore";
@@ -129,6 +138,10 @@ async function insertEvent(
     idempotency_key: idempotencyKey ?? null,
   });
   if (insertError) {
+    // The other phone's start or Finish landed after the guard looked.
+    const race = await raceVerdictOf(w.supabase, gameId, insertError, { type, guard }, "quarter", idempotencyKey);
+    if (race?.kind === "stale") return staleRefusal(auth, w.teamId, gameId, race.message);
+    if (race?.kind === "duplicate") return { success: true };
     // Unique violation on idempotency_key means the client is
     // replaying an op that already landed (e.g. native write
     // queue retry after a flaky network). Treat as success — the
@@ -191,7 +204,10 @@ export async function startGame(
     lineup,
   );
 
+  // Its id, so a kickoff that loses the race can take it back out.
+  const lineupEventId = crypto.randomUUID();
   const { error: insertError } = await w.supabase.from("game_events").insert({
+    id: lineupEventId,
     game_id: gameId,
     type: "lineup_set",
     metadata: { lineup: reconciledLineup },
@@ -213,19 +229,21 @@ export async function startGame(
         metadata: { quarter: 1 },
         created_by: w.userId,
       });
-    if (qStartError) return { success: false, error: qStartError.message };
+    if (qStartError) {
+      const raced = await kickoffRaceRefusal(gameId, [lineupEventId], qStartError, "quarter");
+      if (raced) return staleRefusal(auth, w.teamId, gameId, raced);
+      return { success: false, error: qStartError.message };
+    }
   }
 
-  await w.supabase
-    .from("games")
-    .update({
-      status: "in_progress",
-      sub_interval_seconds: subIntervalSeconds,
-      on_field_size: clampedSize,
-      // How we play at kickoff (UX plan 3.7).
-      playbook_snapshot: await kickoffSnapshot(w.supabase, w.teamId),
-    })
-    .eq("id", gameId);
+  const { error: gameError } = await updateLiveGame(w.supabase, gameId, {
+    status: "in_progress",
+    sub_interval_seconds: subIntervalSeconds,
+    on_field_size: clampedSize,
+    // How we play at kickoff (UX plan 3.7).
+    playbook_snapshot: await kickoffSnapshot(w.supabase, w.teamId),
+  });
+  if (gameError) return { success: false, error: gameWriteError(gameError) };
 
   // The lineup_set event is now the source of truth; any pre-game
   // draft is stale. Clean it up so the game card stops showing the
@@ -259,6 +277,93 @@ export async function startGame(
   return { success: true };
 }
 
+
+// ─── Edit lineup: back to the picker before kickoff ──────────
+// Live v3: the picker's Ready sets the lineup (lineup_set) and the live
+// screen waits on its bar's Start Q1. Until that's tapped, "Edit lineup"
+// in the ⋯ menu goes back to the picker with the lineup as it was.
+//
+// This is the way back the old flow didn't have (LineupPicker.tsx: in
+// May 2026 the lineup was committed before the "Start Q1?" confirm, and
+// that confirm's "Back to lineup" was a dead end). The lineup goes back
+// into the game's draft, which the picker opens with, and the kickoff
+// lineup_set comes out of the log, so the picker's Ready passes the
+// kickoff guard again. Coaches can't delete events (RLS), so the service
+// role does, as kickoffRaceRefusal does. Refused once Q1 has started:
+// from then on the lineup changes by subs, and the break.
+export async function reopenLineup(auth: LiveAuth, gameId: string): Promise<ActionResult> {
+  const w = await resolveWriter(auth, gameId);
+  if (w.error) return { success: false, error: w.error };
+
+  const admin = createAdminClient();
+  const { data: events, error: readError } = await admin
+    .from("game_events")
+    .select("id, type, metadata, created_at")
+    .eq("game_id", gameId)
+    .in("type", ["lineup_set", "quarter_start", "game_finalised"])
+    .order("created_at", { ascending: true });
+  if (readError) return { success: false, error: readError.message };
+  const rows = (events ?? []) as { id: string; type: string; metadata: unknown }[];
+  if (rows.some((e) => e.type !== "lineup_set")) {
+    // Said in the sport's own period word (every sport's Edit lineup
+    // comes through here): "H1 has started" for a halves sport.
+    const { data: team } = await w.supabase.from("teams").select("sport, age_group").eq("id", w.teamId).maybeSingle();
+    const sport = (team as { sport?: string } | null)?.sport ?? "afl";
+    const word = periodWordOf(
+      getAgeGroupConfig(sport, (team as { age_group?: string } | null)?.age_group).periodLabel ?? getSportConfig(sport).periodLabel,
+    );
+    return staleRefusal(auth, w.teamId, gameId, lineupReopenRefusal(word));
+  }
+  const lineups = rows.filter((e) => e.type === "lineup_set");
+  const last = lineups.at(-1);
+  if (!last) {
+    // Nothing to take back (another phone already did): the picker is up.
+    revalidateLivePage(auth, w.teamId, gameId);
+    return { success: true };
+  }
+
+  const { data: game } = await w.supabase
+    .from("games")
+    .select("sub_interval_seconds, on_field_size")
+    .eq("id", gameId)
+    .maybeSingle();
+  const lineup = ((last.metadata ?? {}) as { lineup?: Lineup }).lineup;
+  if (lineup) {
+    const { error: draftError } = await w.supabase.from("game_lineup_drafts").upsert(
+      {
+        game_id: gameId,
+        lineup,
+        on_field_size: (game as { on_field_size?: number } | null)?.on_field_size,
+        sub_interval_seconds: (game as { sub_interval_seconds?: number } | null)?.sub_interval_seconds,
+        updated_by: w.userId,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "game_id" },
+    );
+    if (draftError) return { success: false, error: draftError.message };
+  }
+
+  const { error: deleteError } = await admin
+    .from("game_events")
+    .delete()
+    .eq("game_id", gameId)
+    .in(
+      "id",
+      lineups.map((e) => e.id),
+    );
+  if (deleteError) return { success: false, error: deleteError.message };
+  // Not under way any more: the game page and lists say Upcoming again.
+  await updateLiveGame(w.supabase, gameId, { status: "upcoming" });
+  invalidateSeasonEvents(w.teamId);
+
+  if (auth.kind === "team") {
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}`);
+    revalidatePath(`/teams/${w.teamId}/games/${gameId}/live`);
+  } else {
+    revalidatePath(`/run/${auth.token}`, "layout");
+  }
+  return { success: true };
+}
 
 // ─── Pre-game lineup draft ───────────────────────────────────
 // Save / load the night-before plan. One row per game keyed by
@@ -348,10 +453,7 @@ export async function setOnFieldSize(
     };
   }
 
-  const { error } = await w.supabase
-    .from("games")
-    .update({ on_field_size: value })
-    .eq("id", gameId);
+  const { error } = await updateLiveGame(w.supabase, gameId, { on_field_size: value });
   if (error) return { success: false, error: error.message };
 
   if (auth.kind === "team") {
@@ -455,10 +557,7 @@ export async function setOnFieldSizeMidGame(
   }
 
   // Update games.on_field_size for both grow + shrink paths.
-  const { error: updErr } = await w.supabase
-    .from("games")
-    .update({ on_field_size: clampedSize })
-    .eq("id", gameId);
+  const { error: updErr } = await updateLiveGame(w.supabase, gameId, { on_field_size: clampedSize });
   if (updErr) return { success: false, error: updErr.message };
 
   if (auth.kind === "team") {
@@ -506,10 +605,7 @@ export async function setSubInterval(
   // land as 282s.
   const rounded = Math.round(seconds / 30) * 30;
 
-  const { error } = await w.supabase
-    .from("games")
-    .update({ sub_interval_seconds: rounded })
-    .eq("id", gameId);
+  const { error } = await updateLiveGame(w.supabase, gameId, { sub_interval_seconds: rounded });
   if (error) return { success: false, error: error.message };
 
   if (auth.kind === "team") {
@@ -535,6 +631,14 @@ export async function startQuarter(
     { kind: "period_start", period: quarter },
   );
   if (!result.success) return result;
+
+  // Q1 starts from the live screen's bar now (live v3: the lineup
+  // picker's Ready only sets the lineup), so the kickoff ping goes here,
+  // as startGame's did. Fire-and-forget.
+  if (quarter === 1) {
+    const w = await resolveWriter(auth, gameId);
+    if (!w.error) notifyGameStarted(w.supabase, w.teamId, gameId, w.userId).catch(() => {});
+  }
 
   if (auth.kind === "team") {
     revalidatePath(`/teams/${auth.teamId}/games/${gameId}/live`);
@@ -617,10 +721,7 @@ export async function finaliseGame(
 
   const w = await resolveWriter(auth, gameId);
   if (w.error) return { success: false, error: w.error };
-  const { error: updateError } = await w.supabase
-    .from("games")
-    .update({ status: "completed" })
-    .eq("id", gameId);
+  const { error: updateError } = await updateLiveGame(w.supabase, gameId, { status: "completed" });
   if (updateError) return { success: false, error: updateError.message };
 
   // Season time rollup for stats and season balance (UX plan 4.5).
@@ -924,6 +1025,10 @@ export async function recordSwap(
     manual?: boolean;
     /** One swap of a due batch, with this many still to make. */
     batch_left?: number;
+    /** "Undo swaps" putting one of a batch back: nets to zero subs. */
+    undo?: boolean;
+    /** Big fields: the empty position the kid came on into (lib/live/positionSeats). */
+    position?: string;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {
@@ -999,7 +1104,7 @@ export interface ScoreLogEntry {
   original_type: string | null;
   /** Quarter the event was booked to. For undo, copied from the original's metadata.quarter. */
   quarter: number | null;
-  /** Whether this was added retroactively from the Fix-scores panel. */
+  /** Whether this was added retroactively from the Fix-scores panel (not a changed scorer). */
   retro: boolean;
   /** A rushed behind (ours, no scorer). */
   rushed: boolean;
@@ -1039,7 +1144,10 @@ export async function getGameScoreLog(
           : typeof meta.intended_quarter === "number"
           ? (meta.intended_quarter as number)
           : null,
-      retro: meta.retro === true,
+      // A changed scorer is put back as a retro score that `replaces` the
+      // old one: the same score, not a missed one added, so no "Added"
+      // tag (Stagehand round 10: a coach read it as a second goal).
+      retro: meta.retro === true && typeof meta.replaces !== "string",
       rushed: meta.rushed === true,
       unattributed: meta.unattributed === true,
       target_event_id: isUndo ? ((meta.target_event_id as string) ?? null) : null,
@@ -1160,6 +1268,53 @@ export async function recordFieldZoneSwap(
     gameId,
     "field_zone_swap",
     { player_id: input.player_a_id, metadata: input },
+    idempotencyKey,
+  );
+}
+
+// AFL big fields (live v3, Phase 11; migration 0078): two kids on the
+// field trade named positions (CHB ↔ FB), or one moves to an empty
+// position (player_b_id null). Not a sub: the sub clock and the swap
+// count don't move. Across lines the replay moves them between lines as
+// a field_zone_swap does (lib/live/positionSwap). Undo writes the change
+// back as its own position_swap, marked `undo`.
+export async function recordPositionSwap(
+  auth: LiveAuth,
+  gameId: string,
+  input: {
+    player_a_id: string;
+    player_b_id: string | null;
+    position_a: string;
+    position_b: string;
+    zone_a: Zone;
+    zone_b: Zone;
+    quarter: number;
+    elapsed_ms: number;
+    undo?: boolean;
+  },
+  idempotencyKey?: string,
+): Promise<ActionResult> {
+  if (!input.player_a_id || !input.position_b || input.player_a_id === input.player_b_id) {
+    return { success: false, error: "That position change doesn't add up." };
+  }
+  return insertEvent(
+    auth,
+    gameId,
+    "position_swap",
+    {
+      player_id: input.player_a_id,
+      metadata: {
+        player_a_id: input.player_a_id,
+        player_b_id: input.player_b_id ?? null,
+        position_a: input.position_a,
+        position_b: input.position_b,
+        zone_a: input.zone_a,
+        zone_b: input.zone_b,
+        quarter: input.quarter,
+        elapsed_ms: input.elapsed_ms,
+        ...(input.undo ? { undo: true } : {}),
+      },
+    },
     idempotencyKey,
   );
 }

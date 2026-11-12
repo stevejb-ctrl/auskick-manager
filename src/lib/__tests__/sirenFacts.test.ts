@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { HOME_CONTENT } from "@/lib/marketing/homeContent";
 import { sportPageCopy } from "@/lib/marketing/sportPages";
+import { effectivePolicy, getSportPlaybook } from "@/lib/playbook";
 import { MARKETING_SPORTS } from "@/lib/sports/marketing-sports";
 import { ALL_SPORT_IDS, getSportConfig } from "@/lib/sports/registry";
 import {
@@ -116,8 +117,24 @@ describe("marketing copy agrees with the facts", () => {
   });
 
   it("counts the sports in the homepage's facts strip", () => {
-    const sports = HOME_CONTENT.trustBand.find((entry) => entry.label === "Junior sports");
+    const sports = HOME_CONTENT.trustBand.find((entry) => entry.label.toLowerCase() === "junior sports");
     expect(sports?.stat).toBe(String(SIREN_SPORTS.length));
+  });
+
+  // Steve, 10 Nov 2026: where a coach can run lines only or name their
+  // own positions, the sport's page says so; where they can't, it doesn't.
+  it("says you can set your own positions exactly where a coach can", () => {
+    for (const { sport } of MARKETING_SPORTS) {
+      const playbook = getSportPlaybook(sport);
+      const canSetOwn = getSportConfig(sport).ageGroups.some((ag) => {
+        // AFL's zones are on by default to U10 but a coach can turn them off.
+        const policy = { ...effectivePolicy(sport, ag.id), zonesEnforced: false };
+        return playbook.positionModel(policy, 12).kind === "custom";
+      });
+      const copy = sportPageCopy(sport);
+      const words = [copy.heroSubtitle, ...copy.knows.flatMap((k) => [k.title, k.body])].join(" ");
+      expect(/your own positions/i.test(words), `${sport}: copy says own positions`).toBe(canSetOwn);
+    }
   });
 
   it("gives every sport on the public site its own page copy", () => {
@@ -164,6 +181,28 @@ describe("marketing copy agrees with the facts", () => {
     );
     expect(stale).toEqual([]);
     expect(PRICE.line).toContain(String(PRICE.season));
+  });
+
+  // Steve, 12 Nov 2026 (Stagehand round 11): the Terms said "free during
+  // the current early-access period" while the site said free for the
+  // 2026 season. "Make it free for the 2026 season", everywhere.
+  it("never calls the price early access, anywhere in the app or its content", () => {
+    const everything = [
+      ...filesUnder(join(ROOT, "src"), ".tsx"),
+      ...filesUnder(join(ROOT, "src"), ".ts").filter((f) => !/[\\/]__tests__[\\/]/.test(f)),
+      ...filesUnder(join(ROOT, "content"), ".json"),
+      ...filesUnder(join(ROOT, "content"), ".md"),
+    ];
+    const said = everything.filter((file) => /early[\s-]access/i.test(readFileSync(file, "utf8"))).map(rel);
+    expect(said).toEqual([]);
+    // Reading every source file takes a few seconds on a busy machine.
+  }, 60_000);
+
+  it("has the Terms give the price as the season's, from the facts", () => {
+    const terms = PAGE_SOURCE.find((p) => p.file === "src/app/(marketing)/terms/page.tsx")!.text;
+    const price = terms.match(/7\. Price[\s\S]*?<\/Section>/)?.[0] ?? "";
+    expect(price).toMatch(/PRICE\.(season|line)/);
+    expect(price).not.toMatch(/early|beta|trial/i);
   });
 });
 

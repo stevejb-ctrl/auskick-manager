@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { resetAnalytics } from "@/lib/analytics/client";
 import { createClient } from "@/lib/supabase/client";
+import { FeedbackModal } from "@/components/feedback/FeedbackModal";
+import { useHelpHref } from "@/lib/help/helpHref";
 
 interface UserMenuProps {
   /** Display email; shown both in the trigger (sm+) and at the top of the dropdown. */
@@ -23,7 +25,10 @@ interface UserMenuProps {
 export function UserMenu({ email }: UserMenuProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  // Inside a team, Help opens that team's sport hub.
+  const helpHref = useHelpHref();
 
   useEffect(() => {
     if (!open) return;
@@ -75,7 +80,7 @@ export function UserMenu({ email }: UserMenuProps) {
           className="absolute right-0 top-full z-30 mt-2 w-56 overflow-hidden rounded-md border border-hairline bg-surface shadow-pop"
         >
           <div className="border-b border-hairline px-3 py-2">
-            <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-ink-mute">
+            <p className="font-mono text-micro font-semibold uppercase tracking-micro text-ink-mute">
               Signed in as
             </p>
             <p className="mt-0.5 truncate text-sm text-ink">{email}</p>
@@ -110,13 +115,26 @@ export function UserMenu({ email }: UserMenuProps) {
             Join a team
           </Link>
           <Link
-            href="/help"
+            href={helpHref}
             role="menuitem"
             onClick={() => setOpen(false)}
             className="block px-3 py-2.5 text-sm text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
           >
             Help
           </Link>
+          {/* The floating feedback button shows on the home surfaces
+              only, so every page reaches the form from here. */}
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              setFeedbackOpen(true);
+            }}
+            className="block w-full px-3 py-2.5 text-left text-sm text-ink transition-colors duration-fast ease-out-quart hover:bg-surface-alt"
+          >
+            Send feedback
+          </button>
           <button
             type="button"
             role="menuitem"
@@ -127,6 +145,7 @@ export function UserMenu({ email }: UserMenuProps) {
           </button>
         </div>
       )}
+      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} kind="feedback" />
     </div>
   );
 }

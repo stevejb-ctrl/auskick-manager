@@ -30,6 +30,7 @@
 
 import type { GameEvent, MixedGroup } from "@/lib/types";
 import { replayLocks, type PlayerLock } from "@/lib/live/locks";
+import { createSwapRecency, isUndoSwap } from "@/lib/live/swapRecency";
 import { takeUndoTarget } from "@/lib/live/scoreUndo";
 import { normalizeTouchLineup, touchLineOf, type TouchLineup } from "@/lib/sports/touch/lineup";
 import { TOUCH_LINES, type TouchLine } from "@/lib/sports/touch/types";
@@ -84,6 +85,8 @@ export interface TouchGameState {
   /** Each kid's current hold (Keep on, Keep in a lane). */
   locks: Record<string, PlayerLock>;
   injuredIds: string[];
+  /** Of the injured, the kids who went home (an injury with reason "out", lib/live/wentHome). */
+  wentHomeIds: string[];
   loanedIds: string[];
   /** Each kid's time this game, per lane. */
   ms: Record<string, TouchLineMs>;
@@ -178,6 +181,7 @@ export function replayTouchGame(events: GameEvent[], opts: ReplayTouchOptions = 
     scoreByPeriod: {},
     locks: {},
     injuredIds: [],
+    wentHomeIds: [],
     loanedIds: [],
     ms: {},
     msByPeriod: {},
@@ -225,6 +229,7 @@ export function replayTouchGame(events: GameEvent[], opts: ReplayTouchOptions = 
   // Where a kid who left stood (lane and place in it), so their
   // replacement takes the same spot rather than the end of a lane.
   const vacated: Record<string, { line: TouchLine; index: number }> = {};
+  const recency = createSwapRecency();
   const leaveField = (lu: TouchLineup, pid: string) => {
     const line = touchLineOf(lu, pid);
     if (!line) return;
@@ -304,6 +309,7 @@ export function replayTouchGame(events: GameEvent[], opts: ReplayTouchOptions = 
         const lu = state.lineup;
         const { off_player_id: off, on_player_id: on, line } = ev.metadata as SwapMeta;
         if (!lu || !on || touchLineOf(lu, on)) break; // nothing to do, or a replayed duplicate
+        const settle = recency.swap(state, off, on, isUndoSwap(ev.metadata));
         const offLine = off ? touchLineOf(lu, off) : null;
         if (off && offLine) {
           closeStint(off, elapsed);
@@ -327,6 +333,7 @@ export function replayTouchGame(events: GameEvent[], opts: ReplayTouchOptions = 
         delete vacated[on];
         openStint(lu, on, elapsed);
         state.lastSubbedOnMs[on] = absolute;
+        settle();
         break;
       }
 
@@ -423,9 +430,13 @@ export function replayTouchGame(events: GameEvent[], opts: ReplayTouchOptions = 
         const injured = (ev.metadata as { injured?: boolean }).injured ?? true;
         if (!injured) {
           state.injuredIds = state.injuredIds.filter((p) => p !== pid);
+          state.wentHomeIds = state.wentHomeIds.filter((p) => p !== pid);
           break;
         }
         if (!state.injuredIds.includes(pid)) state.injuredIds.push(pid);
+        // A kid going home is an injury with reason "out": say so (lib/live/wentHome).
+        state.wentHomeIds = state.wentHomeIds.filter((p) => p !== pid);
+        if ((ev.metadata as { reason?: string }).reason === "out") state.wentHomeIds.push(pid);
         sendOff(pid, elapsed);
         break;
       }

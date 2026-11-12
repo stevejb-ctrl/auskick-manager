@@ -39,7 +39,7 @@ describe("rule check (RuleCheckBar)", () => {
     // The break screen prints the rule under it and its Fix moves the
     // kids it names first.
     expect(items[1]).toMatchObject({ rule: "Nobody sits out two quarters in a row", playerIds: ["ava"] });
-    expect(items[2]).toMatchObject({ rule: "Keep Mia and Jack apart", playerIds: ["mia", "jack"] });
+    expect(items[2]).toMatchObject({ rule: "Keep Mia and Jack in different lines", playerIds: ["mia", "jack"] });
   });
 
   it("doesn't claim 'All rules kept' when it only checked the floor, and says where season balance stands", () => {

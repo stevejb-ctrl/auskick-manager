@@ -28,8 +28,8 @@ Walk through:
    - Did it put your gun GA on starting? Or rotate them
      through to keep them fresh for Q4?
 3. Start the game.
-4. Score 5 goals (3 from GS, 2 from GA). Verify per-player
-   goal chips render correctly.
+4. Score 5 goals (3 from GS, 2 from GA). Verify each shooter's
+   tally after their name is right.
 5. Score 3 for the opposition.
 6. Mid-Q1, mark a key player INJURED. Pick a bench
    replacement. Verify:

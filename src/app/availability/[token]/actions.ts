@@ -51,7 +51,8 @@ export async function answerAvailability(
       status,
       updated_by: null,
       updated_at: now,
-      replied_at: now,
+      // A clear is no answer: the coach's list shows them unanswered.
+      replied_at: status === "unknown" ? null : now,
     },
     { onConflict: "game_id,player_id" }
   );

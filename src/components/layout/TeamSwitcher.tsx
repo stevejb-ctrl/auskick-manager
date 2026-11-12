@@ -58,7 +58,7 @@ export function TeamSwitcher({ teams }: { teams: SwitcherTeam[] }) {
       >
         <span className="min-w-0">
           <span className="block truncate text-sm font-semibold text-ink">{current.name}</span>
-          <span className="block truncate text-[11px] text-ink-mute">{current.detail}</span>
+          <span className="block truncate text-micro text-ink-mute">{current.detail}</span>
         </span>
         <SFIcon.chevronDown />
       </button>
@@ -76,7 +76,7 @@ export function TeamSwitcher({ teams }: { teams: SwitcherTeam[] }) {
               className={`block px-3 py-2.5 hover:bg-surface-alt ${t.id === current.id ? "bg-surface-alt" : ""}`}
             >
               <span className="block truncate text-sm font-medium text-ink">{t.name}</span>
-              <span className="block truncate text-[11px] text-ink-mute">{t.detail}</span>
+              <span className="block truncate text-micro text-ink-mute">{t.detail}</span>
             </Link>
           ))}
           <div className="border-t border-hairline">

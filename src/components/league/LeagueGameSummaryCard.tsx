@@ -16,6 +16,7 @@
 // the live shell stops accepting writes. Same UX as AFL.
 
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
+import { sidelinedAtEnd, summaryStatusNote } from "@/lib/live/wentHome";
 import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
 import { leagueScoreLine, playerMsOnField, rugbyPoints, rugbyScoreWords } from "@/lib/sports/rugby_league/fairness";
 import type { RugbySport } from "@/lib/sports/registry";
@@ -58,6 +59,8 @@ function buildSummary(
   finalisedElapsedMs: number,
 ): string {
   const lines: string[] = [];
+  // Kids still off at full time say why: hurt, or gone home.
+  const sidelined = sidelinedAtEnd(events);
   const words = rugbyScoreWords(sport);
   const points = rugbyPoints(sport);
   const playersById = new Map(squad.map((p) => [p.id, p]));
@@ -150,7 +153,7 @@ function buildSummary(
       const name = p ? nameOf(p) : "Unknown";
       const jersey
         = p?.jersey_number != null ? `#${p.jersey_number} ` : "";
-      return { id, text: `${jersey}${name} — ${fmtMs(ms)}` };
+      return { id, text: `${jersey}${name} — ${fmtMs(ms)}${summaryStatusNote(id, sidelined)}` };
     });
 
   // Kids who were there but never got on stay in the list (Stagehand

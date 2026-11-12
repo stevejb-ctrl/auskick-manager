@@ -59,7 +59,7 @@ export function QuarterScoring({ rows, hasData }: Props) {
               <span className="text-sm font-semibold text-ink">
                 Q{row.quarter}
               </span>
-              <span className="text-[10px] uppercase tracking-micro text-ink-mute">
+              <span className="text-nano uppercase tracking-micro text-ink-mute">
                 {row.gamesCount} {row.gamesCount === 1 ? "game" : "games"}
               </span>
             </div>

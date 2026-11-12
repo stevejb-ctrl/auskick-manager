@@ -8,7 +8,15 @@
 import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ActionResult, LiveAuth } from "@/lib/types";
-import { periodStateOf, periodWriteVerdict, type PeriodVerdict, type PeriodWord, type PeriodWrite } from "@/lib/live/periodGuard";
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  periodStateOf,
+  periodWriteVerdict,
+  uniqueRaceVerdict,
+  type PeriodVerdict,
+  type PeriodWord,
+  type PeriodWrite,
+} from "@/lib/live/periodGuard";
 
 export { periodWordOf } from "@/lib/live/periodGuard";
 
@@ -35,6 +43,54 @@ export async function checkPeriodWrite(
   if ((replay.data ?? []).length > 0) return { kind: "duplicate" };
   const status = (game as { status?: string } | null)?.status ?? null;
   return periodWriteVerdict(periodStateOf(status, (events ?? []) as { type: string; metadata: unknown }[]), write, word);
+}
+
+/**
+ * What a refused event insert means when it lost a race the guard
+ * couldn't see: the other phone's start or Finish landed between this
+ * phone's check and its write, and 0075's unique index refused this one.
+ * Null for any other error. A retry of this phone's own write (same key)
+ * can trip the period index before the key's: that's done, not stale.
+ */
+export async function raceVerdictOf(
+  supabase: SupabaseClient,
+  gameId: string,
+  error: { code?: string | null; message?: string | null; details?: string | null },
+  event: { type: string; guard?: PeriodWrite },
+  word: PeriodWord,
+  idempotencyKey?: string | null,
+): Promise<PeriodVerdict | null> {
+  const write: PeriodWrite | undefined = event.guard ?? (event.type === "game_finalised" ? { kind: "finalise" } : undefined);
+  if (!write) return null;
+  const verdict = uniqueRaceVerdict(error, write, word);
+  if (verdict?.kind === "stale" && idempotencyKey) {
+    const { data } = await supabase.from("game_events").select("id").eq("game_id", gameId).eq("idempotency_key", idempotencyKey).limit(1);
+    if ((data ?? []).length > 0) return { kind: "duplicate" };
+  }
+  return verdict;
+}
+
+/**
+ * A kickoff writes its lineup_set (and touch its roster_shrink), then the
+ * first period's start. When the other phone kicked off in the same
+ * instant, the database refuses this phone's start (0075); what this
+ * phone wrote before it then comes back out, so its lineup can't stand
+ * over the other phone's (the overwritten lineup of UX round 2). The
+ * service role deletes them: coaches can't delete events. Returns the
+ * refusal's words, or null when `error` isn't that race.
+ */
+export async function kickoffRaceRefusal(
+  gameId: string,
+  writtenIds: string[],
+  error: { code?: string | null; message?: string | null; details?: string | null },
+  word: PeriodWord,
+): Promise<string | null> {
+  const verdict = uniqueRaceVerdict(error, { kind: "kickoff" }, word);
+  if (verdict?.kind !== "stale") return null;
+  if (writtenIds.length > 0) {
+    await createAdminClient().from("game_events").delete().eq("game_id", gameId).in("id", writtenIds);
+  }
+  return verdict.message;
 }
 
 /** Re-render the live page the caller is on (coach's or runner's). */

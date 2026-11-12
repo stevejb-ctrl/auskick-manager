@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { SquadNamesProvider } from "@/components/live/SquadNames";
 import { loadSquadNames } from "@/lib/live/loadSquadNames";
 import { GameGoneWatcher } from "@/components/live/GameGoneWatcher";
+import { GameDayScreen } from "@/components/live/GameDayLoading";
 
 /**
  * Every live and lineup screen's tiles, sub cards and sheets tell two
@@ -19,7 +20,8 @@ export default async function LiveLayout({
   const players = await loadSquadNames(createClient(), params.teamId, params.gameId);
   return (
     <SquadNamesProvider players={players}>
-      {children}
+      {/* Marks the screen, so its loader stays out of a refresh (GameDayLoading). */}
+      <GameDayScreen>{children}</GameDayScreen>
       <GameGoneWatcher
         auth={{ kind: "team", teamId: params.teamId }}
         gameId={params.gameId}

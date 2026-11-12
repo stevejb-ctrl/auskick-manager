@@ -477,7 +477,7 @@ export async function setTeamTrackFouls(teamId: string, enabled: boolean): Promi
 }
 
 /**
- * Team › Season › Mixed team (touch, Oztag): the most boys on the field
+ * Team › How we play › Mixed team (touch, Oztag): the most boys on the field
  * and the fewest girls and boys (migration 0071), or null for a team that
  * isn't mixed. A team that stops being mixed loses its girl's-try
  * setting too. Who counts as a girl or a boy is asked at the lineup.

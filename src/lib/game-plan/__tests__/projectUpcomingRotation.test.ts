@@ -17,7 +17,7 @@
 //   • the adapter is pure + deterministic for a fixed seed.
 
 import { describe, it, expect } from "vitest";
-import { projectGamePlan, projectUpcomingRotation } from "@/lib/game-plan";
+import { formatGamePlan, projectGamePlan, projectUpcomingRotation } from "@/lib/game-plan";
 import type { GamePlan } from "@/lib/game-plan";
 import { getAgeGroupConfig } from "@/lib/sports/registry";
 import type { SportId } from "@/lib/sports/types";
@@ -189,5 +189,41 @@ describe("projectUpcomingRotation — locks a short-squad zone shape", () => {
       const onFieldCount = period.groups.flatMap((g) => g.playerIds).length;
       expect(onFieldCount).toBe(10);
     }
+  });
+});
+
+describe("projectUpcomingRotation — kids out of the game stay out of the plan", () => {
+  // Stagehand round 9 (chaotic-substitution-coach): with one kid injured
+  // and one lent, Plan Q2's "Plan for the group chat" text listed two
+  // raw player ids on the bench. The live bench still held them, the
+  // planner's players didn't, so the copy text fell back to the id.
+  const ageGroup = getAgeGroupConfig("afl", "U10");
+  const onField = ageGroup.defaultOnFieldSize;
+  const players = makeSquad(onField + 2);
+  const baseline = projectGamePlan({ sport: "afl", ageGroup, players, onFieldSize: onField, seed: 7 });
+  const q1 = baseline.periods[0];
+  const currentGroups: Record<string, string[]> = {};
+  for (const g of q1.groups) currentGroups[g.groupId] = [...g.playerIds];
+  const plan = projectUpcomingRotation({
+    sport: "afl" as SportId,
+    ageGroup,
+    players,
+    onFieldSize: onField,
+    seed: 7,
+    fromPeriodIndex: 0,
+    currentGroups,
+    // The injured and the lent kid sit on the live bench.
+    currentBench: [...q1.bench, "INJURED-KID", "LENT-KID"],
+  });
+
+  it("leaves them off the current period's bench", () => {
+    expect(plan.periods[0].bench).toEqual(q1.bench);
+  });
+
+  it("never names them by id in the group-chat text", () => {
+    const names = new Map(players.map((p, i) => [p.id, `Kid ${i + 1}`]));
+    const text = formatGamePlan(plan, { teamName: "Cubs", playerName: (id) => names.get(id) ?? id });
+    expect(text).not.toContain("INJURED-KID");
+    expect(text).not.toContain("LENT-KID");
   });
 });

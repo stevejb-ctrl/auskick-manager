@@ -122,11 +122,8 @@ export function NetballDashboardShell(props: Props) {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:gap-6">
-        <Section title="Player statistics">
-          <NetballPlayerStatsTable stats={playerStats} hasData={hasPlayData} />
-        </Section>
-
-        {/* Season balance replaces "Game time" minutes equity (UX plan 4.4). */}
+        {/* Season balance replaces "Game time" minutes equity (UX plan 4.4),
+            and comes first: it's the answer (design review, Oct 2026). */}
         {props.seasonBalance ? (
           <SeasonBalanceSection {...props.seasonBalance} />
         ) : (
@@ -134,6 +131,10 @@ export function NetballDashboardShell(props: Props) {
             <MinutesEquity stats={minutesEquityRows} hasData={hasPlayData} />
           </Section>
         )}
+
+        <Section title="Player statistics">
+          <NetballPlayerStatsTable stats={playerStats} hasData={hasPlayData} />
+        </Section>
 
         <Section title="Player chemistry — top pairs">
           <NetballChemistry
@@ -209,7 +210,7 @@ function NetballPlayerStatsTable({
               <p className="min-w-0 truncate font-semibold text-ink">{s.playerName}</p>
               <div className="shrink-0 text-right">
                 <p className="text-xl font-bold leading-none tabular-nums text-brand-600">{fmt(s.totalMs)}</p>
-                <p className="mt-0.5 text-[10px] uppercase tracking-micro text-ink-mute">total min</p>
+                <p className="mt-0.5 text-nano uppercase tracking-micro text-ink-mute">total min</p>
               </div>
             </div>
 
@@ -221,14 +222,14 @@ function NetballPlayerStatsTable({
             </div>
 
             {/* Thirds, attack → defence, in the court's colours. */}
-            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] font-medium">
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-micro font-medium">
               <ZonePill abbr="Att" pct={attPct} tone="f" />
               <ZonePill abbr="Cen" pct={cenPct} tone="c" />
               <ZonePill abbr="Def" pct={defPct} tone="b" />
             </div>
 
             {bibs.length > 0 && (
-              <p className="mt-2 font-mono text-[11px] text-ink-mute">{bibs.join(" · ")}</p>
+              <p className="mt-2 font-mono text-micro text-ink-mute">{bibs.join(" · ")}</p>
             )}
           </div>
         );
@@ -303,25 +304,25 @@ function NetballHeadToHead({
       <table className="w-full text-sm">
         <thead className="bg-surface-alt">
           <tr>
-            <th className="px-2 py-2 text-left text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+            <th className="px-2 py-2 text-left text-nano font-semibold uppercase tracking-micro text-ink-mute">
               Opponent
             </th>
-            <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+            <th className="px-2 py-2 text-right text-nano font-semibold uppercase tracking-micro text-ink-mute">
               Played
             </th>
-            <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-micro text-brand-700">
+            <th className="px-2 py-2 text-right text-nano font-semibold uppercase tracking-micro text-brand-700">
               W
             </th>
-            <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-micro text-warn">
+            <th className="px-2 py-2 text-right text-nano font-semibold uppercase tracking-micro text-warn">
               D
             </th>
-            <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-micro text-danger">
+            <th className="px-2 py-2 text-right text-nano font-semibold uppercase tracking-micro text-danger">
               L
             </th>
-            <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+            <th className="px-2 py-2 text-right text-nano font-semibold uppercase tracking-micro text-ink-mute">
               For
             </th>
-            <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
+            <th className="px-2 py-2 text-right text-nano font-semibold uppercase tracking-micro text-ink-mute">
               Against
             </th>
           </tr>

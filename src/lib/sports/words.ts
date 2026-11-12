@@ -72,6 +72,39 @@ export function endPeriodEarlyCopy(opts: {
   return { title, body, confirm: `End ${name}`, confirmFull: `The game played on: credit the full ${full}` };
 }
 
+/**
+ * Ending the period, where a parent looks for it: the game menu's row
+ * and, once the period's time is up, the prompt on the info line. It
+ * used to be only behind the clock, and parents running the game
+ * couldn't find it ("no end-half control", Stagehand round 9, 9 Nov
+ * 2026). Quarters say "End Q2", as the clock does; halves say "End 1st
+ * half", as people do. Both go to the same confirm.
+ */
+export function endPeriodWords(opts: {
+  sport: SportId;
+  periodLabel: PeriodWord;
+  period: number;
+  periodCount: number;
+  /** The period's time is up (the clock reads 0:00). */
+  timeUp: boolean;
+}): { label: string; description: string; prompt: string } {
+  const n = opts.period;
+  const label =
+    opts.periodLabel === "quarter"
+      ? `End Q${n}`
+      : opts.periodLabel === "half"
+        ? opts.periodCount === 2
+          ? `End ${n === 1 ? "1st" : "2nd"} half`
+          : `End half ${n}`
+        : opts.periodCount === 1
+          ? "End the period"
+          : `End period ${n}`;
+  const description = opts.timeUp
+    ? "Time's up. You'll confirm first."
+    : `${clockEndEarlyHint(opts.sport)} You'll confirm first.`;
+  return { label, description, prompt: `Time's up: ${label.charAt(0).toLowerCase()}${label.slice(1)}` };
+}
+
 /** The game menu's "Restart game" helper line. */
 export function restartGameHint(periodLabel: PeriodWord): string {
   return `Wipes every ${periodLabel}, swap and score.`;

@@ -123,12 +123,12 @@ test("AFL: long-press → Switch → tap teammate in different zone records a fi
     .toBe(1);
 });
 
-test("AFL: long-press a bench player → Switch → tap a field player opens the swap-confirm dialog", async ({
+test("AFL: long-press a bench player → Switch → tap a field player makes the sub", async ({
   page,
 }) => {
   // Bench-initiated path: Switch puts the bench player into a "bench"
-  // selection; the next tap on a field tile opens
-  // SwapConfirmDialog, which writes a `swap` event when confirmed.
+  // selection; the next tap on a field tile makes the sub at once
+  // (live v3), which writes a `swap` event.
   const admin = createAdminClient();
   const { data: superAdmin } = await admin.auth.admin.listUsers();
   const ownerId = superAdmin.users.find(
@@ -184,13 +184,12 @@ test("AFL: long-press a bench player → Switch → tap a field player opens the
   // bring them on" instead of the field-player wording).
   await page.getByRole("button", { name: /^switch player\b/i }).click();
 
-  // Tap a field tile — opens SwapConfirmDialog. The dialog's
-  // confirm CTA is a "Confirm" button (per SwapConfirmDialog.tsx).
+  // Tap a field tile — the sub happens at once (live v3: no confirm),
+  // and the toast says so with an Undo.
   await page.getByTestId(`player-tile-${fieldTarget.id}`).click();
-  await expect(
-    page.getByRole("button", { name: /^confirm$/i }),
-  ).toBeVisible({ timeout: 5_000 });
-  await page.getByRole("button", { name: /^confirm$/i }).click();
+  await expect(page.getByTestId("swap-toast")).toContainText(`${fieldTarget.full_name} → ${benchPlayer.full_name}`, {
+    timeout: 5_000,
+  });
 
   // Server records a `swap` event with the bench-on / field-off pair.
   await expect

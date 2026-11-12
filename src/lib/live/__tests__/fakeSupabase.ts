@@ -2,8 +2,10 @@
 // builder for the live server actions: select / insert / update /
 // upsert / delete, eq / neq / in / is filters, order, limit, single /
 // maybeSingle, and exact counts. game_events gets an id, a created_at
-// that always moves forward, and the unique idempotency_key the real
-// table has (23505 on a replay).
+// that always moves forward, and the real table's unique indexes: the
+// idempotency_key (23505 on a replay), and one quarter_start per period
+// and one game_finalised per game (migration 0075). A multi-row insert
+// lands whole or not at all, as one statement does.
 //
 // Not a test file (no .test.ts): liveActionsTwoPhones.test.ts uses it.
 
@@ -14,6 +16,13 @@ export interface FakeDb {
   client: FakeClient;
   /** Rows of one table, in insert order. */
   rows(table: string): Row[];
+  /**
+   * Run `write` once, just before the next game_events insert: another
+   * phone's write landing between this phone's check and its own.
+   */
+  interleave(write: () => void): void;
+  /** @internal */
+  pendingInterleave: (() => void) | null;
 }
 
 type Filter = (row: Row) => boolean;
@@ -35,6 +44,25 @@ function nextStamp(): string {
 function nextId(): string {
   seq += 1;
   return `00000000-0000-4000-8000-${String(seq).padStart(12, "0")}`;
+}
+
+const quarterOf = (r: Row) => (r.metadata as { quarter?: unknown } | null | undefined)?.quarter;
+
+/** The game_events unique index `rows` would break, against `existing` and each other. */
+function uniqueViolation(existing: Row[], rows: Row[]): string | null {
+  const seen = [...existing];
+  for (const row of rows) {
+    const key = row.idempotency_key;
+    if (key && seen.some((r) => r.idempotency_key === key)) return "game_events_idempotency_key_uq";
+    const q = quarterOf(row);
+    const sameGame = (r: Row) => r.type === row.type && r.game_id === row.game_id;
+    if (row.type === "quarter_start" && q != null && seen.some((r) => sameGame(r) && String(quarterOf(r)) === String(q))) {
+      return "game_events_one_start_per_period";
+    }
+    if (row.type === "game_finalised" && seen.some(sameGame)) return "game_events_one_finalised";
+    seen.push(row);
+  }
+  return null;
 }
 
 class Query implements PromiseLike<Result> {
@@ -114,14 +142,21 @@ class Query implements PromiseLike<Result> {
     const all = this.db.rows(this.table);
     const match = (r: Row) => this.filters.every((f) => f(r));
     if (this.mode === "insert" || this.mode === "upsert") {
+      if (this.table === "game_events" && this.db.pendingInterleave) {
+        const write = this.db.pendingInterleave;
+        this.db.pendingInterleave = null;
+        write();
+      }
+      if (this.table === "game_events") {
+        const violated = uniqueViolation(all, this.payload);
+        if (violated) {
+          return { data: null, error: { code: "23505", message: `duplicate key value violates unique constraint "${violated}"` } };
+        }
+      }
       const added: Row[] = [];
       for (const raw of this.payload) {
         const row: Row = { ...raw };
         if (this.table === "game_events") {
-          const key = row.idempotency_key;
-          if (key && all.some((r) => r.idempotency_key === key)) {
-            return { data: null, error: { code: "23505", message: "duplicate key value violates unique constraint" } };
-          }
           row.id ??= nextId();
           row.created_at ??= nextStamp();
           row.player_id ??= null;
@@ -198,6 +233,10 @@ export function makeFakeDb(seed: Record<string, Row[]> = {}): FakeDb {
   const tables: Record<string, Row[]> = {};
   const db: FakeDb = {
     tables,
+    pendingInterleave: null,
+    interleave(write) {
+      db.pendingInterleave = write;
+    },
     rows(table: string) {
       tables[table] ??= [];
       return tables[table];

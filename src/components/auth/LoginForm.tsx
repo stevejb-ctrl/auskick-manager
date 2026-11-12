@@ -10,6 +10,9 @@ import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { AppleSignInButton } from "@/components/auth/AppleSignInButton";
 import { LoginField } from "@/components/auth/LoginField";
 import { LoginSentState } from "@/components/auth/LoginSentState";
+import { emailError } from "@/lib/email/validate";
+import { authErrorText } from "@/lib/auth/authErrorText";
+import { PRICE } from "@/lib/siren-facts";
 
 // Only follow `next` if it's a same-origin path — never an absolute URL.
 function safeNext(raw: string | null): string {
@@ -18,6 +21,14 @@ function safeNext(raw: string | null): string {
 }
 
 type Mode = "magic" | "password";
+
+/**
+ * Which door the visitor came in by. `signup` is /signup, where a
+ * demo's "Create your team" lands (Steve, round 12): the same
+ * email-first flow, told as setting up a team. No password mode, since
+ * a new account has none, and a way back to sign in.
+ */
+export type LoginIntent = "signin" | "signup";
 
 /**
  * Signing in to join a team (from an invite or the team-code page):
@@ -46,7 +57,14 @@ export interface JoinStory {
  * Replaces the previous AuthMethods + MagicLinkForm + LoginForm
  * stack with a single component.
  */
-export function LoginForm({ join = null }: { join?: JoinStory | null }) {
+export function LoginForm({
+  join = null,
+  intent = "signin",
+}: {
+  join?: JoinStory | null;
+  intent?: LoginIntent;
+}) {
+  const signup = intent === "signup" && !join;
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNext(searchParams.get("next"));
@@ -57,6 +75,10 @@ export function LoginForm({ join = null }: { join?: JoinStory | null }) {
   const [mode, setMode] = useState<Mode>("magic");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The email check (src/lib/email/validate.ts): type="email" lets
+  // "coach@gmail" through, and a link was "sent" to it (Stagehand
+  // round 11).
+  const [emailErr, setEmailErr] = useState<string | null>(null);
 
   const [sent, setSent] = useState(false);
   const [resending, setResending] = useState(false);
@@ -79,15 +101,19 @@ export function LoginForm({ join = null }: { join?: JoinStory | null }) {
     e.preventDefault();
     if (!email) return;
     setError(null);
+    const badEmail = emailError(email);
+    setEmailErr(badEmail);
+    if (badEmail) return;
+    const address = email.trim();
 
     if (mode === "password") {
       setSubmitting(true);
       const { error } = await supabase.auth.signInWithPassword({
-        email,
+        email: address,
         password,
       });
       if (error) {
-        setError(error.message);
+        setError(authErrorText(error, "sign-in"));
         setSubmitting(false);
         return;
       }
@@ -98,9 +124,9 @@ export function LoginForm({ join = null }: { join?: JoinStory | null }) {
 
     // magic-link path
     setSubmitting(true);
-    const { error } = await sendMagicLink(email);
+    const { error } = await sendMagicLink(address);
     if (error) {
-      setError(error.message);
+      setError(authErrorText(error, "send"));
       setSubmitting(false);
       return;
     }
@@ -114,7 +140,7 @@ export function LoginForm({ join = null }: { join?: JoinStory | null }) {
     const { error } = await sendMagicLink(email);
     setResending(false);
     if (error) {
-      setError(error.message);
+      setError(authErrorText(error, "send"));
       return;
     }
     setResentNotice(true);
@@ -135,6 +161,7 @@ export function LoginForm({ join = null }: { join?: JoinStory | null }) {
         onResend={handleResend}
         resending={resending}
         resentNotice={resentNotice}
+        purpose={signup ? "signup" : "signin"}
       />
     );
   }
@@ -155,6 +182,22 @@ export function LoginForm({ join = null }: { join?: JoinStory | null }) {
           <p className="mt-2 mb-6 text-sm leading-relaxed text-ink-dim">
             {join.roleLabel ? `You're joining as a ${join.roleLabel}. ` : ""}
             New or returning, enter your email and we&apos;ll get you in.
+          </p>
+        </>
+      ) : signup ? (
+        <>
+          <Eyebrow>New to Siren</Eyebrow>
+          <h1
+            className="mt-1.5 text-[36px] font-bold tracking-tightest text-ink"
+            style={{ lineHeight: 1.05 }}
+          >
+            Set up your <span className="text-brand-500">team</span>
+          </h1>
+          <p className="mt-2 mb-6 text-sm leading-relaxed text-ink-dim">
+            <strong className="font-semibold text-ink">{PRICE.line}.</strong>{" "}
+            Enter your email and we&apos;ll send a link that creates your
+            account, then you&apos;ll set up your team. Parents don&apos;t
+            need an account; they just open a share link.
           </p>
         </>
       ) : (
@@ -186,14 +229,20 @@ export function LoginForm({ join = null }: { join?: JoinStory | null }) {
 
       <Divider label={mode === "password" ? "OR WITH PASSWORD" : "OR WITH EMAIL"} />
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      {/* noValidate: the email check below says what is wrong, under the
+          field, where the browser bubble only said "include an @". */}
+      <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-3">
         <LoginField
           label="Email"
           type="email"
           autoComplete="email"
           required
           value={email}
-          onChange={setEmail}
+          onChange={(next) => {
+            setEmail(next);
+            setEmailErr(null);
+          }}
+          error={emailErr}
           placeholder="you@example.com"
           data-testid="login-email"
         />
@@ -211,7 +260,7 @@ export function LoginForm({ join = null }: { join?: JoinStory | null }) {
             hint={
               <Link
                 href="/forgot-password"
-                className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
+                className="font-mono text-nano font-bold uppercase tracking-[0.12em] text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
               >
                 Forgot?
               </Link>
@@ -240,6 +289,8 @@ export function LoginForm({ join = null }: { join?: JoinStory | null }) {
               : "Sending link…"
             : mode === "password"
             ? "Sign in"
+            : signup
+            ? "Create account"
             : "Continue"}
         </SFButton>
 
@@ -249,13 +300,26 @@ export function LoginForm({ join = null }: { join?: JoinStory | null }) {
             <span>
               {join
                 ? "We'll email you a sign-in link, then take you straight to the team. No password to remember."
+                : signup
+                ? "Open the link we email you to create your account. No password to remember."
                 : "We'll email you a sign-in link. New email? You'll be invited to set up a team. No password to remember."}
             </span>
           </p>
         )}
       </form>
 
-      <div className="mt-5 flex items-baseline justify-between border-t border-hairline pt-4 text-xs text-ink-dim">
+      {signup ? (
+        <p className="mt-5 border-t border-hairline pt-4 text-xs text-ink-dim">
+          Already have an account?{" "}
+          <Link
+            href={next === "/dashboard" ? "/login" : `/login?next=${encodeURIComponent(next)}`}
+            className="border-b border-hairline pb-px font-semibold text-ink transition-colors duration-fast ease-out-quart hover:text-brand-700"
+          >
+            Sign in
+          </Link>
+        </p>
+      ) : (
+      <div className="mt-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-3 border-t border-hairline pt-4 text-xs text-ink-dim">
         <button
           type="button"
           onClick={() => {
@@ -276,13 +340,14 @@ export function LoginForm({ join = null }: { join?: JoinStory | null }) {
           Trouble signing in?
         </Link>
       </div>
+      )}
     </div>
   );
 }
 
 function Divider({ label }: { label: string }) {
   return (
-    <div className="my-4 flex items-center gap-3 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-ink-mute">
+    <div className="my-4 flex items-center gap-3 font-mono text-nano font-bold uppercase tracking-[0.16em] text-ink-mute">
       <span aria-hidden="true" className="h-px flex-1 bg-hairline" />
       {label}
       <span aria-hidden="true" className="h-px flex-1 bg-hairline" />

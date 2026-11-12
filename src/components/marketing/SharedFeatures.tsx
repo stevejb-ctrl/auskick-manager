@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { SHARED_FEATURES } from "@/lib/marketing/sportPages";
 import { SIREN_SPORTS } from "@/lib/siren-facts";
-import { MARKETING_SPORTS } from "@/lib/sports/marketing-sports";
+import { MARKETING_SPORTS, type MarketingSurface } from "@/lib/sports/marketing-sports";
 import type { SportId } from "@/lib/sports/types";
 
 /** The sport as prose names it: "AFL", "football (soccer)". */
@@ -9,71 +9,68 @@ function sportName(id: SportId): string {
   return SIREN_SPORTS.find((s) => s.id === id)?.name ?? id;
 }
 
+const SURFACE_BG: Record<MarketingSurface, string> = {
+  field: "bg-field",
+  court: "bg-court",
+  wood: "bg-wood",
+};
+
 interface SharedFeaturesProps {
-  /** Small caps over the heading. */
-  eyebrow: string;
   /** The heading, with one word in the accent colour. */
   heading: { before: string; accent: string; after: string };
   intro: string;
-  /** The accent word's colour: Siren green, or a sport page's own. */
-  accent?: string;
 }
 
 /**
- * The six things Siren does in every sport, as a grid of cards, each
- * over a screenshot from a different sport and labelled with it. The
- * homepage's features section, and the tour on sport pages that have
- * no feature copy of their own.
+ * The six things Siren does in every sport (the homepage), each on a
+ * small piece of the ground it's shown in: the card is that sport's
+ * surface, chalk words on it, and its phone rising off the bottom edge
+ * as if lying on the grass, the court or the boards.
  */
-export function SharedFeatures({ eyebrow, heading, intro, accent }: SharedFeaturesProps) {
+export function SharedFeatures({ heading, intro }: SharedFeaturesProps) {
   return (
-    <section id="features" className="border-y border-hairline bg-surface py-16 sm:py-24">
+    <section id="features" aria-labelledby="features-heading" className="py-16 sm:py-24">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <div className="mx-auto max-w-3xl text-center">
-          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-dim">
-            {eyebrow}
-          </p>
-          <h2 className="mt-3 text-[clamp(2rem,4vw,3.25rem)] font-bold leading-[1.05] tracking-tightest text-ink [text-wrap:balance]">
+        <div className="max-w-2xl">
+          <h2
+            id="features-heading"
+            className="font-display text-[clamp(2.25rem,4.6vw,3.5rem)] font-extrabold leading-[1] text-ink stretch-80 [text-wrap:balance]"
+          >
             {heading.before}
-            <span className={accent ? undefined : "text-brand-600"} style={accent ? { color: accent } : undefined}>
-              {heading.accent}
-            </span>
+            <span className="text-brand-600">{heading.accent}</span>
             {heading.after}
           </h2>
-          <p className="mt-4 text-lg text-ink-dim">{intro}</p>
+          <p className="mt-4 text-lg leading-relaxed text-ink-dim">{intro}</p>
         </div>
 
-        <ul className="mt-12 grid grid-cols-1 gap-4 sm:mt-14 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <ul className="mt-10 grid grid-cols-1 gap-4 sm:mt-12 sm:gap-5 md:grid-cols-2 lg:grid-cols-3">
           {SHARED_FEATURES.map((feature) => {
             const sport = MARKETING_SPORTS.find((s) => s.sport === feature.shownIn);
             return (
               <li
                 key={feature.title}
-                className="flex flex-row items-center gap-4 overflow-hidden rounded-2xl border border-hairline bg-warm p-3 sm:flex-col sm:items-stretch sm:gap-0 sm:p-0"
+                className={`field-band relative flex h-[27.5rem] flex-col overflow-hidden rounded-[24px] text-mark ${SURFACE_BG[sport?.surface ?? "field"]}`}
               >
-                <div className="h-[150px] w-[92px] shrink-0 overflow-hidden rounded-xl bg-surface-alt sm:h-[280px] sm:w-auto sm:rounded-none sm:px-8 sm:pt-6">
-                  <div className="relative h-full w-full overflow-hidden sm:rounded-t-[18px] sm:border sm:border-b-0 sm:border-hairline">
-                    <Image
-                      src={feature.image}
-                      alt={feature.imageAlt}
-                      fill
-                      sizes="(min-width: 1024px) 320px, (min-width: 640px) 45vw, 92px"
-                      className="object-cover"
-                      style={{ objectPosition: feature.focus }}
-                    />
-                  </div>
-                </div>
-                <div className="min-w-0 sm:px-6 sm:pb-7 sm:pt-5">
-                  <p className="flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-ink-dim sm:text-[11px]">
-                    <span
-                      aria-hidden="true"
-                      className="h-[7px] w-[7px] rounded-full bg-ink"
-                      style={sport ? { backgroundColor: sport.accent } : undefined}
-                    />
+                <div className="px-6 pt-6">
+                  <p className="font-display text-[0.875rem] font-extrabold uppercase tracking-[0.08em] text-mark/75 stretch-72">
                     {feature.shownIn ? `Shown in ${sportName(feature.shownIn)}` : "Every sport"}
                   </p>
-                  <h3 className="mt-2 text-lg font-bold tracking-tight text-ink sm:text-xl">{feature.title}</h3>
-                  <p className="mt-1.5 text-sm leading-relaxed text-ink-dim sm:text-[15px]">{feature.body}</p>
+                  <h3 className="mt-2 font-display text-[1.75rem] font-extrabold leading-[1.02] stretch-80">{feature.title}</h3>
+                  <p className="mt-2 text-[0.9375rem] leading-relaxed text-mark/85">{feature.body}</p>
+                </div>
+                {/* The phone, its top half above the card's foot. */}
+                <div className="relative mx-auto mt-auto h-[15.5rem] w-[15rem] shrink-0">
+                  <div className="absolute inset-x-0 top-0 aspect-[9/19.5] rounded-t-[2.4rem] bg-ink px-[6px] pt-[12px] ring-1 ring-mark/25">
+                    <div className="relative h-full w-full overflow-hidden rounded-t-[1.9rem] bg-warm">
+                      <Image
+                        src={feature.image}
+                        alt={feature.imageAlt}
+                        fill
+                        sizes="240px"
+                        className="object-cover object-top"
+                      />
+                    </div>
+                  </div>
                 </div>
               </li>
             );

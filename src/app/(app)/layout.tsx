@@ -7,6 +7,7 @@ import { MotionPreferenceBridge } from "@/components/preferences/MotionPreferenc
 import { AppFooterShell, AppHeaderShell } from "@/components/layout/AppHeaderShell";
 import { LiveAwareMain } from "@/components/layout/LiveAwareMain";
 import { UserMenu } from "@/components/layout/UserMenu";
+import { AppHelpLink } from "@/components/layout/AppHelpLink";
 import { TeamSwitcher, type SwitcherTeam } from "@/components/layout/TeamSwitcher";
 import { getAgeGroupConfig, getSportConfig, teamSport } from "@/lib/sports";
 import type { Sport } from "@/lib/types";
@@ -87,7 +88,7 @@ export default async function AppLayout({
           the `feedback` table (migration 0045) AND Telegram-ping us
           with team/sport/age/game context when the submitter is
           inside a team route. */}
-      <FeedbackFab kind="feedback" />
+      <FeedbackFab kind="feedback" homeOnly />
       {/* App-bar header.
 
           z-20: the netball court's PositionToken wrappers use z-10
@@ -167,9 +168,7 @@ export default async function AppLayout({
           ghost scroll there; the live top bar's "?" carries help. */}
       <AppFooterShell>
         <footer className="border-t border-hairline pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 text-center text-xs text-ink-mute">
-          <Link href="/help" className="hover:text-ink-dim">
-            Help
-          </Link>
+          <AppHelpLink className="hover:text-ink-dim" />
         </footer>
       </AppFooterShell>
     </div>

@@ -51,8 +51,8 @@ export default function GettingStartedPage() {
 
         <HelpFigure
           src="/help-screenshots/getting-started-signup.png"
-          alt="The Siren sign-up form with email and password fields"
-          caption="The sign-up form. Fill in your email and password to get started."
+          alt="The Siren sign-in page with Google, Apple and an email field"
+          caption="Enter your email and tap Continue, or use Google or Apple."
         />
       </section>
 
@@ -71,15 +71,15 @@ export default function GettingStartedPage() {
             generated.
           </li>
           <li>
-            Tap <strong className="text-ink">Create team</strong>. Your new team
-            card appears on the dashboard.
+            Tap <strong className="text-ink">Continue</strong> and finish the
+            short setup. Your new team card appears on the dashboard.
           </li>
         </ol>
 
         <HelpFigure
           src="/help-screenshots/getting-started-create-team.png"
-          alt="The create team form showing a team name field and age group selector"
-          caption="Name your team and pick the age group before saving."
+          alt="The new team form with the team name, age group, players on the field and quarter length"
+          caption="Name your team and pick the age group, then tap Continue."
         />
 
         <HelpCallout type="tip">
@@ -99,9 +99,8 @@ export default function GettingStartedPage() {
           <li>Open your team and tap the <strong className="text-ink">Squad</strong> tab.</li>
           <li>
             Under <strong className="text-ink">Add player</strong>, enter the
-            player&apos;s full name and, for AFL and league, an optional
-            jersey number (netball squads don&apos;t use numbers, so
-            there&apos;s no number field). Then tap{" "}
+            player&apos;s full name and an optional jersey number (netball
+            squads wear bibs, so there&apos;s no number field). Then tap{" "}
             <strong className="text-ink">Add player</strong>.
           </li>
           <li>Repeat for every player in your squad.</li>
@@ -127,29 +126,30 @@ export default function GettingStartedPage() {
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-ink-dim">
           <li>Open your team and tap the <strong className="text-ink">Games</strong> tab.</li>
           <li>
-            Tap <strong className="text-ink">New game</strong>. Fill in the opponent name,
-            round number, date, time, and optional venue.
+            Tap <strong className="text-ink">Create manually</strong>. Fill in the opponent name,
+            date, time, round number, and optional location.
           </li>
           <li>
-            Tap <strong className="text-ink">Save</strong>. The game appears in your games list
+            Tap <strong className="text-ink">Create game</strong>. The game appears in your games list
             with <em>Upcoming</em> status.
           </li>
         </ol>
 
         <HelpFigure
           src="/help-screenshots/getting-started-create-game.png"
-          alt="The create game form with fields for opponent, round, date, time, and venue"
-          caption="Tap New game to schedule a match."
+          alt="The Create a game form with fields for opponent, date and time, round and location"
+          caption="Tap Create manually to schedule a match."
         />
 
         <HelpCallout type="tip">
           On game day, tap <strong>Start game day</strong> on the Today tab: mark
           who&apos;s here, check the lineup, then <strong>Start Q1</strong>{" "}
-          (league from Under 10: <strong>Start H1</strong>). See{" "}
+          (<strong>Start H1</strong> in a game of halves). See{" "}
           <Link href="/help/live-game" className="font-medium underline">
-            Live Game
+            The live screen
           </Link>{" "}
-          for a full walkthrough.
+          for a full walkthrough, and your sport&apos;s page for its field,
+          scoring and subs.
         </HelpCallout>
       </section>
 
@@ -159,10 +159,16 @@ export default function GettingStartedPage() {
         <ul className="mt-3 space-y-2 text-sm text-ink-dim">
           <li>
             <Link href="/help/live-game" className="font-medium text-brand-600 hover:underline">
-              Live Game →
+              The live screen →
             </Link>{" "}
-            Running a game on the day: lineups, scoring, subs, and the breaks
-            between quarters or halves.
+            Running a game on the day: the lineup, the clock, scores, subs and
+            the ⋯ menu.
+          </li>
+          <li>
+            <Link href="/help" className="font-medium text-brand-600 hover:underline">
+              Your sport →
+            </Link>{" "}
+            Your sport&apos;s field, scoring, subs, breaks and junior rules.
           </li>
           <li>
             <Link href="/help/rotations" className="font-medium text-brand-600 hover:underline">

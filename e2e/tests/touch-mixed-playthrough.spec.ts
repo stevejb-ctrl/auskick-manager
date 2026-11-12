@@ -17,15 +17,18 @@
 //      team's sport; the game page reports by group.
 // Along the way, AFL's live chrome (UX audit 23 Oct 2026): the boys'-cap
 // warning sits on the one swap confirm, which toasts; the undo strip says
-// what each try was; Game settings (the sub interval) is in the row; full
+// what each try was; Game settings (the sub interval) is in ⋯; full
 // time drops the scorebug's chips and the undo strip for the review's
 // team-named 44 pt buttons, and nobody can arrive late after the last half.
 
 import { test, expect, type Locator, type Page } from "@playwright/test";
+import { watchPageErrors } from "../helpers/pageErrors";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
 import { startFromBreak } from "../helpers/break";
+import { readyShell, startShellFirst } from "../helpers/kickoff";
+import { openGameMenu } from "../helpers/liveShell";
 
 test.describe.configure({ mode: "serial" });
 
@@ -40,10 +43,10 @@ async function ownerIdOf() {
   return { admin, ownerId: su.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id };
 }
 
-/** Select a kid on the field and open their actions from the dock. */
+/** Select a kid on the field and open their actions from the kid bar's More (live v3). */
 async function openActions(page: Page, playerId: string) {
   await page.getByTestId(`player-tile-${playerId}`).click({ timeout: 10_000 });
-  await page.getByRole("button", { name: /player actions/i }).click({ timeout: 5_000 });
+  await page.getByTestId("kid-bar").getByRole("button", { name: /^more$/i }).click({ timeout: 5_000 });
 }
 
 /** The player ids of the tiles in a region, in the order drawn. */
@@ -57,7 +60,7 @@ const onField = (lu: TouchLineupMeta) => [...lu.lines.middle, ...lu.lines.link, 
 test("touch U11 mixed: the Girl/Boy prompt, the cap kept through subs, a girl hurt twice and the field shrinks", async ({ page }) => {
   test.setTimeout(300_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
 
   const { admin, ownerId } = await ownerIdOf();
   const team = await makeTeam(admin, {
@@ -162,7 +165,7 @@ test("touch U11 mixed: the Girl/Boy prompt, the cap kept through subs, a girl hu
   await page.getByTestId(`player-tile-${girlOnField}`).click();
   await page.getByTestId(`player-tile-${boyOnBench}`).click();
   await expect(ruleCheck).toHaveText("Too many boys on the field (4); the mixed rule allows 3.");
-  await page.getByRole("button", { name: /^start h1$/i }).click();
+  await page.getByRole("button", { name: /^ready$/i }).click();
   const startError = page.getByRole("alert").filter({ hasText: /too many boys/i });
   await expect(startError).toBeVisible();
   await page.getByRole("button", { name: /game settings/i }).click();
@@ -170,9 +173,9 @@ test("touch U11 mixed: the Girl/Boy prompt, the cap kept through subs, a girl hu
   await expect(startError).toHaveCount(0);
   await expect(ruleCheck).toHaveText("All rules kept");
 
-  await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
-  await page.getByRole("button", { name: /^start h1 now$/i }).click({ timeout: 10_000 });
-  await expect(page.getByRole("button", { name: /^clock — h1, running$/i })).toBeVisible({ timeout: 15_000 });
+  // Live v3: Ready sets the side; the live screen's bar has Start H1.
+  await readyShell(page);
+  await startShellFirst(page);
 
   const h1 = await lineup();
   expect(onField(h1)).toHaveLength(6);
@@ -184,7 +187,7 @@ test("touch U11 mixed: the Girl/Boy prompt, the cap kept through subs, a girl hu
   expect(await count("roster_shrink")).toBe(0);
 
   // ─── 3. Sub due: the card says touch's own words, and the cap kept ─
-  // The sub card is the alert (one voice, in every sport).
+  // The info line is the alert (one voice, in every sport), in touch's words.
   await expect(page.getByRole("alert").filter({ hasText: /sub due/i })).toContainText(
     /make the change next time you have the ball/i,
     { timeout: 30_000 },
@@ -214,8 +217,10 @@ test("touch U11 mixed: the Girl/Boy prompt, the cap kept through subs, a girl hu
   const swapsBeforeHand = await count("swap");
   await field.getByTestId(`player-tile-${girlOff}`).click({ timeout: 10_000 });
   // Bench boys who'd break the cap are dimmed and say why; the girl isn't.
-  await expect(bench.getByTestId(`player-tile-${boyOn}`)).toHaveAccessibleDescription(/mixed rule allows 3/i);
-  await expect(bench.getByTestId(`player-tile-${girlWaiting}`)).not.toHaveAccessibleDescription(/mixed rule/i);
+  await expect(bench.getByTestId(`player-tile-${boyOn}`)).toHaveAccessibleName(/mixed rule allows 3/i);
+  await expect(bench.getByTestId(`player-tile-${boyOn}`)).toHaveCSS("opacity", "0.32");
+  await expect(bench.getByTestId(`player-tile-${girlWaiting}`)).not.toHaveAccessibleName(/mixed rule/i);
+  await expect(bench.getByTestId(`player-tile-${girlWaiting}`)).toHaveCSS("opacity", "1");
   await bench.getByTestId(`player-tile-${boyOn}`).click();
   const confirm = page.getByRole("dialog");
   await expect(confirm).toContainText("That puts 4 boys on: the mixed rule allows 3");
@@ -224,7 +229,8 @@ test("touch U11 mixed: the Girl/Boy prompt, the cap kept through subs, a girl hu
   expect(await count("swap")).toBe(swapsBeforeHand);
   // The girl is still picked: the coach chooses again, and this time swaps anyway.
   await bench.getByTestId(`player-tile-${boyOn}`).click();
-  // One dialog: AFL's swap confirm, carrying the rule it breaks.
+  // One dialog: the shared swap confirm, carrying the rule it breaks (the
+  // one hand sub that still asks first: other hand subs are instant).
   await expect(page.getByRole("dialog")).toHaveCount(1);
   await expect(page.getByRole("dialog")).toContainText(`Manually sub ${nameOf(boyOn)} (Bench) for ${nameOf(girlOff)}`);
   await page.getByRole("dialog").getByRole("button", { name: "Swap anyway" }).click();
@@ -234,6 +240,8 @@ test("touch U11 mixed: the Girl/Boy prompt, the cap kept through subs, a girl hu
   // Over the cap, a chip stays pinned until it's fixed; Fix brings a girl on for a boy.
   const breach = page.getByTestId("touch-mixed-breach");
   await expect(breach).toContainText("4 boys on · rule 3", { timeout: 15_000 });
+  // It says what Fix will do before it's tapped (round 9).
+  await expect(breach.getByTestId("touch-mixed-fix")).toContainText(/^Fix: .+ on for .+$/);
   await breach.getByRole("button", { name: /^fix/i }).click();
   await expect.poll(() => count("swap"), { timeout: 15_000 }).toBe(swapsBeforeHand + 2);
   const { data: fixSwap } = await admin
@@ -316,11 +324,13 @@ test("touch U11 mixed: the Girl/Boy prompt, the cap kept through subs, a girl hu
   await page.getByRole("button", { name: "Add a try, Merewether Mariners" }).click({ timeout: 5_000 });
   await expect(strip).toContainText("Merewether Mariners try");
   await expect.poll(() => count("opponent_try")).toBe(1);
-  // The kid who isn't here yet can be added late.
-  await expect(page.getByRole("button", { name: "+ Add late arrival" })).toBeVisible();
+  // The kid who isn't here yet can be added late (the bench's + Late, and ⋯).
+  await expect(bench.getByRole("button", { name: /^\+ late arrival/i })).toBeVisible();
 
-  // Game settings: the sub interval mid-game, as AFL's, in the row.
-  await page.getByRole("button", { name: "Game settings", exact: true }).click();
+  // Game settings: the sub interval mid-game, as AFL's, in ⋯.
+  const menu = await openGameMenu(page);
+  await expect(menu.getByRole("button", { name: "+ Add late arrival" })).toBeVisible();
+  await menu.getByRole("button", { name: "Game settings" }).click();
   const settings = page.getByRole("dialog").filter({ hasText: "Sub interval" });
   await expect(settings).toBeVisible();
   await expect(settings.getByText(/players on field/i)).toHaveCount(0);

@@ -7,6 +7,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
+import { readyAfl } from "../helpers/kickoff";
 
 const OPPONENT = "Brunswick Magpies";
 
@@ -25,6 +26,9 @@ async function liveGame(sport: "afl" | "netball", ageGroup: string, count: numbe
 }
 
 async function kickOff(page: Page) {
+  // Live v3: the picker's Ready sets the lineup (AFL and netball), the
+  // live screen's bar starts Q1.
+  await readyAfl(page);
   await page.getByRole("button", { name: /^start q1$/i }).click({ timeout: 15_000 });
   await page.getByRole("button", { name: /^start q1 now$/i }).click({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: /^clock — q1, running$/i })).toBeVisible({ timeout: 15_000 });

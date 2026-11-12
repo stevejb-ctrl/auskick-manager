@@ -8,9 +8,13 @@ import { FeedbackFab } from "@/components/feedback/FeedbackFab";
 // (under (app)/) and the marketing site live in fully separate
 // shells — the app no longer feels like an overlay on the website.
 //
-// The mint gradient backdrop is scoped to this wrapper (not the body)
-// so it only shows on the public marketing surface. The authenticated
-// app keeps the warm cream `bg-warm` body backdrop from globals.css.
+// The page is the app's chalk (`bg-warm`, live v3): the reading sections
+// sit on it, and the field bands (FieldBand) paint each sport's surface
+// over it (docs/marketing/V3-SITE-DESIGN.md).
+//
+// `theme-light` pins the marketing site to the light palette on a dark
+// phone: its screenshots and the chalk page are drawn for light, and the
+// dark theme is the app's (25 Oct 2026). The bands are the same in both.
 //
 // Pages keep their own <main> element so per-page width/padding
 // classes (max-w-3xl on policy pages, full-bleed on the home hero,
@@ -21,7 +25,7 @@ export default function MarketingLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-brand-50 to-brand-100">
+    <div className="theme-light min-h-screen bg-warm">
       <MarketingBanner />
       <MarketingHeader />
       {children}

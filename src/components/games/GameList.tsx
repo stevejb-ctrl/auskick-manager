@@ -4,6 +4,11 @@ import { GameRow } from "@/components/games/GameRow";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { NotPlayedGames } from "@/components/games/NotPlayedGames";
 import { splitByNotPlayed } from "@/lib/games/notPlayed";
+import { availableCountsByGame } from "@/lib/games/availableCounts";
+import { finalScoresByGame } from "@/lib/results";
+import { getSeasonEvents } from "@/lib/season";
+import { finalScoreOf } from "@/lib/games/playedScore";
+import { teamSport } from "@/lib/sports";
 
 interface GameListProps {
   teamId: string;
@@ -25,30 +30,34 @@ interface GameListProps {
 export async function GameList({ teamId, filter = "all", canEdit = false }: GameListProps) {
   const supabase = createClient();
 
-  const [{ data: games }, { count: activeCount }, { data: availability }] =
-    await Promise.all([
-      supabase
-        .from("games")
-        .select("*")
-        .eq("team_id", teamId)
-        .order("scheduled_at", { ascending: false }),
-      supabase
-        .from("players")
-        .select("*", { count: "exact", head: true })
-        .eq("team_id", teamId)
-        .eq("is_active", true),
-      supabase
-        .from("game_availability")
-        .select("game_id, status")
-        .eq("status", "available"),
-    ]);
+  const [{ data: games }, { data: activePlayers }, { data: teamRow }] = await Promise.all([
+    supabase
+      .from("games")
+      .select("*")
+      .eq("team_id", teamId)
+      .order("scheduled_at", { ascending: false }),
+    supabase.from("players").select("id").eq("team_id", teamId).eq("is_active", true),
+    // The sport scores the list; Mark played's score is in the sport's
+    // words, beside the team's name.
+    supabase.from("teams").select("sport, track_scoring, name").eq("id", teamId).maybeSingle(),
+  ]);
 
   const all = (games ?? []) as Game[];
-  const totalActive = activeCount ?? 0;
-  const availMap = new Map<string, number>();
-  for (const row of (availability ?? []) as Pick<GameAvailability, "game_id" | "status">[]) {
-    availMap.set(row.game_id, (availMap.get(row.game_id) ?? 0) + 1);
-  }
+  const activeIds = (activePlayers ?? []).map((p) => p.id as string);
+  const totalActive = activeIds.length;
+  // This team's games only, and only kids still in the squad: a kid
+  // switched off keeps their rows, which read "16/15".
+  const { data: availability } = all.length
+    ? await supabase
+        .from("game_availability")
+        .select("game_id, player_id, status")
+        .eq("status", "available")
+        .in("game_id", all.map((g) => g.id))
+    : { data: [] };
+  const availMap = availableCountsByGame(
+    (availability ?? []) as Pick<GameAvailability, "game_id" | "player_id" | "status">[],
+    activeIds,
+  );
 
   // A game well past its start that was never run moves out of Upcoming
   // to Not played, with the past (lib/games/notPlayed).
@@ -63,6 +72,19 @@ export async function GameList({ teamId, filter = "all", canEdit = false }: Game
         new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime(),
     );
 
+  // Each played game's result, as Today shows the last one (design
+  // review, Oct 2026: the list showed finished games with no score).
+  const scores =
+    completed.length > 0 && teamRow
+      ? finalScoresByGame(
+          teamSport((teamRow as { sport: string }).sport),
+          (teamRow as { track_scoring: boolean | null }).track_scoring === true,
+          completed,
+          await getSeasonEvents(teamId),
+          finalScoreOf,
+        )
+      : new Map();
+
   if (all.length === 0) {
     return (
       <EmptyState title="No games yet" description="Create your first game above." />
@@ -76,7 +98,7 @@ export async function GameList({ teamId, filter = "all", canEdit = false }: Game
     <div className="space-y-6">
       {showActive && active.length > 0 && (
         <section className="space-y-2">
-          <h2 className="text-[11px] font-semibold uppercase tracking-micro text-ink-mute">
+          <h2 className="text-micro font-semibold uppercase tracking-micro text-ink-mute">
             Upcoming
           </h2>
           <div className="space-y-2">
@@ -94,13 +116,19 @@ export async function GameList({ teamId, filter = "all", canEdit = false }: Game
       )}
 
       {showCompleted && (
-        <NotPlayedGames teamId={teamId} games={[...notPlayed].reverse()} canEdit={canEdit} />
+        <NotPlayedGames
+          teamId={teamId}
+          sport={teamRow ? teamSport((teamRow as { sport: string }).sport) : "afl"}
+          teamName={(teamRow?.name as string | undefined) ?? "Us"}
+          games={[...notPlayed].reverse()}
+          canEdit={canEdit}
+        />
       )}
 
       {showCompleted && completed.length > 0 && (
         <section className="space-y-2">
-          <h2 className="text-[11px] font-semibold uppercase tracking-micro text-ink-mute">
-            Completed
+          <h2 className="text-micro font-semibold uppercase tracking-micro text-ink-mute">
+            Played
           </h2>
           <div className="space-y-2">
             {completed.map((game) => (
@@ -108,6 +136,7 @@ export async function GameList({ teamId, filter = "all", canEdit = false }: Game
                 key={game.id}
                 teamId={teamId}
                 game={game}
+                score={scores.get(game.id) ?? null}
                 availableCount={availMap.get(game.id) ?? 0}
                 totalActive={totalActive}
               />

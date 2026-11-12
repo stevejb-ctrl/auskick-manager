@@ -25,13 +25,14 @@ import { hapticTap } from "@/lib/haptics";
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
 import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
 import { type InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
+import { soccerField } from "./SoccerField";
 import { PeriodBreak, type BreakPlayer, type BreakStrategy } from "@/components/quarter-break/PeriodBreak";
 import { breakConfigFor } from "@/lib/sports/break";
 import { periodLabels, type SoccerSport } from "@/lib/sports";
 import { soccerFamilyRules } from "@/lib/sports/soccer/family";
 import { buildBoard, placesOf, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
-import { useBreakReplan } from "@/lib/live/break/useBreakReplan";
+import { useBreakReplan, withHealthyOnBench } from "@/lib/live/break/useBreakReplan";
 import { rotateGroups } from "@/lib/live/break/rotateGroups";
 import { soccerOnField, soccerUnitOf, type SoccerLineup } from "@/lib/sports/soccer/lineup";
 import { soccerGameMs, type SoccerGameState } from "@/lib/sports/soccer/replay";
@@ -49,6 +50,7 @@ import {
 } from "@/lib/sports/soccer/types";
 import type { Game, LiveAuth, Player } from "@/lib/types";
 import { breakPlansWithKeeper, kitUpKey, preferAnnouncedKeeper, readKitUp, writeKitUp } from "./keeperKitUp";
+import { sidelinedLabel } from "@/lib/live/wentHome";
 
 const GROUPS = ["att", "mid", "def", "field", "gk"] as const;
 
@@ -226,7 +228,14 @@ export function SoccerBreak({
   const lastApplied = useRef<BreakStrategy>(initialMode);
   // A kid back at the break gets the strategy's lineup again, unless the
   // coach has placed kids by hand (lib/live/break/useBreakReplan).
-  const replan = useBreakReplan(healthy, () => setDraft(forStrategy(strategy)));
+  // Undo puts back the lineup from before, with who can't play now
+  // benched and who can and wasn't in it on the bench.
+  const replan = useBreakReplan(healthy, {
+    draft,
+    setDraft,
+    plan: () => forStrategy(strategy),
+    fit: (d) => withHealthyOnBench(benchOutInSoccerLineup(d, sidelinedSet), healthy, (l, id) => !!soccerUnitOf(l, id)),
+  });
   useEffect(() => {
     if (lastApplied.current === strategy) return;
     lastApplied.current = strategy;
@@ -336,9 +345,10 @@ export function SoccerBreak({
   );
   const sidelined = useMemo(() => {
     const out: Record<string, string> = {};
-    for (const id of sidelinedInGame) out[id] = injuredSet.has(id) ? "Injured" : "Lent";
+    const home = new Set(state.wentHomeIds);
+    for (const id of sidelinedInGame) out[id] = injuredSet.has(id) ? sidelinedLabel(id, home) : "Lent";
     return out;
-  }, [sidelinedInGame, injuredSet]);
+  }, [sidelinedInGame, injuredSet, state.wentHomeIds]);
   const withOut = (l: SoccerLineup): StagedLineup => {
     const s = stagedOf(l);
     const onBoard = new Set([...Object.values(s.groups).flat(), ...s.bench]);
@@ -396,6 +406,8 @@ export function SoccerBreak({
     <PeriodBreak
       header={{ exitHref, game }}
       config={config}
+      // The pitch, futsal's court or the hockey pitch, as in play.
+      field={soccerField(rules.surface, game.on_field_size >= 11)}
       nextPeriod={nextPeriod}
       slots={board}
       players={players}
@@ -409,6 +421,8 @@ export function SoccerBreak({
         setDraft((d) => swapSlots(d, a, b));
       }}
       strategy={strategy}
+      replanned={replan.replanned}
+      onUndoReplan={replan.undo}
       onStrategy={(next) => {
         shaped.current = true;
         setStrategy(next);

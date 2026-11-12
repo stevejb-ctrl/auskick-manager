@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/Label";
 import { Toggle } from "@/components/ui/Toggle";
 import { isYouTubeUrl, youtubeVideoId } from "@/lib/songUrl";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 interface TeamSongSettingsProps {
   teamId: string;
@@ -77,6 +78,7 @@ export function TeamSongSettings({
 
   // YouTube preview toggle
   const [showYtPreview, setShowYtPreview] = useState(false);
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
 
   // HTML5 Audio preview
   const previewRef = useRef<HTMLAudioElement | null>(null);
@@ -172,10 +174,10 @@ export function TeamSongSettings({
   // ── Delete ────────────────────────────────────────────────────────────────
 
   function handleDelete() {
-    if (!confirm("Remove team song?")) return;
     setError(null);
     startTransition(async () => {
       const result = await deleteSong(teamId);
+      setConfirmingRemove(false);
       if (!result.success) {
         setError(result.error ?? null);
       } else {
@@ -419,7 +421,7 @@ export function TeamSongSettings({
                 type="button"
                 variant="ghost"
                 size="md"
-                onClick={handleDelete}
+                onClick={() => setConfirmingRemove(true)}
                 disabled={isPending}
                 className="ml-auto text-danger hover:bg-danger/10 hover:text-danger"
               >
@@ -482,6 +484,20 @@ export function TeamSongSettings({
           </form>
         )}
       </div>
+
+      {confirmingRemove && (
+        <ConfirmDialog
+          title="Remove the team song?"
+          confirmLabel="Remove song"
+          pendingLabel="Removing…"
+          destructive
+          pending={isPending}
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmingRemove(false)}
+        >
+          <p>Goals go quiet, and the song and its start point are gone. To keep it for later, turn off Play on goals instead.</p>
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

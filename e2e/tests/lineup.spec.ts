@@ -45,13 +45,13 @@ test("pre-kickoff lineup renders a full field of players", async ({
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
 
   // Wait for the LineupPicker to actually render before asserting on
-  // its contents. The pre-kickoff CTA in LineupPicker.tsx is "Ready
-  // for Q1" (renamed from "Start game" 2026-05-13 to match the
-  // QuarterBreak narrative) — the "Start Q1" button only appears
-  // AFTER the lineup is committed, inside LiveGame.tsx.
+  // its contents. The pre-kickoff CTA in LineupPicker.tsx is "Ready"
+  // (live v3): it sets the lineup, and "Start Q1" only appears AFTER,
+  // on the live screen's bar (LiveGame.tsx).
   await expect(
-    page.getByRole("button", { name: /^start q1$/i }),
+    page.getByRole("button", { name: /^ready$/i }),
   ).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("button", { name: /^start q1$/i })).toHaveCount(0);
 
   // PlayerTile renders single-word names verbatim (the factory uses
   // distinct first names — see e2e/fixtures/factories.ts). Each
@@ -66,8 +66,10 @@ test("pre-kickoff lineup renders a full field of players", async ({
   // UX review #8): on a brand-new team NOBODY has zone history, so the
   // picker collapses the per-player %s + key to ONE squad-level note
   // instead of repeating "No season time yet" under all 15 rows.
+  // Live v3: the same single note, now under the bench; once there's
+  // season time it's said in words under each kid.
   await expect(
-    page.getByText(/zone history appears under each player/i),
+    page.getByText(/season time shows under each player after your first game/i),
   ).toBeVisible();
   await expect(page.getByText(/season time in zone/i)).toHaveCount(0);
 });
@@ -104,9 +106,10 @@ test("the AFL lineup picker uses the live field and swaps by tap-tap", async ({ 
   });
 
   // Find one bench player and one field player, then swap them.
-  const benchHeader = lineup.getByText(/^Bench \(2\)$/);
-  await expect(benchHeader).toBeVisible();
-  const bench = benchHeader.locator("..");
+  // Live v3: the bench is a KidBench ("BENCH 2" in the margin), a named
+  // group; it was a "Bench (2)" card.
+  const bench = lineup.getByRole("group", { name: "Bench", exact: true });
+  await expect(bench).toContainText("Bench 2");
   const benchTile = bench.locator('[data-testid^="player-tile-"]').first();
   const benchId = (await benchTile.getAttribute("data-testid"))!.replace("player-tile-", "");
   // The field renders before the bench, so the first tile is on it.

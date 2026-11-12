@@ -57,6 +57,10 @@ const withPWA = withPWAInit({
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: true,
   reloadOnOnline: false,
+  // The public site's screenshots (public/marketing/, a few MB) aren't
+  // part of the app: next/image serves them sized to the page, so the
+  // service worker doesn't precache the originals on every install.
+  publicExcludes: ["!noprecache/**/*", "!marketing/**/*"],
   // skipWaiting+clientsClaim plus outdated-cache cleanup is the
   // recommended combo for an app that ships frequent deploys.
   // Without them the SW update flow takes two app launches to land,
@@ -120,6 +124,23 @@ const nextConfig = {
   // PostHog through our own domain (src/lib/analytics/posthog-config.ts):
   // ad blockers drop events sent to posthog.com, and this way the
   // browser only ever talks to sirenfooty.com.au. US cloud.
+  // Help: the sport hubs live at the sport pages' slugs (/help/rugby-league,
+  // src/lib/help/sports.ts), so the app's other names for a sport, and the
+  // scoring page's new name, land on the real page.
+  async redirects() {
+    const help = [
+      ["league", "rugby-league"],
+      ["rugby_league", "rugby-league"],
+      ["union", "rugby-union"],
+      ["rugby_union", "rugby-union"],
+      ["football", "soccer"],
+      ["touch", "touch-football"],
+      ["keeping-score", "track-scoring"],
+      ["scoring", "track-scoring"],
+    ];
+    return help.map(([from, to]) => ({ source: `/help/${from}`, destination: `/help/${to}`, permanent: true }));
+  },
+
   async rewrites() {
     return [
       { source: "/ingest/static/:path*", destination: "https://us-assets.i.posthog.com/static/:path*" },

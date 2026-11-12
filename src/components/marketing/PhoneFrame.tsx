@@ -2,73 +2,29 @@ import type { ReactNode } from "react";
 
 interface PhoneFrameProps {
   children: ReactNode;
-  /** Tilt the frame slightly for visual interest. Defaults to 0. */
-  tilt?: number;
-  className?: string;
   /**
-   * Responsive sizing mode.
-   * - `fluid` (mobile features section): scale with the viewport height so
-   *   phone + dot-stepper + breathing always fit inside one screen, no
-   *   matter the device. Phone width is `min(360px, dvh-based)`.
-   * - `fixed` (hero, desktop features): use the supplied className/wrapper
-   *   max-width as before. No dvh-based scaling.
-   *
-   * Defaults to `fixed` so existing call sites (hero, desktop sticky)
-   * keep their previous behaviour.
+   * What it lies on: the chalk page, or a field band, where the ink
+   * bezel gets a faint chalk edge and a deeper shadow so it doesn't sink
+   * into the grass.
    */
-  size?: "fluid" | "fixed";
+  on?: "page" | "band";
+  className?: string;
 }
 
-// Stylised phone bezel for wrapping product screenshots. Ink-black
-// chassis gives the device strong contrast against both the warm
-// hero overlay and the mint backdrop in the features section. No
-// notch — screenshots are full-bleed and already carry their own
-// status bar (9:41 / battery / wifi), so a notch on top reads as
-// noise rather than a device cue.
-//
-// Padding is asymmetric — `px-[6px] py-[14px]` — so the inner screen's
-// aspect ratio matches the screenshot aspect ratio (9:19.5). With
-// symmetric `p-[14px]` the inner aspect (276 × 622 ≈ 0.444) was narrower
-// than the screenshot (0.461), forcing `object-cover` to crop the
-// vertical edges of the image (e.g., chopping the "S" off "Siren Footy"
-// in the top-left of the app screen). The asymmetric ratio
-// (px:py = 6:14 ≈ 9:19.5 × 0.7) keeps the inner aspect at ~0.460, so
-// the screenshot fills the screen with no side cropping.
-//
-// Real-phone bezels are also asymmetric (thinner sides, thicker
-// top/bottom) so this looks more device-like, not less.
-export function PhoneFrame({
-  children,
-  tilt = 0,
-  className = "",
-  size = "fixed",
-}: PhoneFrameProps) {
-  // Fluid: derive width from viewport height so the phone + dot-stepper
-  // + breathing always fit between the sticky header (top-16 ≈ 64px)
-  // and the bottom of the screen. Reservation budget ≈ 160px.
-  const fluidMaxWidth = "min(360px, calc((100dvh - 160px) * 9 / 19.5))";
+// A phone for the app's screenshots (390 × 844, so the screen is
+// 9 : 19.5). The bezel is the app's ink; the screenshots carry their own
+// status bar, so there's no notch. The padding is thinner at the sides
+// than at the ends, as a real phone's is, and keeps the screen at the
+// screenshot's own shape so nothing is cropped. Width comes from the
+// caller (a max-w on it or its wrapper).
+export function PhoneFrame({ children, on = "page", className = "" }: PhoneFrameProps) {
+  const edge =
+    on === "band"
+      ? "ring-1 ring-mark/25 shadow-[0_32px_64px_-24px_rgb(0_0_0_/_0.6),0_8px_20px_-8px_rgb(0_0_0_/_0.35)]"
+      : "ring-1 ring-black/10 shadow-pop";
   return (
-    <div
-      className={[
-        "relative mx-auto aspect-[9/19.5] w-full",
-        size === "fixed" ? "max-w-[320px]" : "",
-        "overflow-hidden rounded-[2.75rem] bg-ink px-[6px] py-[14px] shadow-pop ring-1 ring-black/10",
-        className,
-      ].join(" ")}
-      style={{
-        maxWidth:
-          size === "fluid"
-            ? fluidMaxWidth
-            : "min(320px, calc(72vh * 9 / 19.5))",
-        ...(tilt ? { transform: `rotate(${tilt}deg)` } : {}),
-      }}
-    >
-      {/* Screen — surface white so any image inside is full-bleed.
-          With the ink chassis the chrome around the screen handles
-          the bezel read; no extra ring needed. */}
-      <div className="relative h-full w-full overflow-hidden rounded-[1.875rem] bg-surface">
-        {children}
-      </div>
+    <div className={`relative mx-auto aspect-[9/19.5] w-full rounded-[2.6rem] bg-ink px-[6px] py-[13px] ${edge} ${className}`}>
+      <div className="relative h-full w-full overflow-hidden rounded-[2rem] bg-warm">{children}</div>
     </div>
   );
 }

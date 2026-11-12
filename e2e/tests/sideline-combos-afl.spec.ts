@@ -81,6 +81,9 @@ test("AFL: lend a kid, a kid gets hurt and replaced, then the lent kid comes bac
   // Q1: lend the back (long-press opens the player sheet).
   await page.getByTestId(`player-tile-${lent.id}`).click({ delay: 600 });
   await page.getByRole("button", { name: /lend to opposition/i }).click();
+  // A lend from the field asks who comes on (Stagehand round 7); this
+  // one plays short, so the spot stays empty.
+  await page.getByRole("dialog", { name: /who comes on at/i }).getByRole("button", { name: "Lend without replacement" }).click();
   await landed((evs) => evs.some((e) => e.type === "player_loan" && e.player_id === lent.id));
 
   // Then the mid is hurt; a bench kid comes on.
@@ -188,7 +191,10 @@ test("AFL: a bench kid selected and then lent isn't offered as a sub with the ne
   // Tapping a field kid starts a new selection; it doesn't offer the lent kid.
   await page.getByTestId(`player-tile-${onField[0].id}`).click();
   await page.waitForTimeout(500);
-  await expect(page.getByRole("dialog", { name: new RegExp(`manually sub ${lent.full_name}`, "i") })).toHaveCount(0);
+  // A hand sub happens at once now (live v3): no swap, so no toast and no event.
+  await expect(page.getByTestId("swap-toast")).toHaveCount(0);
+  const { data: swaps } = await admin.from("game_events").select("id").eq("game_id", game.id).eq("type", "swap");
+  expect(swaps ?? []).toHaveLength(0);
 });
 
 // Stagehand round 4 (sideline-chaos-afl): lending a kid mid-quarter
@@ -228,6 +234,9 @@ test("AFL: after a lend, tapping the empty spot brings a bench kid on there", as
   const lent = onField[third * 2]; // a forward
   await page.getByTestId(`player-tile-${lent.id}`).click({ delay: 600 });
   await page.getByRole("button", { name: /lend to opposition/i }).click();
+  // A lend from the field asks who comes on (Stagehand round 7); this
+  // one plays short, so the spot stays empty.
+  await page.getByRole("dialog", { name: /who comes on at/i }).getByRole("button", { name: "Lend without replacement" }).click();
   await expect
     .poll(async () => {
       const { data } = await admin.from("game_events").select("id").eq("game_id", game.id).eq("type", "player_loan");

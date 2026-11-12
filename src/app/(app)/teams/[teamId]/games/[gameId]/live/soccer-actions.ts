@@ -30,6 +30,7 @@ import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { updateLiveGame } from "@/lib/games/updateLiveGame";
 import { getSportConfig, isSoccer, teamSport, type SoccerSport } from "@/lib/sports/registry";
 import { soccerFamilyAgeGroupForTeam, soccerFamilyRules } from "@/lib/sports/soccer/family";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
@@ -38,8 +39,17 @@ import {
   buildAvailableIds,
   reconcileLineupToAvailability,
 } from "@/lib/live/reconcileLineupToAvailability";
-import { checkPeriodWrite, periodWordOf, revalidateLivePage, scoreRowsOf, staleRefusal } from "@/lib/live/liveWriteGuard";
+import {
+  checkPeriodWrite,
+  kickoffRaceRefusal,
+  periodWordOf,
+  raceVerdictOf,
+  revalidateLivePage,
+  scoreRowsOf,
+  staleRefusal,
+} from "@/lib/live/liveWriteGuard";
 import { lineupWrite, type PeriodWrite } from "@/lib/live/periodGuard";
+import { cleanBatchLeft } from "@/lib/live/subAnchor";
 import { resolveUndoTarget, undoArgs, type UndoTargetRef } from "@/lib/live/undoTarget";
 import type { ActionResult, LiveAuth } from "@/lib/types";
 import {
@@ -140,6 +150,10 @@ async function insertEvent(
     idempotency_key: idempotencyKey ?? null,
   });
   if (error) {
+    // The other phone's start or Finish landed after the guard looked.
+    const race = await raceVerdictOf(w.supabase, gameId, error, { type, guard }, await periodWordFor(w.teamId), idempotencyKey);
+    if (race?.kind === "stale") return staleRefusal(auth, w.teamId, gameId, race.message);
+    if (race?.kind === "duplicate") return { success: true };
     // Unique-violation on the idempotency_key partial index means this
     // op already landed (write queue retry). Treat as success.
     if (error.code === "23505" && idempotencyKey) return { success: true };
@@ -220,17 +234,20 @@ export async function startSoccerGame(
   // write stops kick-off: at 3 a side the lineup and the first half were
   // written, the clock ran, and the game stayed "Upcoming" everywhere
   // else (UX round 3, 24 Oct 2026).
-  const { error: gameError } = await w.supabase.from("games").update(gameUpdate).eq("id", gameId);
+  const { error: gameError } = await updateLiveGame(w.supabase, gameId, gameUpdate);
   if (gameError) {
     return { success: false, error: gameWriteError(gameError, { size, onSurface: onSurfaceLabel(sport) }) };
   }
   // Back to upcoming if the kick-off events don't land.
   const undoStart = async (message: string): Promise<ActionResult> => {
-    await w.supabase.from("games").update({ status: "upcoming" }).eq("id", gameId);
+    await updateLiveGame(w.supabase, gameId, { status: "upcoming" });
     return { success: false, error: message };
   };
 
+  // Its id, so a kickoff that loses the race can take it back out.
+  const lineupEventId = crypto.randomUUID();
   const { error: insertError } = await w.supabase.from("game_events").insert({
+    id: lineupEventId,
     game_id: gameId,
     type: "lineup_set",
     metadata: { lineup, sport },
@@ -245,7 +262,12 @@ export async function startSoccerGame(
       metadata: { quarter: 1, sport },
       created_by: w.userId,
     });
-    if (startError) return undoStart(startError.message);
+    if (startError) {
+      // The other phone kicked off: the game stays in progress, as theirs.
+      const raced = await kickoffRaceRefusal(gameId, [lineupEventId], startError, await periodWordFor(w.teamId));
+      if (raced) return staleRefusal(auth, w.teamId, gameId, raced);
+      return undoStart(startError.message);
+    }
   }
 
   // Kick-off retires the pre-game draft, as for every sport.
@@ -361,7 +383,7 @@ export async function finaliseSoccerGame(
   }, idempotencyKey);
   if (!finalise.success) return finalise;
 
-  const { error: updateError } = await w.supabase.from("games").update({ status: "completed" }).eq("id", gameId);
+  const { error: updateError } = await updateLiveGame(w.supabase, gameId, { status: "completed" });
   if (updateError) return { success: false, error: updateError.message };
 
   await writeGameRollup(w.supabase, gameId);
@@ -419,14 +441,13 @@ export async function recordSoccerSwap(
     batch_left?: number;
     /** By hand, off the rotation's cadence: the sub clock doesn't restart (lib/live/subAnchor). */
     manual?: boolean;
+    /** Undo putting a swap back: no "just subbed" mark (lib/live/swapRecency). */
+    undo?: boolean;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {
   const line = unitOrUndefined(input.line);
-  const batchLeft =
-    typeof input.batch_left === "number" && Number.isInteger(input.batch_left) && input.batch_left > 0
-      ? input.batch_left
-      : undefined;
+  const batchLeft = cleanBatchLeft(input.batch_left);
   return insertEvent(
     auth,
     gameId,
@@ -441,6 +462,7 @@ export async function recordSoccerSwap(
         elapsed_ms: input.elapsed_ms,
         ...(batchLeft ? { batch_left: batchLeft } : {}),
         ...(input.manual === true ? { manual: true } : {}),
+        ...(input.undo === true ? { undo: true } : {}),
       },
     },
     idempotencyKey,

@@ -54,7 +54,7 @@ export function QuarterKickoffBar({
     // 216 px of a 390 px screen).
     <div
       ref={barRef}
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4 md:sticky md:inset-x-auto short:pb-[calc(8px+env(safe-area-inset-bottom))] short:pt-[8px]"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(26,30,26,0.04)] sm:px-7 sm:pt-4 desk:sticky desk:inset-x-auto short:pb-[calc(8px+env(safe-area-inset-bottom))] short:pt-[8px]"
     >
       <div className="mx-auto max-w-4xl space-y-2 short:flex short:items-center short:gap-4 short:space-y-0">
         {prompt && <div className="short:min-w-0 short:flex-1">{prompt}</div>}

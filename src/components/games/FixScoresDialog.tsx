@@ -4,19 +4,22 @@
 // A finished game's scores, fixable from the game page's More (round 3
 // edge testing, 24 Oct 2026: "Open game screen: fix scores" opened a
 // read-only summary, and the only edit was Restart), and a game's in
-// play from the live screen (LiveFixScoresButton). Every sport: take a
-// score off, change who scored, add a missed one. The list and its
+// play from the live screen (ScoreFixList, under live/ScoresSheet's
+// Q-by-Q). Every sport: take a score off, change who scored, add a
+// missed one. The list and its
 // delete confirm follow the live Fix-scores panel (ScoreReviewPanel),
 // which is tied to the live screen's store and AFL's actions; the writes
 // are events (fixFinishedScore), so the summary and Stats recompute.
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { fixFinishedScore } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
+import { fixFinishedScore, fixScoreFromLink } from "@/app/(app)/teams/[teamId]/games/[gameId]/actions";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { InlineAlert } from "@/components/ui/InlineAlert";
+import { quietOtherPhoneNotices } from "@/lib/live/otherPhone";
 import type { FinishedScoreRow, ScoreFix, ScoreKind } from "@/lib/games/finishedScores";
+import type { LiveAuth } from "@/lib/types";
 
 export interface FixScoresProps {
   teamId: string;
@@ -30,6 +33,8 @@ export interface FixScoresProps {
   periodLetter: string;
   teamName: string;
   opponentName: string;
+  /** Opened from the game-day link: fixes go through it (fixScoreFromLink). */
+  token?: string;
   /**
    * A game that's on: the period in play. A missed score goes in it by
    * default, and never in one still to come (the sheet offered H2 during
@@ -40,9 +45,50 @@ export interface FixScoresProps {
 
 const NOBODY = "";
 
+/** The game's score so far from its log: ours, theirs. */
+export function logPoints(log: FinishedScoreRow[], side: "us" | "them"): number {
+  return log.filter((r) => r.side === side).reduce((n, r) => n + r.kind.points, 0);
+}
+
+/**
+ * A finished game's scores, fixable from the game page's More. The live
+ * screen's Scores and fixes sheet (live/ScoresSheet) has the same list
+ * under its quarter-by-quarter table.
+ */
 export function FixScoresDialog({
+  onClose,
+  ...props
+}: FixScoresProps & {
+  onClose: () => void;
+  /** After each fix. */
+  onFixed?: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <Modal label="Fix scores" size="md" onClose={busy ? undefined : onClose}>
+      <h2 className="text-lg font-semibold text-ink">Fix scores</h2>
+      <p className="mt-0.5 text-xs text-ink-mute">
+        Take off a wrong score, change who scored, or add one that was missed. Stats follow.
+      </p>
+      <ScoreFixList {...props} onBusy={setBusy} />
+      <div className="mt-4 flex justify-end">
+        <Button variant="secondary" size="sm" onClick={onClose} disabled={busy}>
+          Done
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * The fix itself: the total, each score by period with Change and ×
+ * (behind a "Take this score off?" confirm), and "+ Add a missed score".
+ * Shared by FixScoresDialog and the live ScoresSheet.
+ */
+export function ScoreFixList({
   teamId,
   gameId,
+  token,
   kinds,
   log,
   players,
@@ -51,15 +97,26 @@ export function FixScoresDialog({
   teamName,
   opponentName,
   currentPeriod,
-  onClose,
   onFixed,
+  onBusy,
+  showTotal = true,
+  allowAdd = true,
 }: FixScoresProps & {
-  onClose: () => void;
   /** After each fix (the live screen reads the log again). */
   onFixed?: () => void;
+  /** A fix is saving (the sheet holds its Done meanwhile). */
+  onBusy?: (busy: boolean) => void;
+  /** The "Us 12 – 6 Them" line (the live sheet shows it in its header). */
+  showTotal?: boolean;
+  /**
+   * "+ Add a missed score". Off where the screen has its own add buttons
+   * (the break's and full time's score editors, BreakScoreEditor).
+   */
+  allowAdd?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  useEffect(() => onBusy?.(isPending), [isPending, onBusy]);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<FinishedScoreRow | null>(null);
   const [changing, setChanging] = useState<{ id: string; playerId: string } | null>(null);
@@ -70,7 +127,6 @@ export function FixScoresDialog({
 
   const nameOf = new Map(players.map((p) => [p.id, p.name]));
   const who = (r: FinishedScoreRow) => (r.side === "them" ? opponentName : r.playerId ? nameOf.get(r.playerId) ?? "Unknown" : "No scorer");
-  const points = (side: "us" | "them") => log.filter((r) => r.side === side).reduce((n, r) => n + r.kind.points, 0);
   const addKind = kinds.find((k) => k.type === addType);
   // Every period a score is in, even past the team's count now (its
   // halves or quarters may have changed since this game).
@@ -79,8 +135,10 @@ export function FixScoresDialog({
 
   function run(fix: ScoreFix, done: () => void) {
     setError(null);
+    // Its scores are this phone's: not "added on another phone".
+    quietOtherPhoneNotices();
     startTransition(async () => {
-      const res = await fixFinishedScore(teamId, gameId, fix);
+      const res = token ? await fixScoreFromLink(token, gameId, fix) : await fixFinishedScore(teamId, gameId, fix);
       if (!res.success) {
         setError(res.error);
         return;
@@ -92,14 +150,12 @@ export function FixScoresDialog({
   }
 
   return (
-    <Modal label="Fix scores" size="md" onClose={isPending ? undefined : onClose}>
-      <h2 className="text-lg font-semibold text-ink">Fix scores</h2>
-      <p className="mt-0.5 text-xs text-ink-mute">
-        Take off a wrong score, change who scored, or add one that was missed. Stats follow.
-      </p>
-      <p className="mt-3 text-sm font-semibold text-ink" data-testid="fix-scores-total">
-        {teamName} {points("us")} – {points("them")} {opponentName}
-      </p>
+    <>
+      {showTotal && (
+        <p className="mt-3 text-sm font-semibold text-ink" data-testid="fix-scores-total">
+          {teamName} {logPoints(log, "us")} – {logPoints(log, "them")} {opponentName}
+        </p>
+      )}
 
       <div className="mt-3 max-h-[45vh] space-y-3 overflow-y-auto">
         {log.length === 0 && <p className="text-xs text-ink-mute">No scores yet.</p>}
@@ -108,15 +164,15 @@ export function FixScoresDialog({
           if (rows.length === 0) return null;
           return (
             <div key={p}>
-              <p className="text-[10px] font-bold uppercase tracking-micro text-ink-mute">{periodName(p)}</p>
+              <p className="text-nano font-bold uppercase tracking-micro text-ink-mute">{periodName(p)}</p>
               <ul className="mt-1 divide-y divide-hairline rounded-md border border-hairline bg-surface-alt">
                 {rows.map((r) => (
                   <li key={r.id} className="px-3 py-2 text-xs" data-testid="fix-score-row">
                     <div className="flex items-center justify-between gap-2">
                       <span className="flex min-w-0 items-center gap-2">
                         <span
-                          className={`inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1 text-[10px] font-bold ${
-                            r.side === "us" ? "bg-brand-100 text-brand-700" : "bg-warn-soft text-warn"
+                          className={`inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1 text-nano font-bold ${
+                            r.side === "us" ? "bg-brand-100 text-brand-700" : "bg-warn-soft text-warn-ink"
                           }`}
                         >
                           {r.kind.short.replace(/^\+/, "")}
@@ -130,7 +186,7 @@ export function FixScoresDialog({
                           <button
                             type="button"
                             onClick={() => setChanging({ id: r.id, playerId: r.playerId ?? NOBODY })}
-                            className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-ink-dim hover:bg-surface"
+                            className="rounded-full border border-hairline px-2 py-0.5 text-micro font-medium text-ink-dim hover:bg-surface"
                             aria-label={`Change who scored: ${who(r)}, ${r.kind.label} in ${periodName(p)}`}
                           >
                             Change
@@ -139,7 +195,7 @@ export function FixScoresDialog({
                         <button
                           type="button"
                           onClick={() => setDeleting(r)}
-                          className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-ink-mute hover:border-danger/30 hover:bg-danger/10 hover:text-danger"
+                          className="rounded-full border border-hairline px-2 py-0.5 text-micro font-medium text-ink-mute hover:border-danger/30 hover:bg-danger/10 hover:text-danger"
                           aria-label={`Take off ${who(r)}'s ${r.kind.label.toLowerCase()} in ${periodName(p)}`}
                         >
                           ×
@@ -147,36 +203,17 @@ export function FixScoresDialog({
                       </span>
                     </div>
                     {changing?.id === r.id && (
-                      <div className="mt-2 flex flex-wrap items-end gap-2">
-                        <label className="min-w-0 flex-1 text-[11px] text-ink-mute">
-                          Who scored
-                          <select
-                            value={changing.playerId}
-                            onChange={(e) => setChanging({ id: r.id, playerId: e.target.value })}
-                            className="mt-0.5 block w-full rounded-md border border-hairline bg-surface px-2 py-1 text-xs text-ink"
-                          >
-                            <option value={NOBODY}>— pick —</option>
-                            {players.map((pl) => (
-                              <option key={pl.id} value={pl.id}>
-                                {pl.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <Button
-                          size="sm"
-                          loading={isPending}
-                          disabled={!changing.playerId || changing.playerId === r.playerId}
-                          onClick={() =>
-                            run({ op: "reassign", eventId: r.id, playerId: changing.playerId }, () => setChanging(null))
-                          }
-                        >
-                          Save
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setChanging(null)} disabled={isPending}>
-                          Cancel
-                        </Button>
-                      </div>
+                      <ChangeScorer
+                        players={players}
+                        playerId={changing.playerId}
+                        current={r.playerId}
+                        pending={isPending}
+                        onPick={(playerId) => setChanging({ id: r.id, playerId })}
+                        onSave={() =>
+                          run({ op: "reassign", eventId: r.id, playerId: changing.playerId }, () => setChanging(null))
+                        }
+                        onCancel={() => setChanging(null)}
+                      />
                     )}
                   </li>
                 ))}
@@ -186,7 +223,7 @@ export function FixScoresDialog({
         })}
       </div>
 
-      <div className="mt-3">
+      {allowAdd && <div className="mt-3">
         {!adding ? (
           <button
             type="button"
@@ -199,7 +236,7 @@ export function FixScoresDialog({
           <div className="rounded-md border border-hairline bg-surface p-3 shadow-card">
             <p className="text-xs font-semibold text-ink">Add a missed score</p>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <label className="text-[11px] text-ink-mute">
+              <label className="text-micro text-ink-mute">
                 Score
                 <select
                   value={addType}
@@ -219,7 +256,7 @@ export function FixScoresDialog({
                   ))}
                 </select>
               </label>
-              <label className="text-[11px] text-ink-mute">
+              <label className="text-micro text-ink-mute">
                 {periodCount === 1 ? "When" : "Period"}
                 <select
                   value={addPeriod}
@@ -235,7 +272,7 @@ export function FixScoresDialog({
               </label>
             </div>
             {addKind?.scorer && (
-              <label className="mt-2 block text-[11px] text-ink-mute">
+              <label className="mt-2 block text-micro text-ink-mute">
                 Who scored
                 <select
                   value={addPlayer}
@@ -274,15 +311,9 @@ export function FixScoresDialog({
             </div>
           </div>
         )}
-      </div>
+      </div>}
 
       {error && <InlineAlert className="mt-3">{error}</InlineAlert>}
-
-      <div className="mt-4 flex justify-end">
-        <Button variant="secondary" size="sm" onClick={onClose} disabled={isPending}>
-          Done
-        </Button>
-      </div>
 
       {deleting && (
         <Modal label="Take off this score?" onClose={() => setDeleting(null)}>
@@ -309,6 +340,65 @@ export function FixScoresDialog({
           </div>
         </Modal>
       )}
-    </Modal>
+    </>
   );
+}
+
+/**
+ * "Who scored", Save and Cancel: changing a score's scorer, the same
+ * everywhere a coach can (Scores and fixes, the break's and full time's
+ * score editors, a finished game's Fix scores). The fix is one event
+ * pair (fixScore's "reassign": the score taken off and the same score,
+ * in the same period, put back for the new kid), so the scoreline, the
+ * kids' tallies and Stats follow.
+ */
+export function ChangeScorer({
+  players,
+  playerId,
+  current,
+  pending,
+  onPick,
+  onSave,
+  onCancel,
+}: {
+  players: { id: string; name: string }[];
+  /** The kid picked so far ("" before a pick). */
+  playerId: string;
+  /** Who it's down to now. */
+  current: string | null;
+  pending: boolean;
+  onPick: (playerId: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="mt-2 flex flex-wrap items-end gap-2">
+      <label className="min-w-0 flex-1 text-micro text-ink-mute">
+        Who scored
+        <select
+          value={playerId}
+          onChange={(e) => onPick(e.target.value)}
+          className="mt-0.5 block w-full rounded-md border border-hairline bg-surface px-2 py-1 text-xs text-ink"
+        >
+          <option value={NOBODY}>— pick —</option>
+          {players.map((pl) => (
+            <option key={pl.id} value={pl.id}>
+              {pl.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <Button size="sm" loading={pending} disabled={!playerId || playerId === current} onClick={onSave}>
+        Save
+      </Button>
+      <Button size="sm" variant="ghost" onClick={onCancel} disabled={pending}>
+        Cancel
+      </Button>
+    </div>
+  );
+}
+
+/** A score fix from the live screen: the team's coaches, or the game-day link while the game is on. */
+export function fixScoreAs(auth: LiveAuth, gameId: string, fix: ScoreFix) {
+  return auth.kind === "token" ? fixScoreFromLink(auth.token, gameId, fix) : fixFinishedScore(auth.teamId, gameId, fix);
 }

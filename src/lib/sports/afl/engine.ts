@@ -168,7 +168,22 @@ export function seasonOwedByZone(
  */
 export function assignPositionLabels(
   lineup: Lineup,
-  input: AflPlaybookInput | null | undefined,
+  input: Pick<AflPlaybookInput, "positions" | "positionRoles"> | null | undefined,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  const label = new Map((input?.positions ?? []).map((p) => [p.key, p.label]));
+  for (const [pid, key] of Object.entries(assignPositionKeys(lineup, input))) out[pid] = label.get(key) ?? key;
+  return out;
+}
+
+/**
+ * The same placement as assignPositionLabels, by position key: playerId
+ * → key. Keys stay unique where a coach's labels repeat, so the live
+ * seat map (lib/live/positionSeats) is seeded from this.
+ */
+export function assignPositionKeys(
+  lineup: Lineup,
+  input: Pick<AflPlaybookInput, "positions" | "positionRoles"> | null | undefined,
 ): Record<string, string> {
   const out: Record<string, string> = {};
   if (!input?.positions || input.positions.length === 0) return out;
@@ -181,7 +196,7 @@ export function assignPositionLabels(
     const place = (pid: string, key: string) => {
       const pos = free.find((p) => p.key === key && !taken.has(p.key));
       if (!pos || out[pid]) return false;
-      out[pid] = pos.label;
+      out[pid] = pos.key;
       taken.add(pos.key);
       return true;
     };
@@ -200,7 +215,7 @@ export function assignPositionLabels(
         free.find((p) => !taken.has(p.key) && !never.includes(p.key)) ??
         free.find((p) => !taken.has(p.key));
       if (pos) {
-        out[pid] = pos.label;
+        out[pid] = pos.key;
         taken.add(pos.key);
       }
     }

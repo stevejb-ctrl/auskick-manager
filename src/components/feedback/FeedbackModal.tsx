@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Modal } from "@/components/ui/Modal";
 import { submitFeedback } from "@/lib/feedback/actions";
+import { emailError } from "@/lib/email/validate";
 
 export type FeedbackKind = "feedback" | "presales";
 
@@ -58,6 +59,7 @@ export function FeedbackModal({ open, onClose, kind }: FeedbackModalProps) {
   // Honeypot — visually hidden; real users leave blank, bots fill it.
   const [website, setWebsite] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [emailErr, setEmailErr] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
   const [isPending, startTransition] = useTransition();
 
@@ -93,6 +95,11 @@ export function FeedbackModal({ open, onClose, kind }: FeedbackModalProps) {
     e.preventDefault();
     if (isPending) return;
     setError(null);
+    if (kind === "presales") {
+      const bad = emailError(email);
+      setEmailErr(bad);
+      if (bad) return;
+    }
     startTransition(async () => {
       const result = await submitFeedback({
         kind,
@@ -113,7 +120,7 @@ export function FeedbackModal({ open, onClose, kind }: FeedbackModalProps) {
   }
 
   return (
-    <Modal>
+    <Modal onClose={handleCancel}>
       {sent ? (
         <div role="status" className="py-2 text-center">
           <h3 className="text-lg font-semibold text-ink">
@@ -140,7 +147,11 @@ export function FeedbackModal({ open, onClose, kind }: FeedbackModalProps) {
                 autoComplete="email"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setEmailErr(null);
+                }}
+                error={emailErr ?? undefined}
                 placeholder="you@example.com"
               />
             </div>

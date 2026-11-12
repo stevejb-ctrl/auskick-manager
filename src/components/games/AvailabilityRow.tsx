@@ -6,6 +6,9 @@ import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { Guernsey } from "@/components/sf";
 import { PulseDot } from "@/components/ui/PulseDot";
 import type { ActionResult, AvailabilityStatus, LiveAuth } from "@/lib/types";
+import { useRadioGroup } from "@/components/ui/useRadioGroup";
+
+const IN_OUT: readonly AvailabilityStatus[] = ["available", "unavailable"];
 
 interface AvailabilityRowProps {
   /** The team's or runner's auth, for the live write queue (not needed with onWrite). */
@@ -101,6 +104,16 @@ export function AvailabilityRow({
   // Two-state for the coach ("unknown" reads Out); a parent answering
   // sees an unanswered kid as neither.
   const isOut = answering ? shownStatus === "unavailable" : shownStatus !== "available";
+  // In / Out is a radio pair (an unanswered kid has neither checked):
+  // one Tab stop, the arrow keys flip it (useRadioGroup).
+  const inOut = useRadioGroup<AvailabilityStatus>({
+    values: IN_OUT,
+    value: shownStatus === "available" ? "available" : isOut ? "unavailable" : null,
+    onChange: (next) => handleSet(next),
+    // While a write is in flight the arrows wait too (handleSet would
+    // ignore them, leaving focus on an unchecked radio).
+    disabled: isPending,
+  });
 
   // Post-write flash. `flashKey` is bumped whenever the SHOWN
   // status changes — the absolutely-positioned overlay span is
@@ -187,9 +200,9 @@ export function AvailabilityRow({
         {jerseyNumber != null && <Guernsey num={jerseyNumber} size={32} />}
         <span className="min-w-0">
           <span className="block truncate text-sm font-medium text-ink">{playerName}</span>
-          {note && <span className="block text-[11px] font-medium text-ok">{note}</span>}
+          {note && <span className="block text-micro font-medium text-ok">{note}</span>}
           {writeError && (
-            <span className="block text-[11px] text-danger" role="alert">
+            <span className="block text-micro text-danger" role="alert">
               {writeError}
             </span>
           )}
@@ -206,18 +219,22 @@ export function AvailabilityRow({
           // the state you want; the active side is filled. ~40px tall
           // segments keep the fingertip-friendly target from the
           // Steve 2026-05-13 audit.
+          // Not disabled while a write is pending (handleSet waits): an
+          // arrow key's choice would drop the focus off a disabled radio.
           <div
-            role="group"
+            role="radiogroup"
             aria-label={`${playerName} availability`}
             className={`inline-flex overflow-hidden rounded-full border border-hairline transition-opacity ${
               isPending ? "opacity-60" : ""
             }`}
           >
             <button
+              {...inOut.radioProps("available")}
               type="button"
+              role="radio"
               onClick={() => handleSet("available")}
-              disabled={isPending}
-              aria-pressed={shownStatus === "available"}
+              aria-disabled={isPending || undefined}
+              aria-checked={shownStatus === "available"}
               className={`px-4 py-2.5 text-xs font-semibold transition-colors ${
                 shownStatus === "available"
                   ? "bg-brand-600 text-white"
@@ -227,10 +244,12 @@ export function AvailabilityRow({
               In
             </button>
             <button
+              {...inOut.radioProps("unavailable")}
               type="button"
+              role="radio"
               onClick={() => handleSet("unavailable")}
-              disabled={isPending}
-              aria-pressed={isOut}
+              aria-disabled={isPending || undefined}
+              aria-checked={isOut}
               className={`border-l border-hairline px-4 py-2.5 text-xs font-semibold transition-colors ${
                 isOut
                   ? "bg-ink-dim text-white"
@@ -243,7 +262,7 @@ export function AvailabilityRow({
         ) : (
           // Read-only viewers still see the state.
           <span
-            className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${
+            className={`rounded-full border px-3 py-1 text-micro font-semibold ${
               shownStatus === "available"
                 ? "border-ok/30 bg-ok/10 text-ok"
                 : "border-hairline bg-surface-alt text-ink-mute"

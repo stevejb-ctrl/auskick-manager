@@ -5,13 +5,22 @@ interface SportFieldGlyphProps {
   /** Line weight in screen pixels; it holds at any size. */
   weight?: number;
   className?: string;
+  /**
+   * landscape (16:10, the default), or portrait: the same ground turned
+   * end-on (10:16), as the live screen draws it on a phone.
+   */
+  orientation?: "landscape" | "portrait";
+  /** How it fills a box of another shape: whole (meet) or cropped (slice). */
+  fit?: "meet" | "slice";
 }
 
 /**
  * A sport's field or court as a landscape line drawing (16:10), in
  * currentColor. The homepage's sport tiles, the header's Sports menu and
  * the sport pages tell the sports apart by these, not by colour: ten
- * accents can't stay distinct, ten field markings can.
+ * accents can't stay distinct, ten field markings can. Drawn large and
+ * faint in chalk, they are also the markings on the site's field bands
+ * (FieldBand).
  *
  * Strokes don't scale (vector-effect), so one drawing reads at 48 px in
  * the menu and at 800 px behind a sport page's hero. Each sport is drawn
@@ -21,13 +30,21 @@ interface SportFieldGlyphProps {
  * futsal's 6 m D, hockey's shooting circles and 23 m lines, touch's
  * lanes and Oztag's 10 m lines.
  */
-export function SportFieldGlyph({ sport, weight = 1.5, className = "" }: SportFieldGlyphProps) {
+export function SportFieldGlyph({
+  sport,
+  weight = 1.5,
+  className = "",
+  orientation = "landscape",
+  fit = "meet",
+}: SportFieldGlyphProps) {
+  const portrait = orientation === "portrait";
   const main = { strokeWidth: weight, vectorEffect: "non-scaling-stroke" as const };
   const minor = { strokeWidth: weight * 0.7, vectorEffect: "non-scaling-stroke" as const };
   const dashed = { ...minor, strokeDasharray: `${weight * 2.5} ${weight * 2.5}` };
   return (
     <svg
-      viewBox="0 0 160 100"
+      viewBox={portrait ? "0 0 100 160" : "0 0 160 100"}
+      preserveAspectRatio={`xMidYMid ${fit}`}
       fill="none"
       stroke="currentColor"
       strokeLinecap="round"
@@ -35,7 +52,12 @@ export function SportFieldGlyph({ sport, weight = 1.5, className = "" }: SportFi
       className={className}
       data-sport-field={sport}
     >
-      {drawing(sport, main, minor, dashed)}
+      {portrait ? (
+        // (x, y) to (100 − y, x): the ground's ends at the top and bottom.
+        <g transform="translate(100 0) rotate(90)">{drawing(sport, main, minor, dashed)}</g>
+      ) : (
+        drawing(sport, main, minor, dashed)
+      )}
     </svg>
   );
 }

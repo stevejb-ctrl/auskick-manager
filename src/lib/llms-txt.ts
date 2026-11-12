@@ -1,4 +1,4 @@
-import { HELP_PAGES } from "@/lib/help/pages";
+import { helpPageByPath } from "@/lib/help/pages";
 import { sportPageCopy } from "@/lib/marketing/sportPages";
 import { INDEXABLE_ROUTES } from "@/lib/public-routes";
 import { MARKETING_SPORTS, sportPagePath } from "@/lib/sports/marketing-sports";
@@ -53,7 +53,7 @@ function formatDate(iso: string): string {
 }
 
 function linkLine(siteUrl: string, path: string): string {
-  const help = HELP_PAGES.find((p) => p.href === path);
+  const help = helpPageByPath(path);
   const sport = MARKETING_SPORTS.find((s) => sportPagePath(s) === path);
   const page = help
     ? { title: help.title, blurb: help.description }

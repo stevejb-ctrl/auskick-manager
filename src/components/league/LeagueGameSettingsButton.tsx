@@ -2,13 +2,13 @@
 
 // ─── LeagueGameSettingsButton ───────────────────────────────
 // Mid-game settings affordance for Rugby League — sits in the
-// `LiveAdminUtilityRow` alongside "+ Add late arrival" and
-// "Restart game". Matches AFL's `LiveGameSettingsButton` in both
+// live screen's ⋯ menu (LiveGameMenu) alongside the late arrival
+// and "Restart game". Matches AFL's `LiveGameSettingsButton` in both
 // visual style (SFButton ghost) and modal shape.
 //
 // Three knobs in the modal, and the grade's §6 rule stated:
 //
-//   1. Sub interval — drives the LeagueNextSubCard cadence.
+//   1. Sub interval — drives the live screen's next-sub cadence.
 //
 //   2. Players on field — grow adds empty slots the coach fills
 //      via the existing tap-to-swap UI; shrink opens a "who comes
@@ -130,7 +130,7 @@ interface LeagueGameSettingsModalProps extends LeagueGameSettingsButtonProps {
 const MIN_SUB_SECONDS = 30;
 const MAX_SUB_SECONDS = 600;
 
-function LeagueGameSettingsModal({
+export function LeagueGameSettingsModal({
   auth,
   gameId,
   subIntervalSeconds,
@@ -248,7 +248,7 @@ function LeagueGameSettingsModal({
   }
 
   return (
-    <Modal>
+    <Modal onClose={onClose}>
       <h2 className="text-center text-lg font-bold text-ink">Game settings</h2>
       <p className="mt-1 text-center text-xs text-ink-mute">
         Adjust without restarting the game. Sub-interval changes apply from
@@ -329,7 +329,7 @@ function LeagueGameSettingsModal({
         {unbrokenRule && (
           <div className="rounded-md border border-hairline bg-surface-alt px-3 py-2.5">
             <p className="text-xs font-semibold text-ink">Unbroken periods</p>
-            <p className="text-[11px] text-ink-mute">
+            <p className="text-micro text-ink-mute">
               §6: each player must play {unbrokenRule}. Siren keeps it: a
               kid who needs this one stays on.
             </p>
@@ -342,7 +342,7 @@ function LeagueGameSettingsModal({
             <p className="text-xs font-semibold text-ink">
               Track forward and back time
             </p>
-            <p className="text-[11px] text-ink-mute">
+            <p className="text-micro text-ink-mute">
               {centreVest
                 ? `Adds an F/C/B time bar to every player tile. Centre = time wearing ${centreVest}.`
                 : "Adds a forwards / backs time bar to every player tile."}
@@ -457,7 +457,7 @@ function ShrinkPickerModal({
   }
 
   return (
-    <Modal>
+    <Modal onClose={onCancel}>
       <h2 className="text-center text-lg font-bold text-ink">
         Pick {countToRemove} to come off
       </h2>

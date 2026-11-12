@@ -231,7 +231,10 @@ test("a kid switched off stays in place until the coach leaves the page", async 
   const row = page.getByTestId(`player-row-${bo.id}`);
   const sw = row.getByRole("switch", { name: /^deactivate /i });
   await waitForAdminHydration(sw);
-  const before = await row.boundingBox();
+  // Where the row sits on the page, not the screen: WebKit's click scrolls
+  // the switch to the middle of the iPhone's shorter screen first.
+  const pageY = () => row.evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+  const before = await pageY();
   await sw.click();
   await expect
     .poll(async () => (await admin.from("players").select("is_active").eq("id", bo.id).single()).data?.is_active, { timeout: 10_000 })
@@ -240,7 +243,7 @@ test("a kid switched off stays in place until the coach leaves the page", async 
   await expect(row.getByRole("switch", { name: /^reactivate /i })).toBeVisible();
   await page.waitForTimeout(1_000);
   await expect(page.getByTestId("squad-active-list").getByTestId(`player-row-${bo.id}`)).toBeVisible();
-  expect((await row.boundingBox())?.y).toBe(before?.y);
+  expect(await pageY()).toBe(before);
 
   // Next visit: under Inactive.
   await page.reload();

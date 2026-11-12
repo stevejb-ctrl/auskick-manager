@@ -23,11 +23,12 @@
 //
 // And the live chrome AFL's screen has (UX audit 23 Oct 2026, "Drift
 // from AFL"): the undo strip says what each score was, a tap-tap sub
-// asks first and toasts, full time drops the scorebug's chips and the
+// is made at once and toasts, full time drops the scorebug's chips and the
 // undo strip for the review's labelled 44 pt buttons, and nobody can
 // arrive late once the last half is over.
 
 import { test, expect } from "@playwright/test";
+import { navAbortGuard } from "../helpers/pageErrors";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { startFromBreak } from "../helpers/break";
@@ -48,7 +49,10 @@ function attachConsoleErrorWatcher(
   page: import("@playwright/test").Page,
   errors: string[],
 ): void {
+  // WebKit reports the fetches it cancels on a navigation; those aren't crashes.
+  const isNavAbort = navAbortGuard(page);
   page.on("pageerror", (err) => {
+    if (isNavAbort(err.message)) return;
     const msg = `pageerror: ${err.message}`;
     // eslint-disable-next-line no-console
     console.log("[TEST]", msg);
@@ -58,6 +62,7 @@ function attachConsoleErrorWatcher(
     if (msg.type() !== "error") return;
     const text = msg.text();
     if (KNOWN_INNOCUOUS_PATTERNS.some((re) => re.test(text))) return;
+    if (isNavAbort(text)) return;
     // eslint-disable-next-line no-console
     console.log("[TEST]", `console.error: ${text}`);
     errors.push(`console.error: ${text}`);
@@ -223,13 +228,12 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
   // Dialog is open: pick the second on-field player as the kicker
   // (anyone but the try-scorer to exercise picker selection).
   const kicker = players[1]; // "Brendan"
-  // Each kicker row in RecordConversionDialog has a `rounded-lg`
-  // outer border class (vs the dialog itself which uses
-  // `rounded-2xl`). Filter the row by player name then click its
-  // own Made button — avoids the strict-mode "11 matches" failure.
+  // Each kicker row in RecordConversionDialog is a "conversion-row".
+  // Filter the row by player name then click its own Made button —
+  // avoids the strict-mode "11 matches" failure.
   const kickerRow = page
     .getByRole("dialog", { name: /record conversion/i })
-    .locator("div.rounded-lg")
+    .getByTestId("conversion-row")
     .filter({ hasText: kicker.full_name });
   await kickerRow.getByRole("button", { name: /^made\b/i }).click();
 
@@ -247,18 +251,17 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
     )
     .toBeGreaterThanOrEqual(1);
   await expect(strip).toContainText(`${teamName} conversion — ${kicker.full_name}`);
-  // The kid who isn't here yet can be added late.
-  await expect(page.getByRole("button", { name: "+ Add late arrival" })).toBeVisible();
+  // The kid who isn't here yet can be added late: "+ Late" at the foot
+  // of the bench (live v3; it's in ⋯ too).
+  await expect(page.getByRole("button", { name: /^\+ Late arrival: / })).toBeVisible();
 
-  // ─── Phase 3b: A tap-tap sub asks first, then toasts ─────
-  // Bench kid, then a back: AFL's confirm, in league's words.
+  // ─── Phase 3b: A tap-tap sub happens at once, then toasts ─────
+  // Bench kid, then a back: no confirm (live v3), Undo on the toast.
   const [benchKid, offKid] = [players[11], players[5]];
   await page.getByTestId(`league-player-tile-${benchKid.id}`).click({ timeout: 10_000 });
   await page.getByTestId(`league-player-tile-${offKid.id}`).click({ timeout: 10_000 });
-  const confirm = page.getByRole("dialog", { name: /manually sub/i });
-  await expect(confirm).toContainText(`${benchKid.full_name} (Bench) for ${offKid.full_name} (Backs)`);
-  await confirm.getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByTestId("swap-toast")).toContainText(`${offKid.full_name} → ${benchKid.full_name}`);
+  await expect(page.getByTestId("undo-strip")).toContainText(`Undo: ${benchKid.full_name} on for ${offKid.full_name}`);
   await expect(
     page.getByRole("group", { name: "Backs" }).getByTestId(`league-player-tile-${benchKid.id}`),
   ).toBeVisible({ timeout: 1_500 });
@@ -303,9 +306,9 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
 
   // ─── Phase 5: Start H2, end via manual hooter ─────────────
   await startFromBreak(page, /^start 2nd half/i);
-  // H2 now active. Same clock-menu flow as Phase 4. An inline
-  // KickoffPicker may render for H2, but it's a non-blocking
-  // <section> (not an overlay), so it never covers the clock pill.
+  // H2 now active. Same clock-menu flow as Phase 4. The Kickoff prompt
+  // may show for H2, but it's a line under the top bar (its picker is a
+  // sheet it opens), so it never covers the clock.
   await page.getByRole("button", { name: /^clock — h2, running$/i }).click();
   await expect(page.getByRole("button", { name: /^end h2 now$/i })).toBeVisible({
     timeout: 10_000,
@@ -329,7 +332,7 @@ test("rugby league U10: kickoff → try → conversion → hooter → finalise",
       expect((await add.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     }
   }
-  await expect(page.getByRole("button", { name: "+ Add late arrival" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^\+ Late arrival: / })).toHaveCount(0);
 
   // Pre-finalise the game must still be in_progress — coach hasn't
   // tapped Finalise yet.

@@ -13,7 +13,8 @@ import {
 } from "@/components/sf";
 import { getAgeGroupConfig, getEffectiveQuarterSeconds, getSportConfig, isBasketball, isSoccer, isTouch, periodLabels, teamSport } from "@/lib/sports";
 import { teamMixedRule } from "@/lib/sports/touch/mixed";
-import { ownGoalsFromEvents, scoresKept, scorersFromEvents, unnamedScoreFromEvents } from "@/lib/results";
+import { outcomeOf, ownGoalsFromEvents, scoreFromEvents, scoresKept, scorersFromEvents, unnamedScoreFromEvents } from "@/lib/results";
+import { ResultChip } from "@/components/sf/ResultChip";
 import { getSeasonEvents } from "@/lib/season";
 import { gamePlanPlaybooks } from "@/lib/playbook/planInputs";
 import { gamePlanAnchor } from "@/lib/game-plan/anchor";
@@ -29,9 +30,12 @@ import { teamAgeGroup } from "@/lib/sports/teamAgeGroup";
 import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
 import { distinctFullNames } from "@/lib/names";
 import { isNotPlayed, playedInSiren } from "@/lib/games/notPlayed";
+import { playedScoreOf, playedScoreText } from "@/lib/games/playedScore";
 import { NotPlayedActions } from "@/components/games/NotPlayedGames";
 import { finishedScoreLog, scoreKinds } from "@/lib/games/finishedScores";
 import type { FixScoresProps } from "@/components/games/FixScoresDialog";
+import { replayBasketballGame } from "@/lib/sports/basketball/replay";
+import { periodFormatText } from "@/lib/games/periodFormatText";
 
 interface GameDetailPageProps {
   params: { teamId: string; gameId: string };
@@ -153,6 +157,19 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   const unnamedScore = unnamedScoreFromEvents(sport, (scoringEvents ?? []) as GameEvent[]);
   const ownGoals = ownGoalsFromEvents(sport, (scoringEvents ?? []) as GameEvent[]);
   const scorerWords = SCORER_WORDS[sport];
+  // Basketball: each kid's fouls, for the coach. The summary said only
+  // "fouled out", so nobody could see who finished on 4 (Stagehand
+  // round 7, 28 Oct 2026). Not in the share text: it goes to every parent.
+  const foulRows = isBasketball(sport)
+    ? (() => {
+        const replay = replayBasketballGame((scoringEvents ?? []) as GameEvent[]);
+        const out = new Set(replay.fouledOutIds);
+        return Object.entries(replay.fouls)
+          .filter(([id, n]) => n > 0 && playerById.has(id))
+          .sort((a, b) => b[1] - a[1])
+          .map(([id, n]) => ({ player: playerById.get(id)!, fouls: n, fouledOut: out.has(id) }));
+      })()
+    : [];
   // Two kids with the same name read "Ava Smith #3" / "#12" (lib/names).
   const scorerNames = distinctFullNames(Array.from(playerById.values()));
 
@@ -267,6 +284,11 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
   // A game marked played (not run in Siren) has no events: no summary,
   // score or report, rather than a 0–0 draw with nobody on.
   const ranInSiren = summaryEvents !== null && playedInSiren(summaryEvents);
+  // The result leads a finished game's page (design review, Oct 2026: the
+  // hero said "GAME · FINAL" and the score was inside the chat text).
+  const finalScore = summaryEvents && ranInSiren && keptScore ? scoreFromEvents(sport, summaryEvents) : null;
+  // Marked played with its final score (migration 0076).
+  const playedScore = isFinal && !ranInSiren ? playedScoreOf(g) : null;
   // A finished game's scores, fixable from More (round 3 edge testing:
   // "Open game screen: fix scores" opened a read-only summary).
   const teamAge = teamAgeGroup(
@@ -275,6 +297,17 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
     (team as { period_count?: number | null } | null)?.period_count,
   );
   const scoreNames = distinctFullNames(summarySquad);
+  // "4 × 10 min quarters": the team's halves, quarters or one period, at
+  // the length this game runs (getEffectiveQuarterSeconds).
+  const periodFormat = periodFormatText(
+    teamAge.periodCount,
+    getEffectiveQuarterSeconds(
+      { quarter_length_seconds: (team as { quarter_length_seconds?: number | null } | null)?.quarter_length_seconds ?? null },
+      teamAge,
+      { quarter_length_seconds: g.quarter_length_seconds },
+    ),
+    periodLabels(sport, teamAge),
+  );
   const fixScores: FixScoresProps | undefined =
     isFinal && summaryEvents && ranInSiren && canManageMatch && (team as { track_scoring?: boolean } | null)?.track_scoring
       ? {
@@ -341,19 +374,22 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
               <div className="mt-0.5 text-3xl font-bold leading-tight tracking-tightest sm:text-[40px]">
                 {g.opponent}
               </div>
-              {(g.location || g.scheduled_at) && (
-                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-warm/85">
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-warm/85">
+                {g.scheduled_at && (
                   <span>
                     <FormattedDateTime iso={g.scheduled_at} mode="long" />
                   </span>
-                  {g.location && (
-                    <span className="inline-flex items-center gap-1">
-                      <SFIcon.pin color="rgba(247,245,241,0.7)" />
-                      {g.location}
-                    </span>
-                  )}
-                </div>
-              )}
+                )}
+                {g.location && (
+                  <span className="inline-flex items-center gap-1">
+                    <SFIcon.pin color="rgba(247,245,241,0.7)" />
+                    {g.location}
+                  </span>
+                )}
+                {/* How long the periods are, while it's on too (Steve,
+                    12 Nov 2026), as the upcoming and finished page says. */}
+                <span data-testid="game-period-format">{periodFormat}</span>
+              </div>
             </div>
           </div>
           {!canRun && (
@@ -407,6 +443,19 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
               <div className="mt-0.5 text-3xl font-bold leading-[1.05] tracking-tightest text-ink sm:text-[40px]">
                 {g.opponent}
               </div>
+              {finalScore && (
+                <div data-testid="game-result" className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <ResultChip result={({ W: "win", L: "loss", D: "draw" } as const)[outcomeOf(finalScore)]} size={32} />
+                  <span className="font-mono text-4xl font-bold leading-none tabular-nums tracking-[-0.03em] text-ink">
+                    {finalScore.us}–{finalScore.them}
+                  </span>
+                  {finalScore.usDetail && (
+                    <span className="font-mono text-sm text-ink-mute">
+                      {finalScore.usDetail} – {finalScore.themDetail}
+                    </span>
+                  )}
+                </div>
+              )}
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-dim">
                 <span>
                   <FormattedDateTime iso={g.scheduled_at} mode="long" />
@@ -427,6 +476,12 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                     teamOnFieldSize(planAgeCfg, (team as { on_field_size?: number | null } | null)?.on_field_size ?? null) && (
                   <span className="ml-1 font-medium text-warn">(short-handed)</span>
                 )}
+                {/* How long the periods are, the game's own else the
+                    team's (Settings) else the age group's: a coach who
+                    changed it can see today's game took it (Stagehand
+                    round 11, #11). */}
+                {" · "}
+                <span data-testid="game-period-format">{periodFormat}</span>
               </p>
               {g.notes && (
                 <p className="mt-3 whitespace-pre-wrap text-sm text-ink-dim">
@@ -436,7 +491,15 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
               {/* Well past its start and never run (lib/games/notPlayed). */}
               {isUp && isNotPlayed(g) && (
                 <div className="mt-4 rounded-md bg-surface-alt p-3" data-testid="not-played">
-                  <NotPlayedActions teamId={params.teamId} gameId={g.id} canEdit={role === "admin"} afterDelete="games" />
+                  <NotPlayedActions
+                    teamId={params.teamId}
+                    gameId={g.id}
+                    sport={sport}
+                    teamName={teamName}
+                    opponent={g.opponent}
+                    canEdit={role === "admin"}
+                    afterDelete="games"
+                  />
                 </div>
               )}
             </div>
@@ -573,6 +636,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                     teamName={teamName}
                     opponent={g.opponent}
                     scheduledAt={g.scheduled_at}
+                    location={g.location}
                     token={g.availability_token}
                     className="w-full sm:w-auto"
                   />
@@ -585,6 +649,10 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
               so a parent who joined by code had no way in. */}
           {!canRun && role === "parent" && isUp && (
             <div className="border-t border-hairline bg-surface-alt px-5 py-4 sm:px-7">
+              {/* Why there's no lineup or start (round 9, a parent helper). */}
+              <p data-testid="parent-game-note" className="mb-3 text-sm text-ink-dim">
+                The coach or a game manager sets the lineup and starts the game. Mark your child In or Out here.
+              </p>
               <SFButton
                 href={`/teams/${params.teamId}/games/${params.gameId}/availability`}
                 variant="primary"
@@ -609,7 +677,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                 {scorerWords.heading}
               </h3>
             </div>
-            <span className="font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-ink-mute">
+            <span className="font-mono text-micro font-bold uppercase tracking-[0.1em] text-ink-mute">
               {scorerRows.length} scorer{scorerRows.length === 1 ? "" : "s"}
             </span>
           </div>
@@ -621,7 +689,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
               >
                 <span className="flex min-w-0 items-center gap-3">
                   <span
-                    className={`font-mono text-[11px] font-bold tracking-[0.06em] ${
+                    className={`font-mono text-micro font-bold tracking-[0.06em] ${
                       i === 0 ? "text-warn" : "text-ink-mute"
                     }`}
                   >
@@ -639,7 +707,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
                   {r.showPoints && (
                     <>
                       <span className="ml-2 font-bold text-ink">{r.points}</span>
-                      <span className="ml-1 text-[10px] uppercase tracking-[0.1em] text-ink-mute">
+                      <span className="ml-1 text-nano uppercase tracking-[0.1em] text-ink-mute">
                         pts
                       </span>
                     </>
@@ -665,6 +733,26 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
         </SFCard>
       )}
 
+      {foulRows.length > 0 && (
+        <SFCard id="fouls">
+          <Eyebrow>Fouls</Eyebrow>
+          <h3 className="mt-1 text-lg font-bold tracking-tightest text-ink">Who picked up fouls</h3>
+          <ul className="mt-4 divide-y divide-hairline">
+            {foulRows.map((r) => (
+              <li key={r.player.id} className="flex items-center justify-between py-3 text-sm">
+                <span className="min-w-0 break-words font-semibold text-ink">
+                  {scorerNames.get(r.player.id) ?? r.player.full_name}
+                </span>
+                <span className="font-mono tabular-nums text-ink-dim">
+                  <span className="font-bold text-ink">{r.fouls}</span> {r.fouls === 1 ? "foul" : "fouls"}
+                  {r.fouledOut && <span className="ml-2 text-nano font-bold uppercase tracking-[0.1em] text-danger">Fouled out</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </SFCard>
+      )}
+
       {/* ── Full-time summary, every sport ─────────────────────────────
           The card each sport's live screen shows at full time (share
           text + "Copy for group chat"), so a coach or parent revisiting
@@ -672,9 +760,24 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
           dashboard's "Last result" links straight to it. */}
       {isFinal && !ranInSiren && (
         <SFCard id="summary">
-          <p className="text-sm text-ink-dim">
-            Marked as played. It wasn&apos;t run in Siren, so there&apos;s no score or game time for it.
-          </p>
+          {playedScore ? (
+            // Marked played with its final score (lib/games/playedScore):
+            // a result like any other, with no game time.
+            <div data-testid="played-score">
+              <Eyebrow>Final score</Eyebrow>
+              <p className="mt-1 text-lg font-bold tracking-tightest text-ink">
+                {teamName} {playedScoreText(sport, playedScore)} {g.opponent}
+              </p>
+              <p className="mt-1 text-sm text-ink-dim">
+                {playedScore.us > playedScore.them ? "Won" : playedScore.us < playedScore.them ? "Lost" : "Drawn"}.
+                Marked as played: it wasn&apos;t run in Siren, so there&apos;s no game time for it.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-ink-dim">
+              Marked as played. It wasn&apos;t run in Siren, so there&apos;s no score or game time for it.
+            </p>
+          )}
         </SFCard>
       )}
 

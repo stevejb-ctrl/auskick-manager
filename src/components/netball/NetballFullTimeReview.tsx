@@ -1,40 +1,44 @@
 "use client";
 
-// ─── Netball Full-Time Review ────────────────────────────────
-// Mirrors AFL's FullTimeReview, sized for netball: shows current
-// scores (goal-only — no behinds), a per-quarter Fix-scores panel,
-// and a "Finalise game" CTA. Renders between the Q4 quarter_end
-// event and the game_finalised event so the coach can reconcile
-// with the opposition before locking in the result.
+// ─── Netball full time ───────────────────────────────────────
+// NetballFullTimeReview sits between Q4's end and game_finalised, as
+// the other sports' full times do (SoccerFullTimeReview, touch's,
+// basketball's, league's): the two score boxes, then the shared
+// BreakScoreEditor — the score by quarter, a missed goal for either side
+// on buttons that name their team (the scorebug's 44 pt chip; ours opens
+// the GS / GA picker, as only they can score), Undo last score, and the
+// game's goals with "Change who scored" — then "Finish game". It was
+// the older review: "Us" / "Them" boxes and the AFL-shaped Fix scores
+// panel (Steve, 10 Nov 2026: netball's full time in the old look).
+// With scoring off it's just the finish. NetballGameSummaryCard (time in
+// each third) is the share text afterwards.
 
-import { startTransition } from "react";
 import { useRouter } from "next/navigation";
 import { finaliseNetballGame } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/netball-actions";
 import { hapticSiren } from "@/lib/haptics";
 import { SFButton } from "@/components/sf";
-import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
-import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
-import type { LiveAuth, Player } from "@/lib/types";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { useFinishGame } from "@/components/live/useFinishGame";
+import { BreakScoreEditor } from "@/components/quarter-break/BreakScoreEditor";
+import type { LiveAuth } from "@/lib/types";
 
 interface NetballFullTimeReviewProps {
   auth: LiveAuth;
   gameId: string;
   trackScoring: boolean;
-  /** Current cumulative team / opponent goal counts (netball is goals-only). */
+  /** Team / opponent goals (netball is goals-only). */
   teamScore: { goals: number };
   opponentScore: { goals: number };
-  /** Per-quarter score breakdown shaped to match the AFL store / QuarterScoreTable
-   *  contract: index 0 unused, indices 1..4 carry the per-quarter totals. The
-   *  inner `{goals, behinds}` shape lets us share the table component with AFL —
-   *  netball just always reports 0 behinds. */
+  /**
+   * The score by quarter, in the AFL store's shape: index 0 unused,
+   * 1..periodCount each quarter's goals (behinds always 0).
+   */
   scoreByQuarter: Array<{
-    ours: { goals: number; behinds: number };
-    theirs: { goals: number; behinds: number };
+    ours: { goals: number };
+    theirs: { goals: number };
   }>;
-  /** Squad players for the add-score picker. */
-  players: Player[];
+  /** The age group's quarters (4). */
+  periodCount: number;
   /** ms elapsed at full time — passed to game_finalised event. */
   finalisedElapsedMs: number;
   /**
@@ -42,9 +46,14 @@ interface NetballFullTimeReviewProps {
    * finalise does (they were lost: a Q4 replacement got no time).
    */
   midQuarterSubs?: { positionId: string; outPlayerId: string | null; inPlayerId: string | null; atMs: number }[];
-  /** Display names for the per-quarter table headers. */
-  teamName?: string;
-  opponentName?: string;
+  teamName: string;
+  opponentName: string;
+  /** + Goal for us: opens the GS / GA picker. */
+  onTeamGoal?: () => void;
+  onOpponentGoal?: () => void;
+  /** Takes back the game's latest goal. */
+  onUndo?: () => void;
+  scorePending?: boolean;
 }
 
 export function NetballFullTimeReview({
@@ -54,103 +63,85 @@ export function NetballFullTimeReview({
   teamScore,
   opponentScore,
   scoreByQuarter,
-  players,
+  periodCount,
   finalisedElapsedMs,
   midQuarterSubs = [],
-  teamName = "Us",
-  opponentName = "Them",
+  teamName,
+  opponentName,
+  onTeamGoal,
+  onOpponentGoal,
+  onUndo,
+  scorePending = false,
 }: NetballFullTimeReviewProps) {
   const router = useRouter();
   // A failure keeps this screen up, and Finish is safe to tap again
   // (it used to throw into the error boundary: "Failed to fetch").
-  const {
-    finish: handleFinalise,
-    pending: finalisePending,
-    error: finaliseError,
-  } = useFinishGame(
+  const { finish: handleFinalise, pending, error } = useFinishGame(
     (key) => finaliseNetballGame(auth, gameId, finalisedElapsedMs, midQuarterSubs, key),
     () => {
-      // Siren-pattern haptic — full-time IS a sirenic moment, same
-      // fidelity as the quarter-end hooter. Mirrors AFL
-      // FullTimeReview (P1-10 / `15b0a7c`).
+      // Full time IS a sirenic moment, as the quarter-end hooter.
       void hapticSiren();
-      startTransition(() => router.refresh());
+      router.refresh();
     },
   );
 
+  const scoreByPeriod: Record<number, { ours: number; theirs: number }> = {};
+  for (let q = 1; q <= periodCount; q++) {
+    scoreByPeriod[q] = { ours: scoreByQuarter[q]?.ours.goals ?? 0, theirs: scoreByQuarter[q]?.theirs.goals ?? 0 };
+  }
+  const box = "rounded-md border border-hairline bg-surface-alt p-3";
+
   return (
     <div className="rounded-md border border-hairline bg-surface p-4 shadow-card">
-      <p className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
-        Full time
-      </p>
+      <p className="font-mono text-micro font-bold uppercase tracking-micro text-ink-mute">Full time</p>
       <p className="mt-0.5 text-base font-semibold text-ink">
-        Reconcile the score with the other team, then finalise.
+        {trackScoring ? "Check the score with the other team, then finish." : "That's the game. Finish it to see everyone's minutes."}
       </p>
 
       {trackScoring && (
-        <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-          <div className="rounded-md border border-hairline bg-surface-alt p-3">
-            <p className="text-[10px] font-bold uppercase tracking-micro text-ink-mute">
-              Us
-            </p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-ink">
-              {teamScore.goals}
-            </p>
+        <>
+          <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+            <div className={box}>
+              <p className="truncate text-nano font-bold uppercase tracking-micro text-ink-mute">{teamName}</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums text-ink">{teamScore.goals}</p>
+            </div>
+            <div className={box}>
+              <p className="truncate text-nano font-bold uppercase tracking-micro text-ink-mute">{opponentName}</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums text-ink">{opponentScore.goals}</p>
+            </div>
           </div>
-          <div className="rounded-md border border-hairline bg-surface-alt p-3">
-            <p className="text-[10px] font-bold uppercase tracking-micro text-ink-mute">
-              Them
-            </p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-ink">
-              {opponentScore.goals}
-            </p>
+
+          <div className="mt-4">
+            <BreakScoreEditor
+              teamName={teamName}
+              opponentName={opponentName}
+              teamPoints={teamScore.goals}
+              opponentPoints={opponentScore.goals}
+              scoreByPeriod={scoreByPeriod}
+              periodCount={periodCount}
+              currentPeriod={periodCount}
+              periodLetter="Q"
+              periodWord="quarter"
+              teamChips={onTeamGoal ? [{ key: "goal", text: "+G", label: `Add goal, ${teamName}`, onClick: onTeamGoal }] : []}
+              opponentChips={
+                onOpponentGoal ? [{ key: "goal", text: "+G", label: `Add goal, ${opponentName}`, onClick: onOpponentGoal }] : []
+              }
+              missedNote={`Spotted a miscount? A goal you missed counts in Q${periodCount}.`}
+              onUndo={onUndo ?? (() => {})}
+              undoDisabled={scorePending || !onUndo}
+              fix={{ auth, gameId }}
+            />
           </div>
-        </div>
+        </>
       )}
 
-      {trackScoring && (
-        <div className="mt-4">
-          <QuarterScoreTable
-            scoreByQuarter={scoreByQuarter}
-            currentQuarter={4}
-            quarterEnded={true}
-            sport="netball"
-            teamName={teamName}
-            opponentName={opponentName}
-          />
-        </div>
-      )}
-
-      {trackScoring && (
-        <div className="mt-4 border-t border-hairline pt-3">
-          <ScoreReviewPanel
-            auth={auth}
-            gameId={gameId}
-            players={players}
-            includeBehinds={false}
-            defaultQuarter={4}
-          />
-        </div>
-      )}
-
-      {finaliseError && (
-        <InlineAlert className="mt-3">
-          {finaliseError}
-        </InlineAlert>
-      )}
+      {error && <InlineAlert className="mt-3">{error}</InlineAlert>}
 
       <div className="mt-4 border-t border-hairline pt-3">
-        <SFButton
-          full
-          size="lg"
-          onClick={handleFinalise}
-          loading={finalisePending}
-        >
+        <SFButton full size="lg" onClick={handleFinalise} loading={pending} variant="accent">
           Finish game
         </SFButton>
-        <p className="mt-2 text-center text-[11px] text-ink-mute">
-          Locks the score and shows the summary you can share.
-        </p>
+        <p className="mt-2 text-center text-micro text-ink-mute">Locks the game and shows the summary you can share.</p>
       </div>
     </div>
   );

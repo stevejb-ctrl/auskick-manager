@@ -8,7 +8,7 @@
 import { test, expect, type Browser } from "@playwright/test";
 import { createAdminClient, createTestUser, deleteTestUser } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
-import { gotoStable, waitForHydration } from "../helpers/navigation";
+import { gotoStable, waitForHydration, waitForSettledUrl } from "../helpers/navigation";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -25,7 +25,8 @@ async function signInAs(browser: Browser, email: string, password: string) {
   await page.getByTestId("login-password").fill(password);
   await page.getByTestId("login-submit").click();
   await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 15_000 });
-  await waitForHydration(page);
+  // /dashboard may still hand a one-team account on to its team.
+  await waitForSettledUrl(page);
   return { context, page };
 }
 
@@ -61,16 +62,19 @@ test("a parent follows the team read-only, watches the live score, and can leave
     const bar = page.getByRole("navigation", { name: /team sections/i });
     await expect(bar.getByRole("link")).toHaveText(["Today", "Games", "Stats"], { timeout: 10_000 });
 
-    // Squad and Team bounce back to Today.
+    // Squad and Team bounce back to Today, which says why (round 9).
     await page.goto(`/teams/${team.id}/squad`);
-    await expect(page).toHaveURL(new RegExp(`/teams/${team.id}$`));
+    await expect(page).toHaveURL(new RegExp(`/teams/${team.id}\\?coachOnly=squad$`));
+    await expect(page.getByTestId("coach-only-note")).toContainText("The squad is the coach's");
     await page.goto(`/teams/${team.id}/settings`);
-    await expect(page).toHaveURL(new RegExp(`/teams/${team.id}$`));
+    await expect(page).toHaveURL(new RegExp(`/teams/${team.id}\\?coachOnly=settings$`));
+    await expect(page.getByTestId("coach-only-note")).toContainText("Team settings are the coach's");
 
     // The live game is a read-only scoreboard.
     await page.getByRole("link", { name: /^watch live$/i }).click();
     await expect(page.getByText(/q1 in play/i)).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText("Watched Wallabies")).toBeVisible();
+    // The scoreboard names them (the top bar's "vs Watched Wallabies" too).
+    await expect(page.getByText("Watched Wallabies", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: /^clock/i })).toHaveCount(0);
 
     // Leave from the account page.

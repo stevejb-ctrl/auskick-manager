@@ -1,4 +1,51 @@
 import type { Config } from "tailwindcss";
+import plugin from "tailwindcss/plugin";
+import { BRAND_STEPS, TOKENS, cssVar, themeVars, type Role } from "./src/lib/theme/palette";
+
+/** Every palette token (and the brand ladder) for one role, as Tailwind colours. */
+function roleColors(role: Role) {
+  const v = (name: string) => `rgb(var(${cssVar(name, role)}) / <alpha-value>)`;
+  return {
+    ...Object.fromEntries(Object.keys(TOKENS).map((name) => [name, v(name)])),
+    brand: Object.fromEntries(BRAND_STEPS.map((step) => [step, v(`brand-${step}`)])),
+  };
+}
+
+// The theme's CSS variables. Light on :root (AFL's ladder; netball's on
+// [data-brand="netball"]). Dark when the phone is dark, unless Account →
+// Theme says Light (<html data-theme="light">), or always with
+// data-theme="dark". `.theme-light` pins a subtree to light (the
+// marketing site). The inline script in app/layout.tsx sets data-theme
+// before first paint.
+const themes = plugin(({ addBase }) => {
+  const dark = { ...themeVars("dark", "afl"), "color-scheme": "dark" };
+  const netballDark = themeVars("dark", "netball");
+  addBase({
+    ":root": { ...themeVars("light", "afl"), "color-scheme": "light dark" },
+    '[data-brand="netball"]': themeVars("light", "netball"),
+    ':root[data-theme="light"]': { "color-scheme": "light" },
+    "@media (prefers-color-scheme: dark)": {
+      ':root:not([data-theme="light"])': dark,
+      '[data-brand="netball"]:not([data-theme="light"])': netballDark,
+    },
+    ':root[data-theme="dark"]': dark,
+    '[data-brand="netball"][data-theme="dark"]': netballDark,
+    ".theme-light": { ...themeVars("light", "afl"), "color-scheme": "light", color: `rgb(var(${cssVar("ink", "text")}))` },
+    '[data-brand="netball"] .theme-light': themeVars("light", "netball"),
+  });
+});
+
+// Archivo's width axis: `stretch-62` (the score, the clock), `-72` (kid
+// names), `-85` (buttons), and the steps the v3 design uses between.
+// Only Archivo (font-display / font-mono) has the axis; on Atkinson
+// the property does nothing.
+const stretch = plugin(({ addUtilities }) => {
+  addUtilities(
+    Object.fromEntries(
+      [62, 68, 72, 75, 80, 85, 100, 125].map((w) => [`.stretch-${w}`, { "font-stretch": `${w}%` }]),
+    ),
+  );
+});
 
 // Design tokens from the "Field Sunday" direction
 // (see design_handoff_junior_afl_manager/README.md).
@@ -15,119 +62,30 @@ const config: Config = {
         // browser window. The live bars and footers go compact (UX round
         // 3, e4: in landscape they took 205–232 of 390 px).
         short: { raw: "(max-height: 500px)" },
+        // Large text on a phone (design review, Oct 2026: at 200% the
+        // live chrome took the whole phone and the field was a sliver).
+        // A media query's em is the reader's own text size, so a 390 px
+        // phone is 24em at 100% and 12em at 200%: under 18em is about
+        // 135% and up. The live bars drop what they can do without.
+        bigtext: { raw: "(max-width: 18em)" },
+        // A desktop: wide AND a mouse. A phone held sideways is 844–932
+        // px wide, so `md` alone drew the demo's phone frame inside the
+        // phone (Stagehand round 8: a sideways phone got a 390 px app
+        // and the other team's +T off the edge).
+        desk: { raw: "(min-width: 768px) and (hover: hover) and (pointer: fine)" },
       },
+      // Every semantic colour comes from src/lib/theme/palette.ts, by
+      // role: fills here, words in textColor, borders and rings in
+      // borderColor / ringColor / divideColor / outlineColor below. Each
+      // is a CSS variable holding channels ("26 30 26"), emitted per
+      // theme by the plugin at the bottom, so the dark theme swaps the
+      // values without a class changing and opacity modifiers
+      // (`bg-warn/15`) keep working. The zone palette's colourblind
+      // rationale and every value's history live in palette.ts.
       colors: {
-        // Surfaces & neutral ink
-        warm:           "#F7F5F1",   // page background (warm off-white)
-        surface:        "#FFFFFF",   // cards, modals, tiles
-        "surface-alt":  "#EFECE6",   // inset / track / subtle container
-        ink:            "#1A1E1A",   // primary text + primary button bg
-        "ink-dim":      "#5E6860",   // secondary text
-        // Tertiary / hints. Was #8A948C: 2.88:1 on the page, 3.14:1 on
-        // white, 2.66:1 on surface-alt, so every hint failed AA (UX round
-        // 3, e4). Now 4.9 / 5.4 / 4.5:1.
-        "ink-mute":     "#646D66",
-        hairline:       "#E3DFD7",   // hairlines / subtle borders
-
-        // Accent — brand ladder. Values come from CSS variables
-        // declared in globals.css. The :root block defines the AFL
-        // field-green defaults; [data-brand="netball"] flips them to
-        // the court-blue ladder. Components keep `bg-brand-600` etc.
-        // and the value flips at runtime per domain.
-        brand: {
-          50:  "var(--brand-50)",
-          100: "var(--brand-100)",
-          200: "var(--brand-200)",
-          300: "var(--brand-300)",
-          400: "var(--brand-400)",
-          500: "var(--brand-500)",
-          600: "var(--brand-600)",   // the design token
-          700: "var(--brand-700)",
-          800: "var(--brand-800)",
-          900: "var(--brand-900)",
-        },
-
-        // Signals
-        alarm:          "#D9442D",   // siren-red — brand mark, pulse indicator
-        "alarm-soft":   "#FBE7DF",   // tinted background for alarm pills
-        warn:           "#C8751F",   // ochre — sub timer firing, NEXT chip
-        "warn-soft":    "#F5E5D2",
-        danger:         "#B4393A",
-        ok:             "#4C8B63",
-
-        // Game results — used by Game-detail final hero, Form line on Home,
-        // and the W/L/D ResultChip atom. Same hue family as the win/ok and
-        // danger tokens but slightly desaturated for the chip backgrounds.
-        win:            "#2F6B3E",
-        "win-soft":     "#E4EEE4",
-        loss:           "#9A2B2B",
-        "loss-soft":    "#F4DCDC",
-        draw:           "#8A6F2A",
-        "draw-soft":    "#F2E8C9",
-
-        // Domain — playing-surface fills. `field` is AFL oval green;
-        // `court` is netball community-court sky blue. Both come from
-        // CSS vars so a future "darker turf" variant could flip them
-        // without touching the components that consume them.
-        field:          "var(--field)",
-        court:          "var(--court)",
-        "court-line":   "var(--court-line)",
-        // Colourblind-safe zone palette — three well-separated hue
-        // families (orange / green / blue) so adjacent zones stay
-        // distinguishable on small mobile screens. Steve 2026-05-23
-        // (parent feedback): the previous fuchsia centre (#A21CAF)
-        // and royal-blue back (#1D4ED8) collapsed on small phones —
-        // fuchsia's blue component competed with the back colour,
-        // both reading as "purple-ish blob" at thumbnail size.
-        // Swapped centre to emerald-700: a true green with zero
-        // blue component, unambiguous next to both back-blue and
-        // forward-vermillion. All three still pass WCAG AA (>=4.5)
-        // against white for text use; the broader hue spread also
-        // helps protan/deutan colourblindness (where reds-greens
-        // collapse, the blue → green → orange spread retains
-        // luminance contrast).
-        "zone-f":       "#C2410C",   // forward — deep vermillion / burnt orange
-        "zone-c":       "#047857",   // centre — emerald-700
-        "zone-b":       "#1D4ED8",   // back — royal blue
-        // Words on a zone's 15% tint (the bench "→ FWD" strip and its
-        // "#1" badge): the 900 shades, 5.4:1 and up under the badge
-        // (the zone colours were 2.5–3.8:1; UX round 3, e4).
-        "zone-f-ink":   "#7C2D12",
-        "zone-c-ink":   "#064E3B",
-        "zone-b-ink":   "#1E3A8A",
-        // Break screen (design session 22 Oct 2026): a fourth zone for
-        // a keeper slot (soccer) and the bench grey. Zones 1–3 are
-        // zone-f / zone-c / zone-b above. *-text are the AA text shades.
-        "zone-k":       "#7C3AED",
-        "zone-k-text":  "#6D28D9",
-        "zone-bench":   "#8A857C",
-        "zone-bench-text": "#4A463F",
-
-        // ── In-game re-skin (design session, 17 Oct 2026) ──────────
-        // Zone-time BAR fills only (labels keep zone-f/c/b). Stepped
-        // light / mid / dark so the three zones survive greyscale and
-        // sun glare — FWD #C2410C and CEN #047857 sit at near-equal
-        // lightness and merged.
-        "zone-f-fill":  "#F08A4B",
-        "zone-c-fill":  "#047857",
-        "zone-b-fill":  "#1E3A8A",
-        "bar-track":    "#ECE8E1",
-        // Zone labels on the dark sub card (≥4.5:1 on ink).
-        "zone-f-dark":  "#F08A4B",
-        "zone-c-dark":  "#3FBF95",
-        "zone-b-dark":  "#8FA9F2",
-        // Sub-due amber: #C8751F carried white text at 3.5:1; this
-        // carries it at 5.1:1.
-        due:            "#A8590F",
-        "due-tint":     "#FBF1E6",
-        "due-dark":     "#F2A65A",   // amber text / ring on the dark card
-        // Score-button fill (was surface-alt #EFECE6).
-        well:           "#F1EEE8",
-        // Running-clock dot + live countdown ring.
-        mint:           "#9ACC9B",
-        // Netball court centre third (court + court-line above now
-        // carry the re-skin's saturated values via globals.css).
-        "court-mid":    "var(--court-mid)",
+        ...roleColors("fill"),
+        // Lines on the court: 70% white, the same in both themes.
+        "court-line": "var(--court-line)",
 
         // Thirds (netball domain language). Additive — not a rename
         // of the zone-* AFL tokens. Centre is violet (not fuchsia)
@@ -156,9 +114,24 @@ const config: Config = {
           gk: { fill: "var(--bib-gk-fill)", ink: "var(--bib-gk-ink)" },
         },
       },
+      textColor: roleColors("text"),
+      placeholderColor: roleColors("text"),
+      textDecorationColor: roleColors("text"),
+      // A bare `border` is a hairline (was Tailwind's gray-200, which
+      // glared on the dark page).
+      borderColor: { ...roleColors("line"), DEFAULT: "rgb(var(--l-hairline) / <alpha-value>)" },
+      divideColor: roleColors("line"),
+      ringColor: roleColors("line"),
+      outlineColor: roleColors("line"),
+      // Chalk on grass (live v3): Atkinson Hyperlegible for words,
+      // Archivo (its width axis, 62–125) for display: names, scores, the
+      // clock, small caps labels. `font-mono` was JetBrains Mono for the
+      // labels and numbers; it is Archivo now, so the ~290 uses take the
+      // display face, and `.nums` / tabular-nums keep digits one width.
       fontFamily: {
-        sans: ["var(--font-geist)", "system-ui", "sans-serif"],
-        mono: ["var(--font-geist-mono)", "ui-monospace", "SFMono-Regular", "monospace"],
+        sans: ["var(--font-body)", "Verdana", "Segoe UI", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "Arial Narrow", "Roboto Condensed", "Helvetica Neue", "Arial", "sans-serif"],
+        mono: ["var(--font-display)", "Arial Narrow", "Roboto Condensed", "Helvetica Neue", "Arial", "sans-serif"],
         // Decorative serif for round numerals on the Games list and game
         // heroes — used italic only. Falls back to Georgia which has a
         // similar warm, slightly editorial flavour.
@@ -170,15 +143,23 @@ const config: Config = {
         md: "12px",
         lg: "16px",
         xl: "22px",
+        // The v3 bottom sheet's top corners.
+        sheet: "28px",
       },
       boxShadow: {
-        card: "0 1px 2px rgba(26,30,26,0.06)",
-        pop:  "0 4px 12px rgba(26,30,26,0.08)",
-        modal:"0 12px 32px rgba(26,30,26,0.12)",
+        // Live v3: no cards. A card is a flat surface with a hairline;
+        // `raised` (SFCard) or shadow-pop lifts the rare one that floats.
+        card: "none",
+        pop:  "0 4px 12px rgba(6,24,14,0.10)",
+        modal:"0 12px 32px rgba(6,24,14,0.22)",
+        // The v3 bottom sheet: a long soft shadow cast upwards.
+        sheet: "0 -18px 40px -16px rgba(0,0,0,0.5)",
         // Elevation for cards that sit ON a playing surface — a
-        // hairline border vanishes on green / blue, a lift doesn't.
-        "lift-field": "0 1px 0 rgba(0,0,0,0.12), 0 2px 6px rgba(15,45,25,0.18)",
-        "lift-court": "0 1px 0 rgba(0,0,0,0.12), 0 4px 10px rgba(8,40,70,0.28)",
+        // hairline border vanishes on green / blue, a lift doesn't. The
+        // first layer is the tile's edge (palette tile-edge): white on a
+        // white tile in light, a chalk grey round the dark tile at night.
+        "lift-field": "0 0 0 1px rgb(var(--c-tile-edge)), 0 1px 0 rgba(0,0,0,0.12), 0 2px 6px rgba(6,24,14,0.22)",
+        "lift-court": "0 0 0 1px rgb(var(--c-tile-edge)), 0 1px 0 rgba(0,0,0,0.12), 0 4px 10px rgba(8,30,50,0.30)",
       },
       transitionTimingFunction: {
         // Also the re-skin's --ease-snap.
@@ -402,13 +383,21 @@ const config: Config = {
         "slide-in-bottom":      "slideInBottom 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
         "slide-in-bottom-fast": "slideInBottom 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
       },
+      // The two small sizes, in rem so they grow with the reader's text
+      // size (design review, Oct 2026: ~380 text-[8–11px] classes stayed
+      // put at 200% while everything around them grew). 10 px is the
+      // floor: the 8 and 9 px labels moved up to nano.
+      fontSize: {
+        nano: "0.625rem",   // 10 px at 100%
+        micro: "0.6875rem", // 11 px at 100%
+      },
       letterSpacing: {
         tightest: "-0.02em",
         micro: "0.16em",    // for MICRO caps labels
       },
     },
   },
-  plugins: [],
+  plugins: [themes, stretch],
 };
 
 export default config;

@@ -55,11 +55,12 @@ test("SFButton primary on team home wires active:bg- tap feedback", async ({
 
   const openGame = page.getByRole("link", { name: /open game/i });
   await expect(openGame).toBeVisible({ timeout: 10_000 });
-  // SFButton primary → `active:bg-ink/95`. The Tailwind escape
-  // for `/` in arbitrary-value-like syntax keeps the slash in the
-  // className literally, so a substring match on `active:bg-ink`
-  // is enough — and is robust to opacity-modifier tweaks.
-  await expect(openGame).toHaveClass(/active:bg-ink/);
+  // SFButton primary → `active:bg-primary/80` (live v3: the filled
+  // primary is its own token, ink in light and chalk at night). The
+  // Tailwind escape for `/` keeps the slash in the className
+  // literally, so a substring match on `active:bg-primary` is enough
+  // — and is robust to opacity-modifier tweaks.
+  await expect(openGame).toHaveClass(/active:bg-primary/);
 });
 
 test("legacy Button on /forgot-password wires active:bg-brand- tap feedback", async ({

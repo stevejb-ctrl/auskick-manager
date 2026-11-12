@@ -74,6 +74,13 @@ export function pickSoccerKeeper(input: PickSoccerKeeperInput): string | null {
   if (strategy === "keepers") {
     const named = (prefs.namedKeepers ?? []).filter((p) => here.has(p));
     if (named.length > 0) return fewest(notLast(named), (p) => [named.indexOf(p)]);
+    // Nobody named yet (a new team, from U12 up): the kid in goal stays
+    // there. Moving on each break gave a U13 hockey team a new keeper,
+    // and a kit change, every quarter (Stagehand round 7, 28 Oct 2026).
+    const never = new Set(prefs.notInGoal ?? []);
+    if ((prefs.namedKeepers ?? []).length === 0 && lastKeeper && here.has(lastKeeper) && !never.has(lastKeeper)) {
+      return lastKeeper;
+    }
   }
 
   const never = new Set(prefs.notInGoal ?? []);

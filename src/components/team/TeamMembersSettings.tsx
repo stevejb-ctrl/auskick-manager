@@ -9,6 +9,7 @@ import {
   removeMember,
   revokeInvite,
   sendInviteEmail,
+  updateInviteRole,
   updateMemberRole,
   type InviteRecipientLookup,
 } from "@/app/(app)/teams/[teamId]/settings/member-actions";
@@ -17,12 +18,11 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Badge } from "@/components/ui/Badge";
 import { ROLE_LABEL, ROLE_OPTIONS, ROLE_SUMMARY } from "@/lib/roles";
-import { isEmail } from "@/lib/email/validate";
+import { emailError, isEmail } from "@/lib/email/validate";
 import { publicOrigin } from "@/lib/platform";
 import type { TeamRole } from "@/lib/types";
 import { InlineAlert } from "@/components/ui/InlineAlert";
-import { Modal } from "@/components/ui/Modal";
-import { SFButton } from "@/components/sf";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { hasDisplayName, memberDisplayName } from "@/lib/members/displayName";
 
 // Mirror of RESEND_THROTTLE_MS on the server. Used for the countdown
@@ -121,6 +121,7 @@ function JoinCodeSection({
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [confirming, setConfirming] = useState(false);
 
   async function copy() {
     try {
@@ -134,16 +135,9 @@ function JoinCodeSection({
 
   function handleRegenerate() {
     setError(null);
-    if (
-      !confirm(
-        "Regenerate the team code? The old one will stop working immediately. " +
-          "Anyone using the old code will need the new one to join.",
-      )
-    ) {
-      return;
-    }
     startTransition(async () => {
       const res = await regenerateJoinCode(teamId);
+      setConfirming(false);
       if (!res.success) {
         setError(res.error);
         return;
@@ -176,12 +170,30 @@ function JoinCodeSection({
           type="button"
           size="sm"
           variant="ghost"
-          onClick={handleRegenerate}
+          onClick={() => {
+            setError(null);
+            setConfirming(true);
+          }}
           loading={isPending}
         >
           Regenerate
         </Button>
       </div>
+      {confirming && (
+        <ConfirmDialog
+          title="Make a new team code?"
+          confirmLabel="Make a new code"
+          pendingLabel="Making a new code…"
+          pending={isPending}
+          onConfirm={handleRegenerate}
+          onCancel={() => setConfirming(false)}
+        >
+          <p>
+            The old code stops working straight away. Anyone who hasn&apos;t
+            joined yet will need the new one.
+          </p>
+        </ConfirmDialog>
+      )}
       {error && (
         <p className="text-xs text-danger" role="alert">
           {error}
@@ -279,22 +291,21 @@ function MemberRowItem({
       )}
 
       {confirmingRemove && (
-        <Modal label={`Remove ${label}?`} onClose={isPending ? undefined : () => setConfirmingRemove(false)}>
-          <h2 className="text-center text-lg font-bold text-danger">Remove {label}?</h2>
-          <p className="mt-2 text-sm text-ink-dim">
+        <ConfirmDialog
+          title={`Remove ${label}?`}
+          confirmLabel={`Remove ${label}`}
+          pendingLabel="Removing…"
+          destructive
+          pending={isPending}
+          onConfirm={handleRemove}
+          onCancel={() => setConfirmingRemove(false)}
+        >
+          <p>
             They lose access to the team straight away, and the invite they
             joined with stops working. The team code still lets anyone join as
             a Parent: regenerate it below if you need to.
           </p>
-          <div className="mt-5 flex flex-col gap-2">
-            <SFButton variant="alarm" size="md" loading={isPending} onClick={handleRemove}>
-              Remove {label}
-            </SFButton>
-            <SFButton variant="ghost" size="sm" onClick={() => setConfirmingRemove(false)} disabled={isPending}>
-              Cancel
-            </SFButton>
-          </div>
-        </Modal>
+        </ConfirmDialog>
       )}
     </li>
   );
@@ -377,6 +388,7 @@ function InviteForm({
   const [copied, setCopied] = useState(false);
   const [emailStatus, setEmailStatus] = useState<EmailStatus>({ kind: "none" });
   const [lookup, setLookup] = useState<LookupState>({ kind: "idle" });
+  const [emailErr, setEmailErr] = useState<string | null>(null);
 
   // Debounced lookup: when the email field looks like a valid address,
   // ask the server whether a Siren account exists for it so the submit
@@ -410,10 +422,10 @@ function InviteForm({
     setEmailStatus({ kind: "none" });
 
     const trimmed = invitedEmail.trim();
-    if (trimmed && !isEmail(trimmed)) {
-      setError("Please use a valid email address, or leave the field blank.");
-      return;
-    }
+    // Blank is fine (a link to copy); a typo isn't (Stagehand round 11).
+    const badEmail = trimmed ? emailError(trimmed) : null;
+    setEmailErr(badEmail);
+    if (badEmail) return;
 
     // Direct-add branch: known existing user, not yet on this team.
     // Skip the token + email flow entirely.
@@ -491,14 +503,14 @@ function InviteForm({
   if (addedMemberName) {
     return (
       <div
-        className="space-y-3 rounded-md border border-emerald-300 bg-emerald-50 p-4"
+        className="space-y-3 rounded-md border border-ok/40 bg-win-soft p-4"
         data-testid="invite-added"
       >
-        <p className="text-sm font-semibold text-emerald-800">
+        <p className="text-sm font-semibold text-win">
           ✓ Added <span className="font-bold">{addedMemberName}</span> to the
           team as {ROLE_LABEL[role]}.
         </p>
-        <p className="text-xs text-emerald-900/70">
+        <p className="text-xs text-ink-dim">
           They&rsquo;ve been notified by push and email. They can leave the team
           from its settings page if they didn&rsquo;t expect this.
         </p>
@@ -540,7 +552,7 @@ function InviteForm({
 
         {emailStatus.kind === "sent" && (
           <p
-            className="rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+            className="rounded border border-ok/40 bg-win-soft px-3 py-2 text-sm text-win"
             role="status"
           >
             ✓ Invite emailed to <strong>{emailStatus.recipient}</strong>.
@@ -595,7 +607,7 @@ function InviteForm({
       // browsers — especially WKWebView under iOS — surface an
       // implicit "invalid email" prompt before our handler runs.
       // The server action still validates non-empty submissions
-      // against EMAIL_RE, so this is a UX-only relaxation. Steve
+      // with emailError, so this is a UX-only relaxation. Steve
       // 2026-05-20.
       noValidate
       className="space-y-3 rounded-md border border-hairline bg-surface-alt p-4"
@@ -625,7 +637,11 @@ function InviteForm({
           type="email"
           autoComplete="email"
           value={invitedEmail}
-          onChange={(e) => setInvitedEmail(e.target.value)}
+          onChange={(e) => {
+            setInvitedEmail(e.target.value);
+            setEmailErr(null);
+          }}
+          error={emailErr ?? undefined}
           placeholder="name@example.com"
           disabled={isPending}
         />
@@ -726,7 +742,7 @@ function LookupHint({
   if (r.kind === "existing") {
     return (
       <p
-        className="text-xs font-medium text-emerald-700"
+        className="text-xs font-medium text-ok"
         data-testid="lookup-existing"
       >
         ✓ {r.fullName} already has a Siren account — adding them directly.
@@ -766,6 +782,10 @@ function InviteRow({
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resendNote, setResendNote] = useState<string | null>(null);
+  const [confirmingRevoke, setConfirmingRevoke] = useState(false);
+  // The role the link joins as. Shown at once; put back if the server says no.
+  const [role, setRole] = useState<TeamRole>(invite.role);
+  useEffect(() => setRole(invite.role), [invite.role]);
 
   // Ticks every second while we're inside the resend throttle window
   // so the button label can count down ("Sent 28s ago"). After the
@@ -775,6 +795,9 @@ function InviteRow({
     if (!invite.email_sent_at) return;
     const elapsed = Date.now() - new Date(invite.email_sent_at).getTime();
     if (elapsed >= RESEND_THROTTLE_MS) return;
+    // A send from this page (Resend, or a role change's re-send) is
+    // newer than the last tick: catch up now, not in a second.
+    setNowMs(Date.now());
     const id = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(id);
   }, [invite.email_sent_at]);
@@ -782,9 +805,12 @@ function InviteRow({
   const url = `${publicOrigin()}/join/${invite.token}`;
   const recipient = invite.invited_email ?? invite.email_hint;
   const throttleRemainingMs = invite.email_sent_at
-    ? Math.max(
-        0,
-        RESEND_THROTTLE_MS - (nowMs - new Date(invite.email_sent_at).getTime())
+    ? Math.min(
+        RESEND_THROTTLE_MS,
+        Math.max(
+          0,
+          RESEND_THROTTLE_MS - (nowMs - new Date(invite.email_sent_at).getTime())
+        )
       )
     : 0;
   const throttled = throttleRemainingMs > 0;
@@ -801,11 +827,36 @@ function InviteRow({
 
   function handleRevoke() {
     setError(null);
-    if (!confirm("Revoke this invite? The link will stop working immediately."))
-      return;
     startTransition(async () => {
       const res = await revokeInvite(teamId, invite.id);
+      setConfirmingRevoke(false);
       if (!res.success) setError(res.error);
+    });
+  }
+
+  // A pending invite's role can change until it's used, as a member's
+  // can (Stagehand round 11: only Copy link and Revoke).
+  function handleRoleChange(newRole: TeamRole) {
+    setError(null);
+    setResendNote(null);
+    if (newRole === role) return;
+    const prev = role;
+    setRole(newRole);
+    startTransition(async () => {
+      const res = await updateInviteRole(teamId, invite.id, newRole);
+      if (!res.success) {
+        setRole(prev);
+        setError(res.error);
+        return;
+      }
+      // An emailed invite's email goes again, naming the new role
+      // (round 12). Refused (the minute between sends), the role
+      // still changed, and the row says why the email didn't go.
+      setResendNote(
+        `The link now joins as ${ROLE_LABEL[newRole]}.` +
+          (res.emailedTo ? ` Email re-sent to ${res.emailedTo}.` : "")
+      );
+      if (res.emailError) setError(res.emailError);
     });
   }
 
@@ -825,9 +876,11 @@ function InviteRow({
 
   return (
     <li className="flex flex-wrap items-center gap-3 px-3 py-2.5">
-      <div className="min-w-0 flex-1">
+      {/* At least 14rem, so on a phone the actions wrap under the words
+          rather than squeezing them under the role picker. */}
+      <div className="min-w-0 flex-1 basis-[14rem]">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <Badge variant={invite.role}>{ROLE_LABEL[invite.role]}</Badge>
+          <Badge variant={role}>{ROLE_LABEL[role]}</Badge>
           {recipient && (
             <span className="truncate text-sm text-ink">{recipient}</span>
           )}
@@ -845,18 +898,35 @@ function InviteRow({
             year: "numeric",
           })}
         </p>
+        {/* What happened, then what didn't: a role change's note, then
+            why its email wasn't re-sent. */}
+        {resendNote && (
+          <p className="mt-1 text-xs text-ok" role="status">
+            {resendNote}
+          </p>
+        )}
         {error && (
           <p className="mt-1 text-xs text-danger" role="alert">
             {error}
           </p>
         )}
-        {resendNote && (
-          <p className="mt-1 text-xs text-emerald-700" role="status">
-            {resendNote}
-          </p>
-        )}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {/* The member row's role picker, for the person the link is for. */}
+        <select
+          value={role}
+          onChange={(e) => handleRoleChange(e.target.value as TeamRole)}
+          disabled={isPending}
+          className="min-h-[44px] rounded-md border border-hairline bg-surface px-2 py-1.5 text-sm text-ink shadow-card focus:border-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 disabled:opacity-50"
+          aria-label={`Role for the invite${recipient ? ` to ${recipient}` : ""}`}
+          data-testid="invite-role"
+        >
+          {ROLE_OPTIONS.map((r) => (
+            <option key={r} value={r}>
+              {ROLE_LABEL[r]}
+            </option>
+          ))}
+        </select>
         {invite.invited_email && (
           <Button
             type="button"
@@ -885,13 +955,32 @@ function InviteRow({
           type="button"
           size="sm"
           variant="ghost"
-          onClick={handleRevoke}
+          onClick={() => {
+            setError(null);
+            setConfirmingRevoke(true);
+          }}
           loading={isPending}
           className="text-danger hover:bg-danger/10 hover:text-danger"
         >
           Revoke
         </Button>
       </div>
+      {confirmingRevoke && (
+        <ConfirmDialog
+          title="Revoke this invite?"
+          confirmLabel="Revoke invite"
+          pendingLabel="Revoking…"
+          destructive
+          pending={isPending}
+          onConfirm={handleRevoke}
+          onCancel={() => setConfirmingRevoke(false)}
+        >
+          <p>
+            {recipient ? <>The link for <strong className="text-ink">{recipient}</strong></> : "The link"} stops
+            working straight away. You can make a new one any time.
+          </p>
+        </ConfirmDialog>
+      )}
     </li>
   );
 }

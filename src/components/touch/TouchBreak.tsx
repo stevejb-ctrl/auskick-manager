@@ -7,12 +7,13 @@
 // PeriodBreak): Middles / Links / Wings (or one Field under Minutes
 // only) / Bench, "2nd half" words. A mixed team's side is the size its
 // rule allows, and a plan that breaks the rule (too many boys, too few
-// girls) shows as a broken rule; who counts as a girl or a boy is never
-// drawn on a tile. The plan is staged in the shared break draft (so it
+// girls) shows as a broken rule; the coach sees each kid's G or B and
+// the boys' count (never on the game-day link). The plan is staged in the shared break draft (so it
 // survives a reload or the app being backgrounded) and Start commits it
 // as one lineup_set before the half. The layout lives in PeriodBreak.
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { sidelinedLabel } from "@/lib/live/wentHome";
 import { useRouter } from "next/navigation";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { liveEvents } from "@/lib/live/optimisticEvents";
@@ -22,13 +23,15 @@ import { useStagedBreakDraft } from "@/lib/live/useStagedBreakDraft";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { hapticTap } from "@/lib/haptics";
 import { type InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
+import { rugbyField } from "@/components/league/RugbyMarks";
+import { spreadRows } from "@/components/live/FieldLines";
 import { PeriodBreak, type BreakPlayer, type BreakStrategy } from "@/components/quarter-break/PeriodBreak";
 import { breakConfigFor } from "@/lib/sports/break";
 import { getSportConfig } from "@/lib/sports/registry";
 import type { RuleCheckItem } from "@/lib/playbook/ruleCheck";
 import { buildBoard, placesOf, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
-import { useBreakReplan } from "@/lib/live/break/useBreakReplan";
+import { useBreakReplan, withHealthyOnBench } from "@/lib/live/break/useBreakReplan";
 import { awayMsSoFar } from "@/lib/live/break/floor";
 import { rotateGroups } from "@/lib/live/break/rotateGroups";
 import { normalizeTouchLineup, touchLineOf, touchOnField, type TouchLineup } from "@/lib/sports/touch/lineup";
@@ -44,7 +47,8 @@ import {
 } from "@/lib/sports/touch/suggest";
 import { benchOutInTouchLineup, placeInTouchLineup, swapInTouchLineup } from "@/lib/sports/touch/live";
 import { TOUCH_LANES, type TouchAgeGroupConfig, type TouchLine, type TouchStrategy } from "@/lib/sports/touch/types";
-import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
+import type { Game, GameEvent, LiveAuth, MixedGroup, Player } from "@/lib/types";
+import { mixedCountLine } from "@/lib/sports/touch/mixed";
 import type { SportId } from "@/lib/sports/types";
 
 const GROUPS = ["middle", "link", "wing", "field"] as const;
@@ -125,12 +129,13 @@ export function TouchBreak({
   // Who can't start the next half, and why.
   const sidelined = useMemo(() => {
     const out: Record<string, string> = {};
+    const home = new Set(state.wentHomeIds);
     for (const id of inGame) {
-      if (injuredSet.has(id)) out[id] = "Injured";
+      if (injuredSet.has(id)) out[id] = sidelinedLabel(id, home);
       else if (loanedSet.has(id)) out[id] = "Lent";
     }
     return out;
-  }, [inGame, injuredSet, loanedSet]);
+  }, [inGame, injuredSet, loanedSet, state.wentHomeIds]);
   const sidelinedSet = useMemo(() => new Set(Object.keys(sidelined)), [sidelined]);
   const healthy = useMemo(() => inGame.filter((id) => touchCanPlay(state, id)), [inGame, state]);
   const sidelinedInGame = useMemo(() => inGame.filter((id) => sidelinedSet.has(id)), [inGame, sidelinedSet]);
@@ -194,7 +199,14 @@ export function TouchBreak({
   const lastApplied = useRef<BreakStrategy>(initialMode);
   // A kid back at the break gets the strategy's lineup again, unless the
   // coach has placed kids by hand (lib/live/break/useBreakReplan).
-  const replan = useBreakReplan(healthy, () => setDraft(forStrategy(strategy)));
+  // Undo puts back the lineup from before, with who can't play now
+  // benched and who can and wasn't in it on the bench.
+  const replan = useBreakReplan(healthy, {
+    draft,
+    setDraft,
+    plan: () => forStrategy(strategy),
+    fit: (d) => withHealthyOnBench(benchOutInTouchLineup(d, sidelinedSet), healthy, (l, id) => !!touchLineOf(l, id)),
+  });
   useEffect(() => {
     if (lastApplied.current === strategy) return;
     lastApplied.current = strategy;
@@ -338,11 +350,25 @@ export function TouchBreak({
   const canPlay = squad.filter((p) => !sidelinedSet.has(p.id));
   const onFieldNow = touchOnField(draft).filter((id) => !sidelinedSet.has(id));
   const benchNow = draft.bench.filter((id) => !sidelinedSet.has(id));
+  // A mixed team's G and B, and the count beside the rule, as in play:
+  // the coach's view only, never the game-day link (auth "token").
+  const showGroups = !!mixed && auth.kind === "team";
+  const groups: Record<string, MixedGroup> | undefined = showGroups
+    ? Object.fromEntries(squad.flatMap((p) => {
+        const g = mixed!.groupOf(p.id);
+        return g ? [[p.id, g] as const] : [];
+      }))
+    : undefined;
 
   return (
     <PeriodBreak
       header={{ exitHref, game }}
       config={config}
+      // The touch field as in play; one Field line staggers its crowd.
+      field={{
+        ...rugbyField(sport === "oztag" ? "oztag" : "touch", { tileWidth: 112 }),
+        shape: (zone, cells) => (zone.key === "field" ? spreadRows(cells.map((c) => c.node)) : undefined),
+      }}
       nextPeriod={nextPeriod}
       slots={board}
       players={players}
@@ -350,11 +376,22 @@ export function TouchBreak({
       gameMs={gameMs}
       scores={scores}
       sidelined={sidelined}
+      groups={groups}
+      banner={
+        showGroups ? (
+          <p data-testid="touch-mixed-count" className="text-center text-xs text-ink-dim">
+            <span className="mr-1.5 font-mono font-bold uppercase tracking-micro text-ink-mute">Mixed rule</span>
+            {mixedCountLine(onFieldNow, mixed!.rule, mixed!.groupOf)}
+          </p>
+        ) : undefined
+      }
       onSwap={(a, b) => {
         replan.placedByHand();
         setDraft((d) => swapSlots(d, a, b));
       }}
       strategy={strategy}
+      replanned={replan.replanned}
+      onUndoReplan={replan.undo}
       onStrategy={(next) => {
         setStrategy(next);
         if (next !== "repeat") setPersistedRotationMode(next === "rotate" ? "rotate" : next === "manual" ? "manual" : "suggested");

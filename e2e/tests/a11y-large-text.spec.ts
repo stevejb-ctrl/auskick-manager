@@ -8,7 +8,7 @@
 // page "Copy for group chat" ran off the right edge.
 
 import { test, expect } from "@playwright/test";
-import { boxOf, largeText, liveChrome, openLive, skipHints, unionGame } from "../helpers/a11y";
+import { boxOf, largeText, netballGame, openLive, skipHints, unionGame } from "../helpers/a11y";
 import { finishedGame, fullTime, playPeriod } from "../helpers/finished-game";
 import { waitForHydration } from "../helpers/navigation";
 
@@ -22,9 +22,13 @@ for (const percent of [175, 200]) {
     await openLive(page, team.id, game.id);
     await largeText(page, percent);
 
-    const { top, bottom, viewport } = await liveChrome(page);
+    // Live v3 (Phase 8): union is on the shell. The score is the header up
+    // top, the chips the bar at the foot (the "Scores" region); only the
+    // field between them scrolls.
+    const viewport = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
+    const bar = await boxOf(page.getByRole("region", { name: "Scores" }));
     // The score bar takes under half the screen (it took 62%).
-    expect(bottom.height / viewport.height).toBeLessThanOrEqual(0.45);
+    expect(bar.height / viewport.height).toBeLessThanOrEqual(0.45);
 
     // Every chip, both teams', can be seen and tapped without sideways scroll.
     for (const name of [
@@ -46,18 +50,16 @@ for (const percent of [175, 200]) {
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
 
-    // A kid shows between the bars once the field is scrolled up.
-    const field = page.getByRole("region", { name: "On field" });
-    await field.evaluate((el, t) => window.scrollBy(0, el.getBoundingClientRect().top - t), top.bottom);
-    const after = await liveChrome(page);
-    const inView = await page.evaluate(
-      ([t, b]) =>
-        Array.from(document.querySelectorAll("[data-testid^='league-player-tile-']")).filter((el) => {
-          const r = el.getBoundingClientRect();
-          return r.height > 0 && r.top >= t - 1 && r.bottom <= b + 1;
-        }).length,
-      [after.top.bottom, after.bottom.top],
-    );
+    // A kid shows in the field, between the header and the bench.
+    const field = page.getByTestId("live-field");
+    await field.evaluate((el) => el.scrollTo(0, 0));
+    const inView = await field.evaluate((el) => {
+      const f = el.getBoundingClientRect();
+      return Array.from(el.querySelectorAll("[data-testid^='league-player-tile-']")).filter((t) => {
+        const r = t.getBoundingClientRect();
+        return r.height > 0 && r.top >= f.top - 1 && r.bottom <= f.bottom + 1;
+      }).length;
+    });
     expect(inView).toBeGreaterThanOrEqual(1);
   });
 }
@@ -91,9 +93,12 @@ test("at 200% break tiles show each kid's whole name, at the larger size", async
   await expect(page.getByRole("button", { name: /^start 2nd half/i })).toBeVisible({ timeout: 15_000 });
   await largeText(page, 200);
 
+  // The tiles carry the squad's short name ("Paddy M"), as in play,
+  // since the break draws the field (10 Nov 2026).
   for (const p of players.slice(0, 3)) {
     const tile = page.getByTestId(`player-tile-${p.id}`);
-    const name = tile.getByText(p.full_name, { exact: true });
+    const [first, last] = p.full_name.split(" ");
+    const name = tile.getByText(`${first} ${last[0]}`, { exact: true });
     await name.scrollIntoViewIfNeeded();
     const m = await name.evaluate((el) => ({
       clipped: el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1,
@@ -121,3 +126,79 @@ test("at 200% the game page's 'Copy for group chat' stays on screen", async ({ p
   expect(box.height).toBeGreaterThanOrEqual(44);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
+
+// The netball court at large text (Steve, 10 Nov 2026). The court's bibs
+// stand a row each, zigzagging down it; at 150–200% each row's one bib
+// was squeezed into half the court (FieldLines' two columns for large
+// text), so a name like "Charlotte" was cut to a letter or two. Every bib
+// stays whole, apart and tappable; the court may grow taller (it
+// scrolls), never wider than the phone.
+// Two ways text gets large: the root font size (as the specs above), and
+// the phone's own text setting (CDP's reader font size, Chromium only),
+// which is what the layout's `bigtext:` media query follows.
+const COURT_CASES = [
+  { label: "150% text", percent: 150, reader: false },
+  { label: "200% text", percent: 200, reader: false },
+  { label: "the phone's 200% text setting", percent: 200, reader: true },
+];
+for (const { label, percent, reader } of COURT_CASES) {
+  test(`at ${label} the netball court's bibs are apart, tappable and show the kid's name`, async ({ page, browserName }) => {
+    test.skip(reader && browserName !== "chromium", "CDP Page.setFontSizes is Chromium-only");
+    const { admin, team, game, players } = await netballGame({ name: `A11Y-LT-NB-${percent}` });
+    // A long first name, as a real squad has.
+    await admin.from("players").update({ full_name: "Charlotte Thompson" }).eq("id", players[2].id);
+    await skipHints(page);
+    if (reader) {
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send("Page.setFontSizes", { fontSizes: { standard: 32, fixed: 26 } });
+    }
+    await openLive(page, team.id, game.id);
+    if (!reader) await largeText(page, percent);
+
+    const ids = players.slice(0, 7).map((p) => p.id);
+    // One read, so every box is at the same scroll of the court.
+    const tiles = await page.getByTestId("live-field").evaluate((field, tileIds) => {
+      return tileIds.map((id) => {
+        const el = field.querySelector(`[data-testid="player-tile-${id}"]`) as HTMLElement | null;
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        const name = Array.from(el.querySelectorAll("span")).find((s) => s.classList.contains("truncate"));
+        return {
+          top: r.top + field.scrollTop,
+          bottom: r.bottom + field.scrollTop,
+          left: r.left,
+          right: r.right,
+          width: r.width,
+          height: r.height,
+          name: name?.textContent ?? "",
+          nameCut: name ? name.scrollWidth > name.clientWidth + 1 : true,
+        };
+      });
+    }, ids);
+    const viewport = await page.evaluate(() => window.innerWidth);
+
+    expect(tiles.every(Boolean), "every bib is on the court").toBe(true);
+    const boxes = tiles.map((t) => t!);
+    for (const t of boxes) {
+      expect(t.height, `${t.name} is tall enough to tap`).toBeGreaterThanOrEqual(44);
+      expect(t.width, `${t.name} is wide enough to tap`).toBeGreaterThanOrEqual(44);
+      expect(t.left, `${t.name} is on the screen`).toBeGreaterThanOrEqual(0);
+      expect(t.right, `${t.name} is on the screen`).toBeLessThanOrEqual(viewport);
+      expect(t.nameCut, `${t.name}'s name is cut`).toBe(false);
+    }
+    // No two bibs overlap.
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const [a, b] = [boxes[i], boxes[j]];
+        const apart = a.right <= b.left + 0.5 || b.right <= a.left + 0.5 || a.bottom <= b.top + 0.5 || b.bottom <= a.top + 0.5;
+        expect(apart, `${a.name} and ${b.name} overlap`).toBe(true);
+      }
+    }
+    // Nothing scrolls sideways: the page, the live screen, the court.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport);
+    for (const testId of ["live-shell", "live-field"]) {
+      const el = await page.getByTestId(testId).evaluate((n) => ({ sw: n.scrollWidth, cw: n.clientWidth }));
+      expect(el.sw, `${testId} doesn't scroll sideways`).toBeLessThanOrEqual(el.cw);
+    }
+  });
+}

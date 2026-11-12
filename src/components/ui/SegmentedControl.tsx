@@ -3,6 +3,10 @@
 // One segmented control for choosing between a few options (UX plan
 // Phase 6: 44 pt targets, radio semantics). SegTabs stays for tab-like
 // navigation; this is for settings ("Off · Light · Balanced · Strong").
+// The keyboard is the radio group's (useRadioGroup): one Tab stop, the
+// arrow keys move and select.
+
+import { useRadioGroup } from "@/components/ui/useRadioGroup";
 
 export interface SegmentedOption<T extends string> {
   id: T;
@@ -33,6 +37,7 @@ export function SegmentedControl<T extends string>({
   className = "",
   compact = false,
 }: SegmentedControlProps<T>) {
+  const { radioProps } = useRadioGroup({ values: options.map((o) => o.id), value, onChange, disabled });
   return (
     <div
       role="radiogroup"
@@ -44,13 +49,14 @@ export function SegmentedControl<T extends string>({
         return (
           <button
             key={opt.id}
+            {...radioProps(opt.id)}
             type="button"
             role="radio"
             aria-checked={active}
             disabled={disabled}
             onClick={() => !active && onChange(opt.id)}
-            className={`min-h-[44px] min-w-0 flex-1 rounded-full ${compact ? "whitespace-nowrap px-1" : "px-3"} text-[13px] font-semibold transition-all duration-base ease-out-quart active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${
-              active ? "bg-surface text-ink shadow-card" : "text-ink-dim hover:text-ink"
+            className={`min-h-[44px] min-w-0 flex-1 rounded-full ${compact ? "whitespace-nowrap px-1" : "px-3"} text-[0.8125rem] font-semibold transition-all duration-base ease-out-quart active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${
+              active ? "bg-primary text-on-primary" : "text-ink-dim hover:text-ink"
             }`}
           >
             {opt.label}

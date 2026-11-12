@@ -11,7 +11,9 @@
 // mouth. An age with no keeper has no lines: one group of kids.
 
 import { Fragment } from "react";
+import { sportSurface } from "@/components/live/sportSurface";
 import type { Player } from "@/lib/types";
+import type { FieldSurface } from "@/components/live/FieldLines";
 import type { SoccerLineup } from "@/lib/sports/soccer/lineup";
 import type { SoccerUnitMs } from "@/lib/sports/soccer/replay";
 import type { SoccerLine, SoccerSurface, SoccerUnit, SoccerUnitWords } from "@/lib/sports/soccer/types";
@@ -92,7 +94,7 @@ export function SoccerField({
         type="button"
         onClick={() => onTap("", unit)}
         aria-label={`Empty ${words[unit].label.toLowerCase()} spot`}
-        className={`w-full rounded-md border border-dashed py-3 text-center font-mono text-[10px] font-semibold uppercase tracking-micro transition-colors duration-fast ease-out-quart ${
+        className={`w-full rounded-md border border-dashed py-3 text-center font-mono text-nano font-semibold uppercase tracking-micro transition-colors duration-fast ease-out-quart ${
           primed
             ? "border-warn bg-warn/20 text-white"
             : "border-white/40 bg-white/5 text-white/60 hover:border-white/70 hover:bg-white/15"
@@ -161,7 +163,7 @@ export function SoccerField({
       role="region"
       aria-label={surface === "court" ? "On court" : "On field"}
       data-surface={surface}
-      className={`relative rounded-[18px] ${surface === "court" ? "bg-court" : "bg-field"} shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]`}
+      className={`relative rounded-[18px] ${sportSurface(surface === "court" ? "court" : "field")}`}
     >
       {wakeUpKey !== null && (
         <span
@@ -198,6 +200,30 @@ export function SoccerField({
       </div>
     </div>
   );
+}
+
+/**
+ * The surface's markings alone (live v3's FieldLines draws them under
+ * the kids): the pitch, futsal's court or the hockey pitch.
+ */
+export function SoccerSurfaceMarks({ surface }: { surface: SoccerSurface }) {
+  if (surface === "court") return <FutsalCourtMarkings />;
+  if (surface === "hockey") return <HockeyPitchMarkings />;
+  return <PitchMarkings />;
+}
+
+/**
+ * The soccer family's ground for FieldLines (the live field and the
+ * break): futsal on the court, soccer and hockey on the grass, each with
+ * its markings. Eleven a side gets a wider plate for "ATT Lucas N" (the
+ * design's 100+).
+ */
+export function soccerField(surface: SoccerSurface, bigSide: boolean): FieldSurface {
+  return {
+    surface: surface === "court" ? "court" : "field",
+    marks: <SoccerSurfaceMarks surface={surface} />,
+    tileWidth: bigSide ? 108 : 88,
+  };
 }
 
 /**
@@ -262,7 +288,7 @@ function HockeyPitchMarkings() {
 function PitchMarkings() {
   const line = "border-white/[0.22]";
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0">
+    <div aria-hidden data-testid="pitch-markings" className="pointer-events-none absolute inset-0">
       <div className={`absolute inset-x-2.5 inset-y-2.5 rounded-[10px] border-[1.5px] ${line}`} />
       <div className="absolute inset-x-2.5 top-1/2 h-0 border-t-[1.5px] border-white/[0.18]" />
       <div className="absolute left-1/2 top-1/2 h-[72px] w-[72px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[1.5px] border-white/[0.16]" />

@@ -23,6 +23,21 @@ interface FAQItem {
 
 const FAQ: FAQItem[] = [
   {
+    q: "Where's the help for my sport?",
+    a: (
+      <>
+        Each sport has a page of its own, with its field, scoring, subs,
+        breaks and junior rules: pick yours under <strong>Your sport</strong>{" "}
+        on the{" "}
+        <Link href="/help" className="font-medium underline">
+          help home page
+        </Link>
+        . Help from inside a team (the avatar menu) opens your team&apos;s
+        sport straight away.
+      </>
+    ),
+  },
+  {
     q: "Why did my scores reset?",
     a: (
       <>
@@ -41,13 +56,88 @@ const FAQ: FAQItem[] = [
     q: "How do I undo a score?",
     a: (
       <>
-        Tap <strong>Undo</strong> on the strip just above the scoreboard to
-        take back the latest score. In AFL and netball the strip flashes the
-        score you just recorded for 8 seconds. To fix an older score, use{" "}
-        <strong>Fix scores</strong> at the next quarter break or in the
-        full-time review (AFL and netball); league&apos;s full-time review
-        has the score buttons and Undo, so you can correct the result before
-        you tap <strong>Finish game</strong>.
+        Tap <strong>Undo</strong> on the line under the score to take back
+        the latest score; it names the score it takes back. To fix an older
+        one, tap the score itself (or <strong>⋯</strong> ›{" "}
+        <strong>Scores and fixes</strong>): take off any score this game, or
+        add one you missed. The full-time review has the score buttons and
+        Undo too, so you can correct the result before you tap{" "}
+        <strong>Finish game</strong>.
+      </>
+    ),
+  },
+  // Round 9 (29 Oct 2026): questions parents and coaches asked in the
+  // Stagehand rounds that no help page answered.
+  {
+    q: "What happens when two phones score the same game?",
+    a: (
+      <>
+        Both count. Each phone saves its own taps, and a score from the other
+        phone shows on yours within a few seconds with a note such as{" "}
+        <strong>Another phone added Isla&apos;s goal</strong>. It isn&apos;t a
+        mistake, so don&apos;t undo it: <strong>Undo</strong> takes back the
+        latest score whichever phone made it, and says which one before you
+        tap. Agree who scores for which team before the start.
+      </>
+    ),
+  },
+  {
+    q: "A player leaves early. What do I do?",
+    a: (
+      <>
+        Tap the player and choose <strong>Went home</strong>. They come off
+        straight away (on the field, you pick who comes on), their time stops,
+        and they&apos;re out of the rotation for the rest of the game. Their
+        tile shows <strong>HOME</strong>. If they come back, tap them again to
+        bring them back.
+      </>
+    ),
+  },
+  {
+    q: "What do \"Off next\", the numbers and \"Stays\" mean?",
+    a: (
+      <>
+        The kids in the next sub say <strong>Off next</strong> or{" "}
+        <strong>On next</strong>, and both kids of a pair carry the same
+        number: the kid with 1 who says Off next swaps with the kid with 1 who
+        says On next. When the sub is due they say <strong>Off now</strong>{" "}
+        and <strong>On now</strong>. At a break, each tile says
+        where the player was last period: <strong>Stays</strong> means the same
+        spot, otherwise it says where they come from (another line, or the
+        bench).
+      </>
+    ),
+  },
+  {
+    q: "Can I reset season balance without losing stats?",
+    a: (
+      <>
+        Yes. <strong>Reset</strong> under Season balance in How we play (Team ›
+        Settings) only changes where the balance starts counting, from today.
+        Past games, their minutes and every stat stay as they are.
+      </>
+    ),
+  },
+  {
+    q: "How do I change the quarter or half length?",
+    a: (
+      <>
+        On the Team tab, under Season, set the quarter, half or period length
+        in minutes. New games use it. In
+        netball you can also change it for one game on the lineup screen
+        before the start. Once a game has started, its length stays as it was.
+      </>
+    ),
+  },
+  {
+    q: "Do parents need an account to say if their child can play?",
+    a: (
+      <>
+        No. On the game page, tap <strong>Ask parents who&apos;s in</strong>{" "}
+        and post the message in your group chat. Parents open the link, tap
+        their child and choose <strong>In</strong> or <strong>Out</strong>,
+        with no account or app. The game-day link that runs the game needs no
+        account either.
       </>
     ),
   },
@@ -93,8 +183,8 @@ const FAQ: FAQItem[] = [
         <strong>Start Q{"{n}"}</strong> (or <strong>Start H{"{n}"}</strong>{" "}
         in a halves game) after the break. If the clock isn&apos;t running,
         the timer doesn&apos;t count. Also
-        check the sub interval (1 to 10 minutes) under Game settings, on the
-        lineup screen or below the field during the game. If your team uses
+        check the sub interval under Game settings, on the lineup screen or
+        under <strong>⋯</strong> during the game. If your team uses
         the <strong>Subs only at the breaks</strong> rule, Siren won&apos;t
         suggest rolling subs.
       </>
@@ -104,11 +194,11 @@ const FAQ: FAQItem[] = [
     q: "How do I add a player who arrived late?",
     a: (
       <>
-        During a live game, tap <strong>+ Add late arrival</strong> below the
-        field or court. It lets you add a player from your squad to the bench
-        mid-game. They&apos;ll then be available for rotations and the next
-        break&apos;s lineup. At a league break you can also use{" "}
-        <strong>Add arrived player</strong>.
+        During a live game, tap <strong>+ Late</strong> at the foot of the
+        bench, or <strong>⋯</strong> › <strong>+ Add late arrival</strong>.
+        Pick the player from your squad and they go on the bench, ready for
+        the next sub or the next break&apos;s lineup. At a break, the button
+        beside the score has <strong>Add arrived player</strong> too.
       </>
     ),
   },
@@ -127,9 +217,9 @@ const FAQ: FAQItem[] = [
       <>
         Open the <strong>Season balance</strong> card on the Stats tab. It
         shows each player&apos;s minutes in each line or position this
-        season, tints any spot where a kid is owed at least a quarter (a
-        half, for league from Under 10), and counts how many kids are within
-        a quarter (or half) of even. Aim for an even season. Individual games
+        season, tints any spot where a kid is owed at least a quarter (or a
+        half, in games of halves), and counts how many kids are within a
+        quarter (or half) of even. Aim for an even season. Individual games
         often sit uneven, which is normal. See{" "}
         <Link href="/help/rotations" className="font-medium underline">
           Rotations
@@ -142,9 +232,16 @@ const FAQ: FAQItem[] = [
     q: "How do I invite another coach to manage my team?",
     a: (
       <>
-        Open your team and go to the <strong>Team</strong> tab, under People. You&apos;ll find a
-        shareable invite link. Anyone with the link joins as a Manager.
-        Managers can run live games but cannot delete the team or change settings.
+        Open your team&apos;s <strong>Team</strong> tab, then People ›{" "}
+        <strong>Invite someone</strong>. Pick the role (Manager, to run games,
+        or Coach, for full control), add their email or copy the link, and
+        send it to them: each link works once, for one person, for 14 days.
+        Managers run games and mark availability, but can&apos;t change the
+        team&apos;s settings or squad. See{" "}
+        <Link href="/help/teams" className="font-medium underline">
+          Teams
+        </Link>
+        .
       </>
     ),
   },
@@ -154,8 +251,8 @@ const FAQ: FAQItem[] = [
       <>
         After you tap <strong>Mark injured</strong> in the player actions
         sheet, the player comes out of the rotation straight away. If
-        they&apos;re on the field, AFL and league ask who comes on in their
-        place, and netball asks who fills their position. If you skip the
+        they&apos;re on the field, Siren asks who comes on in their place (in
+        netball, who fills their bib). If you skip the
         replacement, their spot is left short. If their tile still shows on
         the playing area without an <strong>INJ</strong> badge, try
         refreshing the page. If the issue persists, see{" "}

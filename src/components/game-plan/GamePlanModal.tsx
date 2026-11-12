@@ -19,7 +19,7 @@
 // CopyableTextBlock (the "Copy for group chat" affordance, shared
 // with all three post-game summary cards).
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { CopyableTextBlock } from "@/components/ui/CopyableTextBlock";
 import { Guernsey, SegTabs, SFButton, SFCard, SFIcon } from "@/components/sf";
@@ -32,6 +32,8 @@ import {
   swapPlayersInPeriod,
   type GamePlan,
 } from "@/lib/game-plan";
+import { gamePlanSubText } from "@/lib/game-plan/format";
+import { strategyLabelOf } from "@/lib/playbook/strategyLabel";
 import type { ChipKey, ChipMode } from "@/lib/chips";
 import type { AgeGroupConfig, SportId } from "@/lib/sports/types";
 import type { GameEvent, PlayerChip } from "@/lib/types";
@@ -234,16 +236,6 @@ export function GamePlanModal({
   // First-tapped player id, awaiting a second tap to swap. Null = idle.
   const [selected, setSelected] = useState<string | null>(null);
 
-  // Escape closes the planner — parity with the app's other
-  // dismissable surfaces (Modal itself doesn't bind keys).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   const playerById = useMemo(
     () => new Map(players.map((p) => [p.id, p])),
     [players],
@@ -271,6 +263,15 @@ export function GamePlanModal({
     [plan, sport, aflPlaybook, leaguePlaybook],
   );
 
+  // The How we play rotation that made the plan (Stagehand round 11,
+  // #12): the engine input's strategy (the kickoff snapshot's mid-game),
+  // else the one a team with no choice plays. The copied text names it too.
+  const rotation = strategyLabelOf(
+    sport,
+    ageGroup.id,
+    aflPlaybook?.strategy ?? netballPlaybook?.strategy ?? leaguePlaybook?.strategy ?? null,
+  );
+
   const text = useMemo(
     () =>
       formatGamePlan(plan, {
@@ -279,8 +280,9 @@ export function GamePlanModal({
         playerName: displayName,
         positionLabel: (i, id) => positionsByPeriod[i]?.[id],
         details,
+        rotation,
       }),
-    [plan, teamName, opponentName, displayName, positionsByPeriod, details],
+    [plan, teamName, opponentName, displayName, positionsByPeriod, details, rotation],
   );
 
   function handleReshuffle() {
@@ -317,7 +319,7 @@ export function GamePlanModal({
     plan.periods.length === 1 ? plan.periodLabel : plan.periodLabelPlural;
   const cadence =
     plan.rotatesWithinPeriod && plan.subIntervalSeconds
-      ? ` · subs ~every ${Math.round(plan.subIntervalSeconds / 60)} min`
+      ? ` · ${gamePlanSubText(plan.subIntervalSeconds)}`
       : "";
   const tabs = plan.periods.map((p, i) => ({ id: String(i), label: p.label }));
 
@@ -353,7 +355,7 @@ export function GamePlanModal({
               {positionsByPeriod[activePeriod]?.[pid] && (
                 <span
                   data-testid="game-plan-position"
-                  className="shrink-0 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim"
+                  className="shrink-0 font-mono text-nano font-bold uppercase tracking-micro text-ink-dim"
                 >
                   {positionsByPeriod[activePeriod][pid]}
                 </span>
@@ -365,7 +367,7 @@ export function GamePlanModal({
             {/* Game context (issue: plan the next period with break-level
                 info) — total minutes + per-zone breakdown this game. */}
             {stats && (
-              <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-ink-mute">
+              <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-micro text-ink-mute">
                 <span className="font-mono font-semibold tabular-nums text-ink-dim">
                   {fmtMs(stats.totalMs)}
                 </span>
@@ -384,7 +386,7 @@ export function GamePlanModal({
             )}
           </span>
           {isSelected ? (
-            <span className="self-start font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-alarm">
+            <span className="self-start font-mono text-nano font-bold uppercase tracking-[0.1em] text-alarm">
               Swapping…
             </span>
           ) : (
@@ -398,7 +400,9 @@ export function GamePlanModal({
   };
 
   return (
-    <Modal size="lg">
+    // Escape or a tap outside closes the planner, as the app's other
+    // dismissable surfaces.
+    <Modal size="lg" onClose={onClose}>
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -408,6 +412,9 @@ export function GamePlanModal({
           <p className="mt-0.5 text-xs text-ink-mute">
             {plan.periods.length} {periodNoun} · ~{mins} min each{cadence} ·
             auto-suggested, tap to tweak
+          </p>
+          <p data-testid="game-plan-rotation" className="mt-1 text-xs font-medium text-ink-dim">
+            Rotation: {rotation}
           </p>
           {note && <p className="mt-1 text-xs text-ink-dim">{note}</p>}
         </div>
@@ -485,7 +492,7 @@ export function GamePlanModal({
             {(sport === "afl" ? [...period.groups].reverse() : period.groups).map((g) => (
               <SFCard key={g.groupId} pad={0} className="overflow-hidden">
                 <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-2.5">
-                  <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink">
+                  <h3 className="font-mono text-micro font-bold uppercase tracking-micro text-ink">
                     {g.groupLabel}
                   </h3>
                   <span className="font-mono text-xs font-semibold tabular-nums text-ink-mute">
@@ -506,11 +513,11 @@ export function GamePlanModal({
             <SFCard pad={0} className="overflow-hidden">
               <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-2.5">
                 <div className="min-w-0">
-                  <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink">
+                  <h3 className="font-mono text-micro font-bold uppercase tracking-micro text-ink">
                     {plan.rotatesWithinPeriod ? "Interchange" : "Bench"}
                   </h3>
                   {plan.rotatesWithinPeriod && period.bench.length > 0 && (
-                    <p className="mt-0.5 text-[10px] text-ink-mute">
+                    <p className="mt-0.5 text-nano text-ink-mute">
                       Rotates on in this order — first on top
                     </p>
                   )}

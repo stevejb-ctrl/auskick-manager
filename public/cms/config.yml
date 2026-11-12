@@ -72,28 +72,6 @@ title_parts_fields: &titlePartsFields
 # Field group for one feature block (used by all 3 brand
 # collections). Anchored so all three sports get the same editing
 # UX — change here, change everywhere.
-feature_block_fields: &featureBlockFields
-  - { name: id, label: Block ID, widget: string, hint: "Stable identifier — don't rename once shipped (used in URLs / analytics)." }
-  - { name: eyebrow, label: Eyebrow, widget: string, hint: "Small uppercase label above the title." }
-  - { name: title, label: Title, widget: object, fields: *titlePartsFields }
-  - { name: body, label: Body, widget: text }
-  - { name: bullets, label: Bullets, widget: list, field: { name: bullet, label: Bullet, widget: string } }
-  - {
-      name: image,
-      label: Screenshot,
-      widget: image,
-      hint: "Drag-drop an image, click to upload, or pick an existing screenshot from /marketing/screenshots/. The path saved into the JSON is what the marketing page renders.",
-    }
-  - {
-      name: imageAlt,
-      label: Image alt text,
-      widget: string,
-      hint: "Short description shown to screen readers and used as the alt attribute. Describe what the screenshot shows.",
-    }
-
-# Field group for one full BrandCopy file. Anchored so AFL, League,
-# and Netball share an identical editor — change one place, all
-# three collections update.
 brand_copy_fields: &brandCopyFields
   - { name: productName, label: Product name, widget: string, hint: "Header product name, e.g. 'Siren Footy'." }
   - { name: tagline, label: Tagline, widget: string }
@@ -119,16 +97,6 @@ brand_copy_fields: &brandCopyFields
     fields:
       - { name: stat, label: Stat, widget: string, hint: 'e.g. "1,200+", "38k", "4.9★"' }
       - { name: label, label: Label, widget: string, hint: 'e.g. "Coaches", "Games tracked"' }
-  - name: centerpiece
-    label: Centrepiece headline
-    widget: object
-    hint: "Editorial headline shown above the feature blocks."
-    fields: *titlePartsFields
-  - name: features
-    label: Features
-    widget: list
-    hint: "Ordered list of feature blocks. Drag to reorder, click to expand."
-    fields: *featureBlockFields
   - { name: finalCtaEyebrow, label: Final CTA eyebrow, widget: string }
   - name: finalCtaTitle
     label: Final CTA title
@@ -252,32 +220,6 @@ collections:
       - name: league
         label: Rugby League content
         file: content/marketing/brands/league.json
-        format: json
-        fields: *brandCopyFields
-
-  - name: brand-union
-    label: Rugby Union content
-    description: >
-      Deep junior rugby union marketing copy. Shows when Rugby Union
-      is the active sport on the homepage picker (union has no site
-      of its own).
-    files:
-      - name: union
-        label: Rugby Union content
-        file: content/marketing/brands/union.json
-        format: json
-        fields: *brandCopyFields
-
-  - name: brand-soccer
-    label: Football (soccer) content
-    description: >
-      Deep junior football (soccer) marketing copy. Shows when
-      Football (soccer) is the active sport on the homepage picker
-      (soccer has no site of its own).
-    files:
-      - name: soccer
-        label: Football (soccer) content
-        file: content/marketing/brands/soccer.json
         format: json
         fields: *brandCopyFields
 

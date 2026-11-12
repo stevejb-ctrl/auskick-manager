@@ -1,6 +1,7 @@
 "use client";
 
 import { useLiveGame, type ZoneMs } from "@/lib/stores/liveGameStore";
+import { summaryStatusNote, type SidelinedSets } from "@/lib/live/wentHome";
 import { ALL_ZONES } from "@/lib/fairness";
 import type { Player } from "@/lib/types";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
@@ -84,6 +85,7 @@ function buildSummary(
   swapCount: number,
   basePlayedZoneMs: Record<string, ZoneMs>,
   presentIds: readonly string[],
+  sidelined?: SidelinedSets,
 ): string {
   const lines: string[] = [];
   // Two Jacks read "Jack S" and "Jack M" (the number is printed beside
@@ -153,7 +155,7 @@ function buildSummary(
     const rows = playerStats.map((ps) => {
       const zoneStr = ps.zones.map((z) => `${z.label} ${z.pct}%`).join(" · ");
       const prefix = ps.number != null ? `#${ps.number} ` : "";
-      return { id: ps.id, text: `${prefix}${ps.name} — ${fmtMs(ps.totalMs)}${zoneStr ? `  (${zoneStr})` : ""}` };
+      return { id: ps.id, text: `${prefix}${ps.name} — ${fmtMs(ps.totalMs)}${zoneStr ? `  (${zoneStr})` : ""}${summaryStatusNote(ps.id, sidelined)}` };
     });
     for (const id of satOut) {
       const p = playersById.get(id)!;
@@ -188,6 +190,8 @@ export interface GameSummaryViewProps {
   basePlayedZoneMs: Record<string, ZoneMs>;
   /** Everyone at the game (presentPlayerIds), so kids who never got on show at 0:00. */
   presentIds?: readonly string[];
+  /** Kids still off at full time, hurt or gone home: said after their time. */
+  sidelined?: SidelinedSets;
   /**
    * Whether to wrap with SirenPulseHalo (the "final siren" arrival
    * pulse). The live page mounts this card the moment full time
@@ -209,6 +213,7 @@ export function GameSummaryView({
   swapCount,
   basePlayedZoneMs,
   presentIds = [],
+  sidelined,
   showArrivalPulse = false,
 }: GameSummaryViewProps) {
   const summary = buildSummary(
@@ -222,6 +227,7 @@ export function GameSummaryView({
     swapCount,
     basePlayedZoneMs,
     presentIds,
+    sidelined,
   );
 
   const card = (
@@ -268,6 +274,8 @@ interface GameSummaryCardProps {
    * so a game with 2 swaps went out as "5 subs" (UX audit, 23 Oct 2026).
    */
   subCount: number;
+  /** Kids who went home (the live screen's): the rest of the injured are hurt. */
+  wentHomeIds?: ReadonlySet<string>;
 }
 
 export function GameSummaryCard({
@@ -277,7 +285,9 @@ export function GameSummaryCard({
   playersById,
   presentIds,
   subCount,
+  wentHomeIds,
 }: GameSummaryCardProps) {
+  const injuredIds = useLiveGame((s) => s.injuredIds);
   const teamScore = useLiveGame((s) => s.teamScore);
   const opponentScore = useLiveGame((s) => s.opponentScore);
   const playerScores = useLiveGame((s) => s.playerScores);
@@ -295,6 +305,7 @@ export function GameSummaryCard({
       swapCount={subCount}
       basePlayedZoneMs={basePlayedZoneMs}
       presentIds={presentIds}
+      sidelined={{ injured: new Set(injuredIds), wentHome: wentHomeIds ?? new Set() }}
       showArrivalPulse
     />
   );

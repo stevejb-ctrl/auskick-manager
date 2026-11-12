@@ -5,10 +5,14 @@
 // under a touch or Oztag mixed team's boys' cap (migration 0071). One
 // control wherever it's asked: adding a player, the squad row, a
 // fill-in, and the lineup's prompt for a kid with no group. It's shown
-// only on a mixed team, and only to the coach; the answer appears
-// nowhere else (not on tiles, parent views or exports).
+// only on a mixed team, and only to the coach; the answer shows only as
+// the coach's G or B on the kids' tiles (MixedMark), never on parent
+// views, the game-day link or exports.
 
 import type { MixedGroup } from "@/lib/types";
+import { useRadioGroup } from "@/components/ui/useRadioGroup";
+
+const GROUPS = ["girl", "boy"] as const;
 
 interface MixedGroupPickerProps {
   value: MixedGroup | null;
@@ -21,6 +25,7 @@ interface MixedGroupPickerProps {
 }
 
 export function MixedGroupPicker({ value, onChange, disabled = false, playerName, compact = false }: MixedGroupPickerProps) {
+  const { radioProps } = useRadioGroup<MixedGroup>({ values: GROUPS, value, onChange, disabled });
   return (
     <span className="inline-flex items-center gap-2">
       {!compact && <span className="text-xs text-ink-dim">For the mixed rule, counts as:</span>}
@@ -29,9 +34,10 @@ export function MixedGroupPicker({ value, onChange, disabled = false, playerName
         aria-label={playerName ? `${playerName} counts as` : "For the mixed rule, counts as"}
         className="inline-flex gap-1"
       >
-        {(["girl", "boy"] as const).map((g) => (
+        {GROUPS.map((g) => (
           <button
             key={g}
+            {...radioProps(g)}
             type="button"
             role="radio"
             aria-checked={value === g}

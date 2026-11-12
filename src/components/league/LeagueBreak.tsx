@@ -14,6 +14,7 @@
 // lives in PeriodBreak.
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { sidelinedLabel, wentHomeIds } from "@/lib/live/wentHome";
 import { useRouter } from "next/navigation";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { liveEvents } from "@/lib/live/optimisticEvents";
@@ -24,12 +25,15 @@ import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { hapticTap } from "@/lib/haptics";
 import { type InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
 import { PeriodBreak, type BreakPlayer, type BreakStrategy } from "@/components/quarter-break/PeriodBreak";
+import { leagueFieldLayout } from "./LeagueFieldLines";
+import { rugbyField } from "./RugbyMarks";
+import { linePositionOrder } from "@/lib/sports/rugby/fieldPositions";
 import { VestAssignmentCard } from "./VestAssignmentCard";
 import { breakConfigFor } from "@/lib/sports/break";
-import { buildBoard, placesOf, swapInStaged, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
+import { buildBoard, cellsInRows, placesOf, swapInStaged, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
 import { awayMsSoFar } from "@/lib/live/break/floor";
-import { useBreakReplan } from "@/lib/live/break/useBreakReplan";
+import { useBreakReplan, withHealthyOnBench } from "@/lib/live/break/useBreakReplan";
 import { getSportConfig, periodLabels, type RugbySport } from "@/lib/sports";
 import { rugbyForwards } from "@/lib/sports/rugby/lines";
 import { rugbyBreakCheck } from "@/lib/sports/rugby/breakCheck";
@@ -41,7 +45,7 @@ import {
   unbrokenPeriodsRequired,
   type LeagueGameState,
 } from "@/lib/sports/rugby_league/fairness";
-import { currentVests } from "@/lib/sports/rugby_league/vests";
+import { currentVests, type VestType } from "@/lib/sports/rugby_league/vests";
 import { consumePeriodPin } from "@/lib/game-plan";
 import { leagueBreakRotation, leagueBreakSuggestion } from "@/lib/sports/rugby/breakSuggestion";
 import { benchSidelinedInLeagueLineup, plannedLeagueLineup } from "@/lib/live/lineupOps";
@@ -205,7 +209,14 @@ export function LeagueBreak({
   const lastApplied = useRef<BreakStrategy>(initialMode);
   // A kid back at the break gets the strategy's lineup again, unless the
   // coach has placed kids by hand (lib/live/break/useBreakReplan).
-  const replan = useBreakReplan(healthy, () => setDraft(forStrategy(strategy)));
+  // Undo puts back the lineup from before, with who can't play now
+  // benched and who can and wasn't in it on the bench.
+  const replan = useBreakReplan(healthy, {
+    draft,
+    setDraft,
+    plan: () => forStrategy(strategy),
+    fit: (d) => withHealthyOnBench(benchSidelinedInLeagueLineup(d, sidelinedSet), healthy, (l, id) => l.forwards.includes(id) || l.backs.includes(id)),
+  });
   useEffect(() => {
     if (lastApplied.current === strategy) return;
     lastApplied.current = strategy;
@@ -322,9 +333,10 @@ export function LeagueBreak({
   );
   const sidelined = useMemo(() => {
     const out: Record<string, string> = {};
-    for (const id of sidelinedInGame) out[id] = injured.has(id) ? "Injured" : "Lent";
+    const home = wentHomeIds(events);
+    for (const id of sidelinedInGame) out[id] = injured.has(id) ? sidelinedLabel(id, home) : "Lent";
     return out;
-  }, [sidelinedInGame, injured]);
+  }, [sidelinedInGame, injured, events]);
   const withOut = (l: Lineup): StagedLineup => {
     const s = stagedOf(l);
     const onBoard = new Set([...l.forwards, ...l.backs, ...l.bench]);
@@ -417,10 +429,11 @@ export function LeagueBreak({
     if (!vestRequired) return undefined;
     const v = currentVests(events, nextPeriod);
     const out: Record<string, string[]> = {};
-    if (v.fr) out[v.fr] = ["FR"];
-    if (v.dh) out[v.dh] = [...(out[v.dh] ?? []), "DH"];
+    // A lent kid wears no vest of ours (Stagehand round 9).
+    if (v.fr && !loaned.has(v.fr)) out[v.fr] = ["FR"];
+    if (v.dh && !loaned.has(v.dh)) out[v.dh] = [...(out[v.dh] ?? []), "DH"];
     return out;
-  }, [vestRequired, events, nextPeriod]);
+  }, [vestRequired, events, nextPeriod, loaned]);
   // The chip's line: who wears each vest next period, first names; a vest
   // with no wearer, or a planned wearer who isn't on the field, needs a pick.
   function vestSummary(): { summary: string; attention: boolean } {
@@ -440,6 +453,25 @@ export function LeagueBreak({
     }
     return { summary: parts.join(" · "), attention };
   }
+  // The field as in play: the same formation rows (leagueFieldLayout),
+  // RugbyMarks' posts and lines, the in-goals kept clear.
+  const fieldLayout = useMemo(() => {
+    const idsIn = (zone: string) => board.filter((s) => s.zone === zone && s.playerId).map((s) => ({ id: s.playerId as string }));
+    const vests = currentVests(events, nextPeriod);
+    const vestByPlayer: Record<string, VestType> = {};
+    if (vests.fr && !loaned.has(vests.fr)) vestByPlayer[vests.fr] = "fr";
+    if (vests.dh && !loaned.has(vests.dh)) vestByPlayer[vests.dh] = "dh";
+    return leagueFieldLayout({
+      forwardsBySize: ageGroup.forwardsBySize,
+      forwardPlayers: idsIn("forwards"),
+      backPlayers: idsIn("backs"),
+      onFieldSize: game.on_field_size,
+      vestRequirements: ageGroup.vestRequirements,
+      vestByPlayer,
+      positionLabels: leaguePlaybook?.positions?.length ? positionLabels : undefined,
+      positionOrder: linePositionOrder(leaguePlaybook?.positions),
+    });
+  }, [board, events, nextPeriod, loaned, ageGroup, game.on_field_size, leaguePlaybook, positionLabels]);
   const placed = new Set(inGame);
   const canPlay = squad.filter((p) => !sidelinedSet.has(p.id));
   const onFieldNow = [...draft.forwards, ...draft.backs].filter((id) => !sidelinedSet.has(id));
@@ -449,6 +481,15 @@ export function LeagueBreak({
     <PeriodBreak
       header={{ exitHref, game, onHelp }}
       config={config}
+      field={{
+        ...rugbyField(sport, { dense: fieldLayout.dense, tileWidth: fieldLayout.tileWidth }),
+        shape: (zone, cells) => {
+          const line = fieldLayout.lines.find((l) => l.line === zone.key);
+          if (!line) return undefined;
+          const rows = cellsInRows(line.rows.map((r) => r.map((s) => s.player?.id ?? null)), cells);
+          return { rows: rows.map((r) => r.map((c) => c.node)) };
+        },
+      }}
       nextPeriod={nextPeriod}
       slots={board}
       players={players}
@@ -465,6 +506,8 @@ export function LeagueBreak({
         setDraft((d) => swapSlots(d, a, b));
       }}
       strategy={strategy}
+      replanned={replan.replanned}
+      onUndoReplan={replan.undo}
       onStrategy={(next) => {
         shaped.current = true;
         setStrategy(next);
@@ -512,7 +555,7 @@ export function LeagueBreak({
         seeded ? (
           <p
             data-testid="planned-seed-banner"
-            className="text-center font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
+            className="text-center font-mono text-nano font-bold uppercase tracking-micro text-brand-700"
           >
             Pre-filled from your planned {periodWord} {nextPeriod} lineup
           </p>

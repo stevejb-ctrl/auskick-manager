@@ -25,6 +25,14 @@ export function periodShort(word: PeriodWord, period: number): string {
   return `${letter}${period}`;
 }
 
+/**
+ * ⋯ → Edit lineup once the whistle has gone: refused, in the sport's
+ * own period word ("H1 has started" for a halves sport, not "Q1").
+ */
+export function lineupReopenRefusal(word: PeriodWord): string {
+  return `${periodShort(word, 1)} has started, so the lineup changes with subs now.`;
+}
+
 /** What a live write is about to do to the game's periods. */
 export type PeriodWrite =
   /** The kickoff lineup (startGame and its siblings). */
@@ -168,4 +176,38 @@ export function periodWriteVerdict(state: PeriodState, write: PeriodWrite, word:
 export function lineupWrite(at: { quarter?: unknown } | null | undefined): PeriodWrite {
   const q = periodOf(at);
   return q === null ? { kind: "break_lineup" } : { kind: "live_lineup", period: q };
+}
+
+// ─── The database's word on a race ───────────────────────────
+// The guard reads, then the action writes: two phones tapping Start in
+// the same ~100 ms both pass it. Migration 0075 closes that in the
+// database with a unique index per rule; the second write fails with
+// 23505 naming the index, and the action answers as the guard would.
+
+/** One quarter_start per period per game (0075). */
+export const PERIOD_START_INDEX = "game_events_one_start_per_period";
+/** One game_finalised per game (0075). */
+export const FINALISED_INDEX = "game_events_one_finalised";
+
+interface DbError {
+  code?: string | null;
+  message?: string | null;
+  details?: string | null;
+}
+
+/**
+ * The verdict a unique violation of 0075's indexes stands for, or null
+ * when `error` is anything else (a replayed write key included: the
+ * caller already treats that as done).
+ */
+export function uniqueRaceVerdict(error: DbError | null | undefined, write: PeriodWrite, word: PeriodWord): PeriodVerdict | null {
+  if (!error || error.code !== "23505") return null;
+  const text = `${error.message ?? ""} ${error.details ?? ""}`;
+  if (text.includes(FINALISED_INDEX)) return { kind: "duplicate" };
+  if (text.includes(PERIOD_START_INDEX)) {
+    // A kickoff's start is the first period's.
+    const period = write.kind === "period_start" ? write.period : 1;
+    return { kind: "stale", message: `Another phone already started ${periodShort(word, period)}.` };
+  }
+  return null;
 }

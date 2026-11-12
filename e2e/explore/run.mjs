@@ -80,6 +80,12 @@ const as = flag("as", "");
 // --seed=NAME (with --as=coach): the coach already has a team, squad and
 // a game today, so a game-day mission starts where a Saturday does.
 const seed = flag("seed", "");
+// Round 8: the phone the persona holds. --viewport=915x412 is a phone on
+// its side; --text-zoom=200 is a grandparent's large text (the root font
+// size, which every rem scales from); --slow-net is a weak sideline signal.
+const [vw, vh] = flag("viewport", "412x915").split("x").map(Number);
+const textZoom = parseInt(flag("text-zoom", "100"), 10);
+const slowNet = flag("slow-net", "false") === "true";
 
 // ─── Load mission prompt ───────────────────────────────────────
 const missionPath = resolve(__dirname, "missions", `${mission}.md`);
@@ -146,7 +152,7 @@ const stagehand = new Stagehand({
     headless: !headed,
     // Mobile viewport — matches the real coach context (phone on the
     // sideline). The Playwright e2e config also runs at Pixel 7.
-    viewport: { width: 412, height: 915 },
+    viewport: { width: vw, height: vh },
   },
 });
 
@@ -226,9 +232,25 @@ if (as === "coach") {
 // page already navigated to the start URL, which we then thread
 // into the agent via `execute({ page })` so the agent acts on
 // this page instead of opening its own.
-const page = await stagehand.context.newPage(
-  seededStart ?? (as === "coach" && startUrl.endsWith("/login") ? startUrl.replace(/\/login$/, "/dashboard") : startUrl),
-);
+const firstUrl = seededStart ?? (as === "coach" && startUrl.endsWith("/login") ? startUrl.replace(/\/login$/, "/dashboard") : startUrl);
+console.log(`▶ Start page: ${firstUrl}`);
+const page = await stagehand.context.newPage(textZoom !== 100 || slowNet ? "about:blank" : firstUrl);
+if (textZoom !== 100) {
+  await page.addInitScript((pct) => {
+    const put = () => {
+      const s = document.createElement("style");
+      s.textContent = `html { font-size: ${pct}% !important; }`;
+      document.head.appendChild(s);
+    };
+    if (document.head) put();
+    else document.addEventListener("DOMContentLoaded", put);
+  }, textZoom);
+}
+if (slowNet) {
+  await page.sendCDP("Network.enable");
+  await page.sendCDP("Network.emulateNetworkConditions", { offline: false, latency: 600, downloadThroughput: 40_000, uploadThroughput: 15_000 });
+}
+if (textZoom !== 100 || slowNet) await page.goto(firstUrl);
 
 // ─── Run the agent ─────────────────────────────────────────────
 // v3 fields are `systemPrompt` (not v2's `instructions`) and `model`
@@ -328,6 +350,11 @@ async function seedTeam(admin, email, name, origin) {
   //              many kids weren't marked available (late arrivals),
   //              the clock speed (default 8), and goals/behinds per
   //              side as [[quarter, "goal" | "behind"], ...]
+  //   bigLive    AFL big field (18 a side), already under way at real
+  //              time: { quarter, minutesIn } — the quarters before ran
+  //              in full (20 minutes), this one is minutesIn in. Five
+  //              bench kids came on halfway through Q1; the last two
+  //              have sat since the first bounce.
   const SEEDS = {
     "afl-u12-gameday": {
       team: { name: "Bayside Bandicoots", age_group: "U12", sport: "afl" },
@@ -338,6 +365,24 @@ async function seedTeam(admin, email, name, origin) {
       team: { name: "Brunswick Bears", age_group: "U15", sport: "afl" },
       playbook: { strategy: "set-positions" },
       squad: 20,
+    },
+    // Live v3 big field: AFL U16 boys, 18 on and 7 on the bench, in set
+    // positions, 10 minutes into Q2. The field is the formation ("CHB
+    // Hamish C"); tapping two kids on the field changes their positions.
+    // Two bench kids have sat all game, so they're at risk of the 50%
+    // minimum ("Needs 40′ more", "2 under 50%").
+    "afl-u16-gameday": {
+      team: { name: "Wattle Park Wombats", age_group: "U16_boys", sport: "afl" },
+      opponent: "Kew Kookas",
+      playbook: { strategy: "set-positions" },
+      squad: 25,
+      onField: 18,
+      prefs: [
+        [0, { position_key: "ff", kind: "home" }],
+        [15, { position_key: "fb", kind: "home" }],
+        [13, { position_key: "chb", kind: "home" }],
+      ],
+      bigLive: { quarter: 2, minutesIn: 10 },
     },
     "netball-11u-gameday": {
       team: { name: "Hawthorn Hornets", age_group: "11u", sport: "netball" },
@@ -462,6 +507,34 @@ async function seedTeam(admin, email, name, origin) {
         them: [[1, "goal"], [1, "behind"], [1, "goal"], [2, "behind"], [2, "goal"], [2, "behind"]],
       },
     },
+    // Quarter time: Q1 just ended, a goal and a behind each way, the
+    // break up (fix-scores-flow).
+    "afl-u10-runner-qt": {
+      team: { name: "Coburg Cubs", age_group: "U10", sport: "afl" },
+      playbook: null,
+      squad: 15,
+      start: "runner",
+      live: {
+        quarter: 1,
+        atBreak: true,
+        us: [[1, "goal"], [1, "behind"]],
+        them: [[1, "goal"], [1, "behind"]],
+      },
+    },
+    // Three-quarter time with scores in every quarter, a behind among the
+    // Q3 ones, to reconcile with the other side's scorer (score-reconciler).
+    "afl-u10-runner-3qt": {
+      team: { name: "Coburg Cubs", age_group: "U10", sport: "afl" },
+      playbook: null,
+      squad: 15,
+      start: "runner",
+      live: {
+        quarter: 3,
+        atBreak: true,
+        us: [[1, "goal"], [2, "goal"], [2, "behind"], [3, "behind"], [3, "goal"]],
+        them: [[1, "behind"], [2, "goal"], [3, "goal"], [3, "behind"]],
+      },
+    },
     "league-u8-gameday": {
       team: { name: "Werribee Wolves", age_group: "U8", sport: "rugby_league" },
       playbook: null,
@@ -517,6 +590,67 @@ async function seedTeam(admin, email, name, origin) {
       late: 1,
       onField: 7,
     },
+    // Round 7 (28 Oct): the six newer sports, one game-day seed each.
+    "soccer-u12-gameday": {
+      team: { name: "Fitzroy Falcons", age_group: "U12", sport: "soccer" },
+      opponent: "Northcote Knights",
+      playbook: null,
+      squad: 13,
+    },
+    "futsal-u12-gameday": {
+      team: { name: "Footscray Flames", age_group: "U12", sport: "futsal" },
+      opponent: "Sunshine Strikers",
+      playbook: null,
+      squad: 9,
+    },
+    "hockey-u13-gameday": {
+      team: { name: "Camberwell Comets", age_group: "U13", sport: "hockey" },
+      opponent: "Box Hill Bats",
+      playbook: null,
+      squad: 15,
+    },
+    "basketball-u12-gameday": {
+      team: { name: "Dandenong Dingoes", age_group: "U12", sport: "basketball" },
+      opponent: "Frankston Flyers",
+      playbook: null,
+      squad: 9,
+    },
+    "touch-u11-mixed": {
+      team: { name: "Cronulla Crocs", age_group: "U11", sport: "touch", mixed_max_boys: 3, mixed_min_girls: 1, mixed_min_boys: 1 },
+      opponent: "Kogarah Kites",
+      playbook: null,
+      squad: 10,
+      mixed: true,
+    },
+    "oztag-u10-gameday": {
+      team: { name: "Penrith Possums", age_group: "U10", sport: "oztag" },
+      opponent: "Blacktown Bandits",
+      playbook: null,
+      squad: 12,
+    },
+    // Round 9: a mixed Oztag side (at most 4 boys of 8 on, at least 2
+    // girls), half girls and half boys, for the grandparent mission.
+    // Round 10: no bench at all (as many kids as the court/field takes),
+    // so lending a kid off the field plays one short (lend-and-return).
+    "netball-11u-nobench": {
+      team: { name: "Hawthorn Hornets", age_group: "11u", sport: "netball" },
+      playbook: { strategy: "position-by-position" },
+      squad: 7,
+    },
+    "soccer-u9-nobench": {
+      team: { name: "Kingsway United", age_group: "U9", sport: "soccer" },
+      opponent: "Coogee Crabs",
+      playbook: { strategy: "turns" },
+      squad: 7,
+      onField: 7,
+    },
+    "oztag-u10-mixed": {
+      team: { name: "Penrith Possums", age_group: "U10", sport: "oztag", mixed_max_boys: 4, mixed_min_girls: 2, mixed_min_boys: 1 },
+      opponent: "Blacktown Bandits",
+      playbook: null,
+      squad: 12,
+      mixed: true,
+    },
   };
   // Each age group's usual on-field size. Games have no size default
   // (migration 0063), so every seeded game takes its team's. Also
@@ -527,12 +661,21 @@ async function seedTeam(admin, email, name, origin) {
     afl: { U8: 6, U9: 9, U10: 12, U11: 12, U12: 12, U13: 15, U14: 15, U15: 15, U16: 18, U17: 18 },
     netball: { set: 5, go: 7, "11u": 7, "12u": 7, "13u": 7, open: 7 },
     rugby_league: { U6: 6, U7: 6, U8: 8, U9: 8, U10: 11, U11: 11, U12: 13, U13: 13, U14: 13, U15: 13, U16: 13, U17: 13 },
+    soccer: { U12: 9 }, futsal: { U12: 5 }, hockey: { U13: 11 }, basketball: { U12: 5 }, touch: { U11: 6 }, oztag: { U10: 8 },
     rugby_union: { U6: 7, U7: 7, U8: 7, U9: 10, U10: 12, U11: 12, U12: 15, U13: 15, U14: 15, U15: 15, U16: 15, U17: 15, U18: 15 },
     soccer: { U6: 4, U7: 4, U8: 7, U9: 7, U10: 9, U11: 9, U12: 9, U13: 9, U14: 11, U15: 11, U16: 11, U17: 11 },
   };
   const runner = /^runner-(afl|netball)-(.+)$/.exec(name);
   const onFieldFor = runner ? RUNNER_ON_FIELD[runner[1]][runner[2]] : undefined;
-  const s = SEEDS[name] ?? (onFieldFor
+  // <seed>-runner: any seed, started from its game's share link.
+  const viaRunner = /^(.+)-runner$/.exec(name);
+  const viaAvail = /^(.+)-availability$/.exec(name);
+  // <seed>-late: one more kid in the squad, not marked available, who
+  // turns up late (the sideline-chaos missions).
+  const viaLate = /^(.+)-late$/.exec(name);
+  const lateBase = viaLate && SEEDS[viaLate[1]] && !SEEDS[viaLate[1]].live ? SEEDS[viaLate[1]] : undefined;
+  const s = SEEDS[name] ?? (lateBase ? { ...lateBase, squad: lateBase.squad + 1, late: (lateBase.late ?? 0) + 1 } : undefined) ?? (viaRunner && SEEDS[viaRunner[1]] ? { ...SEEDS[viaRunner[1]], start: "runner" } : undefined) ??
+    (viaAvail && SEEDS[viaAvail[1]] ? { ...SEEDS[viaAvail[1]], start: "availability", gameIn: 18 * 60, noAnswers: true } : undefined) ?? (onFieldFor
     ? {
         team: { name: runner[1] === "afl" ? "Coburg Cubs" : "Brunswick Bluebirds", age_group: runner[2], sport: runner[1] },
         playbook: null,
@@ -551,6 +694,8 @@ async function seedTeam(admin, email, name, origin) {
     "Ruby Martin", "Jack Anderson", "Zara Thompson", "Leo White", "Chloe Harris", "Hamish Clarke",
     "Matilda King", "Archie Walker", "Sienna Hall", "Cooper Young", "Grace Allen", "Hudson Wright",
     "Eloise Scott", "Max Green", "Harper Baker", "Toby Adams",
+    // A big squad (AFL 18 + 7).
+    "Ollie Reid", "Sam Fox", "Will Kerr",
   ];
   const { data: users } = await admin.auth.admin.listUsers({ perPage: 1000 });
   const ownerId = users.users.find((u) => u.email === email).id;
@@ -570,6 +715,7 @@ async function seedTeam(admin, email, name, origin) {
         jersey_number: i + 1,
         is_active: true,
         created_by: ownerId,
+        ...(s.mixed ? { mixed_group: i % 2 ? "boy" : "girl" } : {}),
       })),
     )
     .select("id, jersey_number")
@@ -646,19 +792,20 @@ async function seedTeam(admin, email, name, origin) {
       scheduled_at: new Date(Date.now() + (s.gameIn ?? 30) * 60_000).toISOString(),
       round_number: (s.pastGames ?? 0) + 4,
       created_by: ownerId,
-      clock_multiplier: s.live?.multiplier ?? 8,
+      // A big-field game under way runs at real time.
+      clock_multiplier: s.live?.multiplier ?? (s.bigLive ? 1 : 8),
       // Past the quarter, so "Sub due" doesn't fire within seconds at 8x.
       sub_interval_seconds: 900,
       on_field_size: onField,
     })
-    .select("id, share_token")
+    .select("id, share_token, availability_token")
     .single();
   if (gameErr) throw new Error(`seed game: ${gameErr.message}`);
   // Kids not marked available (they turn up late): a live seed's, or a
   // game-day seed's own `late`.
   const lateCount = s.live?.late ?? s.late ?? 0;
   const lateIds = new Set(lateCount ? ids.slice(-lateCount) : []);
-  await admin.from("game_availability").insert(
+  if (!s.noAnswers) await admin.from("game_availability").insert(
     ids.map((pid) => ({
       game_id: game.id,
       player_id: pid,
@@ -697,8 +844,46 @@ async function seedTeam(admin, email, name, origin) {
     await admin.from("game_events").insert(events.map((e) => ({ ...e, game_id: game.id, created_by: ownerId })));
     await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
   }
+  if (s.bigLive) {
+    // 6 forwards, 6 mids, 6 backs and 7 on the bench. The quarters before
+    // ran their 20 minutes; this one started minutesIn ago (real time).
+    const { quarter, minutesIn } = s.bigLive;
+    const quarterMs = 20 * 60_000;
+    const lineup = { fwd: ids.slice(0, 6), hfwd: [], mid: ids.slice(6, 12), hback: [], back: ids.slice(12, 18), bench: ids.slice(18) };
+    const secsAgo = (sec) => new Date(Date.now() - sec * 1000).toISOString();
+    const nowSec = minutesIn * 60;
+    const events = [{ type: "lineup_set", metadata: { lineup }, created_at: secsAgo(nowSec + 60 * quarter + 30) }];
+    for (let q = 1; q <= quarter; q++) {
+      const startedSecsAgo = q === quarter ? nowSec : nowSec + 60 * (quarter - q + 1);
+      events.push({ type: "quarter_start", metadata: { quarter: q }, created_at: secsAgo(startedSecsAgo) });
+      if (q === 1) {
+        // Halfway through Q1, five bench kids came on, one per line spot.
+        const offs = [lineup.fwd[5], lineup.mid[5], lineup.back[5], lineup.fwd[4], lineup.mid[4]];
+        const zones = ["fwd", "mid", "back", "fwd", "mid"];
+        offs.forEach((off, n) => {
+          events.push({
+            type: "swap",
+            player_id: lineup.bench[n],
+            metadata: { off_player_id: off, on_player_id: lineup.bench[n], zone: zones[n], quarter: 1, elapsed_ms: quarterMs / 2 },
+            created_at: secsAgo(startedSecsAgo - 5 - n),
+          });
+        });
+      }
+      if (q < quarter) {
+        events.push({ type: "quarter_end", metadata: { quarter: q, elapsed_ms: quarterMs }, created_at: secsAgo(startedSecsAgo - 30) });
+      }
+    }
+    await admin.from("game_events").insert(events.map((e) => ({ ...e, game_id: game.id, created_by: ownerId })));
+    await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+    if (!s.start) {
+      console.log(`▶ Seeded ${s.team.name} (${name})`);
+      return `${origin}/teams/${team.id}/games/${game.id}/live`;
+    }
+  }
   console.log(`▶ Seeded ${s.team.name} (${name})`);
   if (s.start === "runner") return `${origin}/run/${game.share_token}`;
+  // The night before: the parents' "who's coming?" link, nobody answered yet.
+  if (s.start === "availability") return `${origin}/availability/${game.availability_token}`;
   if (s.start === "report" && lastPastShareToken) return `${origin}/run/${lastPastShareToken}`;
   if (s.start === "game") return `${origin}/teams/${team.id}/games/${game.id}`;
   return `${origin}/teams/${team.id}`;

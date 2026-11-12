@@ -11,6 +11,7 @@ import { createAdminClient, createTestUser, deleteTestUser } from "../fixtures/s
 import { makeGame, makePlayers, makeTeam } from "../fixtures/factories";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
 import { closeGameSettings, openGameSettings } from "../helpers/break";
+import { readyAfl, readyRugby, startRugbyFirst } from "../helpers/kickoff";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -62,6 +63,8 @@ test("an AFL U12 coach picks a strategy and season balance on the Team tab", asy
   await expect.poll(async () => (await playbookRow(admin, team.id))?.season_balance).toBe("strong");
 
   await page.getByRole("button", { name: "Reset season balance" }).click();
+  // It says the history stays (Stagehand round 7: a coach wouldn't press it).
+  await expect(page.getByTestId("season-balance-reset-note")).toContainText("Past games and their stats stay");
   await page.getByRole("button", { name: "Reset", exact: true }).click();
   await expect(page.getByText(/Counting games since/)).toBeVisible();
   await expect
@@ -439,7 +442,7 @@ test("set positions: game day puts kids in their home line, labelled", async ({ 
   );
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
   for (const [i, , line, label] of homes) {
     const tile = page.getByRole("group", { name: line, exact: true }).getByTestId(`player-tile-${players[i].id}`);
     await expect(tile).toBeVisible();
@@ -466,6 +469,8 @@ test("kickoff freezes How we play onto the game", async ({ page }) => {
     } catch {}
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  // Live v3: Ready sets the lineup, the live screen's bar starts Q1.
+  await readyAfl(page);
   await page.getByRole("button", { name: /^start q1$/i }).click({ timeout: 15_000 });
   await expect(page.getByRole("heading", { name: /^start q1$/i })).toBeVisible();
   await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
@@ -515,7 +520,7 @@ test("a coach adds rules and a local rule pack", async ({ page }) => {
   await picker.getByRole("checkbox", { name: mia.full_name }).click();
   await picker.getByRole("checkbox", { name: jack.full_name }).click();
   await page.getByRole("button", { name: "Done" }).click();
-  await expect(page.getByTestId("rule-keep-apart")).toContainText(`Keep ${mia.full_name} and ${jack.full_name} apart`);
+  await expect(page.getByTestId("rule-keep-apart")).toContainText(`Keep ${mia.full_name} and ${jack.full_name} in different lines`);
   await expect
     .poll(async () => (await rules()).find((r) => r.kind === "keep-apart")?.params.playerIds)
     .toEqual([mia.id, jack.id]);
@@ -565,7 +570,7 @@ test("two kids can't be kept apart and kept together", async ({ page }) => {
   expect((await rules()).find((r) => r.kind === "keep-together")?.params.playerIds ?? []).toEqual([]);
 
   // Remove the apart rule, and together saves.
-  await page.getByRole("button", { name: /Remove rule: Keep .* apart/ }).click();
+  await page.getByRole("button", { name: /Remove rule: Keep .* in different lines/ }).click();
   await page.getByRole("button", { name: "Choose players" }).click();
   const picker = page.getByRole("group", { name: "Players" });
   await picker.getByRole("checkbox", { name: mia.full_name }).click();
@@ -598,7 +603,7 @@ test("Must rules shape the game-day lineup", async ({ page }) => {
   );
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
   // Staying home is about where they play, not whether: on the field
   // means the Back line (with 14 kids, two start on the bench).
   for (const p of homeBack) {
@@ -884,8 +889,9 @@ test("league: lines from roles, and vests in a fixed order", async ({ page }) =>
   await expect(page.getByText(/in jersey-number order/)).toBeVisible();
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
+  // Live v3: the picker says Ready; Start H1 is then on the bar.
+  await readyRugby(page);
+  await startRugbyFirst(page);
 
   const lineupSet = async () => {
     const { data } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "lineup_set");
@@ -938,7 +944,10 @@ test("league named positions: a home position shows on the tile", async ({ page 
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   const tile = page.getByTestId(`league-player-tile-${hooker.id}`).first();
-  await expect(tile.getByLabel("Position HK")).toBeVisible({ timeout: 15_000 });
+  // Live v3: the position leads the tile ("HK Jack S") and its name, as
+  // in play; the old tile's "Position HK" chip went with it.
+  await expect(tile).toHaveAccessibleName(new RegExp(`^${hooker.full_name}, HK,`), { timeout: 15_000 });
+  await expect(tile).toContainText("HK");
 });
 
 test("a season keep-on role shows on the lineup in every sport", async ({ page }) => {
@@ -971,9 +980,12 @@ test("a season keep-on role shows on the lineup in every sport", async ({ page }
     await admin.from("player_position_prefs").insert({ team_id: team.id, player_id: kept.id, kind: "keep_on" });
 
     await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-    const marks = page.getByLabel(MARK);
+    // Live v3: the mark is the tile's lock, labelled exactly; the tile's
+    // own name says it too ("Ava, Back, #3, Plays every minute"), so the
+    // label is matched exactly to count the marks.
+    const marks = page.getByLabel(MARK, { exact: true });
     await expect(marks, s.sport).toHaveCount(1, { timeout: 15_000 });
-    await expect(page.getByRole("button").filter({ has: page.getByLabel(MARK) }), s.sport).toContainText(
+    await expect(page.getByRole("button").filter({ has: page.getByLabel(MARK, { exact: true }) }), s.sport).toContainText(
       kept.full_name.split(" ")[0],
     );
   }
@@ -1083,11 +1095,12 @@ test("netball and league lineups: long-press opens the same role sheet", async (
   await admin.from("team_playbooks").insert({ team_id: nbTeam.id, strategy: "set-positions" });
 
   await page.goto(`/teams/${nbTeam.id}/games/${nbGame.id}/live`);
-  const chip = page.locator('[data-testid^="bench-chip-"]').first();
+  // Live v3: the bench is a KidBench of player tiles (was bench-chip-<id>).
+  const chip = page.getByRole("group", { name: "Bench", exact: true }).locator('[data-testid^="player-tile-"]').first();
   await expect(chip).toBeVisible({ timeout: 15_000 });
   // The bench says why kids sit (usability run: "no stated reason").
   await expect(page.getByText("With 9 here and 7 on court, 2 sit out each quarter and everyone takes a turn.")).toBeVisible();
-  const benchId = (await chip.getAttribute("data-testid"))!.replace("bench-chip-", "");
+  const benchId = (await chip.getAttribute("data-testid"))!.replace("player-tile-", "");
   const benchName = nbPlayers.find((p) => p.id === benchId)!.full_name;
   // PlayerTile parity: the long-press fires after a 500ms hold.
   await chip.click({ delay: 600 });
@@ -1098,7 +1111,7 @@ test("netball and league lineups: long-press opens the same role sheet", async (
   await expect(nbSheet).toHaveCount(0);
   await expect.poll(async () => (await homeOf(benchId))?.position_key).toBe("gk");
   // The long-press didn't also pick the chip for a swap.
-  await expect(chip).not.toHaveClass(/ring-2/);
+  await expect(chip).toHaveAttribute("aria-pressed", "false");
 
   // League: the long-press menu gains "Player role".
   const lgTeam = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "rugby_league" });
@@ -1188,8 +1201,9 @@ test("league named positions: lineups record positions, and stats count time by 
     } catch {}
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
-  await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
+  // Live v3: the picker says Ready; Start H1 is then on the bar.
+  await readyRugby(page);
+  await startRugbyFirst(page);
   const recorded = async () => {
     const { data } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "lineup_set");
     return (data?.[0]?.metadata as { lineup?: { forwards: string[]; backs: string[]; slots?: Record<string, string> } })?.lineup ?? null;
@@ -1249,9 +1263,10 @@ test("netball Carnival day: a kid gets the third they haven't played today", asy
     } catch {}
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  const kidToken = page.getByRole("button", { name: new RegExp(`, ${players[6].full_name}$`) });
+  // A court token reads the kid first, then the bib (tileName).
+  const kidToken = page.getByRole("button", { name: new RegExp(`^${players[6].full_name}, `) });
   await expect(kidToken).toBeVisible({ timeout: 15_000 });
-  await expect(kidToken).toHaveAccessibleName(/^(Goal Shooter|Goal Attack),/);
+  await expect(kidToken).toHaveAccessibleName(new RegExp(`^${players[6].full_name}, (Goal Shooter|Goal Attack)(,|$)`));
 
   // Round 5 (carnival-day-netball): before kickoff nothing showed who
   // still needs which third today — the rule check only appeared at the
@@ -1327,6 +1342,7 @@ test("AFL: keep a kid on the field from the lineup, and it carries into the game
     .toEqual([[pid, { kind: "field" }]]);
 
   // Start the game: the hold is still there on the live field.
+  await readyAfl(page);
   await page.getByRole("button", { name: /^start q1$/i }).click();
   await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   await expect(page.getByTestId(`player-tile-${pid}`).getByLabel("Field locked")).toBeVisible({ timeout: 15_000 });

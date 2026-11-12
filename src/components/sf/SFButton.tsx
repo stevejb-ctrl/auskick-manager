@@ -47,9 +47,9 @@ const SIZE_CLASSES: Record<Size, string> = {
   // Touch target ≥44 px on md per the design accessibility spec. sm
   // looks 34 px but takes taps over 44: an invisible 5 px above and below
   // (UX round 3, e4: sheets' "Done" and the squad's Edit were 34 px).
-  sm: "relative h-[34px] px-3.5 text-[13px] gap-1.5 before:absolute before:inset-x-0 before:-inset-y-[5px] before:content-['']",
-  md: "h-11 px-[18px] text-sm gap-2",
-  lg: "h-[52px] px-[22px] text-[15px] gap-2.5",
+  sm: "relative h-[34px] rounded-md px-3.5 text-[0.8125rem] gap-1.5 before:absolute before:inset-x-0 before:-inset-y-[5px] before:content-['']",
+  md: "h-11 rounded-lg px-[18px] text-[0.9375rem] gap-2",
+  lg: "h-[52px] rounded-lg px-[22px] text-base gap-2.5",
 };
 
 // hover: handles pointer-on for desktop / iPad-trackpad.
@@ -61,13 +61,16 @@ const SIZE_CLASSES: Record<Size, string> = {
 // buttons reads toy-ish per Linear/Stripe convention). Each
 // variant darkens past its hover state so the chord
 // rest → hover → active reads as a deepening.
+// Live v3: flat, no shadows. The one filled primary is ink with chalk
+// words on the chalk page and inverts to chalk with ink words at night
+// (palette primary / on-primary).
 const VARIANT_CLASSES: Record<Variant, string> = {
   primary:
-    "bg-ink text-warm border border-ink shadow-card hover:bg-ink/90 active:bg-ink/95",
+    "bg-primary text-on-primary border border-primary hover:bg-primary/90 active:bg-primary/80",
   accent:
-    "bg-brand-600 text-warm border border-brand-600 shadow-card hover:bg-brand-700 active:bg-brand-800",
+    "bg-brand-600 text-warm border border-brand-600 hover:bg-brand-700 active:bg-brand-800",
   alarm:
-    "bg-alarm text-white border border-alarm shadow-card hover:bg-alarm/90 active:bg-alarm/85",
+    "bg-alarm-ink text-white border border-alarm-ink hover:bg-alarm-ink/90 active:bg-alarm-ink/85",
   ghost:
     "bg-transparent text-ink border border-hairline hover:bg-surface-alt active:bg-hairline",
   subtle:
@@ -76,8 +79,9 @@ const VARIANT_CLASSES: Record<Variant, string> = {
     "bg-transparent text-danger border border-hairline hover:bg-danger/5 active:bg-danger/10",
 };
 
+// The v3 button face: Archivo at 85% width, extra bold.
 const BASE =
-  "inline-flex items-center justify-center rounded-md font-semibold transition-colors duration-fast ease-out-quart";
+  "inline-flex items-center justify-center font-display stretch-85 font-extrabold tracking-[0.01em] transition-colors duration-fast ease-out-quart";
 
 /**
  * Pill button for SF surfaces. Six variants × three sizes.

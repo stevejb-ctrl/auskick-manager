@@ -9,6 +9,11 @@ interface LateArrivalMenuProps {
   candidates: Player[]; // squad players not currently in the game
   onAdd: (playerId: string) => void;
   pending: boolean;
+  /**
+   * The opener's look: the utility row's ghost button (default), or live
+   * v3's small "+ Late" text button at the foot of the bench (KidBench).
+   */
+  look?: "button" | "text";
 }
 
 /**
@@ -20,7 +25,7 @@ interface LateArrivalMenuProps {
  * the row layout when opened. The picker mirrors the scorer + swap
  * pickers used elsewhere for consistency.
  */
-export function LateArrivalMenu({ candidates, onAdd, pending }: LateArrivalMenuProps) {
+export function LateArrivalMenu({ candidates, onAdd, pending, look = "button" }: LateArrivalMenuProps) {
   const [open, setOpen] = useState(false);
 
   if (candidates.length === 0) return null;
@@ -32,6 +37,18 @@ export function LateArrivalMenu({ candidates, onAdd, pending }: LateArrivalMenuP
           Steve 2026-05-15: add-late-arrival is the more common
           scenario on the row — the destructive Restart game
           shouldn't visually outweigh it. */}
+      {look === "text" ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          disabled={pending}
+          // The names it can add, after what it says (label in name).
+          aria-label={`+ Late arrival: ${candidates.map((p) => p.full_name.trim().split(/\s+/)[0]).join(", ")}`}
+          className="min-h-[44px] min-w-0 truncate whitespace-nowrap px-[4px] text-left font-display text-[0.78125rem] font-extrabold text-ink-dim underline decoration-hairline underline-offset-[3px] hover:text-ink disabled:opacity-60"
+        >
+          + Late
+        </button>
+      ) : (
       <SFButton
         size="md"
         variant="ghost"
@@ -41,6 +58,7 @@ export function LateArrivalMenu({ candidates, onAdd, pending }: LateArrivalMenuP
       >
         + Add late arrival
       </SFButton>
+      )}
 
       {open && (
         <SlotFillSheet

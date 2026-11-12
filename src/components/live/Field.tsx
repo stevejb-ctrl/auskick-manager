@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
+import { sportSurface } from "@/components/live/sportSurface";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import type { Lineup, Player, PositionModel, Zone } from "@/lib/types";
 import type { ZoneCaps, ZoneMinutes } from "@/lib/fairness";
@@ -141,7 +142,7 @@ export function Field({
   // its zone and the dividers split the lines.
   return (
     <div
-      className="relative bg-field shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]"
+      className={`relative ${sportSurface("field")}`}
       style={{ borderRadius: "50% / 12%" }}
     >
       {/* Q1-kickoff wake-up halo. Fires a one-shot brand pulse
@@ -233,7 +234,7 @@ export function Field({
               )}
               {/* Named group per zone so screen readers (and specs)
                   can tell which line a tile is on. */}
-              <div role="group" aria-label={ZONE_LABELS[key]} className="grid grid-cols-2 gap-2">
+              <div role="group" aria-label={ZONE_LABELS[key]} className="grid grid-cols-2 gap-2 bigtext:grid-cols-1">
                 {Array.from({ length: slotCount }).map((_, slot) => {
                   const isOrphan = slot === orphanIdx;
                   const pid = ids[slot];
@@ -244,7 +245,7 @@ export function Field({
                         type="button"
                         onClick={() => onTapField("", key)}
                         aria-label={`Empty ${ZONE_SHORT[key]} spot`}
-                        className={`w-full rounded-md border border-dashed py-3 text-center font-mono text-[10px] font-semibold uppercase tracking-micro transition-colors duration-fast ease-out-quart ${
+                        className={`w-full rounded-md border border-dashed py-3 text-center font-mono text-nano font-semibold uppercase tracking-micro transition-colors duration-fast ease-out-quart ${
                           primed
                             ? "border-warn bg-warn/20 text-white"
                             : "border-white/40 bg-white/5 text-white/60 hover:border-white/70 hover:bg-white/15"

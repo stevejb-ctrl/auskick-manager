@@ -12,7 +12,7 @@ export default function ContactPage() {
   return (
     <main className="mx-auto max-w-xl px-4 py-12 sm:px-6 sm:py-16">
       <div className="text-center">
-        <p className="font-mono text-[11px] font-semibold uppercase tracking-micro text-ink-dim">
+        <p className="font-mono text-micro font-semibold uppercase tracking-micro text-ink-dim">
           Contact
         </p>
         <h1 className="mt-3 text-3xl font-bold leading-[1.05] tracking-tightest text-ink [text-wrap:balance] sm:text-4xl md:text-5xl">

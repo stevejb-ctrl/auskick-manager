@@ -1,204 +1,134 @@
 // Screenshots referenced on this page:
+//   /help-screenshots/live-game-scoring.png
 //   /help-screenshots/track-scoring-toggle.png
 //   /help-screenshots/track-scoring-player-tile.png
 
 import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
+import { B, HelpLink, HelpSection, OL, P, Related, UL } from "@/components/help/prose";
+import { SPORT_HELP } from "@/lib/help/sports";
+import { getSportConfig } from "@/lib/sports";
 
 export const metadata = {
-  title: "Track Scoring · Help · Siren",
-  description: "The scoring switch for AFL, netball, league, union, football (soccer), basketball, touch football and Oztag, and what it unlocks.",
+  title: "Keeping Score · Help · Siren",
+  description:
+    "Keeping score in Siren, in every sport: the team's scoring switch, recording and fixing scores, what each sport's scores are worth, and what scoring adds to Stats.",
   alternates: { canonical: "/help/track-scoring" },
 };
+
+/** Each sport's own scores and what they're worth, from its config. */
+function sportScores(sport: Parameters<typeof getSportConfig>[0]): string {
+  const seen = new Set<string>();
+  return getSportConfig(sport)
+    .scoreTypes.filter((t) => !t.opponent)
+    .filter((t) => (seen.has(t.label) ? false : (seen.add(t.label), true)))
+    .map((t) => `${t.label} ${t.points}`)
+    .join(" · ");
+}
 
 export default function TrackScoringPage() {
   return (
     <HelpPage>
-      <h1 className="text-2xl font-bold text-ink">Track scoring</h1>
-      <p className="mt-3 text-base leading-relaxed text-ink-dim">
-        Siren can record which players score during a game. This is optional
-        (rotations and fairness tracking work perfectly without it) but turning
-        it on unlocks richer stats.
-      </p>
-      <p className="mt-2 text-sm text-ink-dim">
-        AFL games record goals (6 points) and behinds (1); netball games record
-        goals only (1 point each); rugby league games record tries (4 points)
-        and conversions (2 points), plus penalty goals (2) and field goals (1)
-        from Under 13, where the international laws apply; rugby union games
-        record tries (5 points) and conversions (2), plus penalty goals (3) and
-        drop goals (3) from Under 10; football (soccer) games record goals for
-        each side; basketball games record free throws (1), baskets (2) and
-        threes (3, from Under 12) for each side; touch football and Oztag games
-        record tries (1 point) for each side, and on a mixed Oztag team a
-        girl&apos;s try counts 2. The switch behaves the same way in every sport — turn it on
-        for your team, and the live screen shows the right scoring controls for
-        your sport. It starts off for the youngest age groups (AFL Under 8 to
-        Under 10, netball Set, league Under 6 and Under 7, which are tag games
-        with no scoreboard, union Under 6 to Under 11, where the national
-        pathway keeps no score, and football&apos;s MiniRoos ages, Under 6 to
-        Under 11, which keep no scores or ladders, basketball&apos;s Under 8
-        skills games, and touch and Oztag to Under 9) and on for the rest.
-      </p>
-      <p className="mt-2 text-sm text-ink-dim">
-        Futsal games record goals for each side, as football does. Scoring
-        starts off to Under 9, as Capital Football&apos;s Minis keep no
-        scores, and on from Under 10.
-      </p>
-      <p className="mt-2 text-sm text-ink-dim">
-        Hockey games record goals for each side too. Scoring starts off to
-        Under 10, where junior hockey keeps no results, and on from Under 11.
-      </p>
+      <h1 className="text-2xl font-bold text-ink">Keeping score</h1>
+      <P lead>
+        Siren can keep the score and who scored. It&apos;s optional: rotations and fair time work just the same
+        without it. The youngest age groups in most sports keep no score, so Siren starts with it off for them and on
+        for the rest.
+      </P>
 
-      <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Turning it on</h2>
-        <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-ink-dim">
-          <li>
-            Open your team and tap the <strong className="text-ink">Team</strong>{" "}
-            tab.
-          </li>
-          <li>
-            Under <strong className="text-ink">Game-day extras</strong>, turn
-            the scoring switch on. It reads{" "}
-            <strong className="text-ink">Track goals &amp; behinds</strong>{" "}
-            (AFL), <strong className="text-ink">Track goals</strong> (netball
-            and football), <strong className="text-ink">Track points</strong>{" "}
-            (league, union and basketball) or{" "}
-            <strong className="text-ink">Track tries</strong> (touch and Oztag).
-          </li>
-          <li>
-            The setting is saved immediately and applies to all of the
-            team&apos;s games. Team admins can change it at any time.
-          </li>
-        </ol>
+      <HelpSection id="each-sport" title="Each sport's scores">
+        <P>The live screen shows your sport&apos;s own buttons. Tap a sport for its scoring in full:</P>
+        <div className="mt-4 overflow-x-auto rounded-lg border border-hairline bg-surface shadow-card">
+          <table className="w-full text-left text-sm" data-testid="help-sport-scores">
+            <thead className="bg-surface-alt text-xs text-ink-mute">
+              <tr>
+                <th scope="col" className="px-3 py-2 font-semibold">Sport</th>
+                <th scope="col" className="px-3 py-2 font-semibold">Scores (points)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-hairline text-ink-dim">
+              {SPORT_HELP.map((h) => (
+                <tr key={h.href}>
+                  <th scope="row" className="px-3 py-2 font-medium">
+                    <Link href={`${h.href}#scoring`} className="text-brand-700 underline hover:text-brand-600">
+                      {h.title}
+                    </Link>
+                  </th>
+                  <td className="px-3 py-2">{sportScores(h.sport.sport)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <P>Some scores come in with age: conversions, penalty and field goals in rugby, threes in basketball.</P>
+      </HelpSection>
 
+      <HelpSection id="turn-on" title="Turning it on or off">
+        <OL>
+          <li>
+            Open your team&apos;s <B>Team</B> tab.
+          </li>
+          <li>
+            Under <B>Game-day extras</B>, flip the scoring switch. It reads <B>Track goals &amp; behinds</B> (AFL),{" "}
+            <B>Track goals</B> (netball, football, futsal, hockey), <B>Track points</B> (rugby league, rugby union,
+            basketball) or <B>Track tries</B> (touch, Oztag).
+          </li>
+          <li>It saves straight away and applies to every game from then on. Coaches can change it any time.</li>
+        </OL>
+        <P>
+          During a game with scoring off, a coach can tap ⋯ › <B>Turn scoring on</B>.
+        </P>
         <HelpFigure
           src="/help-screenshots/track-scoring-toggle.png"
-          alt="An AFL game's detail page"
-          caption="A game's detail page. Scoring is switched on for the whole team on the Team tab, not game by game."
+          alt="The Track goals & behinds switch, on, under Game-day extras on an AFL team's Team tab"
+          caption="The scoring switch on the Team tab, for the whole team."
         />
-      </section>
+      </HelpSection>
 
-      <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">What it changes during the live game</h2>
-        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          With scoring enabled:
-        </p>
-        <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
+      <HelpSection id="recording" title="Recording a score">
+        <UL>
           <li>
-            Tapping a player on the playing area selects them and reveals the
-            scoring action(s). AFL: <strong className="text-ink">+ Goal</strong>{" "}
-            and <strong className="text-ink">+ Behind</strong>, for any player
-            on the field. Netball: <strong className="text-ink">+ Goal</strong>,
-            and only the GS and GA shooter positions are tappable for
-            attribution. League: <strong className="text-ink">+ Try</strong>{" "}
-            for any player on the field. From Under 8 to Under 12, a try opens
-            the kicker picker for the conversion so the §15 goal-kick
-            rotation is honoured. From Under 13 there&apos;s no rotation, and{" "}
-            <strong className="text-ink">+ Penalty goal</strong> and{" "}
-            <strong className="text-ink">+ Field goal</strong> sit beside{" "}
-            <strong className="text-ink">+ Try</strong>. Union:{" "}
-            <strong className="text-ink">+ Try</strong> for any player on the
-            field; from Under 8 a try opens the kicker picker for the
-            conversion (union has no kicking rotation), and from Under 10{" "}
-            <strong className="text-ink">+ Penalty goal</strong> and{" "}
-            <strong className="text-ink">+ Drop goal</strong> sit beside it.
+            Tap the score button on the bar and pick who scored on <B>Who scored?</B>, or tap a kid first and score from
+            their bar. Most sports also have <B>Not sure who</B>.
           </li>
+          <li>The other team&apos;s small buttons, on the right, add their score straight away.</li>
+          <li>Each kid&apos;s tally shows small after their name.</li>
           <li>
-            Each player&apos;s tile shows a small chip with their tally for
-            the game (in league and union, their tries).
+            <B>Undo</B>, on the line under the score, takes back the latest score and names it. Tap the score itself for{" "}
+            <B>Scores and fixes</B>: take one off, change who scored, add one you missed.
           </li>
-          <li>
-            Score buttons appear beside each team&apos;s score in the
-            scoreboard: AFL <strong className="text-ink">+G</strong> and{" "}
-            <strong className="text-ink">+B</strong>; netball{" "}
-            <strong className="text-ink">+G</strong>; league{" "}
-            <strong className="text-ink">+T</strong> and{" "}
-            <strong className="text-ink">+C</strong>, plus{" "}
-            <strong className="text-ink">+PG</strong> and{" "}
-            <strong className="text-ink">+FG</strong> from Under 13; union{" "}
-            <strong className="text-ink">+T</strong> and{" "}
-            <strong className="text-ink">+C</strong>, plus{" "}
-            <strong className="text-ink">+PG</strong> and{" "}
-            <strong className="text-ink">+DG</strong> from Under 10. Under 6
-            and Under 7 don&apos;t kick in either code, so there&apos;s no{" "}
-            <strong className="text-ink">+C</strong>.
-          </li>
-          <li>
-            The scoreboard updates in real time. AFL displays the standard
-            goals·behinds with total points; netball shows a single goals
-            tally; rugby league and union show the points total with a
-            &ldquo;tries · conversions&rdquo; breakdown alongside (and penalty
-            and field or drop goals once there are some).
-          </li>
-          <li>
-            An <strong className="text-ink">Undo</strong> strip sits just
-            above the scoreboard so you can take back the latest score. In AFL
-            and netball it flashes the score you just recorded for 8 seconds.
-          </li>
-        </ul>
-
+          <li>The full-time review has the same fixes, so the result is right before you tap Finish game.</li>
+        </UL>
+        <HelpFigure
+          src="/help-screenshots/live-game-scoring.png"
+          alt="An AFL live game with a kid tapped: their bar at the bottom shows + Goal, + Behind, Injured and More"
+          caption="A tapped kid's bar, with their score buttons (AFL shown)."
+        />
         <HelpFigure
           src="/help-screenshots/track-scoring-player-tile.png"
-          alt="An AFL player tile during a scored game showing a chip with the player's score tally"
-          caption="When scoring is tracked, each player tile shows their current tally."
+          alt="An AFL score of 1.1 (7) and the back line, where Mateo S shows 1.0 and Nora F 0.1 after their names"
+          caption="Each kid's tally after their name."
         />
-      </section>
+      </HelpSection>
 
-      <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">What it unlocks in Stats</h2>
-        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          Games with scoring tracked contribute data to the following{" "}
-          <Link href="/help/stats" className="font-medium underline">
-            Stats
-          </Link>{" "}
-          views:
-        </p>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-dim">
-          <li>
-            <strong className="text-ink">Player stats</strong>: goals and
-            behinds for AFL; goals for netball; tries, conversions made and
-            attempted, and from Under 13 penalty and field goals, for league;
-            the same with penalty and drop goals from Under 10 for union
-          </li>
-          <li>
-            <strong className="text-ink">Position fit</strong> (AFL): player
-            effectiveness in each line
-          </li>
-          <li>
-            <strong className="text-ink">Quarter-by-quarter scoring</strong>{" "}
-            (AFL): your scoring pattern across the game
-          </li>
-          <li>
-            <strong className="text-ink">Head-to-head by opponent</strong>{" "}
-            (AFL and netball): your record against each team
-          </li>
-          <li>
-            <strong className="text-ink">Team totals</strong> (league and
-            union): tries,
-            points, conversions and points conceded for the season
-          </li>
-          <li>
-            <strong className="text-ink">Scorers</strong>: AFL goal kickers
-            and netball goal shooters are listed on the game detail page after
-            the game; league and union try scorers are in the full-time summary
-          </li>
-        </ul>
-      </section>
-
-      <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">If you leave it off</h2>
-        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          All rotation and fairness features work exactly the same. Season
-          balance, attendance and playing time are still recorded. The stats
-          that depend on scores won&apos;t populate for games where scoring
-          wasn&apos;t tracked.
-        </p>
+      <HelpSection id="stats" title="What it adds to Stats">
+        <P>
+          Games with scoring on add scorers and scores to <HelpLink href="/help/stats">Stats</HelpLink>: each kid&apos;s
+          goals, tries or points, the season&apos;s totals and, in some sports, head-to-head and quarter-by-quarter
+          scoring. Season balance, attendance and minutes are kept either way.
+        </P>
         <HelpCallout type="note">
-          You can mix scored and unscored games in the same season. Stats
-          derived from scoring will only count the games where scoring was
-          on.
+          You can mix scored and unscored games in a season. Score stats count only the games where scoring was on.
         </HelpCallout>
-      </section>
+      </HelpSection>
+
+      <Related
+        links={[
+          { href: "/help/live-game", label: "The live screen" },
+          { href: "/help/stats", label: "Stats" },
+          { href: "/help", label: "Your sport" },
+        ]}
+      />
     </HelpPage>
   );
 }

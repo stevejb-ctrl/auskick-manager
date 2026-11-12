@@ -5,8 +5,8 @@
 // Pure data, so client and server components (and the middleware, via
 // public-routes.ts) can import it without pulling in the sport engines.
 // Each sport's words for its page live in content/marketing/sports.json
-// (src/lib/marketing/sportPages.ts); its long-form feature tour, where
-// it has one, in content/marketing/brands/*.json.
+// (src/lib/marketing/sportPages.ts), its tour's too; its screenshots
+// in public/marketing/screenshots/<slug>/.
 //
 // Order is Steve's popularity order (25 Oct 2026), used everywhere the
 // site lists sports: netball, AFL, rugby league, football (soccer),
@@ -43,166 +43,140 @@ export interface MarketingSportConfig {
   /** The sport's colour: its dot, its page's accent word and field
    *  drawing. Text in it is large type only (some are under 4.5:1). */
   accent: string;
-  /** The same hue, pale: panels on the sport page. */
-  accentSoft: string;
-  /** A phone screenshot of the live game in this sport. */
-  liveScreenshot: string;
-  liveScreenshotAlt: string;
+  /**
+   * The sport's playing surface, as the live screen draws it: grass,
+   * court or boards. The site's field bands are painted in it.
+   */
+  surface: MarketingSurface;
   /** The demo picker (/demo) can start a game in this sport. */
   hasDemo: boolean;
-  /**
-   * The sport page's feature tour:
-   *  - "own": the brand JSON's features, each with its own screenshot;
-   *  - "live": the brand JSON's features, over the sport's live
-   *    screenshot (its feature images were borrowed from AFL);
-   *  - "shared": no feature copy of its own yet, so the page shows the
-   *    homepage's six features, each labelled with the sport it shows.
-   */
-  tour: "own" | "live" | "shared";
 }
 
-const SHOTS = "/marketing/screenshots";
+/** The live screen's surfaces (FieldLines): grass, court, boards. */
+export type MarketingSurface = "field" | "court" | "wood";
+
+/**
+ * The moments each sport page's tour shows, one screenshot each, in
+ * the order a game goes (scripts/capture-marketing-v3.mjs shoots them).
+ */
+export const TOUR_SHOTS = ["live", "pairs", "scoring", "break", "fulltime", "stats"] as const;
+export type TourShot = (typeof TOUR_SHOTS)[number];
+
+/** A sport's screenshot of one moment: /marketing/screenshots/<slug>/<shot>.png. */
+export function sportShot(sport: Pick<MarketingSportConfig, "slug">, shot: TourShot): string {
+  return `/marketing/screenshots/${sport.slug}/${shot}.png`;
+}
 
 export const MARKETING_SPORTS: readonly MarketingSportConfig[] = [
   {
     id: "netball",
+    surface: "court",
     sport: "netball",
     slug: "netball",
     code: "NB",
     label: "Netball",
     short: "Netball",
     accent: "#7C3F8C",
-    accentSoft: "#EFE2F2",
-    liveScreenshot: `${SHOTS}/netball/live.png`,
-    liveScreenshotAlt: "Netball live court, all seven positions filled, mid-game",
     hasDemo: true,
-    tour: "own",
   },
   {
     id: "afl",
+    surface: "field",
     sport: "afl",
     slug: "afl",
     code: "AFL",
     label: "AFL",
     short: "AFL",
     accent: "#D9442D",
-    accentSoft: "#FBE7DF",
-    liveScreenshot: `${SHOTS}/afl/live.png`,
-    liveScreenshotAlt: "AFL live game on the oval, forwards, centres and backs with their time bars",
     hasDemo: true,
-    tour: "own",
   },
   {
     id: "league",
+    surface: "field",
     sport: "rugby_league",
     slug: "rugby-league",
     code: "RL",
     label: "Rugby league",
     short: "Rugby league",
     accent: "#2F8C45",
-    accentSoft: "#DEEFE3",
-    liveScreenshot: `${SHOTS}/rugby-league/live.png`,
-    liveScreenshotAlt: "Rugby league live game, the field and the bench, mid-game",
     hasDemo: true,
-    tour: "own",
   },
   {
     id: "football",
+    surface: "field",
     sport: "soccer",
     slug: "soccer",
     code: "FB",
     label: "Football (soccer)",
     short: "Football",
     accent: "#1F5FA8",
-    accentSoft: "#DFE8F4",
-    liveScreenshot: `${SHOTS}/soccer/live.png`,
-    liveScreenshotAlt: "Football (soccer) live game with the keeper in goal and suggested swaps",
     hasDemo: true,
-    tour: "live",
   },
   {
     id: "basketball",
+    surface: "wood",
     sport: "basketball",
     slug: "basketball",
     code: "BB",
     label: "Basketball",
     short: "Basketball",
     accent: "#B86E0F",
-    accentSoft: "#F6E7D3",
-    liveScreenshot: `${SHOTS}/basketball/live.png`,
-    liveScreenshotAlt: "Basketball live game, guards and forwards on the court and suggested swaps",
     hasDemo: true,
-    tour: "live",
   },
   {
     id: "union",
+    surface: "field",
     sport: "rugby_union",
     slug: "rugby-union",
     code: "RU",
     label: "Rugby union",
     short: "Rugby union",
     accent: "#2F6B3E",
-    accentSoft: "#DFEAE0",
-    liveScreenshot: `${SHOTS}/rugby-union/live.png`,
-    liveScreenshotAlt: "Rugby union live game, the field and the bench, mid-game",
     hasDemo: true,
-    tour: "live",
   },
   {
     id: "touch",
+    surface: "field",
     sport: "touch",
     slug: "touch-football",
     code: "TF",
     label: "Touch football",
     short: "Touch",
     accent: "#B0306A",
-    accentSoft: "#F6DFEA",
-    liveScreenshot: `${SHOTS}/touch-football/live.png`,
-    liveScreenshotAlt: "Touch football live game for a mixed team, mid-game",
     hasDemo: true,
-    tour: "shared",
   },
   {
     id: "oztag",
+    surface: "field",
     sport: "oztag",
     slug: "oztag",
     code: "OZ",
     label: "Oztag",
     short: "Oztag",
     accent: "#5E6B0F",
-    accentSoft: "#ECEFD6",
-    liveScreenshot: `${SHOTS}/oztag/live.png`,
-    liveScreenshotAlt: "Oztag live game for a mixed team, mid-game",
     hasDemo: true,
-    tour: "shared",
   },
   {
     id: "hockey",
+    surface: "field",
     sport: "hockey",
     slug: "hockey",
     code: "HK",
     label: "Hockey",
     short: "Hockey",
     accent: "#3F4FB0",
-    accentSoft: "#E3E6F5",
-    liveScreenshot: `${SHOTS}/hockey/live.png`,
-    liveScreenshotAlt: "Hockey live game with the keeper, mid-game",
     hasDemo: true,
-    tour: "shared",
   },
   {
     id: "futsal",
+    surface: "court",
     sport: "futsal",
     slug: "futsal",
     code: "FS",
     label: "Futsal",
     short: "Futsal",
     accent: "#0E7C86",
-    accentSoft: "#DDF0F1",
-    liveScreenshot: `${SHOTS}/futsal/live.png`,
-    liveScreenshotAlt: "Futsal live game on the court with the keeper, mid-game",
     hasDemo: true,
-    tour: "shared",
   },
 ] as const;
 

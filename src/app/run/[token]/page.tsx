@@ -1,10 +1,11 @@
 import { SFButton, SFIcon } from "@/components/sf";
 import { unstable_noStore as noStore } from "next/cache";
-import { AFL_SCORE_TYPES, standingScores } from "@/lib/live/undoStack";
+import { AFL_SCORE_TYPES, savedScoreKeys, standingScores } from "@/lib/live/undoStack";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadTeamPlaybook } from "@/lib/playbook/load";
 import { aflPlaybookInput, withBalanceSeason, withSnapshot } from "@/lib/sports/afl/engine";
+import { aflAwayMs, aflBigField } from "@/lib/sports/afl/bigField";
 import { netballPlaybookInput, withNetballSnapshot } from "@/lib/sports/netball/engine";
 import { leaguePlaybookInput } from "@/lib/sports/rugby_league/engine";
 import { seasonBalanceWeight, withKickoffSnapshot } from "@/lib/playbook/seasonBalance";
@@ -29,6 +30,7 @@ import { touchAgeGroupForTeam } from "@/lib/sports/touch/family";
 import { touchHowWePlay } from "@/lib/sports/touch/familyPlaybook";
 import { girlsTryCountsDouble, teamMixedRule } from "@/lib/sports/touch/mixed";
 import { LiveGame } from "@/components/live/LiveGame";
+import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { NetballLiveGame } from "@/components/netball/NetballLiveGame";
 import { LeagueLiveGame } from "@/components/league/LeagueLiveGame";
 import { LeagueLineupPicker } from "@/components/league/LeagueLineupPicker";
@@ -257,16 +259,20 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
       }
       return (
         <div className="space-y-3 px-4 py-3">
+          {/* The same top bar as the live game: EXIT, the opponent, and
+              whose game it is (the layout's header went; design review). */}
+          <LiveTopBar exitHref={exitHref} game={g} />
           <RunnerWelcomeBanner
             teamName={teamName}
             opponent={g.opponent}
             trackScoring={trackScoring}
             firstPeriod={firstPeriodOf(ageCfgS.periodLabel)}
+            cta="Ready"
             availability={availablePlayers.length === 0 || wantsAvailability ? "list" : "link"}
           />
           {availablePlayers.length === 0 || wantsAvailability ? (
             <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
-              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+              <h3 className="font-mono text-micro font-bold uppercase tracking-micro text-ink-dim">
                 Who&apos;s here today?
               </h3>
               <AvailabilityList
@@ -334,7 +340,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
           keeperPrefs={howWePlay.prefs}
           seasonLoanMinutes={seasonLoanMinsS}
           // A runner token can run the whole game, as in the other sports
-          // (not restart it: LiveAdminUtilityRow never offers Restart on a
+          // (not restart it: the ⋯ menu never offers Restart on a
           // game-day link).
           isAdmin
           exitHref={exitHref}
@@ -407,16 +413,20 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
       }
       return (
         <div className="space-y-3 px-4 py-3">
+          {/* The same top bar as the live game: EXIT, the opponent, and
+              whose game it is (the layout's header went; design review). */}
+          <LiveTopBar exitHref={exitHref} game={g} />
           <RunnerWelcomeBanner
             teamName={teamName}
             opponent={g.opponent}
             trackScoring={trackScoring}
             firstPeriod={firstPeriodOf(ageCfgB.periodLabel)}
+            cta="Ready"
             availability={availablePlayers.length === 0 || wantsAvailability ? "list" : "link"}
           />
           {availablePlayers.length === 0 || wantsAvailability ? (
             <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
-              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+              <h3 className="font-mono text-micro font-bold uppercase tracking-micro text-ink-dim">
                 Who&apos;s here today?
               </h3>
               <AvailabilityList
@@ -567,16 +577,20 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
       }
       return (
         <div className="space-y-3 px-4 py-3">
+          {/* The same top bar as the live game: EXIT, the opponent, and
+              whose game it is (the layout's header went; design review). */}
+          <LiveTopBar exitHref={exitHref} game={g} />
           <RunnerWelcomeBanner
             teamName={teamName}
             opponent={g.opponent}
             trackScoring={trackScoring}
             firstPeriod={firstPeriodOf(ageCfgT.periodLabel)}
+            cta="Ready"
             availability={availablePlayers.length === 0 || wantsAvailability ? "list" : "link"}
           />
           {availablePlayers.length === 0 || wantsAvailability ? (
             <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
-              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+              <h3 className="font-mono text-micro font-bold uppercase tracking-micro text-ink-dim">
                 Who&apos;s here today?
               </h3>
               <AvailabilityList
@@ -807,6 +821,9 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
 
       return (
         <div className="space-y-3 px-4 py-3">
+          {/* The same top bar as the live game: EXIT, the opponent, and
+              whose game it is (the layout's header went; design review). */}
+          <LiveTopBar exitHref={exitHref} game={g} />
           <RunnerWelcomeBanner
             teamName={teamName}
             opponent={g.opponent}
@@ -820,7 +837,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
             // path is mostly for hand-crafted runner-token URLs
             // landing pre-availability.
             <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
-              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+              <h3 className="font-mono text-micro font-bold uppercase tracking-micro text-ink-dim">
                 Who&apos;s here today?
               </h3>
               <AvailabilityList
@@ -893,7 +910,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
           chipModes={teamChipModes}
           leaguePlaybook={leaguePlaybook}
           // A runner token can run the whole game (not restart it:
-          // LiveAdminUtilityRow never offers Restart on a game-day link).
+          // the ⋯ menu never offers Restart on a game-day link).
           isAdmin
           exitHref={exitHref}
         />
@@ -1016,6 +1033,17 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
     const needsAvailabilityStep =
       isPreKickoff && availableIds.length < ageCfgN.positions.length;
     void hasStarted;
+    const netballLineupShown = !(isPreKickoff && wantsAvailability && !needsAvailabilityStep);
+    const netballWelcome = (
+      <RunnerWelcomeBanner
+        teamName={teamName}
+        opponent={g.opponent}
+        trackScoring={trackScoring}
+        firstPeriod="Q1"
+        cta="Ready"
+        availability={needsAvailabilityStep || wantsAvailability ? "list" : "link"}
+      />
+    );
     return (
       <div className="space-y-3 px-4 py-3">
         {/* GameInfoHeader is now rendered INSIDE NetballLiveGame's
@@ -1028,19 +1056,15 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
             Steve 2026-05-13 usability test: without it Lisa
             (parent-volunteer persona) lands on a wordmark + a list of
             names with no role context. */}
-        {isPreKickoff && (
-          <RunnerWelcomeBanner
-            teamName={teamName}
-            opponent={g.opponent}
-            trackScoring={trackScoring}
-            firstPeriod="Q1"
-            availability={needsAvailabilityStep || wantsAvailability ? "list" : "link"}
-          />
-        )}
+        {/* With the lineup on screen the welcome line goes under
+            NetballLiveGame's own top bar (its intro); on the who's-here
+            list alone, this page draws the bar. */}
+        {isPreKickoff && !netballLineupShown && <LiveTopBar exitHref={exitHref} game={g} />}
+        {isPreKickoff && !netballLineupShown && netballWelcome}
         {(needsAvailabilityStep || (isPreKickoff && wantsAvailability)) && (
           <>
             <section className="space-y-3 rounded-md border border-hairline bg-surface p-3 shadow-card">
-              <h3 className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+              <h3 className="font-mono text-micro font-bold uppercase tracking-micro text-ink-dim">
                 Who&apos;s here today?
               </h3>
               <AvailabilityList
@@ -1062,6 +1086,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
         )}
         {!(isPreKickoff && wantsAvailability && !needsAvailabilityStep) && (
         <NetballLiveGame
+          intro={isPreKickoff && netballLineupShown ? netballWelcome : undefined}
           auth={auth}
           renderedAtMs={Date.now()}
           game={g}
@@ -1085,7 +1110,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
           clockMultiplier={g.clock_multiplier ?? 1}
           initialDraft={netballDraft}
           // A runner token can run the whole game (not restart it:
-          // LiveAdminUtilityRow never offers Restart on a game-day link).
+          // the ⋯ menu never offers Restart on a game-day link).
           isAdmin
           allowMidQuarterSubs={allowMidQuarterSubs}
           teamAllowMidQuarterSubs={teamAllowMidQuarterSubs}
@@ -1158,6 +1183,16 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
     );
     const loanMins = seasonLoanMinutes((allTeamEvents ?? []) as GameEvent[]);
     const seasonAvail = seasonAvailability((allTeamEvents ?? []) as GameEvent[]);
+    // Big fields: the formation and who's in which position, as the
+    // coach's page draws them.
+    const bigField = aflBigField({
+      playbook,
+      aflPlaybook,
+      onFieldSize: g.on_field_size,
+      zoneModel: positionModel,
+      events: (thisGameEvents ?? []) as GameEvent[],
+      lineup: state.lineup,
+    });
 
     return (
       <div className="space-y-3 px-4 py-3">
@@ -1168,6 +1203,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
             info strip. */}
         <LiveGame
           standingScores={standingScores((thisGameEvents ?? []) as GameEvent[], AFL_SCORE_TYPES)}
+          savedScoreKeys={savedScoreKeys((thisGameEvents ?? []) as GameEvent[], AFL_SCORE_TYPES)}
           auth={auth}
           gameId={g.id}
           game={g}
@@ -1193,13 +1229,15 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
           defaultOnFieldSize={teamOnFieldSize(ageCfgSport, (teamRow as { on_field_size?: number | null } | null)?.on_field_size)}
           chipModeByKey={teamChipModes}
           aflPlaybook={aflPlaybook}
+          bigField={bigField ?? undefined}
+          awayMs={aflAwayMs((thisGameEvents ?? []) as GameEvent[], quarterMs, state.currentQuarter)}
           songUrl={songUrl}
           songStartSeconds={songStartSeconds}
           songDurationSeconds={songDurationSeconds}
           quarterMs={quarterMs}
           ageGroup={ageCfgSport}
           // A runner token can run the whole game (not restart it:
-          // LiveAdminUtilityRow never offers Restart on a game-day link).
+          // the ⋯ menu never offers Restart on a game-day link).
           isAdmin
         />
         {g.status === "completed" && <RunnerAllDone className="pb-6 pt-2" />}
@@ -1244,7 +1282,7 @@ async function RunPageBody({ params, searchParams }: RunPageProps) {
       )}
 
       <section className="space-y-3">
-        <h3 className="text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+        <h3 className="text-micro font-bold uppercase tracking-micro text-ink-dim">
           Who&apos;s here today?
         </h3>
         <AvailabilityList

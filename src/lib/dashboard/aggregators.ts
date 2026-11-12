@@ -19,11 +19,14 @@ import {
 
 // ─── Season derivation ───────────────────────────────────────
 
+// Every year with a game is a season to pick, but the count is games
+// played: next week's fixture read "2026 (4 games)" beside "3 completed
+// games" (Stagehand round 7, 28 Oct 2026).
 export function deriveSeasons(games: Game[]): Season[] {
   const counts: Record<number, number> = {};
   for (const g of games) {
     const year = new Date(g.scheduled_at).getFullYear();
-    counts[year] = (counts[year] ?? 0) + 1;
+    counts[year] = (counts[year] ?? 0) + (g.status === "completed" ? 1 : 0);
   }
   return Object.entries(counts)
     .map(([y, c]) => ({ year: Number(y), gameCount: c }))

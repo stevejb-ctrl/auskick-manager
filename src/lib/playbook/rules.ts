@@ -199,8 +199,10 @@ export function ruleSentence(rule: RuleInstance, words: RuleWords, names: (ids: 
       return `Every player plays at least ${p.count ?? 2} different ${words.lines} per game`;
     case "stays-home":
       return `${names(p.playerIds ?? []) || "Pick players who"} stay${(p.playerIds?.length ?? 0) === 1 ? "s" : ""} at their ${words.home} all game`;
+    // Apart means different lines (zones, positions): a coach who saw both on the
+    // field read "apart" as off together (round 9).
     case "keep-apart":
-      return `Keep ${names(p.playerIds ?? []) || "these players"} apart`;
+      return `Keep ${names(p.playerIds ?? []) || "these players"} in different ${words.lines}`;
     case "keep-together":
       return `Keep ${names(p.playerIds ?? []) || "these players"} together`;
     case "max-bench-in-row":

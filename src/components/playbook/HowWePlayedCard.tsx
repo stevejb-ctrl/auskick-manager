@@ -12,7 +12,7 @@ export function HowWePlayedCard({ report }: { report: GameReport }) {
   const missed = report.items.filter((i) => i.status !== "ok");
   return (
     <section aria-labelledby="how-we-played" className="space-y-2" data-testid="how-we-played">
-      <h3 id="how-we-played" className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+      <h3 id="how-we-played" className="font-mono text-micro font-bold uppercase tracking-micro text-ink-dim">
         How we played
       </h3>
       <p className="text-sm font-semibold text-ink">

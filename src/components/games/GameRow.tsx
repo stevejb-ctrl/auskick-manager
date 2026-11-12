@@ -2,12 +2,30 @@ import Link from "next/link";
 import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import { SFCard, SFIcon, StatusPill } from "@/components/sf";
 import type { Game } from "@/lib/types";
+import { ResultChip } from "@/components/sf/ResultChip";
+import { outcomeOf, type GameScore } from "@/lib/results";
 
 interface GameRowProps {
   teamId: string;
   game: Game;
   availableCount: number;
   totalActive: number;
+  /** A played game's score (null when it didn't keep score). */
+  score?: GameScore | null;
+}
+
+const RESULT = { W: "win", L: "loss", D: "draw" } as const;
+
+/** W/L/D and the score, on a played game's row. */
+function RowResult({ score }: { score: GameScore }) {
+  return (
+    <span className="flex items-center gap-2">
+      <ResultChip result={RESULT[outcomeOf(score)]} />
+      <span className="font-mono text-sm font-bold tabular-nums text-ink">
+        {score.us}–{score.them}
+      </span>
+    </span>
+  );
 }
 
 /**
@@ -22,12 +40,10 @@ interface GameRowProps {
  *   - ink     for upcoming
  *   - ink-mute for completed (less visual weight on past results)
  *
- * Result chips (W/L/D) for completed games are intentionally absent
- * for now — the Game model doesn't carry a result/score field; that
- * would need to be derived from game_events, which is out of scope
- * for the design refresh. Add later as a separate feature.
+ * A played game shows W/L/D and the score (from its events, as Today's
+ * last result does), or the Final pill when it didn't keep score.
  */
-export function GameRow({ teamId, game, availableCount, totalActive }: GameRowProps) {
+export function GameRow({ teamId, game, availableCount, totalActive, score = null }: GameRowProps) {
   const isLive = game.status === "in_progress";
   const isDone = game.status === "completed";
 
@@ -42,7 +58,13 @@ export function GameRow({ teamId, game, availableCount, totalActive }: GameRowPr
       <SFCard
         pad={0}
         interactive
-        className="grid grid-cols-[44px_1fr_auto] items-center gap-3 px-4 py-3 sm:grid-cols-[60px_1fr_auto_auto] sm:gap-5 sm:px-5 sm:py-4"
+        // No round number, no empty numeral column (design review, Oct
+        // 2026: rows without a round looked indented and broken).
+        className={`grid items-center gap-3 px-4 py-3 sm:gap-5 sm:px-5 sm:py-4 ${
+          game.round_number != null
+            ? "grid-cols-[44px_1fr_auto] sm:grid-cols-[60px_1fr_auto_auto]"
+            : "grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_auto]"
+        }`}
       >
         {game.round_number != null ? (
           <span
@@ -51,12 +73,10 @@ export function GameRow({ teamId, game, availableCount, totalActive }: GameRowPr
           >
             {String(game.round_number).padStart(2, "0")}
           </span>
-        ) : (
-          <span aria-hidden="true" />
-        )}
+        ) : null}
 
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5 text-base font-bold text-ink sm:text-[17px]">
+          <div className="flex items-center gap-1.5 text-base font-bold text-ink sm:text-[1.0625rem]">
             <span className="font-medium text-ink-mute">vs</span>
             <span className="truncate">{game.opponent}</span>
           </div>
@@ -71,7 +91,7 @@ export function GameRow({ teamId, game, availableCount, totalActive }: GameRowPr
           {isLive ? (
             <StatusPill status="live" />
           ) : isDone ? (
-            <StatusPill status="final" />
+            score ? <RowResult score={score} /> : <StatusPill status="final" />
           ) : (
             <StatusPill status="upcoming" />
           )}
@@ -83,8 +103,8 @@ export function GameRow({ teamId, game, availableCount, totalActive }: GameRowPr
               {availableCount}
               <span className="text-ink-mute">/{totalActive}</span>
             </div>
-            <div className="font-mono text-[10px] font-semibold uppercase tracking-micro text-ink-mute">
-              avail
+            <div className="font-mono text-nano font-semibold uppercase tracking-micro text-ink-mute">
+              available
             </div>
           </div>
         )}
@@ -93,7 +113,9 @@ export function GameRow({ teamId, game, availableCount, totalActive }: GameRowPr
         <div className="flex items-center gap-2 sm:hidden">
           {isLive ? (
             <StatusPill status="live" />
-          ) : isDone ? null : (
+          ) : isDone ? (
+            score ? <RowResult score={score} /> : null
+          ) : (
             !isDone && (
               <span className="font-mono text-xs font-bold tabular-nums text-ink">
                 {availableCount}

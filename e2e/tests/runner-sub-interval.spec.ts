@@ -49,6 +49,9 @@ for (const sport of ["afl", "rugby_league"] as const) {
       const cont = page.getByRole("link", { name: /continue to starting lineup/i });
       if (await cont.isVisible({ timeout: 5_000 }).catch(() => false)) await cont.click();
     }
+    // The picker sets the lineup with Ready; Start Q1 / H1 is on the live
+    // screen's bar (live v3: AFL, and league since Phase 8).
+    if (sport === "afl" || sport === "rugby_league") await page.getByRole("button", { name: /^ready$/i }).click({ timeout: 15_000 });
     await page.getByRole("button", { name: /^start (q|h)1$/i }).click({ timeout: 15_000 });
     const startClock = page.getByRole("button", { name: /^start [qh]\d+ now$/i });
     // Start always opens the "Start clock" step. isVisible() doesn't wait,

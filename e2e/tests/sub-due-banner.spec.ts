@@ -90,28 +90,18 @@ async function subDueGame(sport: "afl" | "rugby_union" | "basketball" | "soccer"
   return { coach: `/teams/${team.id}/games/${game.id}/live`, runner: `/run/${game.share_token}` };
 }
 
-// Every other sport (23 Oct 2026, UI polish round 2 R2): the same one
-// voice. Their sub card (NextSubCard, a fork of AFL's) is the alert too;
-// the top-bar banner is only for a sub due with nothing to suggest.
-async function expectOneVoice(page: Page, chip: string | RegExp) {
-  const spoken = page.getByRole("alert").filter({ hasText: /\S/ });
-  await expect(spoken.filter({ hasText: /sub due/i })).toBeVisible({ timeout: 20_000 });
-  await expect(spoken).toHaveCount(1);
-  const card = spoken.first();
-  await expect(card).toContainText("Rotate a player off");
-  await expect(card.getByRole("button", { name: /^make (all \d+ swaps|this swap)$/i })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Got it" })).toHaveCount(0);
-  await expect.poll(() => page.evaluate(() => (window as unknown as { __beeps: number }).__beeps)).toBeGreaterThan(0);
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByRole("button", { name: chip }).first().click({ trial: true, timeout: 5_000 });
-}
-
-
-// AFL: one event, one voice (design session 17 Oct 2026). The swap card
-// IS the sub-due alert — amber ring, SUB DUE eyebrow, role="alert" — and
-// the separate banner is gone, so exactly one alert is on screen. It
-// still beeps, nothing modal covers the chips, and Collapse folds it.
-async function expectCardIsTheAlert(page: Page) {
+// AFL: one event, one voice (design session 17 Oct 2026). Live v3: the
+// info line IS the sub-due alert ("Sub due — 3 swaps · rotate a player
+// off", role="alert"), the kids say "Off now" / "On now", and the bar
+// becomes MAKE ALL N SWAPS. Exactly one alert, it still beeps, nothing
+// modal covers the field, and a goal can still be recorded: tap the kid,
+// + Goal in their kid bar. The info line opens the pairs.
+async function expectCardIsTheAlert(
+  page: Page,
+  // Rugby's shell (live v3, Phase 8) is the same: its kid bar's + TRY.
+  // Basketball's (Phase 10) says what to do in its words: "send them to the table now".
+  kid: { tiles: string; score: RegExp; said?: RegExp } = { tiles: '[data-testid^="player-tile-"]', score: /^\+ goal$/i },
+) {
   const alerts = page.getByRole("alert");
   await expect(alerts.filter({ hasText: /sub due/i })).toBeVisible({ timeout: 20_000 });
   // Next's route announcer is an empty role="alert"; count the ones
@@ -119,16 +109,18 @@ async function expectCardIsTheAlert(page: Page) {
   const spoken = alerts.filter({ hasText: /\S/ });
   await expect(spoken).toHaveCount(1);
   const card = spoken.first();
-  await expect(card).toContainText("Rotate a player off");
-  await expect(card.getByTestId("swapcard-apply-all")).toBeVisible();
+  await expect(card).toContainText(kid.said ?? /rotate a player off/i);
+  await expect(page.getByRole("button", { name: /^make (all \d+ swaps|this swap)$/i })).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as unknown as { __beeps: number }).__beeps)).toBeGreaterThan(0);
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByRole("button", { name: /^add goal, /i }).first().click({ trial: true, timeout: 5_000 });
-  await card.getByRole("button", { name: "Collapse" }).click();
-  await expect(card.getByTestId("swapcard-apply-all")).toHaveCount(0);
+  await page.locator(kid.tiles).first().click();
+  await page.getByRole("button", { name: kid.score }).click({ trial: true, timeout: 5_000 });
+  await page.keyboard.press("Escape");
+  await card.getByTestId("info-line").click();
+  await expect(page.getByRole("dialog").getByTestId("swapcard-apply-all")).toBeVisible();
 }
 
-test("AFL: sub due is the swap card, and +G still takes the tap", async ({ page }) => {
+test("AFL: sub due is the info line, and a kid's + Goal still takes the tap", async ({ page }) => {
   test.setTimeout(90_000);
   await page.goto((await subDueGame("afl")).coach);
   await waitForHydration(page);
@@ -138,7 +130,7 @@ test("AFL: sub due is the swap card, and +G still takes the tap", async ({ page 
 // The siren ends the quarter: no sub is due any more. The quarter-end
 // modal waits on the coach, and the card behind it still said "Sub due"
 // through quarter time and full time (audit, 23 Oct 2026).
-test("AFL: the swap card stops saying Sub due when the siren goes", async ({ page }) => {
+test("AFL: the info line stops saying Sub due when the siren goes", async ({ page }) => {
   test.setTimeout(120_000);
   // 95 s in at 6×: 9:30 of 12:00, a sub due within 5 s, the siren ~20 s later.
   await page.goto((await subDueGame("afl", 95)).coach);
@@ -148,9 +140,9 @@ test("AFL: the swap card stops saying Sub due when the siren goes", async ({ pag
   await expect(page.getByText(/sub due/i)).toHaveCount(0);
 });
 
-// The runner link gets the same live screen (and so the same card) as
-// the coach.
-test("AFL runner: sub due is the same card", async ({ page }) => {
+// The runner link gets the same live screen (and so the same info line)
+// as the coach.
+test("AFL runner: sub due is the same info line", async ({ page }) => {
   test.setTimeout(90_000);
   await page.goto((await subDueGame("afl")).runner);
   await waitForHydration(page);
@@ -158,33 +150,48 @@ test("AFL runner: sub due is the same card", async ({ page }) => {
   await expectCardIsTheAlert(page);
 });
 
-for (const { sport, chip } of [
-  { sport: "rugby_union" as const, chip: "Record a try for our team" },
-  { sport: "basketball" as const, chip: /^add 2 points, /i },
-  { sport: "soccer" as const, chip: /^add goal, /i },
-]) {
-  test(`${sport}: sub due is the sub card alone, and the score chip still takes the tap`, async ({ page }) => {
-    test.setTimeout(90_000);
-    await page.goto((await subDueGame(sport)).coach);
-    await waitForHydration(page);
-    await expectOneVoice(page, chip);
-  });
-}
+// Union is on the v3 shell (Phase 8): the info line is the alert, as AFL's.
+test("rugby_union: sub due is the info line, and a kid's + Try still takes the tap", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto((await subDueGame("rugby_union")).coach);
+  await waitForHydration(page);
+  await expectCardIsTheAlert(page, { tiles: '[data-testid^="league-player-tile-"]', score: /^\+ try$/i });
+});
+
+// The soccer family is on the v3 shell (Phase 9): the info line is the alert, as AFL's.
+test("soccer: sub due is the info line, and a kid's + Goal still takes the tap", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto((await subDueGame("soccer")).coach);
+  await waitForHydration(page);
+  await expectCardIsTheAlert(page);
+});
+
+// Basketball is on the v3 shell (Phase 10): the info line is the alert, as AFL's.
+test("basketball: sub due is the info line, and a kid's +2 still takes the tap", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto((await subDueGame("basketball")).coach);
+  await waitForHydration(page);
+  await expectCardIsTheAlert(page, { tiles: '[data-testid^="player-tile-"]', score: /^\+2$/, said: /send them to the table now/i });
+});
 
 // The banner's screenshots (16 Oct 2026) showed the sub card's swap rows
 // at 375 px clipping names: AFL's to a single glyph ("D [ ⌄ → O ( ⌄"),
 // union's to "Bren… → Qu…". Make swap now wraps to its own line first.
 for (const { sport, rows } of [
   { sport: "afl" as const, rows: '[data-testid^="swap-pair-"][data-testid$="-off"], [data-testid^="swap-pair-"][data-testid$="-on"]' },
-  { sport: "rugby_union" as const, rows: '[data-testid^="league-swap-pair-"]' },
+  { sport: "rugby_union" as const, rows: '[data-testid^="swap-pair-"][data-testid$="-off"], [data-testid^="swap-pair-"][data-testid$="-on"]' },
 ]) {
   test(`${sport}: at 375 px the sub card's swap rows show whole names`, async ({ page }) => {
     test.setTimeout(90_000);
     await page.goto((await subDueGame(sport)).coach);
     await waitForHydration(page);
+    // The pairs are on the pairs sheet (live v3, AFL and union): the info
+    // line opens it.
+    await expect(page.getByRole("alert").filter({ hasText: /sub due/i })).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("info-line").click();
     await expect(page.locator(rows).first()).toBeVisible({ timeout: 20_000 });
     const clipped = await page.evaluate((selector) => {
-      // League rows truncate a name span; AFL's name buttons ARE the names.
+      // The pairs sheet's name buttons ARE the names (any truncating span inside counts instead).
       const names = Array.from(document.querySelectorAll(selector)).flatMap((row) => {
         const spans = Array.from(row.querySelectorAll("span.truncate"));
         return spans.length > 0 ? spans : [row];

@@ -2,7 +2,7 @@
 // just the one this phone last tapped (usability pass, 26 Oct 2026).
 
 import { describe, expect, it } from "vitest";
-import { standingScores, stackRef, undoStack, type StackScore } from "@/lib/live/undoStack";
+import { savedScoreKeys, standingScores, stackRef, undoStack, type StackScore } from "@/lib/live/undoStack";
 import type { GameEvent } from "@/lib/types";
 
 const TYPES = new Set(["goal", "behind", "opponent_goal", "opponent_behind"]);
@@ -29,7 +29,7 @@ describe("standingScores", () => {
     const c = ev("behind", { player_id: "jo" });
     const undo = ev("score_undo", {}, { target_event_id: c.id, original_type: "behind", quarter: 1 });
     expect(standingScores([a, b, c, undo, ev("quarter_end")], TYPES).map((s) => s.eventId)).toEqual([a.id, b.id]);
-    expect(standingScores([a], TYPES)[0]).toEqual({ eventId: a.id, key: a.idempotency_key, type: "goal", playerId: "mia", quarter: 1 });
+    expect(standingScores([a], TYPES)[0]).toEqual({ eventId: a.id, key: a.idempotency_key, type: "goal", playerId: "mia", quarter: 1, createdAt: a.created_at });
   });
 });
 
@@ -53,6 +53,22 @@ describe("undoStack", () => {
     expect(top()).toBe(saved);
     undone = new Set(Array.from(undone).concat("e1"));
     expect(top()).toBeUndefined();
+  });
+
+  // Stagehand, 9 Nov 2026: Scores and fixes changed who scored this
+  // phone's tap. The server took it back, so it isn't "on its way" any
+  // more, and Undo named the old kid.
+  it("drops a tap the server has and has since taken back", () => {
+    const tap = ev("behind", { player_id: "sam" });
+    const fixUndo = ev("score_undo", {}, { target_event_id: tap.id, original_type: "behind", quarter: 1 });
+    const fixed = ev("behind", { player_id: "lachlan" }, { quarter: 1, retro: true, replaces: tap.id });
+    const log = [tap, fixUndo, fixed];
+    const local: StackScore = { eventId: null, key: tap.idempotency_key!, type: "behind", playerId: "sam", quarter: 1 };
+    const server = standingScores(log, TYPES);
+    expect(savedScoreKeys(log, TYPES)).toEqual([tap.idempotency_key, fixed.idempotency_key]);
+    expect(undoStack(server, [local], new Set(), savedScoreKeys(log, TYPES)).map((s) => s.playerId)).toEqual(["lachlan"]);
+    // Without the log's keys the old tap came back on top.
+    expect(undoStack(server, [local], new Set()).at(-1)?.playerId).toBe("sam");
   });
 
   it("names a saved score by its event, an unsaved one by its key", () => {

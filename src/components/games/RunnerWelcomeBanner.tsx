@@ -21,6 +21,11 @@
 //
 // Once the lineup is set + Q1 kicks off, the in-game chrome
 // (LiveTopBar / scorebug) carries the orientation forward.
+//
+// Design review (Oct 2026): it was a three-step manual above the lineup
+// and, with the tour offer and settings, pushed the court and Start
+// below the fold. The top bar now names the team, so this is one line
+// that says what to do, with the steps behind "How this works".
 
 interface RunnerWelcomeBannerProps {
   /** Team name — surfaces "You're running today's game for {teamName}." */
@@ -34,6 +39,12 @@ interface RunnerWelcomeBannerProps {
   /** The first period as the Start button says it ("Q1", "H1"). */
   firstPeriod?: string;
   /**
+   * The lineup screen's button, where it isn't "Start Q1": netball's
+   * "Ready" (live v3: Ready sets the lineup, Start Q1 is on the live
+   * screen's bar).
+   */
+  cta?: string;
+  /**
    * Where the parent marks who's here: the list under this banner, or
    * the "Update availability" link at the top of the lineup.
    */
@@ -45,21 +56,31 @@ export function RunnerWelcomeBanner({
   opponent,
   trackScoring,
   firstPeriod = "Q1",
+  cta,
   availability = "list",
 }: RunnerWelcomeBannerProps) {
   return (
     <section
-      className="rounded-md border border-brand-200 bg-brand-50 p-4 text-sm text-ink"
+      className="rounded-md border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-ink"
       aria-label="Welcome — getting started"
     >
-      <p className="font-semibold text-ink">
-        You&apos;re running today&apos;s game for {teamName}
+      <p className="text-ink">
+        <span className="font-semibold">You&apos;re running today&apos;s game.</span>{" "}
+        {availability === "list"
+          ? "Tap In for each kid who turned up, then go to the lineup."
+          : `Check who's here, then tap ${cta ?? `Start ${firstPeriod}`}.`}
+      </p>
+      {/* The top bar shows the teams; screen readers hear them here too. */}
+      <p className="sr-only">
+        {teamName}
         {opponent ? ` vs ${opponent}` : ""}.
       </p>
-      <p className="mt-1 text-ink-dim">
-        Quick rundown — three steps:
-      </p>
-      <ol className="mt-2 list-decimal space-y-1 pl-5 text-ink-dim">
+      <details className="group mt-1">
+        <summary className="inline-flex min-h-[44px] cursor-pointer list-none items-center gap-1 text-xs font-semibold text-brand-700 [&::-webkit-details-marker]:hidden">
+          How this works
+          <span aria-hidden="true" className="transition-transform duration-fast group-open:rotate-90">›</span>
+        </summary>
+      <ol className="mt-1 list-decimal space-y-1 pl-5 text-ink-dim">
         {availability === "list" ? (
           <li>
             <span className="font-medium text-ink">Mark who&apos;s here</span>{" "}
@@ -69,15 +90,15 @@ export function RunnerWelcomeBanner({
         ) : (
           <li>
             <span className="font-medium text-ink">Check who&apos;s here.</span>{" "}
-            A player didn&apos;t turn up? Tap &quot;Update availability&quot;
-            above the lineup to mark them out.
+            A player didn&apos;t turn up? Tap &quot;Who&apos;s here&quot; to
+            mark them out.
           </li>
         )}
         <li>
           <span className="font-medium text-ink">Set the starting
           lineup</span>{" "}
           — we&apos;ll suggest a fair one. You can swap players if you
-          like, or just tap Start {firstPeriod}.
+          like, or just tap {cta ?? `Start ${firstPeriod}`}.
         </li>
         <li>
           <span className="font-medium text-ink">
@@ -89,6 +110,7 @@ export function RunnerWelcomeBanner({
           close the tab and come back if you need to.
         </li>
       </ol>
+      </details>
     </section>
   );
 }

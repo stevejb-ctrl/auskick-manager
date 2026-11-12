@@ -18,7 +18,7 @@ import { setNetballOnFieldSize } from "@/app/(app)/teams/[teamId]/games/[gameId]
 import { type InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
 import { ScoreReviewPanel } from "@/components/live/ScoreReviewPanel";
 import { QuarterScoreTable } from "@/components/live/QuarterScoreTable";
-import { netballSport, pickNetballPositionsToFill, primaryThirdFor } from "@/lib/sports/netball";
+import { netballShortCourtNote, netballSport, pickNetballPositionsToFill, primaryThirdFor } from "@/lib/sports/netball";
 import {
   type GenericLineup,
   type PlayerThirdMs,
@@ -42,6 +42,7 @@ import { cycleLineup, netballRuleCheck } from "@/lib/sports/netball/engine";
 import { pairScoreUndos } from "@/lib/live/scoreUndo";
 import type { RuleCheckItem } from "@/lib/playbook/ruleCheck";
 import { breakConfigFor } from "@/lib/sports/break";
+import { netballCourt, netballCourtLine } from "./NetballCourt";
 import { PeriodBreak, type BreakPlayer, type BreakStrategy } from "@/components/quarter-break/PeriodBreak";
 import { buildBoard, placesOf, swapInStaged, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
@@ -87,6 +88,10 @@ interface Props {
   thisGameEvents: GameEvent[];
   seasonEvents: GameEvent[];
   injuredIds: Set<string>;
+  /** Of the injured, the kids who went home: "Went home" (lib/live/wentHome). */
+  wentHomeIds?: ReadonlySet<string>;
+  /** A kid marked out here: the live screen shows them as gone home at once. */
+  onWentHome?: (playerId: string) => void;
   loanedIds: Set<string>;
   /** Per-player goals scored this game — the score on each tile. */
   playerGoals: Record<string, number>;
@@ -144,6 +149,8 @@ export function NetballQuarterBreak({
   thisGameEvents,
   seasonEvents,
   injuredIds,
+  wentHomeIds,
+  onWentHome,
   loanedIds,
   playerGoals,
   playerStats,
@@ -327,7 +334,6 @@ export function NetballQuarterBreak({
     persistedRotationMode === "manual" ? "manual" : persistedRotationMode === "rotate" ? "rotate" : "suggested",
   );
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
   const router = useRouter();
   // Kids brought back at this break (recovered, back from a loan): they
   // default to the bench so the coach decides if and where they go on.
@@ -544,6 +550,7 @@ export function NetballQuarterBreak({
       if (replacementId && positionId) next.positions[positionId] = [replacementId];
       return next;
     });
+    onWentHome?.(outId);
     enqueueLiveAction("markInjury", [
       auth,
       gameId,
@@ -578,24 +585,29 @@ export function NetballQuarterBreak({
     // save and a refresh). With no signal the clock's start rides along
     // too (queuedStartClockMark).
     const mark = queuedStartClockMark(nextQuarter);
-    startTransition(() => {
-      write(
-        "periodBreakSwap",
-        [auth, gameId, nextQuarter, staged, midQuarterSubs],
-        liveEvents.netballBreakSwap({ quarter: nextQuarter, lineup: staged, midQuarterSubs }),
-      );
-      write("startNetballQuarter", [auth, gameId, nextQuarter], liveEvents.periodStart(nextQuarter));
-      if (mark) write("recordClockPause", [auth, gameId, mark], liveEvents.clockPause(mark));
-      // The staged lineup is now the quarter's: nothing left to restore.
-      stagedBreakDraft.clear();
-      onStarted();
-      // D-14: this period's plan is used; later planned periods stay.
-      if (plannedRotation && plannedRotation.gameId === gameId) {
-        setPlannedRotation(consumePeriodPin(plannedRotation, upcomingPeriodIndex));
-      }
-      // Medium haptic — the "go!" tap, aligned to the umpire's whistle.
-      void hapticTap("medium");
-    });
+    // Not in a transition: the router's server-action transition took
+    // these writes' on-screen events in with it, so a render between the
+    // quarter start's save and the page's refresh drew the game without
+    // them: the break came back for a moment, and an open goal sheet
+    // went with it ("the period ended while you were adding a goal").
+    // Every other sport's break writes outside one (Stagehand rounds 9
+    // and 10).
+    write(
+      "periodBreakSwap",
+      [auth, gameId, nextQuarter, staged, midQuarterSubs],
+      liveEvents.netballBreakSwap({ quarter: nextQuarter, lineup: staged, midQuarterSubs }),
+    );
+    write("startNetballQuarter", [auth, gameId, nextQuarter], liveEvents.periodStart(nextQuarter));
+    if (mark) write("recordClockPause", [auth, gameId, mark], liveEvents.clockPause(mark));
+    // The staged lineup is now the quarter's: nothing left to restore.
+    stagedBreakDraft.clear();
+    onStarted();
+    // D-14: this period's plan is used; later planned periods stay.
+    if (plannedRotation && plannedRotation.gameId === gameId) {
+      setPlannedRotation(consumePeriodPin(plannedRotation, upcomingPeriodIndex));
+    }
+    // Medium haptic — the "go!" tap, aligned to the umpire's whistle.
+    void hapticTap("medium");
   }
 
   // ─── The break screen ───────────────────────────────────────
@@ -611,11 +623,11 @@ export function NetballQuarterBreak({
       if (playersById.has(id)) out[id] = "Lent";
     });
     injuredIds.forEach((id) => {
-      if (playersById.has(id)) out[id] = "Injured";
+      if (playersById.has(id)) out[id] = wentHomeIds?.has(id) ? "Went home" : "Injured";
     });
     forcedBenchIds.forEach((id) => delete out[id]);
     return out;
-  }, [injuredIds, loanedIds, playersById, forcedBenchIds]);
+  }, [injuredIds, loanedIds, playersById, forcedBenchIds, wentHomeIds]);
   const sidelinedNow = useMemo(() => new Set(Object.keys(sidelined)), [sidelined]);
 
   // The board: the staged lineup, with sidelined kids at the end of the
@@ -668,11 +680,16 @@ export function NetballQuarterBreak({
         board: (l) => buildBoard(config.zones, withSidelined(l), sidelinedNow),
         swap: (l, a, b) => lineupOf(swapInStaged(stagedOf(l), a, b)),
         sidelined: sidelinedNow,
-        // An empty bib is already a broken rule here.
+        // An empty bib is already a broken rule here, unless the court
+        // is played short: then the check aims at the smaller court.
         emptySpots: false,
+        extraWarnings:
+          effectiveOnFieldSize < ageGroup.positions.length
+            ? [netballShortCourtNote(draft.positions, ageGroup.positions)].filter((n): n is string => !!n)
+            : [],
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [draft, ruleCheck, config.zones, sidelined, sidelinedNow],
+    [draft, ruleCheck, config.zones, sidelined, sidelinedNow, ageGroup.positions, effectiveOnFieldSize],
   );
 
   const asBreakPlayer = (p: Player): BreakPlayer => ({ id: p.id, name: p.full_name, jerseyNumber: p.jersey_number });
@@ -694,6 +711,8 @@ export function NetballQuarterBreak({
     <PeriodBreak
       header={{ exitHref, game, onHelp }}
       config={config}
+      // The court as in play: its blue, the circles, the bibs zigzagging.
+      field={{ ...netballCourt(), shape: (_zone, cells) => netballCourtLine(cells.map((c) => c.slot.group), cells.map((c) => c.node)) }}
       nextPeriod={nextQuarter}
       slots={board}
       players={breakPlayers}
@@ -785,13 +804,13 @@ export function NetballQuarterBreak({
         hasPlannedSeed ? (
           <p
             data-testid="planned-seed-banner"
-            className="text-center font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
+            className="text-center font-mono text-nano font-bold uppercase tracking-micro text-brand-700"
           >
             Pre-filled from your planned Q{nextQuarter} lineup
           </p>
         ) : undefined
       }
-      start={{ onStart: handleConfirmQuarterStart, pending: isPending, cue: "umpire calls play", error }}
+      start={{ onStart: handleConfirmQuarterStart, pending: false, cue: "umpire calls play", error }}
     />
   );
 }

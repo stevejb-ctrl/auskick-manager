@@ -5,7 +5,8 @@
 // Flow:
 //   1. Pre-kickoff: the picker draws seven on the pitch, a keeper in
 //      goal and three on the bench, and names who starts in goal.
-//   2. Start H1 (two-step: the picker, then the whistle modal).
+//   2. Ready, then Start H1 (live v3: the picker's Ready sets the
+//      lineup; the live screen's bar starts the half, after its confirm).
 //   3. A goal for us from the player's dock, one for them from the
 //      scorebug (the undo strip says what each was), and a rolling sub
 //      (bench tap, then field tap, then AFL's confirm and toast).
@@ -18,10 +19,13 @@
 //   6. Every event soccer's actions write carries the team's sport.
 
 import { test, expect } from "@playwright/test";
+import { watchPageErrors } from "../helpers/pageErrors";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
 import { startFromBreak } from "../helpers/break";
+import { readySoccer } from "../helpers/kickoff";
+import { openGameMenu } from "../helpers/liveShell";
 
 test.describe.configure({ mode: "serial" });
 
@@ -34,7 +38,7 @@ interface SoccerLineupMeta {
 test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top changes at half-time, finish", async ({ page }) => {
   test.setTimeout(240_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
 
   const admin = createAdminClient();
   const { data: su } = await admin.auth.admin.listUsers();
@@ -83,7 +87,11 @@ test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top change
   await expect(page.getByRole("group", { name: "Bench" }).locator("[data-testid^='player-tile-']")).toHaveCount(3);
   await expect(page.getByRole("region", { name: "Keeper" })).toContainText(/starts in goal/i);
 
-  // ─── 2. Start H1 ───────────────────────────────────────────────
+  // ─── 2. Ready, then Start H1 ──────────────────────────────────
+  // Ready writes the lineup only: no half started until the bar's Start.
+  await readySoccer(page);
+  expect(await count("lineup_set")).toBe(1);
+  expect(await count("quarter_start")).toBe(0);
   await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
   await page.getByRole("button", { name: /^start h1 now$/i }).click({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: /^clock — h1, running$/i })).toBeVisible({ timeout: 15_000 });
@@ -108,14 +116,18 @@ test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top change
   await page.getByRole("button", { name: "Add goal, Coogee Crabs" }).click({ timeout: 5_000 });
   await expect(strip).toContainText("Coogee Crabs goal");
   await expect.poll(() => count("opponent_goal")).toBe(1);
-  // The kid who isn't here yet can be added late.
-  await expect(page.getByRole("button", { name: "+ Add late arrival" })).toBeVisible();
+  // The kid who isn't here yet can be added late: "+ Late" on the
+  // bench, and in ⋯ (live v3).
+  await expect(page.getByRole("group", { name: "Bench" }).getByRole("button", { name: /^\+ late arrival/i })).toBeVisible();
+  const menu = await openGameMenu(page);
+  await expect(menu.getByRole("button", { name: /add late arrival/i })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
 
   const [benchKid] = h1.bench;
   const offKid = h1.lines.def[0];
   await page.getByTestId(`player-tile-${benchKid}`).click({ timeout: 10_000 });
   await page.getByTestId(`player-tile-${offKid}`).click({ timeout: 10_000 });
-  await page.getByRole("dialog", { name: /manually sub/i }).getByRole("button", { name: "Confirm" }).click({ timeout: 5_000 });
   await expect(page.getByTestId("swap-toast")).toContainText(`${nameOf(offKid)} → ${nameOf(benchKid)}`);
   await expect.poll(() => count("swap")).toBe(1);
   const { data: swap } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "swap").single();
@@ -126,9 +138,10 @@ test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top change
   // ─── 4. End H1; half-time hands the keeper top on ─────────────
   // From a scrolled live view: the break still opens at the top (audit,
   // 23 Oct 2026: it kept the live view's offset, the score off-screen).
+  // Live v3's shell: the page itself never scrolls, the field does.
   await page.setViewportSize({ width: 412, height: 640 });
+  await page.getByTestId("live-field").evaluate((el) => el.scrollTo(0, el.scrollHeight));
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   await page.getByRole("button", { name: /^clock — h1, running$/i }).click();
   await page.getByRole("button", { name: /^end h1 now$/i }).click();
   await page.getByRole("button", { name: /^end\s*h\s*1$/i }).click();
@@ -192,7 +205,7 @@ test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top change
   await expect(summary).toContainText("Coogee Crabs", { timeout: 15_000 });
   await expect(summary).toContainText(/in goal/);
   // The game's over: no one can arrive late now.
-  await expect(page.getByRole("button", { name: "+ Add late arrival" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /add late arrival|^\+ late arrival/i })).toHaveCount(0);
 
   // ─── 6. Soccer's events carry the team's sport ────────────────
   const { data: events } = await admin
@@ -219,7 +232,7 @@ test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top change
 // soccer's lineup picker, never another sport's.
 test("soccer: the game page and the runner link open before kick-off", async ({ page }) => {
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
   const admin = createAdminClient();
   const { data: su } = await admin.auth.admin.listUsers();
   const ownerId = su.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
@@ -254,7 +267,7 @@ test("soccer: the game page and the runner link open before kick-off", async ({ 
 test("soccer: one of two due swaps leaves the other due, and the clock waits for it", async ({ page }) => {
   test.setTimeout(120_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
   await page.addInitScript(() => {
     try {
       localStorage.setItem("siren-longpress-seen-v1", "true");
@@ -291,9 +304,11 @@ test("soccer: one of two due swaps leaves the other due, and the clock waits for
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  // Both bench kids are due on.
+  // Both bench kids are due on. The pairs sheet (the due bar's Pairs)
+  // makes one of them.
   await expect(page.getByText(/^sub due — 2 swaps$/i)).toBeVisible({ timeout: 20_000 });
-  await page.getByTestId("soccer-swap-pair-0").getByRole("button", { name: /^swap .+ off, .+ on$/i }).click();
+  await page.getByRole("button", { name: /^pairs/i }).click();
+  await page.getByRole("dialog").getByRole("button", { name: /^swap .+ off, .+ on$/i }).first().click();
   await expect.poll(async () => (await swaps()).length).toBe(1);
   // The swap says one of its batch is still to make…
   expect((await swaps())[0].metadata.batch_left).toBe(1);
@@ -301,12 +316,70 @@ test("soccer: one of two due swaps leaves the other due, and the clock waits for
   await expect(page.getByText(/^sub due — 1 swap$/i)).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText(/^suggested — 1 swap$/i)).toHaveCount(0);
 
-  // The last of the batch restarts the clock.
-  await page.getByText(/^sub due — 1 swap$/i).click();
-  await page.getByTestId("soccer-swap-pair-0").getByRole("button", { name: /^swap .+ off, .+ on$/i }).click();
+  // The last of the batch restarts the clock (the sheet's "Make this swap").
+  await page.getByTestId("swapcard-apply-all").click();
   await expect.poll(async () => (await swaps()).length).toBe(2);
   expect((await swaps())[1].metadata.batch_left).toBeUndefined();
   await expect(page.getByText(/^sub due —/i)).toHaveCount(0, { timeout: 15_000 });
 
   expect(errors).toEqual([]);
+});
+
+// Stagehand, 9 Nov 2026 (whole-game-hockey): a minute before the sub,
+// the coach made swap 1 of the planned four from the pairs sheet. It
+// counted as the whole rotation: the sub clock restarted from then, the
+// next sub fell past the siren, and the other three pairs vanished
+// behind "No more subs this quarter". One pair made early is one of the
+// batch, as when it's due: the rest stay planned for the same time.
+test("hockey: one planned pair made early leaves the rest of the sub planned, on time", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("siren-longpress-seen-v1", "true");
+    } catch {}
+  });
+  const admin = createAdminClient();
+  const { data: su } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  const ownerId = su.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, { ownerId, sport: "hockey", ageGroup: "U13", name: `HOC-EARLY-${Date.now() % 100000}` });
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 15 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId });
+  // 15-minute quarters, subs every 10 minutes, 9 minutes into Q1 (real
+  // time): the sub is a minute away, and one restarted now would fall
+  // after the siren.
+  await admin
+    .from("games")
+    .update({ sub_interval_seconds: 600, clock_multiplier: 1, quarter_length_seconds: 900, status: "in_progress" })
+    .eq("id", game.id);
+  await admin.from("game_availability").insert(
+    players.map((p) => ({ game_id: game.id, player_id: p.id, status: "available" as const, updated_by: ownerId })),
+  );
+  const ids = players.map((p) => p.id);
+  const lineup = { keeper: ids[0], lines: { def: ids.slice(1, 4), mid: ids.slice(4, 8), att: ids.slice(8, 11), field: [] }, bench: ids.slice(11) };
+  const t = (secAgo: number) => new Date(Date.now() - secAgo * 1000).toISOString();
+  await admin.from("game_events").insert(
+    [
+      { type: "lineup_set", metadata: { lineup, sport: "hockey" }, created_at: t(541) },
+      { type: "quarter_start", metadata: { quarter: 1, sport: "hockey" }, created_at: t(540) },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  const swaps = async () =>
+    ((await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "swap").order("created_at")).data ??
+      []) as { metadata: { batch_left?: number } }[];
+
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  await waitForHydration(page);
+  const info = page.getByTestId("info-line");
+  await expect(info).toContainText(/next sub 0:\d\d · \d swaps/i, { timeout: 20_000 });
+  const planned = Number((await info.innerText()).match(/(\d) swaps/i)![1]);
+  expect(planned).toBeGreaterThan(1);
+
+  await info.click();
+  await page.getByRole("dialog").getByRole("button", { name: /^swap .+ off, .+ on$/i }).first().click();
+  await expect.poll(async () => (await swaps()).length).toBe(1);
+  expect((await swaps())[0].metadata.batch_left).toBe(planned - 1);
+  // The rest are still planned, a minute away, not dropped.
+  await page.keyboard.press("Escape");
+  await expect(info).toContainText(new RegExp(`next sub 0:\\d\\d · ${planned - 1} swap`, "i"), { timeout: 15_000 });
+  await expect(info).not.toContainText(/no more subs/i);
 });

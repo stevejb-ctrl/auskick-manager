@@ -76,6 +76,11 @@ export function BreakSettingsSheet({ size, injured, lent, arrived, markOut, pend
 
   const pick = (candidates: BreakPlayer[]) =>
     candidates.map((p) => ({ id: p.id, name: p.name, jerseyNumber: p.jerseyNumber }));
+  // A kid who isn't at the game yet (Add arrived's list) can't be lent or
+  // hurt: the sports passed their whole squad, so a kid still to turn up
+  // was in both lists (Stagehand, 9 Nov 2026).
+  const notHere = new Set((arrived?.candidates ?? []).map((p) => p.id));
+  const here = (candidates: BreakPlayer[]) => pick(candidates.filter((p) => !notHere.has(p.id)));
 
   return (
     <Modal placement="sheet" label="Game settings" onClose={onClose}>
@@ -216,7 +221,7 @@ export function BreakSettingsSheet({ size, injured, lent, arrived, markOut, pend
           titleVerb="Mark injured"
           subtitle="Pick a player to mark as injured / leaving early. Tap their chip to bring them back."
           emptyMessage="Everyone is already injured or lent."
-          candidates={pick(injured.candidates)}
+          candidates={here(injured.candidates)}
           onPick={(id) => {
             setPicker(null);
             injured.onToggle(id, true);
@@ -232,7 +237,7 @@ export function BreakSettingsSheet({ size, injured, lent, arrived, markOut, pend
           titleVerb="Lend"
           subtitle="Pick a player to lend to the opposition for the rest of the game. Tap their chip to bring them back."
           emptyMessage="Everyone is already lent or injured."
-          candidates={pick(lent.candidates)}
+          candidates={here(lent.candidates)}
           onPick={(id) => {
             setPicker(null);
             lent.onToggle(id, true);
@@ -285,6 +290,9 @@ export function BreakSettingsSheet({ size, injured, lent, arrived, markOut, pend
             <InjuryReplacementModal
               injuredPlayer={out}
               spotLabel={outFor.spot}
+              // Going out, not hurt: "Mia is going home" and "Play one
+              // short", never "Marking Mia injured" (Stagehand, 9 Nov 2026).
+              reason="went_home"
               candidates={markOut.replacements}
               onPickReplacement={(rid) => {
                 setOutFor(null);

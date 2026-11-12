@@ -407,6 +407,22 @@ function positionFullLabel(id: string): string {
   return pos?.label ?? pos?.shortLabel ?? id;
 }
 
+/**
+ * A court played short, said plainly: "Playing 6 of 7: Wing Defence is
+ * empty". With fewer kids than the age plays, the lineup's own check
+ * aims at the smaller court, so the break read "All rules kept" with WD
+ * empty (Stagehand round 8, #14). Null when every position is filled.
+ */
+export function netballShortCourtNote(
+  positions: Readonly<Record<string, readonly string[] | undefined>>,
+  agePositions: readonly string[],
+): string | null {
+  const empty = agePositions.filter((p) => (positions[p]?.length ?? 0) === 0);
+  if (empty.length === 0) return null;
+  const on = agePositions.length - empty.length;
+  return `Playing ${on} of ${agePositions.length}: ${empty.map(positionFullLabel).join(", ")} ${empty.length === 1 ? "is" : "are"} empty`;
+}
+
 // Utility: returns true if placing `positionId` into `zoneId` respects
 // netball rules of play. Used by the lineup-picker UI to grey out
 // ineligible combinations.

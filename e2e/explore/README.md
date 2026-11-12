@@ -65,7 +65,7 @@ Older missions (some still mention player chips, which How we play replaced):
 |---------------------|-------------------------------------------------------|
 | `coach-onboarding`  | Create a team + squad + game from cold                |
 | `game-day-flow`     | Use a runner link to start a game and score goals     |
-| `fix-scores-flow`   | Reach a Q-break and use the Fix-scores panel          |
+| `fix-scores-flow`   | Fix a score at a Q-break and from the live score      |
 
 Missions that start part-way through a game need a seed that puts the
 game there (`--as=coach --seed=…`):
@@ -74,6 +74,91 @@ game there (`--as=coach --seed=…`):
 |-------------------------------|-----------------------|---------------------------------------------|
 | `chaotic-substitution-coach`  | `afl-u10-runner-q1`   | Q1 ticking, two kids not marked available   |
 | `rushed-coach`                | `afl-u10-runner-half` | Half-time, two goals down, a behind missing |
+| `fix-scores-flow`             | `afl-u10-runner-qt`   | Quarter time, a goal and a behind each way  |
+| `score-reconciler`            | `afl-u10-runner-3qt`  | Three-quarter time, scores in every quarter |
+| `gameday-afl-u16-big-field`   | `afl-u16-gameday`     | 18 + 7 in set positions, 10 minutes into Q2 |
+
+The whole-game and sideline missions use each sport's game-day seed:
+`whole-game-afl` → `afl-u12-gameday`, `-netball` → `netball-11u-gameday`,
+`-league` → `league-u11-gameday`, `-union` → `union-u12-gameday`,
+`-soccer` → `soccer-u9-gameday`, `-futsal` → `futsal-u12-gameday`,
+`-hockey` → `hockey-u13-gameday`, `-basketball` → `basketball-u12-gameday`,
+`-touch-mixed` → `touch-u11-mixed`, `-oztag` → `oztag-u10-gameday-late`.
+`sideline-chaos-union` → `union-u10-gameday`, `-soccer` →
+`soccer-u9-sideline`, and `-afl` / `-netball` / `-league` → their sport's
+game-day seed with `-late` on the end. Any game-day seed takes `-late`
+(one more kid, not marked available, who turns up late) or `-runner`
+(start from the game-day link).
+
+Edge cases for the newer sports, and the parents who end up holding the
+phone (round 9):
+
+| Mission                        | Seed                              | What the agent tries                                  |
+|--------------------------------|-----------------------------------|-------------------------------------------------------|
+| `sideline-chaos-basketball`    | `basketball-u12-gameday-late`     | A kid fouls out mid-half, a late kid, half a sub, a foul on the wrong kid |
+| `sideline-chaos-touch`         | `touch-u11-mixed-late`            | A 4th boy on, a girl hurt, a late kid, one pair of a sub |
+| `sideline-chaos-keeper`        | `futsal-u12-gameday`, `hockey-u13-gameday` | The keeper hurt, a bench kid into goal, a lend   |
+| `lend-field-kid`               | any game-day seed                 | Lend a kid off the field mid-period, get them back    |
+| `early-partial-subs`           | `basketball-u12-gameday`, `touch-u11-mixed`, `league-u11-gameday` | One pair of a sub early, the rest when due, a changed pair, a skipped sub |
+| `r9-traffic-toddler`           | `league-u11-gameday-runner`, `soccer-u9-gameday-runner` | One thumb, a toddler, two minutes to kick-off |
+| `r9-netball-dad-battery`       | `netball-11u-gameday-runner`      | Never seen netball, "just do the subs", 10% battery   |
+| `r9-basketball-first-time`     | `basketball-u12-gameday-runner`   | First time on the bench app, a kid fouls out, the ref waiting |
+| `r9-oztag-grandparent-mixed`   | `oztag-u10-mixed-runner`          | The boys' cap explained once and forgotten, a girl hurt |
+| `r9-wrong-kid-score`           | any `-runner` seed                | The wrong scorer twice, the wrong team once, fixed before the end |
+| `r9-two-parents-scoring`       | any `-runner` seed                | Two tabs on one link, both scoring, both swapping     |
+
+`oztag-u10-mixed` is the Oztag side as a mixed team (at most 4 boys of 8
+on, at least 2 girls).
+
+Round 10: the ending, undo, rescore, lend and mixed-mark changes, and
+more parents holding the phone. Each mission ends with a PASS/FAIL the
+report can judge.
+
+| Mission                        | Seed                              | What the agent tries                                  |
+|--------------------------------|-----------------------------------|-------------------------------------------------------|
+| `end-period-hunt`              | any game-day seed (a halves sport and a quarters sport) | End a period early without help, back out of the confirm, then "Time's up" |
+| `undo-chain`                   | any game-day seed                 | Score, swap, foul (or their score), then three undos, reading each label |
+| `rescore-at-break`             | any game-day seed                 | Change who scored at the break and at full time, totals unchanged |
+| `lend-and-return`              | any game-day seed, or `netball-11u-nobench` / `soccer-u9-nobench` | Lend a field kid, who comes on (or one short), Bring back at the break |
+| `mixed-cap-follow`             | `touch-u11-mixed`, `oztag-u10-mixed` | G/B marks and the boys count on every surface, over the cap, none on the share link |
+| `netball-injury-q3`            | `netball-11u-gameday`             | An injury replacement mid-Q2, then watch Start Q3 for a flash of the old court |
+| `r10-second-language`          | any `-runner` seed                | Reads English slowly; every word or short form that stops them |
+| `r10-one-thumb-drizzle`        | any `-runner` seed                | One wet thumb: what's out of reach, too small, or needs a hold |
+| `r10-teen-sibling`             | any `-runner` seed                | Skims only; who's played least, the score in one sentence |
+| `r10-phone-dies-halftime`      | any game-day seed                 | The coach's phone dies at the break; the assistant carries on from the share link |
+| `r10-arrives-at-half`          | `afl-u10-runner-half`             | Handed the phone at half-time, never seen the app     |
+| `r10-colour-blind-dad`         | any `-runner` seed                | Red-green colour blind: anything told apart by colour alone |
+| `r10-double-tapper`            | any `-runner` seed                | Double-taps everything: doubled scores, undos, skipped confirms |
+| `r10-nervous-volunteer`        | any game-day seed                 | Afraid of breaking it: confirms, undo, the scary options |
+| `r10-grandad-score-only`       | any `-runner` seed                | Only the score: scoring with a sub due, the score by period |
+
+`netball-11u-nobench` and `soccer-u9-nobench` have exactly as many kids
+as go on, so lending one plays one short.
+
+Round 11: the public site signed out, new teams in every sport, whole
+games, and team admin. The signed-out missions take no `--as`; start
+them at `--url=http://localhost:<port>/` (or `/demo`).
+
+| Mission                        | Start / seed                      | What the agent tries                                  |
+|--------------------------------|-----------------------------------|-------------------------------------------------------|
+| `r11-curious-parent`           | signed out, `/`                   | What Siren is, cost, the parent's side, every menu item |
+| `r11-sport-shopper`            | signed out, `/`                   | Every sport page in turn: its own words, its buttons  |
+| `r11-demo-<a>-<b>`             | signed out, `/demo`               | Two sports' demos through a break (netball-league, basketball-hockey, afl-touch, soccer-union, futsal-oztag) |
+| `r11-help-reader`              | signed out, `/`                   | A sport's help hub, searching for subs, fixes, injuries |
+| `r11-fine-print`               | signed out, `/`                   | Pricing, why Siren, privacy, terms, contact, support, footers |
+| `r11-signup-from-site`         | signed out, `/`                   | Sign up and sign in from the site, a typo'd email     |
+| `r11-onboard-<sport>`          | `--as=coach`, no seed             | The setup wizard in one sport (all ten, AFL twice), a squad, a game, the lineup |
+| `r11-full-game-<sport>`        | the sport's `-late` game-day seed | A whole game: subs, Undo, a late kid, an injury, a lend, breaks, the summary and stats |
+| `r11-full-game-afl-big`        | `afl-u16-gameday`                 | The 18-a-side field to full time                      |
+| `r11-parent-helper`            | any `-runner` seed                | A parent on the game-day link with no help            |
+| `r11-second-phone`             | any game-day seed                 | Coach and manager on two tabs (Stagehand can't open the second tab) |
+| `r11-sideline-mess`            | any game-day seed (or `-late`)    | Late kid, injury, lend, a wrong-team score, all at the break |
+| `r11-admin-*`, `r11-help-in-team`, `r11-returning-stats` | a team seed | Invites, squad edits, next week's availability, How we play, help and settings from a team, season stats |
+
+Stagehand can't type reliably into the setup wizard when the machine is
+busy (dropped and reordered keys, native selects), and can't get past a
+native `confirm()`. For the wizard in every sport, a scripted walk is
+more telling than an agent.
 
 Add new missions by dropping a `*.md` file into `missions/`. The
 file content IS the prompt — write it like you're briefing a real

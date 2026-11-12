@@ -102,6 +102,16 @@ const subCard = (page: Page) =>
     .or(page.locator("button[aria-expanded]").filter({ hasText: /(Sub due|Suggested) — \d+ swaps?/ }))
     .first();
 
+/** AFL's info line (live v3): "Next sub 1:50 · 2 swaps", or "Sub due — 2 swaps". */
+const aflInfo = (page: Page) => page.getByTestId("info-line");
+
+async function aflCountdownSeconds(page: Page): Promise<number> {
+  const text = (await aflInfo(page).textContent()) ?? "";
+  if (/sub due/i.test(text)) return 0;
+  const m = text.match(/Next sub (\d+):(\d{2})/);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : NaN;
+}
+
 async function countdownSeconds(page: Page): Promise<number> {
   const text = (await subCard(page).getByText(/^\s*(\d+:\d{2}|NOW)\s*$/).first().textContent()) ?? "";
   if (/NOW/.test(text)) return 0;
@@ -125,10 +135,10 @@ test("AFL: a reload just after subbing counts down from the sub, not from the cl
   );
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  await expect(subCard(page)).toBeVisible({ timeout: 30_000 });
-  await expect(subCard(page)).toContainText(/Suggested — /);
+  await expect(aflInfo(page)).toBeVisible({ timeout: 30_000 });
+  await expect(aflInfo(page)).toContainText(/Next sub /);
   // About 1:50 left (load time aside); the grid would say under 0:20.
-  await expect.poll(() => countdownSeconds(page), { timeout: 10_000 }).toBeGreaterThan(75);
+  await expect.poll(() => aflCountdownSeconds(page), { timeout: 10_000 }).toBeGreaterThan(75);
   await expect(page.getByText(/sub due/i)).toHaveCount(0);
 });
 
@@ -138,11 +148,12 @@ test("AFL: making one of two due swaps keeps the other due", async ({ page }) =>
   const { team, game } = await liveGame("afl", { ageGroup: "U10", count: 16, secondsIn: 70, subSeconds: 60 }, aflLineup);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  const card = subCard(page);
+  const card = aflInfo(page);
   await expect(card).toContainText(/Sub due — \d+ swaps/, { timeout: 30_000 });
   const before = Number(((await card.textContent()) ?? "").match(/Sub due — (\d+) swaps/)![1]);
   expect(before).toBeGreaterThan(1);
-  // The card is open when due; make the first pair only.
+  // The pairs (the info line opens them); make the first pair only.
+  await card.click();
   await page.getByRole("button", { name: /^Swap .+ off, .+ on$/ }).first().click();
   // Still due, with the rest of the batch. Before the fix: "Suggested —
   // 1 swap" on a fresh countdown, and a different pair.
@@ -153,7 +164,7 @@ test("AFL: making one of two due swaps keeps the other due", async ({ page }) =>
   // And a reload keeps it so (the swap says how many of its batch are left).
   await page.reload();
   await waitForHydration(page);
-  await expect(subCard(page)).toContainText(new RegExp(`Sub due — ${left} swaps?`), { timeout: 30_000 });
+  await expect(aflInfo(page)).toContainText(new RegExp(`Sub due — ${left} swaps?`), { timeout: 30_000 });
 });
 
 test("Soccer: a hand swap doesn't restart the sub countdown", async ({ page }) => {
@@ -166,14 +177,14 @@ test("Soccer: a hand swap doesn't restart the sub countdown", async ({ page }) =
   );
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  await expect(subCard(page)).toBeVisible({ timeout: 30_000 });
-  const before = await countdownSeconds(page);
+  // The soccer family's info line (live v3, Phase 9), as AFL's.
+  await expect(aflInfo(page)).toContainText(/Next sub /, { timeout: 30_000 });
+  const before = await aflCountdownSeconds(page);
   expect(before).toBeLessThanOrEqual(180);
 
-  // Tap a midfielder, then a bench kid, and confirm.
+  // Tap a midfielder, then a bench kid: the swap is made at once.
   await page.getByTestId(`player-tile-${ids[3]}`).click();
   await page.getByTestId(`player-tile-${ids[7]}`).click();
-  await page.getByRole("button", { name: "Confirm" }).click();
   await expect
     .poll(async () => (await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "swap")).data ?? [], {
       timeout: 15_000,
@@ -182,12 +193,12 @@ test("Soccer: a hand swap doesn't restart the sub countdown", async ({ page }) =
   const { data: swaps } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "swap");
   expect((swaps?.[0]?.metadata as { manual?: boolean }).manual).toBe(true);
   // Still counting toward 4:00, not a fresh 4:00 from the hand swap.
-  await expect(subCard(page)).toBeVisible();
-  expect(await countdownSeconds(page)).toBeLessThanOrEqual(before);
+  await expect(aflInfo(page)).toContainText(/Next sub /);
+  expect(await aflCountdownSeconds(page)).toBeLessThanOrEqual(before);
   await page.reload();
   await waitForHydration(page);
-  await expect(subCard(page)).toBeVisible({ timeout: 30_000 });
-  expect(await countdownSeconds(page)).toBeLessThan(200);
+  await expect(aflInfo(page)).toContainText(/Next sub /, { timeout: 30_000 });
+  expect(await aflCountdownSeconds(page)).toBeLessThan(200);
 });
 
 test("Oztag: no Sub due card or OFF badges once the clock is out", async ({ page }) => {

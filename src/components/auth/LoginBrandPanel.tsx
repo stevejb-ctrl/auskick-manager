@@ -79,13 +79,13 @@ export function LoginBrandPanel() {
 
         <ul className="mt-8 flex max-w-[380px] flex-col gap-3.5 text-sm text-warm/80">
           <BrandBullet n="01">
-            Track minutes per player and balance time on the bench.
+            Fair time for every kid, worked out for you.
           </BrandBullet>
           <BrandBullet n="02">
-            Build the lineup once, then drag players around at each break.
+            Tap to swap players, at the breaks or on the run.
           </BrandBullet>
           <BrandBullet n="03">
-            Share a read-only game link with parents. No account needed.
+            Hand the game to a parent with one link. No account needed.
           </BrandBullet>
         </ul>
       </div>
@@ -96,7 +96,7 @@ export function LoginBrandPanel() {
 function BrandBullet({ n, children }: { n: string; children: React.ReactNode }) {
   return (
     <li className="flex items-start gap-3.5">
-      <span className="shrink-0 pt-0.5 font-mono text-[10px] font-bold tracking-[0.12em] text-alarm">
+      <span className="shrink-0 pt-0.5 font-mono text-nano font-bold tracking-[0.12em] text-alarm">
         {n}
       </span>
       <span className="leading-relaxed">{children}</span>

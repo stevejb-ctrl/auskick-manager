@@ -51,7 +51,7 @@ export function GameDayAvailability({
         aria-controls="game-day-availability"
         className="flex min-h-[48px] w-full items-center gap-3 px-4 py-2.5 text-left"
       >
-        <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">
+        <span className="font-mono text-micro font-bold uppercase tracking-micro text-ink-mute">
           Who&apos;s here
         </span>
         <span className="min-w-0 flex-1 truncate text-sm text-ink">{summary}</span>

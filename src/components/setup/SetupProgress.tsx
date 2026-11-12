@@ -80,7 +80,7 @@ export function SetupProgress({ current, teamId }: SetupProgressProps) {
           const isFuture = i > currentIndex;
 
           const base =
-            "flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-1.5 text-[11px] font-semibold uppercase tracking-micro transition-colors sm:px-3 sm:text-xs";
+            "flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-1.5 text-micro font-semibold uppercase tracking-micro transition-colors sm:px-3 sm:text-xs";
           const stateClass = isCurrent
             ? "bg-brand-600 text-warm"
             : isDone
@@ -90,7 +90,7 @@ export function SetupProgress({ current, teamId }: SetupProgressProps) {
           const numberBubble = (
             <span
               className={[
-                "flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold",
+                "flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full text-nano font-bold",
                 isCurrent
                   ? "bg-white/25 text-warm"
                   : isDone

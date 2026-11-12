@@ -229,8 +229,8 @@ test("injuring an on-field player when the bench is empty falls through to the o
 });
 
 // UX plan 1.6 / H5: injure / lend / keep-on used to be reachable only by
-// a 500 ms long-press. A plain tap on a player now opens the dock, whose
-// "Player actions" button opens the same sheet — here on a team that
+// a 500 ms long-press. A plain tap on a player now opens the kid bar, whose
+// More button opens the same sheet — here on a team that
 // doesn't keep score, where a tap used to show only a hint banner.
 test("tapping a player reaches Mark injured without a long-press", async ({ page }) => {
   const admin = createAdminClient();
@@ -263,7 +263,8 @@ test("tapping a player reaches Mark injured without a long-press", async ({ page
 
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await page.getByTestId(`player-tile-${onField[0].id}`).click();
-  await page.getByRole("button", { name: /^player actions/i }).click();
+  // The kid bar's More (live v3; the dock's Player actions before).
+  await page.getByRole("button", { name: /^more$/i }).click();
 
   const sheet = page.getByRole("dialog");
   await expect(sheet.getByRole("button", { name: /mark injured/i })).toBeVisible();
@@ -309,6 +310,7 @@ test("the first-visit hint teaches the tap, not a long-press", async ({ page }) 
   await expect(hint).not.toContainText(/long-press/i);
 
   await page.getByTestId(`player-tile-${onField[0].id}`).click();
-  await page.getByRole("button", { name: /^player actions/i }).click();
+  // The kid bar's More (live v3; the dock's Player actions before).
+  await page.getByRole("button", { name: /^more$/i }).click();
   await expect(page.getByRole("dialog").getByRole("button", { name: /mark injured/i })).toBeVisible();
 });

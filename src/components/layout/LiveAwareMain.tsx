@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { OfflineBanner } from "@/components/live/OfflineBanner";
 import { DeletionScheduledBanner } from "@/components/account/DeletionScheduledBanner";
+import { useLiveShellMounted } from "@/components/live/LiveShell";
 
 interface LiveAwareMainProps {
   children: React.ReactNode;
@@ -44,6 +45,9 @@ export function LiveAwareMain({
 }: LiveAwareMainProps) {
   const pathname = usePathname();
   const isLiveRoute = pathname?.endsWith("/live") ?? false;
+  // Live v3's shell covers the page and shows the offline banner itself,
+  // under its own top bar (LiveShell).
+  const shell = useLiveShellMounted();
   return (
     <main className={isLiveRoute ? "px-4 pb-4" : "px-4 py-4"}>
       <div
@@ -53,8 +57,8 @@ export function LiveAwareMain({
             : "mx-auto mb-3 max-w-4xl space-y-2"
         }
       >
-        <OfflineBanner />
-        <DeletionScheduledBanner scheduledFor={deletionScheduledFor} />
+        {!shell && <OfflineBanner />}
+        {!shell && <DeletionScheduledBanner scheduledFor={deletionScheduledFor} />}
       </div>
       {children}
     </main>

@@ -42,6 +42,14 @@ interface KickoffPickerProps {
   period: number;
   /** Tap "Skip" — closes the picker without writing. */
   onSkip: () => void;
+  /**
+   * Live v3: "sheet" is the kick-off sheet the live screen opens from its
+   * Kickoff prompt: who can kick, fewest first, and Skip. The card stays
+   * for anywhere else.
+   */
+  look?: "card" | "sheet";
+  /** A kicker was picked and saved (the sheet closes). */
+  onPicked?: () => void;
 }
 
 export function KickoffPicker({
@@ -52,7 +60,10 @@ export function KickoffPicker({
   seasonEvents,
   period,
   onSkip,
+  look = "card",
+  onPicked,
 }: KickoffPickerProps) {
+  const [showAll, setShowAll] = useState(false);
   const router = useRouter();
   const [pendingId, setPendingId] = useState<string | null>(null);
 
@@ -91,7 +102,67 @@ export function KickoffPicker({
     ]);
     await flushed;
     setPendingId(null);
+    onPicked?.();
     router.refresh();
+  }
+
+  if (look === "sheet") {
+    // Who can kick, fewest kick-offs first (then by number), as v3 lists them.
+    const order = squad
+      .filter((p) => eligible.has(p.id))
+      .sort((a, b) => (kickoffCounts[a.id] ?? 0) - (kickoffCounts[b.id] ?? 0) || (a.jersey_number ?? 999) - (b.jersey_number ?? 999));
+    const shown = showAll ? order : order.slice(0, 6);
+    return (
+      <section aria-labelledby="kickoff-bar-title" className="flex flex-col gap-[7px]">
+        <div className="flex items-start gap-[8px] pl-[3px]">
+          <div className="min-w-0 flex-1">
+            <h2 id="kickoff-bar-title" className="font-display stretch-75 text-[1.1875rem] font-extrabold leading-[1.05] text-ink">
+              Kickoff
+            </h2>
+            <p className="mt-[2px] text-[0.75rem] text-ink-mute">Who&apos;s kicking off? Kick-offs go round the team (§16). Fewest first.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onSkip}
+            className="flex min-h-[44px] flex-none items-center rounded-[12px] px-[12px] font-display text-[0.875rem] font-extrabold uppercase text-ink shadow-[inset_0_0_0_1.5px_rgb(var(--l-hairline))] hover:bg-surface-alt"
+          >
+            Skip
+          </button>
+        </div>
+        {showResetBanner && (
+          <p className="pl-[3px] text-[0.75rem] text-ink-dim">Rotation reset: every player has had a turn.</p>
+        )}
+        <div className="grid grid-cols-3 gap-[6px] bigtext:grid-cols-2">
+          {shown.map((p, i) => {
+            const n = kickoffCounts[p.id] ?? 0;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                disabled={pendingId !== null}
+                onClick={() => commit(p.id)}
+                className="flex min-h-[48px] min-w-0 flex-col items-start justify-center rounded-[12px] bg-[rgb(var(--t-ink)/0.045)] px-[8px] text-left disabled:opacity-60 motion-safe:active:scale-[0.97]"
+              >
+                <span className="w-full truncate font-display stretch-75 text-[0.9375rem] font-extrabold leading-tight text-ink">{p.full_name}</span>
+                <span className="text-[0.6875rem] text-ink-mute" aria-label={`Kicked off ${n} ${n === 1 ? "time" : "times"} this season`}>
+                  K {n}
+                  {i === 0 ? " · next" : ""}
+                </span>
+              </button>
+            );
+          })}
+          {!showAll && order.length > shown.length && (
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
+              className="flex min-h-[48px] items-center justify-center rounded-[12px] text-[0.8125rem] font-bold text-ink-dim underline decoration-hairline underline-offset-[3px]"
+            >
+              {order.length - shown.length} more
+            </button>
+          )}
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -146,7 +217,7 @@ export function KickoffPicker({
                     first-game-of-season look). */}
                 {anyKickoffsRecorded && (
                   <span
-                    className={`font-mono text-[9px] uppercase tracking-micro ${
+                    className={`font-mono text-nano uppercase tracking-micro ${
                       kickoffCount > 0 ? "font-bold text-warn" : "text-ink-mute"
                     }`}
                     aria-label={`Kicked off ${kickoffCount} ${kickoffCount === 1 ? "time" : "times"} this season`}
@@ -156,7 +227,7 @@ export function KickoffPicker({
                 )}
               </span>
               {!canPick && (
-                <span className="text-[10px] uppercase tracking-wide">Done</span>
+                <span className="text-nano uppercase tracking-wide">Done</span>
               )}
             </button>
           );

@@ -80,3 +80,20 @@ export async function waitForHydration(page: Page): Promise<void> {
     { timeout: 15_000 },
   );
 }
+
+/**
+ * Wait until the app's own redirects have finished: hydrated, and the URL
+ * unchanged for a moment after. A one-team account's sign-in lands on
+ * /dashboard, which renders and hydrates first; only then does Next's
+ * client-side redirect boundary replace it with /teams/<id>. WebKit is
+ * slow enough that `waitForHydration` returns on /dashboard, and the
+ * test's next `goto` is "interrupted by another navigation" to the team.
+ */
+export async function waitForSettledUrl(page: Page, quietMs = 750): Promise<void> {
+  for (let i = 0; i < 10; i++) {
+    const url = page.url();
+    await waitForHydration(page);
+    await page.waitForTimeout(quietMs);
+    if (page.url() === url) return;
+  }
+}

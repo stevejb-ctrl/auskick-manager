@@ -6,7 +6,8 @@
 // collapsible "Game settings" card, the court and bench drawn as the
 // live game draws them, tap a kid then a second to swap, long-press for
 // the shared player actions, and the shared footer with Save plan and
-// "Start H1" (or Q1), which opens the shared StartQuarterModal.
+// Ready, which sets the lineup and opens the live screen before the
+// tip-off (its bar's Start H1, or Q1, starts the clock).
 //
 // The suggestion comes from the basketball engine
 // (suggestBasketballLineup), by the team's How we play rotation: the
@@ -22,9 +23,9 @@ import { LineupPickerFooter } from "@/components/lineup/LineupPickerFooter";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { RadioChips } from "@/components/ui/RadioChips";
 import { SFButton } from "@/components/sf";
 import { LockModal } from "@/components/live/LockModal";
-import { StartQuarterModal } from "@/components/live/StartQuarterModal";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { SUB_MINUTES_MAX, SUB_MINUTES_MIN, subMinutesFrom } from "@/lib/live/subCadence";
@@ -59,12 +60,15 @@ import {
   type BasketballLine,
   type BasketballStrategy,
 } from "@/lib/sports/basketball/types";
-import { BasketballCourt } from "./BasketballCourt";
-import { BasketballBench } from "./BasketballBench";
+import { woodCourt } from "./WoodMarks";
+import { LentList } from "@/components/lineup/LentList";
+import { PickerField, type PickerCell } from "@/components/lineup/PickerField";
+import { outWords } from "@/lib/live/kidWords";
 import { BASKETBALL_LINE_LABEL } from "./BasketballPlayerTile";
 import { basketballStrategyLabel } from "./basketballWords";
 import { squadLoanAverage } from "@/lib/live/liveChrome";
 import { noteLiveResult } from "@/lib/live/liveSync";
+import { subEveryText } from "@/lib/live/subIntervalText";
 
 const POSITION_LABEL = Object.fromEntries(BASKETBALL_POSITION_DEFS.map((p) => [p.key, p.label])) as Record<string, string>;
 
@@ -112,8 +116,6 @@ export function BasketballLineupPicker({
   const [error, setError] = useState<string | null>(null);
   const [loanedIds, setLoanedIds] = useState<Set<string>>(() => new Set(initialLoanedIds));
   const playerById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
-  const periodLetter = ageGroup.periodCount === 4 ? "Q" : "H";
-  const periodWord = ageGroup.periodCount === 4 ? "quarter" : "half";
 
   const clampSize = (n: number) => Math.max(ageGroup.minOnFieldSize, Math.min(ageGroup.maxOnFieldSize, n));
   // Settings are kept through a Who's here change (useKeptSetting): the
@@ -151,7 +153,6 @@ export function BasketballLineupPicker({
   const [fillLine, setFillLine] = useState<BasketballLine | null>(null);
   const [actionPlayerId, setActionPlayerId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [startModalOpen, setStartModalOpen] = useState(false);
   const [savePending, setSavePending] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(initialDraft?.updated_at ?? null);
   const [subMinInput, setSubMinInput] = useKeptSetting(gameId, "subMinutes", String(defaultSubMinutes));
@@ -161,6 +162,13 @@ export function BasketballLineupPicker({
   const positionLabels = lineup.slots
     ? Object.fromEntries(Object.entries(lineup.slots).map(([pid, pos]) => [pid, POSITION_LABEL[pos] ?? pos]))
     : undefined;
+
+  // The court's lines, as BasketballLiveGame draws them: forwards and
+  // guards where the shape has lines, else one Court.
+  const usesLines = lineup.lines.court.length === 0 && (shape.lines.court ?? 0) === 0;
+  const courtLines: BasketballLine[] = usesLines
+    ? (["forward", "guard"] as const).filter((l) => Math.max(shape.lines[l] ?? 0, lineup.lines[l].length) > 0)
+    : ["court"];
 
   function resuggest(n: number, s: string | null) {
     setLineup(suggest(n, s, playing).lineup);
@@ -232,19 +240,17 @@ export function BasketballLineupPicker({
     }
     window.scrollTo({ top: 0, behavior: "auto" });
     setError(null);
-    setStartModalOpen(true);
-  }
-
-  function handleConfirmStart() {
-    setError(null);
+    // Ready sets the lineup; Start H1 is on the live screen's bar (live
+    // v3, as AFL's, netball's and rugby's pickers). It used to open "Start
+    // H1?" here and write the lineup and the first whistle at once.
+    // Until it starts, ⋯ → Edit lineup brings this picker back.
     startTransition(async () => {
-      const result = await startBasketballGame(auth, gameId, lineup, onCourtSize, true, subIntervalSeconds);
+      // startPeriodToo=false: the lineup, no whistle. The team page
+      // redirects to the live screen; the game-day link's page re-renders.
+      const result = await startBasketballGame(auth, gameId, lineup, onCourtSize, false, subIntervalSeconds);
       // Refused because another phone already started: say so over the page.
       noteLiveResult(result);
-      if (!result.success) {
-        setError(result.error ?? "Couldn't start the game.");
-        setStartModalOpen(false);
-      }
+      if (result && !result.success) setError(result.error ?? "Couldn't set the lineup.");
     });
   }
 
@@ -259,7 +265,7 @@ export function BasketballLineupPicker({
     `${onCourtSize} on court`,
     basketballStrategyLabel(strategy),
     ...(lineShapes.length > 1 ? [shape.id] : []),
-    `Subs every ${Math.round((subIntervalSeconds / 60) * 10) / 10} min`,
+    subEveryText(subIntervalSeconds),
     ...(lentPlayers.length > 0 ? [`${lentPlayers.length} lent`] : []),
   ].join(" · ");
 
@@ -270,9 +276,6 @@ export function BasketballLineupPicker({
 
       <header className="space-y-1 px-1">
         <h1 className="text-xl font-bold text-ink">{ageGroup.label} starting five</h1>
-        <p className="text-xs text-ink-mute">
-          Tap a player to select, tap a second to swap. Long-press for the bench or to lend a player.
-        </p>
       </header>
 
       {error && <InlineAlert kind="danger">{error}</InlineAlert>}
@@ -287,7 +290,7 @@ export function BasketballLineupPicker({
           aria-controls="basketball-game-settings"
         >
           <span className="flex flex-1 items-center gap-3 text-sm">
-            <span className="font-mono text-[11px] font-bold uppercase tracking-micro text-ink-mute">Game settings</span>
+            <span className="font-mono text-micro font-bold uppercase tracking-micro text-ink-mute">Game settings</span>
             <span className="text-xs text-ink-mute">{settingsSummary}</span>
           </span>
           <span aria-hidden className="text-ink-mute">
@@ -329,27 +332,15 @@ export function BasketballLineupPicker({
             {lineShapes.length > 1 && (
               <div className="space-y-2">
                 <Label className="text-xs">Guards and forwards</Label>
-                <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Guards and forwards">
-                  {lineShapes.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={s.id === shape.id}
-                      onClick={() => {
-                        setShapeId(s.id);
-                        resuggest(onCourtSize, s.id);
-                      }}
-                      className={`rounded-full border px-3 py-1 font-mono text-xs font-semibold ${
-                        s.id === shape.id
-                          ? "border-ink bg-ink text-warm"
-                          : "border-hairline bg-surface text-ink-dim hover:bg-surface-alt"
-                      }`}
-                    >
-                      {s.lines.guard} G · {s.lines.forward} F
-                    </button>
-                  ))}
-                </div>
+                <RadioChips
+                  label="Guards and forwards"
+                  options={lineShapes.map((s) => ({ id: s.id, label: `${s.lines.guard} G · ${s.lines.forward} F` }))}
+                  value={shape.id}
+                  onChange={(id) => {
+                    setShapeId(id);
+                    resuggest(onCourtSize, id);
+                  }}
+                />
               </div>
             )}
             <div className="space-y-2">
@@ -368,11 +359,11 @@ export function BasketballLineupPicker({
                 onBlur={() => setSubMinInput(String(subMinutesFrom(subMinInput, defaultSubMinutes)))}
                 className="w-32"
               />
-              <p className="text-[11px] text-ink-mute">
+              <p className="text-micro text-ink-mute">
                 Subs go at a dead ball, through the table. Siren lines up the next ones every interval.
               </p>
             </div>
-            <p className="text-[11px] text-ink-dim">
+            <p className="text-micro text-ink-dim">
               Rotation: <strong>{basketballStrategyLabel(strategy)}</strong> — change it in How we play.
             </p>
             <SFButton variant="ghost" size="sm" onClick={() => resuggest(onCourtSize, shapeId)}>
@@ -382,45 +373,49 @@ export function BasketballLineupPicker({
         )}
       </div>
 
-      <BasketballCourt
-        lineup={lineup}
-        lineCaps={shape.lines}
-        playersById={playerById}
-        onTap={(pid, line) => handleTap(pid, line)}
+      {/* The wood, as the live screen draws it (live v3): forwards by
+          the basket, guards at the top of the key, the bench under it. */}
+      <PickerField
+        ground={woodCourt()}
+        regionLabel="On court"
+        lines={courtLines.map((line) => {
+          const ids = lineup.lines[line];
+          const spot = line === "court" ? "spot" : `${BASKETBALL_LINE_LABEL[line].toLowerCase().replace(/s$/, "")} spot`;
+          return {
+            key: line,
+            label: line === "court" ? "Court" : BASKETBALL_LINE_LABEL[line],
+            cells: Array.from({ length: Math.max(shape.lines[line] ?? 0, ids.length) }, (_, slot): PickerCell => {
+              const pid = ids[slot] ?? null;
+              return {
+                key: pid ?? `empty-${slot}`,
+                playerId: pid,
+                pos: pid ? positionLabels?.[pid] ?? null : null,
+                place: line === "court" ? null : BASKETBALL_LINE_LABEL[line],
+                emptyLabel: selectedId ? `Move ${playerById.get(selectedId)?.full_name ?? "them"} to the empty ${spot}` : `Empty ${spot}`,
+                onTap: () => handleTap(pid ?? "", line),
+              };
+            }),
+          };
+        })}
+        bench={[...lineup.bench.filter((id) => !loanedIds.has(id)), ...lineup.bench.filter((id) => loanedIds.has(id))].map((pid) => ({
+          playerId: pid,
+          // A lent kid's tap opens their sheet (Bring back), as in play.
+          onTap: loanedIds.has(pid) ? () => setActionPlayerId(pid) : () => handleTap(pid, null),
+        }))}
+        players={playerById}
+        selectedId={selectedId}
+        look={(pid) => (loanedIds.has(pid) ? { out: "lent", words: outWords({ kind: "lent" }) } : null)}
         onLongPress={setActionPlayerId}
-        selectedPlayerId={selectedId}
-        dimUnselected={false}
-        positionLabels={positionLabels}
-      />
-      <BasketballBench
-        bench={lineup.bench}
-        playersById={playerById}
-        onTap={(pid) => handleTap(pid, null)}
-        onLongPress={setActionPlayerId}
-        selectedPlayerId={selectedId}
-        dimUnselected={false}
-        loanedIds={Array.from(loanedIds)}
       />
 
-      {lentPlayers.length > 0 && (
-        <div className="rounded-lg border border-warn/40 bg-warn-soft/60 px-3 py-2">
-          <p className="text-xs font-semibold text-warn">Lent to the other team</p>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            {lentPlayers.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => handleLend(p.id, false)}
-                aria-label={`Bring ${p.full_name} back`}
-                className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 motion-safe:active:scale-[0.97]"
-              >
-                <span>{p.full_name}</span>
-                <span className="ml-0.5 text-[11px] font-semibold text-warn/80">Bring back</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Kids lent before kickoff, each with a plain Bring back (LentList,
+          as the break lists them). */}
+      <LentList
+        players={lentPlayers.map((p) => ({ id: p.id, name: p.full_name }))}
+        note="Bring them back and they join the bench."
+        buttonTestId={(id) => `picker-recall-lent-${id}`}
+        onBringBack={(id) => handleLend(id, false)}
+      />
 
       <LineupPickerFooter
         onFieldCount={courtIds.length}
@@ -431,7 +426,7 @@ export function BasketballLineupPicker({
         savedAt={savedAt}
         savePlanDisabled={courtIds.length === 0 || isPending}
         onConfirm={handleStartGame}
-        confirmLabel={`Start ${periodLetter}1`}
+        confirmLabel="Ready"
         confirmDisabled={courtIds.length === 0 || isPending}
         confirmLoading={isPending}
       />
@@ -496,17 +491,6 @@ export function BasketballLineupPicker({
         />
       )}
 
-      {startModalOpen && (
-        <StartQuarterModal
-          quarter={1}
-          periodLabel={periodWord}
-          cue="ball goes up"
-          shortSide={{ playing: courtIds.length, size: initialSize, min: ageGroup.minOnFieldSize }}
-          loading={isPending}
-          onStart={handleConfirmStart}
-          onCancel={() => setStartModalOpen(false)}
-        />
-      )}
     </div>
   );
 }

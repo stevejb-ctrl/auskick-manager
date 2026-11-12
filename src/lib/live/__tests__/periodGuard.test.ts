@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lineupWrite, periodShort, periodStateOf, periodWriteVerdict } from "@/lib/live/periodGuard";
+import { lineupReopenRefusal, lineupWrite, periodShort, periodStateOf, periodWriteVerdict } from "@/lib/live/periodGuard";
 
 const start = (quarter: number) => ({ type: "quarter_start", metadata: { quarter } });
 const end = (quarter: number) => ({ type: "quarter_end", metadata: { quarter, elapsed_ms: 1 } });
@@ -90,5 +90,15 @@ describe("lineupWrite / periodShort", () => {
     expect(periodShort("quarter", 2)).toBe("Q2");
     expect(periodShort("half", 1)).toBe("H1");
     expect(periodShort("period", 3)).toBe("P3");
+  });
+});
+
+describe("lineupReopenRefusal", () => {
+  // ⋯ → Edit lineup after the whistle is refused in the sport's own
+  // words: a halves sport said "Q1 has started" (Phase 12, Nov 2026).
+  it("names the first period the way the sport's Start button does", () => {
+    expect(lineupReopenRefusal("quarter")).toBe("Q1 has started, so the lineup changes with subs now.");
+    expect(lineupReopenRefusal("half")).toBe("H1 has started, so the lineup changes with subs now.");
+    expect(lineupReopenRefusal("period")).toBe("P1 has started, so the lineup changes with subs now.");
   });
 });

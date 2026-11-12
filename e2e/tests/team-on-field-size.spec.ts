@@ -46,7 +46,7 @@ test("the wizard saves the team's own players on the field and quarter length, a
   const admin = createAdminClient();
   await page.goto("/teams/new");
   await waitForHydration(page);
-  await page.getByRole("button", { name: "Junior AFL" }).click();
+  await page.getByRole("radio", { name: "Junior AFL" }).click();
   await page.getByLabel("Team name").fill(`On field ${Date.now()}`);
   await page.getByLabel("Age group").selectOption("U10");
 

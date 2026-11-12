@@ -161,8 +161,8 @@ test("netball setup wizard creates team with sport='netball' and netball-default
     // L9 — brand defaults AFL on localhost; the netball case MUST click the
     // Netball sport pill explicitly BEFORE filling team name. Pill name verified
     // at ../multi-sport/src/components/setup/TeamBasicsForm.tsx (SportPill renders
-    // role="button" with verbatim title "Netball").
-    await page.getByRole("button", { name: "Netball" }).click();
+    // role="radio" named "Junior Netball").
+    await page.getByRole("radio", { name: "Netball" }).click();
 
     const teamName = `Hawks ${stamp}`;
     await page.getByLabel(/team name/i).fill(teamName);
@@ -315,7 +315,7 @@ test("rugby league setup wizard creates team with sport='rugby_league'", async (
     // explicitly. Pill name verified at
     // src/components/setup/TeamBasicsForm.tsx (SportPill renders
     // role="button" with verbatim title "Rugby League").
-    await page.getByRole("button", { name: "Rugby League" }).click();
+    await page.getByRole("radio", { name: "Rugby League" }).click();
 
     const teamName = `Tigers ${stamp}`;
     await page.getByLabel(/team name/i).fill(teamName);
@@ -405,7 +405,7 @@ test("rugby league supports the full U6-U17 age range", async ({
       await waitForHydration(page);
     }
 
-    await page.getByRole("button", { name: "Rugby League" }).click();
+    await page.getByRole("radio", { name: "Rugby League" }).click();
 
     // The Age group <select> should expose all 12 RL age groups once
     // the Rugby League pill is active. Read the option values directly.
@@ -482,7 +482,7 @@ test("rugby union setup wizard creates a team with sport='rugby_union' at the pa
 }) => {
   const { page, admin, done } = await wizardAs(browser, "rugby-union");
   try {
-    await page.getByRole("button", { name: "Rugby Union" }).click();
+    await page.getByRole("radio", { name: "Rugby Union" }).click();
     const ageSelect = page.getByLabel(/age group/i);
     const ages = await ageSelect.evaluate((el) =>
       Array.from((el as HTMLSelectElement).options).map((o) => o.value),

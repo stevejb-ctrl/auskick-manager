@@ -1,5 +1,5 @@
 import { APP_STORE_URL } from "@/lib/app-links";
-import { HELP_PAGES } from "@/lib/help/pages";
+import { helpPageByPath } from "@/lib/help/pages";
 import { helpPageUpdated } from "@/lib/help/updated";
 import {
   FEATURES,
@@ -99,15 +99,16 @@ export function softwareApplicationJsonLd(siteUrl: string, productName: string):
 }
 
 /**
- * Home → Help → article, for a help page's path. The titles come from
- * HELP_PAGES, the same registry the help nav reads. Null for any path
+ * Home → Help → article, for a help page's path: a global topic or a
+ * sport hub. The titles come from helpPageByPath, the same registries
+ * the help nav reads. Null for any path
  * that isn't a help page.
  */
 export function helpBreadcrumbJsonLd(
   siteUrl: string,
   pathname: string,
 ): { "@context": string; "@type": "BreadcrumbList"; itemListElement: JsonLdObject[] } | null {
-  const page = HELP_PAGES.find((p) => p.href === pathname);
+  const page = helpPageByPath(pathname);
   if (!page) return null;
 
   const trail = [
@@ -133,7 +134,7 @@ export function helpBreadcrumbJsonLd(
  * for any path that isn't a help page.
  */
 export function helpArticleJsonLd(siteUrl: string, pathname: string): JsonLdObject | null {
-  const page = HELP_PAGES.find((p) => p.href === pathname);
+  const page = helpPageByPath(pathname);
   const updated = helpPageUpdated(pathname);
   if (!page || !updated) return null;
   return {

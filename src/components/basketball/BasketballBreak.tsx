@@ -11,6 +11,7 @@
 // lives in PeriodBreak.
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { sidelinedLabel } from "@/lib/live/wentHome";
 import { useRouter } from "next/navigation";
 import { enqueueLiveAction } from "@/lib/live/registerLiveActions";
 import { liveEvents } from "@/lib/live/optimisticEvents";
@@ -20,11 +21,12 @@ import { useStagedBreakDraft } from "@/lib/live/useStagedBreakDraft";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import { hapticTap } from "@/lib/haptics";
 import { type InjuryReplacementCandidate } from "@/components/live/InjuryReplacementModal";
+import { woodCourt } from "./WoodMarks";
 import { PeriodBreak, type BreakPlayer, type BreakStrategy } from "@/components/quarter-break/PeriodBreak";
 import { breakConfigFor } from "@/lib/sports/break";
 import { buildBoard, placesOf, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
-import { useBreakReplan } from "@/lib/live/break/useBreakReplan";
+import { useBreakReplan, withHealthyOnBench } from "@/lib/live/break/useBreakReplan";
 import { awayMsSoFar } from "@/lib/live/break/floor";
 import { rotateGroups } from "@/lib/live/break/rotateGroups";
 import { BASKETBALL_POSITION_DEFS } from "@/lib/sports/basketball";
@@ -130,10 +132,11 @@ export function BasketballBreak({
     const injured = new Set(state.injuredIds);
     const loaned = new Set(state.loanedIds);
     const fouled = new Set(state.fouledOutIds);
+    const home = new Set(state.wentHomeIds);
     for (const id of inGame) {
       // A kid who fouls out is recorded as injured (reason "fouled_out").
       if (fouled.has(id)) out[id] = "Fouled out";
-      else if (injured.has(id)) out[id] = "Injured";
+      else if (injured.has(id)) out[id] = sidelinedLabel(id, home);
       else if (loaned.has(id)) out[id] = "Lent";
       else if (!basketballCanPlay(state, id, startMs)) out[id] = "Sitting out";
     }
@@ -192,7 +195,14 @@ export function BasketballBreak({
   const lastApplied = useRef<BreakStrategy>(initialMode);
   // A kid back at the break gets the strategy's lineup again, unless the
   // coach has placed kids by hand (lib/live/break/useBreakReplan).
-  const replan = useBreakReplan(healthy, () => setDraft(forStrategy(strategy)));
+  // Undo puts back the lineup from before, with who can't play now
+  // benched and who can and wasn't in it on the bench.
+  const replan = useBreakReplan(healthy, {
+    draft,
+    setDraft,
+    plan: () => forStrategy(strategy),
+    fit: (d) => withHealthyOnBench(benchOutInBasketballLineup(d, sidelinedSet), healthy, (l, id) => !!basketballLineOf(l, id)),
+  });
   useEffect(() => {
     if (lastApplied.current === strategy) return;
     lastApplied.current = strategy;
@@ -346,6 +356,7 @@ export function BasketballBreak({
     <PeriodBreak
       header={{ exitHref, game }}
       config={config}
+      field={woodCourt()}
       nextPeriod={nextPeriod}
       slots={board}
       players={players}
@@ -359,6 +370,8 @@ export function BasketballBreak({
         setDraft((d) => swapSlots(d, a, b));
       }}
       strategy={strategy}
+      replanned={replan.replanned}
+      onUndoReplan={replan.undo}
       onStrategy={(next) => {
         setStrategy(next);
         if (next !== "repeat") setPersistedRotationMode(next === "rotate" ? "rotate" : next === "manual" ? "manual" : "suggested");

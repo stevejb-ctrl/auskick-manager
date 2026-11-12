@@ -35,8 +35,9 @@ describe("parentAnswerError", () => {
     expect(parentAnswerError({ ...ok, player: null })).not.toBeNull();
   });
 
-  it("only takes In or Out", () => {
-    expect(parentAnswerError({ ...ok, status: "unknown" })).not.toBeNull();
+  it("takes In, Out or a clear, nothing else", () => {
+    // Clearing a wrong answer (Stagehand round 8, #12).
+    expect(parentAnswerError({ ...ok, status: "unknown" })).toBeNull();
     expect(parentAnswerError({ ...ok, status: "maybe" })).not.toBeNull();
   });
 });
@@ -62,6 +63,20 @@ describe("availabilityAskText", () => {
     expect(text).toMatch(/In or Out/);
     expect(text).toMatch(/no account/i);
     expect(text.trim().endsWith("https://example.test/availability/abc")).toBe(true);
+  });
+
+  it("says when and where the game is, when it has them", () => {
+    const text = availabilityAskText({
+      teamName: "Hawthorn Hornets",
+      opponent: "Kew Kestrels",
+      dayLabel: "Sat 25 Oct",
+      timeLabel: "7:30 pm",
+      location: " Brunswick Park ",
+      url: "https://example.test/availability/abc",
+    });
+    expect(text.split("\n")[0]).toBe("Hawthorn Hornets v Kew Kestrels, Sat 25 Oct 7:30 pm at Brunswick Park");
+    const bare = availabilityAskText({ teamName: "A", opponent: "B", dayLabel: "Sat 25 Oct", location: "", url: "u" });
+    expect(bare.split("\n")[0]).toBe("A v B, Sat 25 Oct");
   });
 
   it("builds the link's path from the token", () => {

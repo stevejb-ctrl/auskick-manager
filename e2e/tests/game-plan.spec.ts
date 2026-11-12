@@ -25,6 +25,7 @@ import { test, expect } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
+import { readyAfl } from "../helpers/kickoff";
 
 /** Player ids of the tiles in a lineup's bench, sorted. */
 async function benchIds(scope: import("@playwright/test").Locator, prefix: string): Promise<string[]> {
@@ -115,7 +116,8 @@ test("AFL game-detail: planner opens, rows render, copy text populates, tap-to-s
   // AFL rolls subs, so the plan reads as an interchange queue with a sub
   // cadence — who is where each quarter, not whole-quarter blocks.
   await expect(planText).toContainText("Interchange (on first → last):");
-  await expect(planText).toContainText(/subs ~every \d+ min/);
+  // The one sub-interval phrase (Stagehand round 11, #5).
+  await expect(planText).toContainText(/sub every \d+ min/);
   // The plan is who-is-where only — no per-player game-time footer.
   await expect(planText).not.toContainText(/planned game time/i);
   // The editor's bench card is relabelled to the interchange queue.
@@ -181,7 +183,7 @@ test("AFL pre-kickoff: planner opens from the lineup-picker breadcrumb on /live"
   // Wait for the picker to render (its commit CTA) before reaching for
   // the breadcrumb-mounted planner button.
   await expect(
-    page.getByRole("button", { name: /^start q1$/i }),
+    page.getByRole("button", { name: /^ready$/i }),
   ).toBeVisible({ timeout: 15_000 });
 
   // Usability run: Game plan's Q1 disagreed with the lineup, and changes
@@ -219,18 +221,18 @@ test("AFL pre-kickoff: Game plan follows the lineup's field size and sub interva
   );
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
 
   await page.getByRole("button", { name: /game settings/i }).click();
   const size = page.locator("#on-field-size");
   const fewer = Number(await size.inputValue()) - 1;
   await size.selectOption(String(fewer));
   await page.locator("#sub-minutes").fill("10");
-  await expect(page.getByText("Sub every 10m")).toBeVisible();
+  await expect(page.getByText("Sub every 10 min")).toBeVisible();
 
   await page.getByRole("button", { name: /^game plan$/i }).click();
   await expect(page.getByRole("heading", { name: /^game plan$/i })).toBeVisible({ timeout: 10_000 });
-  await expect(page.locator("#game-plan-text")).toContainText("subs ~every 10 min");
+  await expect(page.locator("#game-plan-text")).toContainText("sub every 10 min");
   // Q1 is the lineup itself; Q2 on is projected, at the lineup's size.
   const onField = page.locator('[data-testid^="game-plan-group-"] [data-player-id]');
   await expect(onField).toHaveCount(fewer);
@@ -255,8 +257,11 @@ test("netball pre-kickoff: Game plan's first quarter is the lineup, and Use this
     } catch {}
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.locator('[data-testid^="bench-chip-"]').first()).toBeVisible({ timeout: 15_000 });
-  const lineupBench = await benchIds(page.locator("body"), "bench-chip-");
+  // Live v3: the bench is a KidBench of player tiles (it was a card of
+  // bench-chip-<id> chips), the same bench as every sport's.
+  const benchGroup = page.getByRole("group", { name: "Bench", exact: true });
+  await expect(benchGroup.locator('[data-testid^="player-tile-"]').first()).toBeVisible({ timeout: 15_000 });
+  const lineupBench = await benchIds(benchGroup, "player-tile-");
 
   await page.getByRole("button", { name: /^game plan$/i }).click();
   await expect(page.getByRole("heading", { name: /^game plan$/i })).toBeVisible({ timeout: 10_000 });
@@ -264,8 +269,8 @@ test("netball pre-kickoff: Game plan's first quarter is the lineup, and Use this
 
   const { fieldKid, benchKid } = await swapInPlan(page);
   await page.getByRole("button", { name: "Use this plan" }).click();
-  await expect(page.getByTestId(`bench-chip-${fieldKid}`)).toBeVisible();
-  await expect(page.getByTestId(`bench-chip-${benchKid}`)).toHaveCount(0);
+  await expect(benchGroup.getByTestId(`player-tile-${fieldKid}`)).toBeVisible();
+  await expect(benchGroup.getByTestId(`player-tile-${benchKid}`)).toHaveCount(0);
 });
 
 test("league pre-kickoff: Game plan's first half is the lineup, and Use this plan applies changes", async ({
@@ -426,7 +431,7 @@ test("before kickoff, Game plan keeps the later quarters and the break opens on 
     } catch {}
   });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
 
   // Plan Q2: put the first kid resting in Q2 onto the field.
   await page.getByRole("button", { name: /^game plan$/i }).click();
@@ -444,6 +449,7 @@ test("before kickoff, Game plan keeps the later quarters and the break opens on 
   await page.getByRole("button", { name: "Use this plan" }).click();
 
   // Play Q1, end it: the break opens on the planned Q2.
+  await readyAfl(page);
   await page.getByRole("button", { name: /^start q1$/i }).click();
   await page.getByRole("button", { name: /^start [qh]\d+ now$/i }).click();
   await page.getByRole("button", { name: /^clock — q1, running$/i }).click({ timeout: 15_000 });
@@ -519,7 +525,7 @@ test("AFL game page: the Game plan is the lineup's, saved or not, and says when,
   expect(night.text).toContain("Ross Reserve");
   expect(night.text).toContain(`Out: ${out.full_name.split(" ")[0]}`);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
-  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
   const zones = Object.keys(night.q1).filter((k) => k !== "bench");
   expect(await lineupQ1(zones)).toEqual(night.q1);
 

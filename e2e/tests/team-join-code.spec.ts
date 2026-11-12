@@ -101,12 +101,13 @@ test("regenerate replaces the code with a fresh one", async ({ browser }) => {
   });
   const page = await ctx.newPage();
 
-  // Regenerate is gated by window.confirm — auto-accept any dialogs
-  // so the button click goes straight through.
-  page.on("dialog", (d) => d.accept());
-
   await page.goto(`/teams/${team.id}/settings`);
+  // Regenerate asks first, in the app's own confirm dialog.
   await page.getByRole("button", { name: /^regenerate$/i }).click();
+  await page
+    .getByRole("dialog", { name: /make a new team code/i })
+    .getByRole("button", { name: /^make a new code$/i })
+    .click();
 
   // DB code should change off the seeded one within a few seconds.
   await expect

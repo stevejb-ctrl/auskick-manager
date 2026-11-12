@@ -1,473 +1,253 @@
 // Screenshots referenced on this page:
 //   /help-screenshots/live-game-lineup-picker.png
 //   /help-screenshots/live-game-field.png
-//   /help-screenshots/live-game-scoring.png
 //   /help-screenshots/live-game-sub-due.png
 //   /help-screenshots/live-game-quarter-end.png
-//   /help-screenshots/live-game-quarter-break.png
 
-import Link from "next/link";
 import { HelpPage, HelpFigure, HelpCallout } from "@/components/help/HelpPage";
+import { B, H3, HelpLink, HelpSection, OL, P, Related, UL } from "@/components/help/prose";
+import { SPORT_HELP } from "@/lib/help/sports";
 
 export const metadata = {
-  title: "Live Game · Help · Siren",
+  title: "The Live Screen · Help · Siren",
   description:
-    "Running a game: the on-area view, scoring, subs, and the breaks between quarters or halves.",
+    "The live screen in every sport: the lineup, the clock, pausing and ending a period, undo, fixing scores, the ⋯ game menu, late arrivals, injuries, loans, offline, large text and dark mode.",
   alternates: { canonical: "/help/live-game" },
 };
 
 export default function LiveGamePage() {
   return (
     <HelpPage>
-      <h1 className="text-2xl font-bold text-ink">Live game</h1>
-      <p className="mt-3 text-base leading-relaxed text-ink-dim">
-        The live game screen is your sideline companion. It shows the current
-        lineup laid out on the playing area, a countdown clock, suggested
-        rotations (when applicable), and a scoreboard, all in one view.
-        Here&apos;s how to use it.
-      </p>
-      <p className="mt-2 text-sm leading-relaxed text-ink-dim">
-        The exact controls vary by sport. AFL, league, union, football
-        (soccer) and basketball use rolling subs, so a sub timer and a swap card suggest who
-        comes on during play. Netball subs at the breaks, so it shows the
-        next-quarter reshuffle at every break instead. League also tracks its
-        junior laws: FR and DH vests, goal-kick turns and kickoff turns; union
-        has none of them. Football keeps its keeper in goal for the whole
-        half: at half-time Siren plans the next half, starting with who takes
-        the keeper top, and <strong className="text-ink">Replace keeper</strong>{" "}
-        (tap the keeper, then Player actions) changes it mid-half. Basketball subs at a dead
-        ball through the table, tracks each kid&apos;s fouls (five and
-        they&apos;re out), and its clock waits at 0:00 for the real hooter,
-        since the stadium clock stops in the last minutes. Touch football and
-        Oztag roll subs on and off whenever you like (make the change when you
-        have the ball), and a mixed team keeps its cap on boys, shrinking the
-        field when it&apos;s short of girls; see{" "}
-        <Link href="/help/rotations#touch-and-oztag" className="text-brand-700 underline">
-          Rotations
-        </Link>
-        . Every sport has a lineup
-        picker, scoring buttons and a player-actions sheet.
-      </p>
-      <p className="mt-2 text-sm leading-relaxed text-ink-dim">
-        Futsal runs on football&apos;s live screen, drawn on a court, with
-        futsal&apos;s words: the back, the wings and the front. Its keeper
-        can be swapped mid-half, as in football.
-      </p>
-      <p className="mt-2 text-sm leading-relaxed text-ink-dim">
-        Hockey runs on it too, on a hockey pitch, in halves or quarters.
-        Its keeper changes only at a break: two minutes before one, Siren
-        names who&apos;s in goal next so they can kit up.
-      </p>
+      <h1 className="text-2xl font-bold text-ink">The live screen</h1>
+      <P lead>
+        The live screen is your sideline companion: the score and clock, your kids on the field or court, the bench,
+        and a bar at the bottom for scoring and for the kid you&apos;ve tapped. It looks and works the same in every
+        sport; only the field, the score buttons and the sub rules change.
+      </P>
+      <P>
+        This page covers what every sport shares. For your sport&apos;s field, scoring, subs and rules, open its page:{" "}
+        {SPORT_HELP.map((h, i) => (
+          <span key={h.href}>
+            {i > 0 && (i === SPORT_HELP.length - 1 ? " or " : ", ")}
+            <HelpLink href={h.href}>{h.title}</HelpLink>
+          </span>
+        ))}
+        .
+      </P>
 
-      <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Before the game: the lineup picker</h2>
-        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          After marking availability, you&apos;re taken to the lineup picker.
-          The app auto-suggests a starting lineup based on how much time each
-          player has had in each spot in previous games this season.
-        </p>
-        <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-ink-dim">
+      <HelpSection id="lineup" title="Before the game: the lineup">
+        <OL>
           <li>
-            Review the suggested lineup. Players are placed across your
-            sport&apos;s layout — AFL lines (FORWARD / CENTRE / BACK), netball
-            positions (GS / GA / WA / C / WD / GD / GK), or league Forwards
-            and Backs — with the rest on the{" "}
-            <strong className="text-ink">Bench</strong>.
+            Mark who&apos;s in (see <HelpLink href="/help/squads">Squads</HelpLink>), then tap <B>Start game day</B> on
+            the game (<B>Plan lineup</B> before the day).
           </li>
           <li>
-            Tap any two players to swap them — even between positions or to
-            and from the bench.
+            Siren suggests a starting lineup from each kid&apos;s time this season. Tap any two kids to swap them, across
+            positions or to and from the bench.
           </li>
           <li>
-            League from Under 8: tap a player on the field, then Player
-            actions, and tap{" "}
-            <strong className="text-ink">Make First Receiver</strong> (or{" "}
-            <strong className="text-ink">Make Dummy Half</strong> from Under
-            9) to pick who wears the vest first. The{" "}
-            <strong className="text-ink">Vest rotation plan</strong> fills in
-            the later periods for you.
+            <B>Game settings</B> on the lineup screen sets the players on the field, the sub interval and, in some sports,
+            the shape.
           </li>
           <li>
-            When you&apos;re happy, tap{" "}
-            <strong className="text-ink">Start Q1</strong>. League teams from
-            Under 10 play halves, so their button reads{" "}
-            <strong className="text-ink">Start H1</strong>.
+            Tap <B>Ready</B>. The live screen opens with <B>Start Q1</B> (or <B>Start H1</B>) on the bar: tap it, then{" "}
+            <B>Start Q1 now</B> when play starts. Changed your mind first? ⋯ › <B>Edit lineup</B> goes back.
           </li>
-        </ol>
-
+        </OL>
         <HelpFigure
           src="/help-screenshots/live-game-lineup-picker.png"
-          alt="An AFL lineup with players arranged across the field and the bench below"
-          caption="Review and adjust the auto-suggested starting lineup before you start the game."
+          alt="An AFL lineup on the oval: each line's kids as tiles, with the bench and Ready below"
+          caption="The suggested starting lineup (AFL shown), ready to tweak."
         />
-      </section>
+      </HelpSection>
 
-      <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">The on-area view</h2>
-        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          Once the first quarter or half starts you see:
-        </p>
-        <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
+      <HelpSection id="screen" title="What's on the screen">
+        <UL>
           <li>
-            <strong className="text-ink">Scoreboard</strong>: pinned to the
-            bottom of the screen. Your team&apos;s score is on the left, a
-            dark clock pill in the centre, and the opponent&apos;s score on
-            the right. Tap the clock to pause, resume or end the quarter (or
-            half) early.
+            <B>The top bar</B>: <B>‹ Exit</B> back to the game page, who you&apos;re playing, and <B>⋯</B> for the game
+            menu.
           </li>
           <li>
-            <strong className="text-ink">Swap card</strong> (AFL and league):
-            a dark card above the playing area showing suggested rotations
-            and a countdown ring. Tap it to expand the details. See{" "}
-            <Link href="/help/rotations" className="font-medium underline">
-              Rotations
-            </Link>{" "}
-            for how suggestions work.
+            <B>The score and clock</B>: your team on the left, the clock in the middle, the opponent on the right.
           </li>
           <li>
-            <strong className="text-ink">Playing area</strong>: AFL shows
-            FORWARD at the top, CENTRE in the middle and BACK at the bottom.
-            Netball shows the ATTACK, CENTRE and DEFENCE thirds. League shows
-            a pitch with the Forwards at the top and the Backs at the bottom.
-            Each player is a tile with their name and, where your sport uses
-            them, a position label.
+            <B>The info line</B> under the score: the next sub (&quot;Next sub 2:10 · 3 swaps&quot;), a rule to keep,
+            or what to do now. Tap it to see the pairs.
           </li>
           <li>
-            <strong className="text-ink">Bench</strong>: players not currently
-            on the area, shown below.
+            <B>The field or court</B>, drawn for your sport. Each kid is their name, with at most one line under it:
+            their part in the next sub (<B>Off next</B>, <B>On next</B>), <B>Needs 6′ more</B>, or <B>INJ</B>, <B>HOME</B>{" "}
+            or <B>LENT</B>.
           </li>
           <li>
-            <strong className="text-ink">League extras</strong> (Under 8 to
-            Under 12): a <strong className="text-ink">Kickoff</strong> card
-            at the start of each period, and FR / DH badges on the players
-            wearing the vests.
+            <B>The bench</B>, with <B>+ Late</B> at its foot.
           </li>
-        </ul>
-
+          <li>
+            <B>The bar</B> at the bottom: score buttons, or Start before a period, or <B>Make all swaps</B> when a sub is
+            due. Tap a kid and it becomes their bar; tap × to put them down.
+          </li>
+        </UL>
         <HelpFigure
           src="/help-screenshots/live-game-field.png"
           alt="An AFL live game with players in their lines and the scoreboard"
-          caption="The on-area view during a live quarter (AFL shown)."
+          caption="A live quarter (AFL shown)."
         />
-      </section>
+      </HelpSection>
 
-      <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Recording scores</h2>
-        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          This needs scoring switched on for your team. See{" "}
-          <Link href="/help/track-scoring" className="font-medium underline">
-            Track scoring
-          </Link>
-          .
-        </p>
-        <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-ink-dim">
+      <HelpSection id="clock" title="The clock">
+        <UL>
           <li>
-            Tap a scoring player on the playing area to select them. In AFL,
-            league and union this is any player on the field; in netball it&apos;s
-            only GS or GA (the shooter positions).
+            Tap the clock for <B>Pause clock</B> (for a stoppage, like an injury) or <B>Resume clock</B>, and{" "}
+            <B>End Q2 now</B> for when the siren, whistle or buzzer beats the app&apos;s clock.
           </li>
           <li>
-            Tap the scoring button that appears. AFL:{" "}
-            <strong className="text-ink">+ Goal</strong> or{" "}
-            <strong className="text-ink">+ Behind</strong>. Netball:{" "}
-            <strong className="text-ink">+ Goal</strong>. League:{" "}
-            <strong className="text-ink">+ Try</strong>, plus{" "}
-            <strong className="text-ink">+ Penalty goal</strong> and{" "}
-            <strong className="text-ink">+ Field goal</strong> from Under 13.
-            Union: <strong className="text-ink">+ Try</strong>, plus{" "}
-            <strong className="text-ink">+ Penalty goal</strong> and{" "}
-            <strong className="text-ink">+ Drop goal</strong> from Under 10.
+            When the clock runs out, the period ends by itself. In basketball, touch and Oztag the clock waits at 0:00
+            for the real hooter or whistle instead; tap it then.
           </li>
           <li>
-            League and union from Under 8: after a try, the conversion picker
-            opens.
-            Pick the kicker, then tap <strong className="text-ink">Made</strong>{" "}
-            or <strong className="text-ink">Missed</strong>.
+            Ending early asks <B>End Q2 now?</B>: tap <B>End Q2</B> to credit the time played, or{" "}
+            <B>The game played on</B> to credit the full period if play went on after the app stopped.
           </li>
-          <li>
-            Made a mistake? Tap <strong className="text-ink">Undo</strong> on
-            the strip just above the scoreboard to take back the latest score.
-          </li>
-          <li>
-            Each team also has small score buttons beside its score: AFL{" "}
-            <strong className="text-ink">+G</strong> and{" "}
-            <strong className="text-ink">+B</strong>, netball{" "}
-            <strong className="text-ink">+G</strong>, league{" "}
-            <strong className="text-ink">+T</strong> and{" "}
-            <strong className="text-ink">+C</strong> (plus{" "}
-            <strong className="text-ink">+PG</strong> and{" "}
-            <strong className="text-ink">+FG</strong> from Under 13), union{" "}
-            <strong className="text-ink">+T</strong>,{" "}
-            <strong className="text-ink">+C</strong>,{" "}
-            <strong className="text-ink">+PG</strong> and{" "}
-            <strong className="text-ink">+DG</strong>. On your
-            side they ask who scored; on the opponent&apos;s side they add the
-            score straight away.
-          </li>
-        </ol>
-
-        <HelpFigure
-          src="/help-screenshots/live-game-scoring.png"
-          alt="A selected AFL player tile with scoring action buttons visible"
-          caption="Tap a player to select them, then tap the scoring action."
-        />
-
-        <HelpCallout type="tip">
-          AFL scores show as goals·behinds with the total points (goals × 6 +
-          behinds) in large numerals, like a real scoreboard. Netball shows a
-          single goals tally — every goal is worth one point. League shows the
-          total points with a tries·conversions breakdown (try 4, conversion
-          2), and penalty goals (2) and field goals (1) once there are any.
-          Union shows the same, in its points (try 5, conversion 2, penalty
-          and drop goals 3).
-        </HelpCallout>
-      </section>
-
-      <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Making a manual substitution</h2>
-        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          In AFL and league, to swap a player without waiting for a
-          suggestion:
-        </p>
-        <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-ink-dim">
-          <li>Tap a player on the playing area. They get a selection ring.</li>
-          <li>Tap a player on the bench.</li>
-          <li>
-            AFL shows a confirmation dialog with the pair. Tap{" "}
-            <strong className="text-ink">Confirm</strong> to commit or{" "}
-            <strong className="text-ink">Cancel</strong> to back out. League
-            makes the swap straight away.
-          </li>
-        </ol>
-        <p className="mt-2 text-sm text-ink-dim">
-          Netball subs at the quarter break. If your team has turned on{" "}
-          <strong className="text-ink">Allow mid-quarter subs</strong> (Team ›
-          How we play), tap a player on court (for GS or GA with scoring on,
-          then Player actions), tap{" "}
-          <strong className="text-ink">Switch player</strong>, then pick who
-          comes on.
-        </p>
-        <HelpCallout type="tip">
-          In AFL, tapping the backdrop or pressing Escape closes the
-          confirmation without making a swap.
-        </HelpCallout>
-      </section>
-
-      <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">The Sub Due alert (rolling subs)</h2>
-        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          In AFL and league, when the sub interval timer reaches zero the swap
-          card shows <strong className="text-ink">NOW</strong> and expands
-          automatically to show the suggested swaps, and a banner under the
-          top bar reminds you it&apos;s time to rotate. It doesn&apos;t
-          block the screen, so you can still record a score; tap{" "}
-          <strong className="text-ink">Got it</strong> to clear it. The sub interval (1 to 10 minutes) is set
-          under <strong className="text-ink">Game settings</strong> on the
-          lineup screen, or with the Game settings button below the field
-          during the game.
-        </p>
-        <p className="mt-2 text-sm text-ink-dim">
-          You can tap <strong className="text-ink">Make swap</strong> next to
-          any individual pair to apply just that one swap, or tap{" "}
-          <strong className="text-ink">Make all N swaps</strong> to apply
-          everything at once. After any swap is committed, the card collapses
-          automatically and the timer resets.
-        </p>
-        <p className="mt-2 text-sm text-ink-dim">
-          Netball doesn&apos;t use a rolling sub timer — rotations happen at
-          the quarter break instead (see below).
-        </p>
-
-        <HelpFigure
-          src="/help-screenshots/live-game-sub-due.png"
-          alt="The AFL swap card expanded showing swap pairs with Make swap buttons and a Make all swaps button"
-          caption="The Sub Due state (AFL shown): the card expands with suggested pairs and a Make all swaps button."
-        />
-      </section>
-
-      <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Player actions: keep on, injury, loan</h2>
-        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          Tap a player, then <strong className="text-ink">Player actions</strong>{" "}
-          at the bottom of the screen, to open the player-actions sheet (in
-          netball, a tap opens it straight away). What&apos;s on it depends on
-          your sport:
-        </p>
-        <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
-          <li>
-            <strong className="text-ink">Switch player</strong>: selects the
-            player so your next tap makes the swap. In netball it only
-            appears when mid-quarter subs are allowed.
-          </li>
-          <li>
-            <strong className="text-ink">Keep on field</strong> (AFL only):
-            the player is never subbed out. Good for a player who needs extra
-            game time.
-          </li>
-          <li>
-            <strong className="text-ink">Keep in a zone</strong> (AFL): the
-            player can rotate off temporarily but always returns to the same
-            line. Netball&apos;s version is &quot;Keep in{" "}
-            <em>position</em> next break&quot;. League has neither — give a
-            player the <strong className="text-ink">Keep on</strong> role
-            (Squad › Role) instead, and the suggestions won&apos;t take them
-            off.
-          </li>
-          <li>
-            <strong className="text-ink">Replace First Receiver</strong> /{" "}
-            <strong className="text-ink">Replace Dummy Half</strong> (league,
-            on the player wearing the vest): pick a different player to take
-            the vest for the rest of the period.
-          </li>
-          <li>
-            <strong className="text-ink">Mark injured</strong>: takes the
-            player out of the rotation. If they&apos;re on the field, AFL and
-            league ask who comes on in their place; in netball their position
-            empties and a picker asks who fills it. Their tile shows an{" "}
-            <strong className="text-ink">INJ</strong> badge. Tap{" "}
-            <strong className="text-ink">Back on</strong> to return them.
-          </li>
-          <li>
-            <strong className="text-ink">Lend to opposition</strong>: marks
-            the player as lent (common in junior teams when numbers are
-            uneven). Shows a <strong className="text-ink">LENT</strong>{" "}
-            badge. AFL shows each player&apos;s season total of loan minutes.
-            Tap <strong className="text-ink">Bring back</strong> to return
-            them.
-          </li>
-        </ul>
-        <HelpCallout type="note">
-          Injured and lent players are parked on the bench and left out of the
-          rotation suggestions, so they aren&apos;t auto-placed when a new
-          quarter or half starts. To bring a lent player back: in AFL, use the{" "}
-          <strong className="text-ink">Lent to the other team</strong> strip
-          at any quarter break or before the game in the lineup picker; in
-          league, the same strip stays on the live screen all game; in netball,
-          long-press them in the <strong className="text-ink">Sidelined</strong>{" "}
-          strip at the next break. They drop onto your bench, ready to field.
-        </HelpCallout>
-      </section>
-
-      <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Ending a quarter or half</h2>
-        <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-ink-dim">
-          <li>
-            When the clock runs out, the quarter (or half) ends by itself and
-            the clock stops. In AFL a{" "}
-            <strong className="text-ink">Quarter complete</strong> card lets
-            you add a score that landed on the siren before you move on.
-          </li>
-          <li>
-            If the siren beats the clock, tap the clock and choose{" "}
-            <strong className="text-ink">End Q{"{n}"} now</strong> (league
-            from Under 10: <strong className="text-ink">End H{"{n}"} now</strong>).
-          </li>
-          <li>
-            Tap <strong className="text-ink">End Q{"{n}"}</strong> (or{" "}
-            <strong className="text-ink">End H{"{n}"}</strong>) to confirm.
-            Players on the field are credited the full period.
-          </li>
-          <li>
-            The break screen appears between periods. AFL, netball and league
-            Under 6 to Under 9 play four quarters; league from Under 10 plays
-            two halves. After the last one, the full-time review opens: check
-            the score, then tap <strong className="text-ink">Finish game</strong>.
-          </li>
-        </ol>
-
+        </UL>
         <HelpFigure
           src="/help-screenshots/live-game-quarter-end.png"
-          alt="The confirmation dialog asking to end the current quarter"
-          caption="Confirm to end the quarter (or half) and move to the break screen."
+          alt="The End Q2 now? sheet with End Q2, Cancel and The game played on buttons"
+          caption="Ending a quarter early."
         />
-      </section>
+      </HelpSection>
 
-      <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">Breaks between quarters or halves</h2>
-        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          In AFL and netball, the app shows a{" "}
-          <strong className="text-ink">Lineup for Q{"{n}"}</strong>{" "}
-          screen at each quarter break. This is your chance to adjust who plays
-          where in the next quarter. For netball this is the main moment of
-          substitution; for AFL it&apos;s an optional reshuffle on top of the
-          rolling subs you made during the quarter.
-        </p>
-        <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-ink-dim">
-          <li>
-            <strong className="text-ink">Suggested</strong> is on by default:
-            the algorithm has already placed players in the fairest positions.
-            You can switch to <strong className="text-ink">Keep last quarter</strong>{" "}
-            or <strong className="text-ink">Set manually</strong>. AFL also
-            offers <strong className="text-ink">Rotate lines</strong>, which
-            moves everyone one line along.
-          </li>
-          <li>
-            Tap any two players to swap them — even across positions or to and
-            from the bench.
-          </li>
-          <li>
-            <strong className="text-ink">INJ</strong> and{" "}
-            <strong className="text-ink">LENT</strong> players are greyed out
-            and cannot be moved onto the playing area.
-          </li>
-          <li>
-            <strong className="text-ink">Game settings</strong> (collapsed)
-            is where you lend a player or mark an injury. AFL also lets you
-            change the on-field size there.
-          </li>
-        </ul>
-        <p className="mt-3 text-sm text-ink-dim">
-          When you&apos;re ready, tap{" "}
-          <strong className="text-ink">Start Q{"{n}"}</strong>.
-        </p>
-        <p className="mt-3 text-sm text-ink-dim">
-          League has no separate break screen. The live screen shows the score
-          and a <strong className="text-ink">Start Q{"{n}"}</strong> button
-          (<strong className="text-ink">Start H{"{n}"}</strong> from Under
-          10). From
-          Under 8 to Under 12, a vest card asks who wears the FR (and DH) vest
-          next. Under <strong className="text-ink">Manage availability</strong>{" "}
-          you can add a player who&apos;s turned up, mark a player out (a
-          bench player comes on in their place) or mark someone injured. You
-          can still tap players to swap them before you start.
-        </p>
-
+      <HelpSection id="subs" title="Subs and the next sub">
+        <P>
+          In every sport but netball, subs roll: Siren counts down to the next sub, numbers the pairs on the kids, and
+          when it&apos;s due the clock turns orange and the bar shows <B>Make all N swaps</B> and <B>Pairs</B>. You can
+          also swap any time: tap a kid on the field, then one on the bench, and <B>Undo</B> shows for a few seconds.
+          Netball subs at the break. See <HelpLink href="/help/rotations">Rotations</HelpLink> for how Siren picks who.
+        </P>
         <HelpFigure
-          src="/help-screenshots/live-game-quarter-break.png"
-          alt="An AFL game at the end of the first quarter, with players in their lines"
-          caption="The end of an AFL quarter. At the break, review positions, make any manual tweaks, then tap Start."
+          src="/help-screenshots/live-game-sub-due.png"
+          alt="An AFL live game with a sub due: the kids say Off now and On now, and the bar shows Make all swaps"
+          caption="A sub due (AFL shown): the pairs numbered on the kids."
         />
-      </section>
+      </HelpSection>
 
-      <section className="mt-8">
-        <h2 className="text-xl font-semibold text-ink">The walkthrough</h2>
-        <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-          The first time you set up a lineup, Siren offers a walkthrough of
-          the key features for your sport: positions, bench, making a sub,
-          reading swap suggestions, scoring and the alerts that apply. League
-          adds steps for vests, goal kicks and the unbroken-period rule where
-          they apply. You can skip it or step through it, and tap the{" "}
-          <strong className="text-ink">?</strong> at the top of the live
-          screen to open it again.
-        </p>
-      </section>
+      <HelpSection id="scores" title="Scores, undo and fixes">
+        <UL>
+          <li>
+            Tap a score button on the bar and pick who scored, or tap a kid first and score from their bar. The
+            other team&apos;s small buttons add their score straight away.
+          </li>
+          <li>
+            <B>Undo</B>, on the line under the score, takes back the latest score and names it first.
+          </li>
+          <li>
+            Tap the score (or ⋯ › <B>Scores and fixes</B>) for every score this game: take one off, change who scored, or
+            add one you missed.
+          </li>
+        </UL>
+        <P>
+          Scoring needs the team&apos;s scoring setting on: see <HelpLink href="/help/track-scoring">Keeping score</HelpLink>.
+        </P>
+      </HelpSection>
 
-      <div className="mt-8 rounded-lg border border-hairline bg-surface-alt px-4 py-3 text-sm text-ink-dim">
-        <p>
-          <strong className="text-ink">Related topics:</strong>{" "}
-          <Link href="/help/rotations" className="font-medium text-brand-600 hover:underline">
-            Rotations
-          </Link>{" "}
-          ·{" "}
-          <Link href="/help/track-scoring" className="font-medium text-brand-600 hover:underline">
-            Track Scoring
-          </Link>{" "}
-          ·{" "}
-          <Link href="/help/stats" className="font-medium text-brand-600 hover:underline">
-            Stats
-          </Link>
-        </p>
-      </div>
+      <HelpSection id="kid" title="Tap a kid: injured, went home, lent, kept on">
+        <P>
+          Tap a kid and the bar shows their minutes and share of the game, the score buttons, <B>Injured</B> and{" "}
+          <B>More</B>. More opens <B>Player actions</B>. Every sport has:
+        </P>
+        <UL>
+          <li>
+            <B>Switch player</B>: your next tap makes the swap.
+          </li>
+          <li>
+            <B>Mark injured</B>: to the bench and out of the rotation. On the field, Siren asks who comes on (
+            <B>Play one short</B> if nobody). Their name shows <B>INJ</B>; tap them and <B>Back on</B> when they&apos;re
+            right.
+          </li>
+          <li>
+            <B>Went home</B>: off for the rest of the game, their time stopped. Their name shows <B>HOME</B>.
+          </li>
+          <li>
+            <B>Lend to opposition</B>: when the other team is short. Their name shows <B>LENT</B>; tap them and{" "}
+            <B>Bring them back</B>.
+          </li>
+        </UL>
+        <P>
+          Most sports also have <B>Keep on field</B> (never subbed off), and some their own: keep in a line or bib,
+          replace the keeper or a vest, sit out for a foul. Your sport&apos;s page lists them.
+        </P>
+        <HelpCallout type="note">
+          Injured, gone-home and lent kids stay out of the suggestions, so they aren&apos;t put back on at the next sub or
+          break until you bring them back.
+        </HelpCallout>
+      </HelpSection>
+
+      <HelpSection id="menu" title="The ⋯ game menu">
+        <UL>
+          <li>
+            <B>End Q2</B> (or <B>End 1st half</B>): end the period now.
+          </li>
+          <li>
+            <B>+ Add late arrival</B>: a squad kid who&apos;s just turned up goes on the bench, and the next sub works them
+            in.
+          </li>
+          <li>
+            <B>Game settings</B>: the sub interval and players on the field.
+          </li>
+          <li>
+            <B>Scores and fixes</B>, quarter by quarter. With scoring off, a coach sees <B>Turn scoring on</B> here
+            instead.
+          </li>
+          <li>
+            <B>Plan Q3</B>: pin the next lineup before the break (AFL and netball).
+          </li>
+          <li>
+            <B>How the live screen works</B>: a one-minute tour, the same one Siren offers the first time.
+          </li>
+          <li>
+            <B>Send feedback</B> to the Siren team.
+          </li>
+          <li>
+            <B>Game-day link</B>: let another parent run the clock, with no account. See{" "}
+            <HelpLink href="/help/games">Games</HelpLink>.
+          </li>
+          <li>
+            <B>Edit lineup</B> (before the start) and <B>Restart game</B>, which wipes this game (coaches only).
+          </li>
+        </UL>
+      </HelpSection>
+
+      <HelpSection id="phones" title="Two phones, no signal">
+        <H3>Two phones on one game</H3>
+        <P>
+          A coach and a parent with the game-day link can both run it. Each phone saves its own taps, and the other&apos;s
+          show within a few seconds with a note (<B>Another phone added Mia&apos;s goal</B>). Agree who scores for which
+          team before the start.
+        </P>
+        <H3>No signal</H3>
+        <P>
+          If the signal drops, the game keeps going on your phone and a strip says{" "}
+          <B>You&apos;re offline. Taps save on this phone and send when you&apos;re back.</B> When it reconnects they send
+          in order. Open the game before you lose signal: new screens still need a connection.
+        </P>
+      </HelpSection>
+
+      <HelpSection id="display" title="Large text and dark mode">
+        <P>
+          Siren follows your phone&apos;s text size. With large text the live screen keeps what matters: the top bar drops
+          its second line and the score shows totals only. For bright sun or night games, pick <B>Light</B> or{" "}
+          <B>Dark</B> under <HelpLink href="/help/account">your account</HelpLink> › Appearance (it follows your phone by
+          default).
+        </P>
+      </HelpSection>
+
+      <Related
+        links={[
+          { href: "/help/breaks", label: "Breaks" },
+          { href: "/help/rotations", label: "Rotations" },
+          { href: "/help/track-scoring", label: "Keeping score" },
+          { href: "/help/stats", label: "Stats" },
+        ]}
+      />
     </HelpPage>
   );
 }

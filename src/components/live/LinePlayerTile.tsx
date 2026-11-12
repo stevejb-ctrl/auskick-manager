@@ -16,11 +16,13 @@
 // lib/live/rollingSubs.ts.
 
 import { memo, useEffect, useId, useRef, useState, type ReactNode } from "react";
-import type { Player } from "@/lib/types";
+import type { MixedGroup, Player } from "@/lib/types";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { useLongPress } from "@/lib/live/useLongPress";
 import { useSquadNames } from "@/components/live/SquadNames";
 import { KeepOnMarker } from "@/components/playbook/KeepOnMarker";
+import { tileName } from "@/components/live/tileName";
+import { MixedMark, mixedMarkSpoken } from "@/components/live/MixedMark";
 
 /** How a sport draws one of its lines on a tile. */
 export interface TileLineStyle {
@@ -61,6 +63,8 @@ export interface LinePlayerTileProps {
   /** This game's time in each line: the bar. */
   lineMs?: Partial<Record<string, number>>;
   injured?: boolean;
+  /** Injured with reason "out": the kid went home (lib/live/wentHome). */
+  wentHome?: boolean;
   loaned?: boolean;
   /** "field" = Keep on (never subbed); "zone" = kept in a line. */
   lockMode?: "field" | "zone" | null;
@@ -70,6 +74,8 @@ export interface LinePlayerTileProps {
   swapDue?: boolean;
   /** A sport's own status chip after the score (basketball's fouls). */
   extraChip?: ReactNode;
+  /** What `extraChip` says to a screen reader ("First Receiver vest"), in the tile's name. */
+  extraChipLabel?: string | null;
   /** Named positions: the kid's position ("HK") in place of the line's label. */
   positionLabel?: string | null;
   /** Season role "Plays every minute": the corner marker. */
@@ -83,6 +89,8 @@ export interface LinePlayerTileProps {
    * before the swap.
    */
   ruleNote?: string | null;
+  /** A mixed team's G or B (MixedMark), coach view only. */
+  group?: MixedGroup | null;
 }
 
 function formatMinSec(ms: number): string {
@@ -92,7 +100,7 @@ function formatMinSec(ms: number): string {
   return `${m}:${r.toString().padStart(2, "0")}`;
 }
 
-const CHIP = "inline-flex h-4 shrink-0 items-center rounded-xs px-[5px] font-mono text-[10px] font-bold leading-4";
+const CHIP = "inline-flex h-4 shrink-0 items-center rounded-xs px-[5px] font-mono text-nano font-bold leading-4";
 const NO_LINE_STRIP = "border-brand-700 bg-brand-600 text-white";
 
 function LinePlayerTileImpl({
@@ -108,18 +116,22 @@ function LinePlayerTileImpl({
   totalMs,
   lineMs,
   injured,
+  wentHome = false,
   loaned,
   lockMode,
   score,
   swapDue = false,
   extraChip,
+  extraChipLabel = null,
   positionLabel = null,
   keepOn = false,
   testId,
   ruleNote = null,
+  group = null,
 }: LinePlayerTileProps) {
   const { handlers: longPressHandlers, arming: longPressArming, consumedLongPress } = useLongPress({ onLongPress });
   const ruleNoteId = useId();
+  const splitId = useId();
 
   function handleClick() {
     if (consumedLongPress()) return;
@@ -136,8 +148,8 @@ function LinePlayerTileImpl({
     ? "bg-brand-50 ring-2 ring-brand-500 shadow-pop"
     : isOff
       ? swapDue
-        ? "bg-due-tint shadow-[inset_0_0_0_2px_#A8590F,0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
-        : "bg-surface shadow-[inset_0_0_0_1.5px_#A8590F,0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
+        ? "bg-due-tint shadow-[inset_0_0_0_2px_rgb(var(--l-due)),0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
+        : "bg-surface shadow-[inset_0_0_0_1.5px_rgb(var(--l-due)),0_1px_0_rgba(0,0,0,0.12),0_2px_6px_rgba(15,45,25,0.18)]"
       : isOn
         ? "bg-brand-50 shadow-lift-field ring-1 ring-inset ring-brand-500"
         : injured
@@ -180,16 +192,44 @@ function LinePlayerTileImpl({
   const swapStyle = swap?.line ? styles[swap.line] : undefined;
   const swapLabel = swapStyle?.short || "ON";
 
+  // One accessible name, read once: kid, line or position, number,
+  // time, chips (tileName). The time in each line is the description.
+  const lineSplit =
+    totalMs !== undefined && lineMs
+      ? barOrder
+          .filter((u) => (lineMs[u] ?? 0) > 0)
+          .map((u) => `${styles[u]?.label ?? u} ${formatMinSec(lineMs[u] ?? 0)}`)
+          .join(", ") || null
+      : null;
+  const spokenName = tileName({
+    name: player.full_name,
+    place: positionLabel || (style?.short ? style.label : null),
+    number: player.jersey_number,
+    time: totalMs !== undefined ? formatMinSec(totalMs) : null,
+    states: [
+      isOn && `Going on${swapStyle?.short ? ` to ${swapStyle.label}` : ""}, pair ${swap?.pair}`,
+      isOff && `Coming off next, pair ${swap?.pair}`,
+      !isOff && score?.label,
+      mixedMarkSpoken(group),
+      extraChipLabel,
+      injured && "Injured",
+      loaned && !injured && "Lent to opposition",
+      !!lockMode && !away && (lockMode === "field" ? "Kept on" : "Line locked"),
+    ],
+  });
+  const describedBy = [ruleNote ? ruleNoteId : null, lineSplit ? splitId : null].filter(Boolean).join(" ") || undefined;
+
   return (
     <SirenPulseHalo triggerKey={swap?.pair ?? null} size="md" display="block" className="rounded-md">
       <button
         type="button"
         data-testid={testId ?? `player-tile-${player.id}`}
         aria-pressed={selected ?? false}
+        aria-label={spokenName}
         onClick={handleClick}
         {...longPressHandlers}
         disabled={!onClick && !onLongPress}
-        aria-describedby={ruleNote ? ruleNoteId : undefined}
+        aria-describedby={describedBy}
         className={[
           "relative flex min-h-[68px] w-full flex-col items-stretch rounded-md text-left [transition:transform_120ms_cubic-bezier(0.2,0.8,0.2,1),opacity_120ms_cubic-bezier(0.2,0.8,0.2,1),box-shadow_240ms_cubic-bezier(0.2,0.8,0.2,1),background-color_240ms_cubic-bezier(0.2,0.8,0.2,1)]",
           baseBg,
@@ -203,12 +243,12 @@ function LinePlayerTileImpl({
         {keepOn && !away && !score && <KeepOnMarker />}
         {isOn && (
           <div
-            className={`flex items-center justify-center gap-1 rounded-t-[11px] border-b px-1 py-0.5 font-mono text-[11px] font-bold uppercase leading-none tracking-micro ${
+            className={`flex items-center justify-center gap-1 rounded-t-[11px] border-b px-1 py-0.5 font-mono text-micro font-bold uppercase leading-none tracking-micro ${
               swapStyle?.stripClass ?? NO_LINE_STRIP
             }`}
             aria-label={`Going on${swapStyle?.short ? ` to ${swapStyle.label}` : ""}, pair ${swap.pair}`}
           >
-            {showPairNumber && <span className="rounded-xs bg-black/15 px-1 py-0.5 text-[10px]">#{swap.pair}</span>}
+            {showPairNumber && <span className="rounded-xs bg-black/15 px-1 py-0.5 text-nano">#{swap.pair}</span>}
             <span>→ {swapLabel}</span>
           </div>
         )}
@@ -218,14 +258,14 @@ function LinePlayerTileImpl({
           <span className="flex h-4 items-center gap-1.5">
             {lineLabel && (
               <span
-                className={`font-mono text-[10px] font-bold uppercase leading-4 tracking-micro ${style?.textClass ?? "text-ink-dim"}`}
+                className={`font-mono text-nano font-bold uppercase leading-4 tracking-micro ${style?.textClass ?? "text-ink-dim"}`}
                 aria-label={positionLabel ? `Position ${positionLabel}` : undefined}
               >
                 {lineLabel}
               </span>
             )}
             {player.jersey_number != null && (
-              <span className="nums font-mono text-[10px] font-semibold leading-4 text-ink-dim">#{player.jersey_number}</span>
+              <span className="nums font-mono text-nano font-semibold leading-4 text-ink-dim">#{player.jersey_number}</span>
             )}
             <span className="flex-1" />
             {handover && !isOff && (
@@ -247,10 +287,11 @@ function LinePlayerTileImpl({
                 {score.text}
               </span>
             )}
+            {group && <MixedMark group={group} className="text-ink" />}
             {extraChip}
             {injured ? (
-              <span className={`${CHIP} bg-danger tracking-micro text-white`} aria-label="Injured">
-                INJ
+              <span className={`${CHIP} ${wentHome ? "bg-ink-mute" : "bg-danger"} tracking-micro text-white`} aria-label={wentHome ? "Went home" : "Injured"}>
+                {wentHome ? "HOME" : "INJ"}
               </span>
             ) : null}
             {loaned && !injured && (
@@ -280,19 +321,19 @@ function LinePlayerTileImpl({
               <span
                 aria-hidden
                 style={{ animationDelay: "80ms" }}
-                className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-out-up motion-reduce:hidden"
+                className="block truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-out-up motion-reduce:hidden"
               >
                 {handover.from}
               </span>
               <span
                 style={{ animationDelay: "80ms" }}
-                className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-in-up motion-reduce:animate-xfade-in"
+                className="block truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-ink [grid-area:1/1] motion-safe:animate-roll-in-up motion-reduce:animate-xfade-in"
               >
                 {displayName}
               </span>
             </span>
           ) : (
-            <span className="block truncate text-[15px] font-semibold leading-5 tracking-[-0.01em] text-ink">{displayName}</span>
+            <span className="block truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-ink">{displayName}</span>
           )}
 
           {/* Row 3 · time in each line, then the time. */}
@@ -335,6 +376,12 @@ function LinePlayerTileImpl({
           </span>
         )}
       </button>
+      {/* The time in each line, outside the tile so it isn't the tile's text. */}
+      {lineSplit && (
+        <span id={splitId} hidden>
+          {lineSplit}
+        </span>
+      )}
     </SirenPulseHalo>
   );
 }
@@ -355,13 +402,16 @@ function areEqual(a: LinePlayerTileProps, b: LinePlayerTileProps): boolean {
     a.selected !== b.selected ||
     a.dimmed !== b.dimmed ||
     a.injured !== b.injured ||
+    a.wentHome !== b.wentHome ||
     a.loaned !== b.loaned ||
     a.lockMode !== b.lockMode ||
     a.positionLabel !== b.positionLabel ||
     a.keepOn !== b.keepOn ||
     a.score?.text !== b.score?.text ||
     a.swapDue !== b.swapDue ||
-    a.extraChip !== b.extraChip
+    a.extraChip !== b.extraChip ||
+    a.extraChipLabel !== b.extraChipLabel ||
+    a.group !== b.group
   ) {
     return false;
   }

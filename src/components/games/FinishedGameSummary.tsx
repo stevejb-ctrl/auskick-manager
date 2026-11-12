@@ -10,6 +10,7 @@
 // its summary is. No arrival halo: the game finished a while ago.
 
 import type { ReactNode } from "react";
+import { sidelinedAtEnd } from "@/lib/live/wentHome";
 import { GameSummaryView } from "@/components/live/GameSummaryCard";
 import { NetballGameSummaryCard } from "@/components/netball/NetballGameSummaryCard";
 import { LeagueGameSummaryCard } from "@/components/league/LeagueGameSummaryCard";
@@ -59,6 +60,7 @@ function afl({ events, squad, teamName, opponentName, trackScoring }: Input) {
       swapCount={replay.subCount}
       basePlayedZoneMs={replay.basePlayedZoneMs}
       presentIds={presentPlayerIds(events)}
+      sidelined={sidelinedAtEnd(events)}
     />
   );
 }
@@ -76,6 +78,7 @@ function netball({ events, squad, teamName, opponentName, trackScoring, periodSe
       squad={squad}
       trackScoring={trackScoring}
       presentIds={presentPlayerIds(events)}
+      sidelined={sidelinedAtEnd(events)}
     />
   );
 }

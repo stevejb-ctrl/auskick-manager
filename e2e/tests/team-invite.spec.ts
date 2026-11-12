@@ -341,16 +341,17 @@ test("invalid email format blocks creation entirely", async ({ browser }) => {
   const { ctx, page } = await openInviteForm(browser, team.id);
 
   // "a@b" passes the browser's built-in type="email" validation (which
-  // doesn't require a TLD) but fails EMAIL_RE in src/lib/email/validate.ts
-  // (which does). That lets us exercise our app-level validation
+  // doesn't require a TLD) but fails emailError in src/lib/email/validate.ts
+  // (which wants a dot in the domain). That lets us exercise our app-level validation
   // without the browser's native validation popup blocking submit.
   await page.getByLabel(/^email/i).fill("a@b");
   await page.getByRole("button", { name: /^send invite$/i }).click();
 
-  // The form-level alert appears and no invite row is written.
+  // The field says what's wrong, under it, and no invite row is written.
   await expect(
-    page.getByRole("alert").filter({ hasText: /valid email address/i })
+    page.getByRole("alert").filter({ hasText: /part after the @ needs a dot/i })
   ).toBeVisible();
+  await expect(page.getByLabel(/^email/i)).toHaveAttribute("aria-invalid", "true");
   const { count } = await admin
     .from("team_invites")
     .select("*", { count: "exact", head: true })

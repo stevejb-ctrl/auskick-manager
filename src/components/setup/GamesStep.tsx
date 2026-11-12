@@ -81,7 +81,7 @@ export function GamesStep({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     {game.round_number != null && (
-                      <span className="text-[11px] font-semibold uppercase tracking-micro text-brand-600">
+                      <span className="text-micro font-semibold uppercase tracking-micro text-brand-600">
                         Rnd {game.round_number}
                       </span>
                     )}

@@ -54,7 +54,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
         <span className="font-medium text-ink">
           {r.email}
           {r.unsubscribed && (
-            <span className="ml-2 rounded-full bg-surface-alt px-1.5 py-0.5 text-[10px] uppercase tracking-micro text-ink-mute">
+            <span className="ml-2 rounded-full bg-surface-alt px-1.5 py-0.5 text-nano uppercase tracking-micro text-ink-mute">
               unsubbed
             </span>
           )}

@@ -47,7 +47,7 @@ async function gameWithOneOut(sport: "basketball" | "afl", ageGroup: string, cou
  */
 async function markIn(page: Page, name: string, id: string) {
   await page.getByRole("button", { name: /who's here/i }).click();
-  await page.getByRole("group", { name: `${name} availability` }).getByRole("button", { name: /^in$/i }).click();
+  await page.getByRole("radiogroup", { name: `${name} availability` }).getByRole("radio", { name: /^in$/i }).click();
   await expect(page.getByTestId(`player-tile-${id}`).first()).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: /game settings/i }).click();
 }
@@ -58,7 +58,7 @@ test("basketball: the sub interval set before a late kid is marked In is the one
 
   await gotoStable(page, `/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  await expect(page.getByRole("button", { name: /^start h1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: /game settings/i }).click();
   const interval = page.locator("#basketball-sub-interval");
   await interval.fill("3");
@@ -68,8 +68,8 @@ test("basketball: the sub interval set before a late kid is marked In is the one
 
   // Still 3 after the lineup rebuilt with the late kid.
   await expect(page.locator("#basketball-sub-interval")).toHaveValue("3");
-  await page.getByRole("button", { name: /^start h1$/i }).click();
-  await page.getByRole("button", { name: /^start h1 now$/i }).click({ timeout: 10_000 });
+  // Live v3: Ready sets the lineup (and the interval); Start H1 is on the bar.
+  await page.getByRole("button", { name: /^ready$/i }).click();
   await expect
     .poll(async () => (await admin.from("games").select("sub_interval_seconds").eq("id", game.id).single()).data, {
       timeout: 15_000,
@@ -86,7 +86,7 @@ test("AFL: players on the field and the sub interval survive a late kid marked I
   });
   await gotoStable(page, `/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: /game settings/i }).click();
   await page.locator("#on-field-size").selectOption("11");
   await page.locator("#sub-minutes").fill("5");

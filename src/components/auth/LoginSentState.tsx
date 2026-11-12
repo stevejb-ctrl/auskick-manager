@@ -13,6 +13,8 @@ interface LoginSentStateProps {
   resending?: boolean;
   /** True after a successful resend, briefly. */
   resentNotice?: boolean;
+  /** "signup" (from /signup): the link creates the account. */
+  purpose?: "signin" | "signup";
 }
 
 /**
@@ -31,6 +33,7 @@ export function LoginSentState({
   onResend,
   resending = false,
   resentNotice = false,
+  purpose = "signin",
 }: LoginSentStateProps) {
   return (
     <div>
@@ -45,7 +48,7 @@ export function LoginSentState({
         </span>
       </h1>
       <p className="mt-3 mb-6 text-sm leading-relaxed text-ink-dim">
-        Tap the link in the email to sign in. It expires in 15 minutes
+        Tap the link in the email to {purpose === "signup" ? "create your account" : "sign in"}. It expires in 15 minutes
         and only works once. If you don&apos;t see it, check spam.
         Magic links sometimes hide.
       </p>
@@ -56,13 +59,13 @@ export function LoginSentState({
           <span style={{ fontSize: 16 }}>S</span>
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-semibold text-ink">
+          <div className="truncate text-[0.8125rem] font-semibold text-ink">
             Siren Footy &lt;noreply@sirenfooty.com.au&gt;
           </div>
-          <div className="mt-0.5 text-[13px] text-ink-dim">
+          <div className="mt-0.5 text-[0.8125rem] text-ink-dim">
             Your Siren Magic Link
           </div>
-          <div className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-ink-mute">
+          <div className="mt-2 font-mono text-nano font-bold uppercase tracking-[0.1em] text-ink-mute">
             Usually arrives in under 30 seconds
           </div>
         </div>
@@ -87,7 +90,7 @@ export function LoginSentState({
         </SFButton>
         {resentNotice && (
           <span
-            className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-ok"
+            className="font-mono text-nano font-bold uppercase tracking-[0.12em] text-ok"
             role="status"
           >
             Resent

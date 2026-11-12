@@ -483,7 +483,8 @@ test.describe("AFL", () => {
     // Score chip: points, margin, goals.behinds each side.
     const score = page.getByRole("button", { name: /review and update scores/i });
     await expect(score).toContainText("12 – 0");
-    await expect(score).toContainText("+12");
+    // The margin, said (Stagehand round 11, #3: it read "+12").
+    await expect(score.getByTestId("break-margin")).toHaveText("Up by 12");
     await expect(score).toContainText("2.0 v 0.0");
     await expect(page.getByRole("button", { name: /^game settings: all available$/i })).toBeVisible();
     for (const s of ["Suggested", "Rotate", "Repeat", "Manual"]) await expect(strategy(page, s)).toBeVisible();
@@ -637,8 +638,10 @@ test.describe("AFL", () => {
     await waitForHydration(page);
     const clockPill = page.getByRole("button", { name: /^clock — q1, running$/i });
     await expect(clockPill).toBeVisible({ timeout: 20_000 });
+    // Live v3's shell: the page itself never scrolls, the field does.
+    // Scroll it to its end (and try the page too) before the siren.
+    await page.getByTestId("live-field").evaluate((el) => el.scrollTo(0, el.scrollHeight));
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
 
     await clockPill.click();
     await page.getByRole("button", { name: /^end q1 now$/i }).click();

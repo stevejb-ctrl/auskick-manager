@@ -83,7 +83,7 @@ export function SirenWordmark({
         fontSize: s.fontSize,
         lineHeight: 0.9,
         letterSpacing: "-0.05em",
-        color: dark ? "#F7F5F1" : "#141613",
+        color: dark ? "#F7F5F1" : "rgb(var(--t-ink))",
         gap: s.gap,
       }}
       aria-label="Siren"

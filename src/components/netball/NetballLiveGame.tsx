@@ -11,16 +11,16 @@
 //
 // Score: +1 goal (our team) / +1 opponent goal. That's it.
 
-import { SFButton, SFIcon } from "@/components/sf";
+import { SFButton } from "@/components/sf";
+import { ScoresButton, ScoresSheet } from "@/components/live/ScoresSheet";
+import { useOtherPhoneScores } from "@/components/live/useOtherPhoneScores";
+import { WENT_HOME_REASON, wentHomeIds } from "@/lib/live/wentHome";
 import { useRouter } from "next/navigation";
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import { SirenPulseHalo } from "@/components/brand/SirenPulseHalo";
 import { RollingNumber, SCORE_GHOST, useScoreGhost } from "@/components/live/RollingNumber";
-import { CourtDisplay } from "@/components/netball/CourtDisplay";
-import { PositionToken } from "@/components/netball/PositionToken";
-import { NetballBenchStrip } from "@/components/netball/NetballBenchStrip";
 import { NetballLineupPicker } from "@/components/netball/LineupPicker";
 import { LockModal } from "@/components/live/LockModal";
 import { NetballQuarterBreak } from "@/components/netball/NetballQuarterBreak";
@@ -33,11 +33,26 @@ import { LongPressHint } from "@/components/live/LongPressHint";
 import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { useHypeSong } from "@/lib/live/useHypeSong";
 import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
-import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
-import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
-import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
+import { LiveShell } from "@/components/live/LiveShell";
+import { LiveGameMenu } from "@/components/live/LiveGameMenu";
+import { KidTile, KidSlot, type KidOutKind } from "@/components/live/KidTile";
+import { KidBench } from "@/components/live/KidBench";
+import { FieldLines, type FieldLine } from "@/components/live/FieldLines";
+import { netballCourt, netballCourtLine } from "./NetballCourt";
+import { InfoLine } from "@/components/live/InfoLine";
+import { KidBar, KidBarMore, TimeSplit } from "@/components/live/KidBar";
+import { barButton } from "@/components/live/barButtons";
+import { PlanNextChip } from "@/components/live/PlanNextChip";
+import { StartBarButton } from "@/components/live/StartBarButton";
+import { StartQuarterModal } from "@/components/live/StartQuarterModal";
+import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
+import { SwapDoneToast } from "@/components/live/SwapDoneToast";
+import { ClockPillReadout } from "@/components/live/ClockPillReadout";
+import { useSquadNames } from "@/components/live/SquadNames";
+import { kidWords, type KidOut } from "@/lib/live/kidWords";
+import { pctOfGame } from "@/lib/live/minGameTime";
+import { reopenLineup } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { hapticTap, hapticSiren } from "@/lib/haptics";
-import { QuarterScoreModal } from "@/components/live/QuarterScoreModal";
 import { buildNetballWalkthroughSteps } from "@/components/netball/netballWalkthroughSteps";
 import { RunnerAllDone } from "@/components/games/RunnerAllDone";
 import { noteLiveResult } from "@/lib/live/liveSync";
@@ -80,7 +95,6 @@ const GamePlanModal = dynamic(
   () => import("@/components/game-plan/GamePlanModal").then((m) => m.GamePlanModal),
   { ssr: false },
 );
-import { PulseDot } from "@/components/ui/PulseDot";
 import { netballSport, primaryThirdFor } from "@/lib/sports/netball";
 import type { AgeGroupConfig } from "@/lib/sports/types";
 import {
@@ -113,7 +127,6 @@ import { useEventPeriodPause } from "@/lib/live/useClockPause";
 import { netballPositionLocks, replayLocks, type PlayerLock } from "@/lib/live/locks";
 import { Button } from "@/components/ui/Button";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
-import { ZoneTimeLegend } from "@/components/live/ZoneTimeLegend";
 import { PlayerInsightSummary } from "@/components/live/PlayerInsightSummary";
 import { useLiveGame } from "@/lib/stores/liveGameStore";
 import {
@@ -125,15 +138,22 @@ import {
   clearPeriodToBench,
   type GamePlan,
 } from "@/lib/game-plan";
-import { UndoStrip } from "@/components/live/UndoStrip";
-import { NETBALL_SCORE_TYPES, stackIds, stackRef, standingScores, undoStack, type StackScore } from "@/lib/live/undoStack";
+import { useOneUndo } from "@/components/live/useOneUndo";
+import { swapUndoLabel, type UndoEvent } from "@/lib/live/lastUndoable";
+import { NETBALL_SCORE_TYPES, savedScoreKeys, stackIds, stackRef, standingScores, undoStack, type StackScore } from "@/lib/live/undoStack";
 import { pairScoreUndos } from "@/lib/live/scoreUndo";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import { periodLabels } from "@/lib/sports";
+import { endPeriodWords } from "@/lib/sports/words";
 import { ScoreBugFrame } from "@/components/live/ScoreBugFrame";
 
 interface NetballLiveGameProps {
   game: Game;
+  /**
+   * Under the top bar before the start: the game-day link's welcome
+   * line. It used to render above the bar (design review, Oct 2026).
+   */
+  intro?: ReactNode;
   auth: LiveAuth;
   /** Team's own name — drives the home-side label in the score bug. */
   teamName: string;
@@ -282,6 +302,7 @@ interface NetballLiveGameProps {
 
 export function NetballLiveGame(props: NetballLiveGameProps) {
   const {
+    intro,
     game,
     auth,
     teamName,
@@ -358,7 +379,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // NetballLiveGame doesn't use a zustand store the way AFL does —
   // its state derives from events on every render, so it's "ready"
   // as soon as the component mounts.
-  const { playSong } = useHypeSong({
+  const { playSong, primeSong } = useHypeSong({
     songUrl,
     songStartSeconds,
     songDurationSeconds,
@@ -606,14 +627,15 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     );
   }
 
-  // Pending goal: tap on a GS/GA token doesn't fire the goal directly;
-  // it sets this and surfaces a confirm sheet (mirrors AFL's score
-  // sheet). Prevents accidental scoring from a stray tap during play.
-  // Declared before the hooter useEffect so the picker-race guard
-  // below can reference it.
-  const [pendingGoal, setPendingGoal] = useState<{
+  // The kid picked on the court or bench (live v3): the bar becomes
+  // theirs (KidBar), with + GOAL for a GS or GA, Injured and More. It
+  // replaced the goal dock (ScoreRecordingDock) a GS/GA tap used to open.
+  // It doesn't hold the hooter: a coach who leaves a kid picked still
+  // gets the siren, which puts them down (only the who-scored sheet holds
+  // it, below).
+  const [selected, setSelected] = useState<{
     playerId: string;
-    positionId: string;
+    positionId: string | null;
   } | null>(null);
 
   // Steve 2026-05-17 cross-sport handler audit: AFL has felt-instant
@@ -624,48 +646,53 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // the session and the audit confirmed it).
   //
   // Fix: track a LOCAL DELTA on top of the server-derived props.
-  // Effective score = props + delta. Increment delta on commit,
-  // reset to zero every time the underlying score props refresh
-  // (server caught up). Negative deltas are intentional for undo —
-  // we want the scorebug to drop instantly when the coach taps
-  // Undo before the refresh round-trips. The reset useEffect
-  // realigns once the new server truth arrives.
-  const [localScoreDelta, setLocalScoreDelta] = useState<{
-    team: number;
-    opp: number;
-    player: Record<string, number>;
-  }>({ team: 0, opp: 0, player: {} });
-
-  // Reset deltas whenever the server-derived score props change —
-  // means a server round-trip landed and the truth is now baked into
-  // props. Cleared in a single set so React batches the update.
-  useEffect(() => {
-    setLocalScoreDelta({ team: 0, opp: 0, player: {} });
-    // Deps deliberately on the primitive goal counts + the
-    // playerGoals object identity. teamScore/opponentScore are
-    // fresh objects each props refresh, so depending on
-    // `.goals` keeps the effect from firing on no-op re-renders
-    // where only an unrelated prop changed. The server's props, not the
-    // replay of this phone's pending writes: that's rebuilt on every
-    // pending pause or period end, and would drop a goal still saving.
-  }, [serverTeamScore.goals, serverOpponentScore.goals, serverPlayerGoals]);
+  // Effective score = props + delta. Negative deltas are intentional
+  // for undo — we want the scorebug to drop instantly when the coach
+  // taps Undo before the refresh round-trips.
+  //
+  // The delta counts only against the server score it was made on
+  // (`base`): once the server's score props change, the server has the
+  // goal and the delta is dropped in that same render. It used to be
+  // cleared by an effect after the render, so for one render the new
+  // server score AND the delta both counted ("Hawks 2" for one goal),
+  // and the screen reader heard the wrong score over the goal (live v3,
+  // Phase 7: the a11y-announcements flake). The server's props, not the
+  // replay of this phone's pending writes: that's rebuilt on every
+  // pending pause or period end, and would drop a goal still saving.
+  const [localScoreDelta, setLocalScoreDelta] = useState<ScoreDelta>({ team: 0, opp: 0, player: {}, base: null });
+  const serverScoreNow = { team: serverTeamScore.goals, opp: serverOpponentScore.goals, players: serverPlayerGoals };
+  // The latest, for handlers made in an earlier render (useCallback).
+  const serverScoreRef = useRef(serverScoreNow);
+  serverScoreRef.current = serverScoreNow;
+  const liveDelta: ScoreDelta = onScoreBase(localScoreDelta, serverScoreNow)
+    ? localScoreDelta
+    : { team: 0, opp: 0, player: {}, base: null };
+  /** Add to the delta, on the server score showing now. */
+  const bumpScoreDelta = useCallback(
+    (change: (d: DeltaCounts) => DeltaCounts) =>
+      setLocalScoreDelta((prev) => {
+        const now = serverScoreRef.current;
+        return { ...change(onScoreBase(prev, now) ? prev : { team: 0, opp: 0, player: {} }), base: now };
+      }),
+    [],
+  );
 
   const effectiveTeamScore = useMemo(
-    () => ({ goals: teamScore.goals + localScoreDelta.team }),
-    [teamScore.goals, localScoreDelta.team],
+    () => ({ goals: teamScore.goals + liveDelta.team }),
+    [teamScore.goals, liveDelta.team],
   );
   const effectiveOpponentScore = useMemo(
-    () => ({ goals: opponentScore.goals + localScoreDelta.opp }),
-    [opponentScore.goals, localScoreDelta.opp],
+    () => ({ goals: opponentScore.goals + liveDelta.opp }),
+    [opponentScore.goals, liveDelta.opp],
   );
   const effectivePlayerGoals = useMemo(() => {
-    if (Object.keys(localScoreDelta.player).length === 0) return playerGoals;
+    if (Object.keys(liveDelta.player).length === 0) return playerGoals;
     const merged: Record<string, number> = { ...playerGoals };
-    for (const [pid, d] of Object.entries(localScoreDelta.player)) {
+    for (const [pid, d] of Object.entries(liveDelta.player)) {
       merged[pid] = (merged[pid] ?? 0) + d;
     }
     return merged;
-  }, [playerGoals, localScoreDelta.player]);
+  }, [playerGoals, liveDelta.player]);
 
   // Steve 2026-05-16: scorebug-driven goal scorer picker. AFL has had
   // +G chips on both sides of the scorebug for a while (tap → picker
@@ -693,16 +720,18 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // Not before a queued quarter_end from before a reload is drawn: it
     // would end the quarter a second time.
     if (!queueReady) return;
-    // Picker-race guard: if the goal-confirm modal is open (coach
-    // tapped a player and is mid-confirm), DON'T fire the auto-
-    // hooter. Stagehand explore 2026-05-10 caught this in netball
-    // — the agent attempted to score at ~9:55 of a 10-min quarter,
-    // the picker opened, the 10:00 hooter fired before they could
-    // confirm, the goal was lost. With this gate the quarter
-    // doesn't end until the modal is resolved (confirmed or
-    // cancelled).
-    if (pendingGoal !== null) return;
+    // Picker-race guard: if the who-scored sheet is open (coach
+    // tapped + GOAL and is mid-pick), DON'T fire the auto-hooter.
+    // Stagehand explore 2026-05-10 caught this in netball — the agent
+    // attempted to score at ~9:55 of a 10-min quarter, the picker
+    // opened, the 10:00 hooter fired before they could confirm, the
+    // goal was lost. With this gate the quarter doesn't end until the
+    // sheet is resolved (picked or cancelled). A kid picked (their kid
+    // bar, live v3) doesn't hold it, as in AFL: the siren puts them
+    // down.
+    if (pickScorerOpen) return;
     hooterFiredForQuarterRef.current = currentQuarter;
+    setSelected(null);
     // Freeze the local clock at the hooter so per-player tile time
     // doesn't keep ticking up while we wait for the server-confirmed
     // quarter_end refresh to land. Without this setPausedAtMs call,
@@ -735,7 +764,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     game.id,
     quarterLengthMs,
     writeEvent,
-    pendingGoal,
+    pickScorerOpen,
     queueReady,
   ]);
 
@@ -788,6 +817,16 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     }
     return set;
   }, [thisGameEvents, localInjuredOverride]);
+  // Of the injured, who went home: the events', then this phone's taps.
+  const [localWentHome, setLocalWentHome] = useState<Record<string, boolean>>({});
+  const wentHomeSet = useMemo(() => {
+    const set = wentHomeIds(thisGameEvents);
+    for (const [pid, val] of Object.entries(localWentHome)) {
+      if (val) set.add(pid);
+      else set.delete(pid);
+    }
+    return set;
+  }, [thisGameEvents, localWentHome]);
   const loanedIds = useMemo(() => {
     const latest = new Map<string, { ts: string; loaned: boolean }>();
     for (const ev of thisGameEvents) {
@@ -1023,27 +1062,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       // Storage unavailable: the subs still live in memory.
     }
   }, [midQuarterSubs, currentQuarter, finalised, subsKey]);
-  // Per-position pulse keys for the brand halo on PositionToken.
-  // Each entry maps a positionId to the atMs of the most recent
-  // mid-quarter sub at that position. When a new sub commits the
-  // map gets a new value for that position → the token re-keys
-  // its SirenPulseHalo → halo fires once. Re-renders that don't
-  // change midQuarterSubs (e.g. clock ticks) reuse the same keys
-  // → no spurious pulse. Quarter transitions reset midQuarterSubs
-  // to [] → all per-position keys clear, ready for the next
-  // quarter's subs.
-  //
-  // In-memory only — fresh page load starts with no keys, so a
-  // refresh during a quarter doesn't replay halos for already-
-  // applied subs. (The subs themselves persist via period_break_swap
-  // events written at the next break.)
-  const positionPulseKeys = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const sub of midQuarterSubs) {
-      map[sub.positionId] = String(sub.atMs);
-    }
-    return map;
-  }, [midQuarterSubs]);
+  // (A new kid at a bib rises in on their KidTile by itself, live v3:
+  // the tile keys on the kid, so no per-position pulse keys are kept.)
   // Modal target: long-press opens player actions for this player.
   const [actionsTarget, setActionsTarget] = useState<{
     playerId: string;
@@ -1057,7 +1077,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const [leaving, setLeaving] = useState<{
     playerId: string;
     positionId: string;
-    reason: "injured" | "lent" | "subbed";
+    reason: "injured" | "lent" | "subbed" | "went_home";
   } | null>(null);
   // An empty bib tapped mid-quarter (after going without a
   // replacement): the shared SlotFillSheet fills it.
@@ -1084,36 +1104,52 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // break (usability pass, 26 Oct 2026).
   const [localScores, setLocalScores] = useState<StackScore[]>([]);
   const [undoneScoreIds, setUndoneScoreIds] = useState<ReadonlySet<string>>(() => new Set());
+  // A score from the other phone says so (Stagehand round 8, #6).
+  useOtherPhoneScores(serverEvents, NETBALL_SCORE_TYPES, { teamName: teamName, opponentName: game.opponent || "Opponent" });
   const serverStanding = useMemo(() => standingScores(serverEvents, NETBALL_SCORE_TYPES), [serverEvents]);
-  const undoTop = undoStack(serverStanding, localScores, undoneScoreIds).at(-1) ?? null;
-  const [undoToastVisible, setUndoToastVisible] = useState(false);
-  const undoToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const serverScoreKeys = useMemo(() => savedScoreKeys(serverEvents, NETBALL_SCORE_TYPES), [serverEvents]);
+  const undoScores = undoStack(serverStanding, localScores, undoneScoreIds, serverScoreKeys);
+  // The one Undo (useOneUndo, as AFL's): the newest goal or swap of this
+  // phone's, else the game's latest goal, named on the strip. The stack
+  // is the goals standing, in order (a tap on its way after the saved).
+  const kidFirst = useCallback(
+    (id: string) => squad.find((p) => p.id === id)?.full_name.trim().split(/\s+/)[0] ?? "Player",
+    [squad],
+  );
+  const opponentLabel = game.opponent || "Opponent";
+  const oneUndo = useOneUndo({
+    events: undoScores.map((s, i) => ({
+      id: s.eventId ?? `optimistic-${s.key}`,
+      type: s.type,
+      player_id: s.playerId,
+      created_at: s.createdAt ?? `￿${String(i).padStart(4, "0")}`,
+      idempotency_key: s.key,
+      metadata: { quarter: s.quarter },
+    })),
+    scoreTypes: NETBALL_SCORE_TYPES,
+    period: currentQuarter >= 1 && !quarterEnded && !finalised ? currentQuarter : null,
+    teamName,
+    opponentName: opponentLabel,
+    firstName: kidFirst,
+  });
+  const { scored: undoScored } = oneUndo;
   const startUndoToast = useCallback(
     (kind: "team" | "opp", playerId: string | null, key: string | null) => {
-      if (undoToastTimerRef.current !== null) {
-        clearTimeout(undoToastTimerRef.current);
-      }
       setLocalScores((prev) => [
         ...prev,
         { eventId: null, key, type: kind === "team" ? "goal" : "opponent_goal", playerId, quarter: currentQuarter },
       ]);
-      setUndoToastVisible(true);
-      undoToastTimerRef.current = setTimeout(() => {
-        setUndoToastVisible(false);
-      }, 8000);
+      undoScored(key, `${kind === "team" ? teamName : opponentLabel} goal${kind === "team" && playerId ? ` — ${kidFirst(playerId)}` : ""}`);
     },
-    [currentQuarter],
+    [currentQuarter, undoScored, teamName, opponentLabel, kidFirst],
   );
-  const handleUndoLastScore = useCallback(() => {
+  // The strip's Undo of a goal: the one it names.
+  const handleUndoLastScore = (named: UndoEvent) => {
+    const undoTop = undoScores.find((s) => (s.eventId !== null && s.eventId === named.id) || (s.key !== null && s.key === named.idempotency_key));
     if (!undoTop) return;
     const undoKind = undoTop.type === "goal" ? "team" : "opp";
     const scorer = undoTop.playerId;
     setUndoneScoreIds((prev) => new Set(Array.from(prev).concat(stackIds(undoTop))));
-    setUndoToastVisible(false);
-    if (undoToastTimerRef.current !== null) {
-      clearTimeout(undoToastTimerRef.current);
-      undoToastTimerRef.current = null;
-    }
     // Optimistic delta — subtract one so the scorebug drops
     // instantly (Steve 2026-05-17). The server refresh below
     // reconciles when it lands; if the delta was already at 0
@@ -1121,7 +1157,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // then the prop-refresh useEffect resets to 0 with the new
     // lower truth. Net result: no visible glitch either way.
     const step = (by: number) =>
-      setLocalScoreDelta((prev) =>
+      bumpScoreDelta((prev) =>
         undoKind === "team"
           ? {
               ...prev,
@@ -1133,7 +1169,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     step(-1);
     const { flushed } = enqueueLiveAction("undoNetballScore", [auth, game.id, stackRef(undoTop)]);
     // Refresh after flush so the rolled-back goal disappears from
-    // the scorebug + PositionToken chip on the next render. Refused
+    // the scorebug + the kid's goals on the next render. Refused
     // (the other phone already took it back): put the goal back.
     flushed
       .then(() => startTransition(() => router.refresh()))
@@ -1141,12 +1177,13 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         step(1);
         startTransition(() => router.refresh());
       });
-  }, [undoTop, auth, game.id, router]);
-  // Reset the undo state if the user transitions out of LIVE play
-  // (Q-break, finalised) so a stale chip doesn't carry across phases.
+  };
+  // Out of LIVE play (Q-break, finalised) the strip stops flashing, so a
+  // stale flash doesn't carry across phases.
+  const { quiet: quietUndo } = oneUndo;
   useEffect(() => {
-    if (quarterEnded || finalised) setUndoToastVisible(false);
-  }, [quarterEnded, finalised]);
+    if (quarterEnded || finalised) quietUndo();
+  }, [quarterEnded, finalised, quietUndo]);
 
   const squadById = useMemo(() => new Map(squad.map((p) => [p.id, p])), [squad]);
 
@@ -1375,37 +1412,58 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   };
 
   // ─── Action handlers ───────────────────────────────────────
-  // tap on a GS/GA token → open the confirm sheet (mirrors AFL's
-  // score sheet, prevents accidental scoring). The goal only records
-  // after the coach confirms via handleConfirmGoal.
-  // tap on any other token → no-op (long-press still works).
-  const handleTokenTap = (positionId: string, playerId: string | null) => {
+  // Live v3: a tap on a kid picks them, and the bar becomes theirs
+  // (KidBar): + GOAL for a GS or GA (scoring on), Injured and More for
+  // everyone. The same kid again puts them down. With mid-quarter subs
+  // on, a court kid picked then a bench kid tapped (or the other way
+  // round) swaps them at once, with Undo on the toast, as AFL's tap-tap.
+  // An empty bib opens the fill sheet. A hurt or lent kid opens their
+  // sheet (Mark recovered, Bring back), as their tiles always have.
+  const handleTokenTap = (positionId: string | null, playerId: string | null) => {
     if (currentQuarter < 1 || quarterEnded || finalised) return;
     if (!playerId) {
       // Empty slot — common after a lend without a replacement.
       // Tapping it opens the fill sheet so the coach can fill the bib
       // at any point in the quarter rather than wait for the break.
+      // A bench kid picked first goes straight in.
+      if (!positionId) return;
+      if (selected && !selected.positionId && !injuredIds.has(selected.playerId) && !loanedIds.has(selected.playerId)) {
+        const pid = selected.playerId;
+        setSelected(null);
+        fill(positionId, pid);
+        return;
+      }
+      setSelected(null);
       setFillPosition(positionId);
       return;
     }
-    // Shooters with scoring on get the goal dock (which also offers
-    // Player actions). Everyone else opens the action sheet straight
-    // away — a tap used to do nothing here, leaving injure / lend /
-    // keep behind a long-press only (UX plan H5).
-    if (!SCORING_POSITIONS.has(positionId) || !trackScoring) {
+    if (injuredIds.has(playerId) || loanedIds.has(playerId)) {
+      setSelected(null);
       setActionsTarget({ playerId, positionId });
       return;
     }
-    setPendingGoal({ playerId, positionId });
+    if (selected?.playerId === playerId) {
+      setSelected(null);
+      return;
+    }
+    // A court kid and a bench kid, with mid-quarter subs: the swap.
+    if (selected && allowMidQuarterSubs && !selected.positionId !== !positionId) {
+      const courtPos = (selected.positionId ?? positionId)!;
+      const offId = selected.positionId ? selected.playerId : playerId;
+      const onId = selected.positionId ? playerId : selected.playerId;
+      setSelected(null);
+      swapOnAt(courtPos, offId, onId);
+      return;
+    }
+    setSelected({ playerId, positionId });
   };
 
-  const handleConfirmGoal = () => {
-    if (!pendingGoal) return;
-    const { playerId } = pendingGoal;
-    // Optimistic delta — scorebug + per-player chip tick instantly
-    // (Steve 2026-05-17 audit fix). Reset when server refresh
-    // lands via the useEffect on score-prop change.
-    setLocalScoreDelta((prev) => ({
+  // A goal for this kid: on the scorebug at once, saved when there's
+  // signal, the Undo line naming it.
+  const recordGoal = (playerId: string) => {
+    // Optimistic delta — scorebug + the kid's goals tick instantly
+    // (Steve 2026-05-17 audit fix), until the server has it.
+    bumpScoreDelta((prev) => ({
       ...prev,
       team: prev.team + 1,
       player: { ...prev.player, [playerId]: (prev.player[playerId] ?? 0) + 1 },
@@ -1418,7 +1476,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       clockMs,
     ]);
     flushed.then(() => startTransition(() => router.refresh()));
-    setPendingGoal(null);
     startUndoToast("team", playerId, goalKey);
     // Light haptic tap — confirms the goal recorded. P1-10 mirror
     // of AFL `15b0a7c`. Fire-and-forget; the bridge no-ops on web.
@@ -1429,13 +1486,10 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     playSong();
   };
 
-  const handleCancelGoal = () => setPendingGoal(null);
-
   const handleOpponentGoal = useCallback(() => {
     // Optimistic delta — opp scorebug ticks instantly (Steve
-    // 2026-05-17 audit fix). Reset via the score-prop refresh
-    // useEffect.
-    setLocalScoreDelta((prev) => ({ ...prev, opp: prev.opp + 1 }));
+    // 2026-05-17 audit fix), until the server has it.
+    bumpScoreDelta((prev) => ({ ...prev, opp: prev.opp + 1 }));
     const { id: goalKey, flushed } = enqueueLiveAction("recordNetballOpponentGoal", [
       auth,
       game.id,
@@ -1447,7 +1501,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     // Light haptic — opponent goal still counts as a registered tap.
     // P1-10 mirror of AFL `15b0a7c`.
     void hapticTap("light");
-  }, [auth, game.id, currentQuarter, clockMs, startUndoToast, router]);
+  }, [auth, game.id, currentQuarter, clockMs, startUndoToast, router, bumpScoreDelta]);
 
   // long-press on any token (court OR bench strip) → open the player
   // actions modal. Bench tiles pass positionId=null; the modal hides
@@ -1455,6 +1509,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // current position to lock to.
   const handleTokenLongPress = (positionId: string | null, playerId: string | null) => {
     if (!playerId) return;
+    // One sheet at a time: a picked kid is put down.
+    setSelected(null);
     setActionsTarget({ playerId, positionId });
   };
 
@@ -1469,8 +1525,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       { positionId, outPlayerId: playerId, inPlayerId: null, atMs: clockMs },
     ]);
   };
-  // A bench kid goes into an empty bib. The brand halo fires on the new
-  // tile by itself (positionPulseKeys re-derives from midQuarterSubs).
+  // A bench kid goes into an empty bib. Their name rises in on the bib's
+  // tile by itself (KidTile keys on the kid).
   // The sub becomes durable at the next break's period_break_swap.
   const fill = (positionId: string, playerId: string) => {
     setMidQuarterSubs((prev) => [
@@ -1481,15 +1537,59 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     void hapticTap("light");
   };
 
+  // A swap made by tap-tap (mid-quarter subs on, live v3): the court kid
+  // off and the bench kid on at their bib at this moment, as Switch
+  // player's vacate + fill. At once, with Undo on the toast for 6 s: the
+  // quarter's sub log is this phone's until the break writes it, so Undo
+  // takes the two entries back out.
+  const [swapToast, setSwapToast] = useState<{ text: string; key: number } | null>(null);
+  const swapToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (swapToastTimerRef.current !== null) clearTimeout(swapToastTimerRef.current);
+    },
+    [],
+  );
+  // The toast says what changed; the strip's one Undo puts a swap back
+  // (Stagehand round 9: the toast's own Undo beside it named another thing).
+  const showSwapToast = (text: string) => {
+    if (swapToastTimerRef.current !== null) clearTimeout(swapToastTimerRef.current);
+    setSwapToast({ text, key: Date.now() });
+    swapToastTimerRef.current = setTimeout(() => setSwapToast(null), 2500);
+  };
+  const swapOnAt = (positionId: string, offId: string, onId: string) => {
+    const atMs = clockMs;
+    const out: MidQuarterSub = { positionId, outPlayerId: offId, inPlayerId: null, atMs };
+    const into: MidQuarterSub = { positionId, outPlayerId: null, inPlayerId: onId, atMs };
+    setMidQuarterSubs((prev) => [...prev, out, into]);
+    void hapticTap("light");
+    showSwapToast(`${kidFirst(offId)} → ${kidFirst(onId)}`);
+    oneUndo.changed({
+      label: swapUndoLabel([{ off: offId, on: onId }], kidFirst),
+      run: () => {
+        setMidQuarterSubs((prev) => prev.filter((e) => e !== out && e !== into));
+        showSwapToast("Swap undone");
+      },
+    });
+  };
+
   // The injury / loan events. The badges come from the events; the
   // overrides show them instantly until the server agrees (Steve
   // 2026-05-17 audit fix).
-  const recordInjury = (playerId: string, injured: boolean) => {
+  // Going home is an injury with reason "out" (lib/live/wentHome).
+  const recordInjury = (playerId: string, injured: boolean, wentHome = false) => {
     setLocalInjuredOverride((prev) => ({ ...prev, [playerId]: injured }));
+    setLocalWentHome((prev) => ({ ...prev, [playerId]: injured && wentHome }));
     enqueueLiveAction("markInjury", [
       auth,
       game.id,
-      { player_id: playerId, injured, quarter: Math.max(1, currentQuarter), elapsed_ms: clockMs },
+      {
+        player_id: playerId,
+        injured,
+        quarter: Math.max(1, currentQuarter),
+        elapsed_ms: clockMs,
+        ...(injured && wentHome ? { reason: WENT_HOME_REASON } : {}),
+      },
     ]);
   };
   const recordLoan = (playerId: string, loaned: boolean) => {
@@ -1505,16 +1605,19 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // anyone can). A bench kid, or nobody to bring on, just records it.
   // The actions sheet closes first so a stale sheet can't trap the next
   // long-press.
-  const startLeaving = (playerId: string, positionId: string | null, reason: "injured" | "lent" | "subbed") => {
+  const startLeaving = (playerId: string, positionId: string | null, reason: "injured" | "lent" | "subbed" | "went_home") => {
     closeActions();
-    if (positionId && benchCandidates.length > 0) {
+    // A lend always asks, as AFL's does: with nobody on the bench the
+    // sheet says so, never a silent empty bib (Stagehand round 9).
+    if (positionId && (benchCandidates.length > 0 || reason === "lent")) {
       setLeaving({ playerId, positionId, reason });
       return;
     }
     leaveNow(playerId, positionId, reason);
   };
-  const leaveNow = (playerId: string, positionId: string | null, reason: "injured" | "lent" | "subbed") => {
+  const leaveNow = (playerId: string, positionId: string | null, reason: "injured" | "lent" | "subbed" | "went_home") => {
     if (reason === "injured") recordInjury(playerId, true);
+    else if (reason === "went_home") recordInjury(playerId, true, true);
     else if (reason === "lent") recordLoan(playerId, true);
     if (positionId) vacate(playerId, positionId);
   };
@@ -1522,6 +1625,11 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const handleMarkInjured = () => {
     if (!actionsTarget) return;
     startLeaving(actionsTarget.playerId, actionsTarget.positionId, "injured");
+  };
+
+  const handleWentHome = () => {
+    if (!actionsTarget) return;
+    startLeaving(actionsTarget.playerId, actionsTarget.positionId, "went_home");
   };
 
   const handleUnInjury = () => {
@@ -1708,10 +1816,17 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // the AFL walkthrough still gets the netball one on their first
   // netball game — different mechanics, different copy.
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
-  // Q-by-Q modal trigger — set to true when the coach taps the
-  // small chip under the clock pill in NetballScoreBug. Mirrors
-  // AFL's quarterScoresOpen in LiveGame.tsx.
-  const [quarterScoresOpen, setQuarterScoresOpen] = useState(false);
+  // The Scores and fixes sheet (live/ScoresSheet), from "Scores" under
+  // the clock pill in NetballScoreBug or the utility row. Mirrors AFL's
+  // scoresOpen in LiveGame.tsx.
+  const [scoresOpen, setScoresOpen] = useState(false);
+  // Live v3: the ⋯ game menu (LiveGameMenu), Start Q1's confirm before
+  // the first whistle, and a failed Edit lineup's words over the shell.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [startQ1Open, setStartQ1Open] = useState(false);
+  const [shellError, setShellError] = useState<string | null>(null);
+  // Short names for the kids' tiles ("Ava S" beside another Ava).
+  const names = useSquadNames();
   // NETBALL-07: walkthrough scoring-step gate is wired to the team's
   // actual track_scoring (was hard-coded `true` before plan 04-04).
   // The "Recording scores" step is dropped when trackScoring=false so
@@ -1746,7 +1861,73 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   const exitHref =
     auth.kind === "team"
       ? `/teams/${auth.teamId}/games/${game.id}`
-      : `/run/${auth.token}`;
+      : // The exit page, as every other sport's link: EXIT to the page
+        // you were on did nothing (UX round 2).
+        `/run/${auth.token}/left`;
+  // Scorebug-driven scorer picker. Opens when the coach taps the
+  // own-team +G (the live bar's + GOAL, or full time's +G). Lists only
+  // the on-court GS + GA (the only positions allowed to score in
+  // netball). Pick → record directly; no confirm sheet, mirrors AFL's
+  // GameHeader-driven picker pattern. If no eligible scorers are on
+  // court (rare — only if the GS OR GA tile is empty mid-quarter via
+  // injury or vacancy) the sheet still renders so the coach sees "no
+  // candidates" instead of nothing visibly happening on the tap.
+  // Steve 2026-05-16.
+  const scorerPickerEl = pickScorerOpen
+    ? (() => {
+        const eligibleIds = [...(onCourt.positions.gs ?? []), ...(onCourt.positions.ga ?? [])];
+        // Dressed rows, not bare text (UI polish audit §11): the AFL
+        // who-scored picker gives each row a number circle and a
+        // position caption; a netball goal deserves the same moment.
+        // The bib label rides in the circle (netball has no jersey
+        // numbers) and the full position name captions it.
+        const candidates = eligibleIds
+          .map((pid) => {
+            const player = squadById.get(pid);
+            if (!player) return null;
+            const positionId = (onCourt.positions.gs ?? []).includes(pid) ? "GS" : "GA";
+            return {
+              id: pid,
+              name: player.full_name,
+              jerseyNumber: positionId,
+              subLabel: positionId === "GS" ? "Goal Shooter" : "Goal Attack",
+            };
+          })
+          .filter((c): c is NonNullable<typeof c> => !!c);
+        return (
+          <SlotFillSheet
+            slotLabel="goal"
+            titleVerb="Record"
+            lostScore="goal"
+            subtitle="Pick the scorer. Only GS and GA can score a netball goal."
+            emptyMessage="No GS or GA on court right now."
+            candidates={candidates}
+            onPick={(playerId) => {
+              setPickScorerOpen(false);
+              // The same goal as the kid bar's + GOAL.
+              recordGoal(playerId);
+            }}
+            onCancel={() => setPickScorerOpen(false)}
+          />
+        );
+      })()
+    : null;
+
+  // Full time's Undo last score: the game's latest goal standing (the
+  // strip's Undo is gone by then, as in the other sports' full times).
+  const undoLatestGoal = () => {
+    const top = undoScores[undoScores.length - 1];
+    if (!top) return;
+    handleUndoLastScore({
+      id: top.eventId ?? `optimistic-${top.key}`,
+      type: top.type,
+      player_id: top.playerId,
+      created_at: top.createdAt ?? "",
+      idempotency_key: top.key,
+      metadata: { quarter: top.quarter },
+    });
+  };
+
   const topUtilityRow = (
     <LiveTopBar
       exitHref={exitHref}
@@ -1770,6 +1951,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
     return (
       <div className="flex flex-col gap-4 pb-4">
         {topUtilityRow}
+        {intro}
         {walkthroughOverlay}
         <NetballLineupPicker
           // Rebuild the suggestion when who's-here changes on game day.
@@ -1807,21 +1989,18 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           }
           availabilityPanel={availabilityPanel}
           gamePlan={gamePlan}
-          walkthroughOffer={
-            <WalkthroughOffer storageKey="nb-walkthrough-seen" steps={walkthroughSteps} />
-          }
           currentOnFieldSize={game.on_field_size}
           onConfirm={async (lineup, quarterOverrideSeconds, chosenOnFieldSize) =>
             new Promise<void>((resolve) => {
               startTransition(async () => {
-                // Steve 2026-05-15: passes startQuarterToo=true so
-                // lineup_set + quarter_start commit atomically.
-                // Matches AFL's two-step kickoff — the picker hosts
-                // NetballStartQuarterModal and the modal's "Start
-                // Q1" tap fires this onConfirm; both events land in
-                // one server call, the page goes straight from
-                // pre-kickoff to live play with no intermediate
-                // "lineup locked, ready the kickoff" state.
+                // Live v3 (Phase 7, as AFL's Phase 5): Ready sets the
+                // lineup only (startQuarterToo=false). The live screen
+                // opens before the first whistle, and its bar's Start
+                // Q1 starts the clock; until then ⋯ → Edit lineup brings
+                // this picker back (reopenLineup). History: on 15 May
+                // 2026 the picker's "Start Q1" committed lineup_set +
+                // quarter_start in one call, because a lineup set ahead
+                // of the start left a dead end with no way back.
                 //
                 // Steve 2026-05-23: short-squad — pass the picker's
                 // chosen on-field-size through to the kickoff write
@@ -1835,7 +2014,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
                   lineup,
                   chosenOnFieldSize ?? ageGroup.defaultOnFieldSize,
                   quarterOverrideSeconds,
-                  /* startQuarterToo */ true,
+                  /* startQuarterToo */ false,
                 );
                 // Refused because another phone already started: say so
                 // over the page as it refreshes into the game.
@@ -1865,7 +2044,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               : undefined
           }
           initialSavedAt={initialDraft?.updated_at ?? null}
-          confirmLabel="Start Q1"
+          confirmLabel="Ready"
+          startModal={false}
           disabled={isPending}
         />
       </div>
@@ -1878,7 +2058,9 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
       <div className="flex flex-col gap-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
         {topUtilityRow}
         {walkthroughOverlay}
+        {/* The v3 header, as the other sports' finished games. */}
         <NetballScoreBug
+          part="header"
           teamName={teamName}
           opponentName={game.opponent}
           team={teamScore}
@@ -1903,6 +2085,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           squad={squad}
           trackScoring={trackScoring}
           presentIds={presentPlayerIds(thisGameEvents)}
+          sidelined={{ injured: injuredIds, wentHome: wentHomeSet }}
         />
         {/* Sticky-bottom "Done" CTA — locks to the viewport
             so the user has a big, unmissable exit. It said "Finish
@@ -1934,20 +2117,21 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   }
 
   // ─── Full-time review (Q4 ended, not yet finalised) ───────
-  // Mirrors AFL's FullTimeReview: gives the coach a chance to
-  // reconcile / fix scores before locking the result. Ends with a
-  // "Finalise game" button that fires game_finalised → flips us
-  // into the finalised branch above on next render.
+  // As the other sports' full times: the top bar, the v3 header, then
+  // the review (the shared BreakScoreEditor: missed goals for either
+  // side, Undo, Change who scored) and Finish game, which fires
+  // game_finalised → the finalised branch above on next render.
   if (quarterEnded && currentQuarter >= ageGroup.periodCount) {
     return (
-      <div className="flex flex-col gap-4 pb-4">
+      <div className="ui-nonselect flex flex-col gap-3 pb-4">
         {topUtilityRow}
         {walkthroughOverlay}
         <NetballScoreBug
+          part="header"
           teamName={teamName}
           opponentName={game.opponent}
-          team={teamScore}
-          opponent={opponentScore}
+          team={effectiveTeamScore}
+          opponent={effectiveOpponentScore}
           quarterLabel="FT"
           clockText="—"
           showScores={trackScoring}
@@ -1957,14 +2141,20 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           auth={auth}
           gameId={game.id}
           trackScoring={trackScoring}
-          teamScore={teamScore}
-          opponentScore={opponentScore}
+          teamScore={effectiveTeamScore}
+          opponentScore={effectiveOpponentScore}
           scoreByQuarter={scoreByQuarter}
-          players={squad}
+          periodCount={ageGroup.periodCount}
           finalisedElapsedMs={_quarterElapsedMs ?? 0}
           midQuarterSubs={midQuarterSubs}
-          opponentName={game.opponent}
+          teamName={teamName}
+          opponentName={opponentLabel}
+          onTeamGoal={!pickScorerOpen ? () => setPickScorerOpen(true) : undefined}
+          onOpponentGoal={handleOpponentGoal}
+          onUndo={undoScores.length > 0 ? undoLatestGoal : undefined}
+          scorePending={isPending}
         />
+        {scorerPickerEl}
       </div>
     );
   }
@@ -2012,6 +2202,8 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
           thisGameEvents={thisGameEvents}
           seasonEvents={seasonEvents}
           injuredIds={injuredIds}
+          wentHomeIds={wentHomeSet}
+          onWentHome={(pid) => setLocalWentHome((prev) => ({ ...prev, [pid]: true }))}
           loanedIds={loanedIds}
           playerGoals={playerGoals}
           playerStats={playerStats}
@@ -2036,7 +2228,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             setActionsTarget(null);
             setLeaving(null);
             setFillPosition(null);
-            setPendingGoal(null);
+            setSelected(null);
           }}
         />
       </div>
@@ -2051,110 +2243,391 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
   // a moment when the page can render with a committed lineup but no
   // quarter_start event — matches AFL's flow exactly.
 
-  // ─── Between Q4 and finalise: show finalise button ──────────
-  if (quarterEnded && currentQuarter >= ageGroup.periodCount) {
-    return (
-      <div className="flex flex-col gap-4 pb-4">
-        {topUtilityRow}
-        {walkthroughOverlay}
-        <NetballScoreBug
-          teamName={teamName}
-          opponentName={game.opponent}
-          team={teamScore}
-          opponent={opponentScore}
-          quarterLabel="Q4 END"
-          clockText="—"
-          showScores={trackScoring}
-          clockPulseKey={clockPulseKey}
-        />
-        <CourtDisplay lineup={onCourt} ageGroup={ageGroup} squadById={squadById} disabled />
-        <button
-          type="button"
-          onClick={() => {
-            const { flushed } = enqueueLiveAction("endNetballQuarter", [
-              auth,
-              game.id,
-              4,
-              clockMs,
-            ]);
-            // Refresh after flush so SSR sees the finalise events
-            // and the page rerenders into FT review.
-            flushed.then(() => startTransition(() => router.refresh()));
-          }}
-          disabled={isPending}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 py-3 text-white font-semibold disabled:opacity-60"
-        >
-          {isPending && <PulseDot size="sm" />}
-          {isPending ? "Finishing…" : "Finish game"}
-        </button>
-      </div>
-    );
-  }
-
-  // ─── LIVE (currentQuarter > 0, not ended) ───────────────────
-  // Goal scoring is per-player: tap a GS or GA token to attribute a
-  // goal to that player. Long-press any player to open the actions
-  // modal (injury / loan / lock-for-next-break).
+  // ─── Live v3's shell (Phase 7: netball, as AFL's) ────────────
+  // Before the first whistle and through each quarter the screen is
+  // LiveShell, the same one AFL runs on: the top bar (‹ Exit · vs X · ⋯),
+  // the light score header (tap it for Scores and fixes), the undo line,
+  // the info line ("Subs at the break · tap GS or GA to score" and the
+  // Plan chip), the court (the part that scrolls), the bench and the bar
+  // (Start Q1, + GOAL / their +G, or the picked kid's KidBar). The breaks
+  // and full time keep their pages. The lineup was set by the picker's
+  // Ready; until the first whistle (isPreGame) the bar starts Q1 and ⋯
+  // has Edit lineup.
+  const isPreGame = currentQuarter < 1;
+  const inPlay = !isPreGame;
   const actionsPlayer = actionsTarget
     ? squadById.get(actionsTarget.playerId) ?? null
     : null;
+  const bibOf = (posId: string) => netballSport.allPositions.find((p) => p.id === posId) ?? null;
 
-  // Live-play scorebug — pinned to the bottom of the viewport so
-  // the +G chip is thumb-reachable during a quarter (Steve
-  // 2026-05-13). Mirrors the AFL LiveGame pattern. Other states
-  // (pre-game, Q-break, FT review, finalised) keep the scorebug
-  // top-anchored — those branches return earlier with their own
-  // inline scorebug rendering.
-  const liveScoreBug = (
-    <NetballScoreBug
-      teamName={teamName}
-      opponentName={game.opponent}
-      // Effective values (props + optimistic delta) so the scorebug
-      // ticks instantly on +G tap, doesn't wait for the server
-      // refresh. Steve 2026-05-17 audit fix.
-      team={effectiveTeamScore}
-      opponent={effectiveOpponentScore}
-      quarterLabel={isPaused ? "PAUSE" : `Q${currentQuarter}`}
-      clockText={formatClock(remainingMs)}
-      isPending={isPending}
-      // NETBALL-04: pass undefined when scoring isn't tracked so
-      // NetballScoreBug's existing `{onOpponentGoal && (...)}` gate
-      // hides the +G affordance (no opponent-goal button visible).
-      onOpponentGoal={trackScoring ? handleOpponentGoal : undefined}
-      // Steve 2026-05-16: AFL-parity own-team +G chip. Hidden when
-      // (a) scoring isn't tracked at all, OR (b) a goal-confirm
-      // sheet is already mid-flight (avoids two scorer pickers
-      // open at once if the coach tapped a GS tile first then
-      // hits +G). Tap opens the SlotFillSheet rendered below the
-      // sticky bar; pick → records directly without a confirm.
-      onTeamGoal={
-        trackScoring && !pendingGoal && !pickScorerOpen
-          ? () => setPickScorerOpen(true)
-          : undefined
+  function outOf(pid: string): { kind: KidOutKind; out: KidOut } | null {
+    if (injuredIds.has(pid)) {
+      const home = wentHomeSet.has(pid);
+      return { kind: home ? "home" : "injured", out: { kind: "injured", wentHome: home } };
+    }
+    if (loanedIds.has(pid)) return { kind: "lent", out: { kind: "lent" } };
+    return null;
+  }
+
+  // One kid, on the court (at a bib) or the bench (KidTile). Their words:
+  // a bench kid goes on at the break (no words where subs are made any
+  // time: there's no sub planned to name, and none after the last
+  // quarter); a hurt or lent kid says so. Their goals sit after the name.
+  function kidTile(pid: string, positionId: string | null) {
+    const p = squadById.get(pid);
+    if (!p) return null;
+    const out = outOf(pid);
+    const bib = positionId ? bibOf(positionId) : null;
+    const words = kidWords({
+      place: positionId ? "field" : "bench",
+      rollingSubs: false,
+      out: out?.out ?? null,
+      inPlay: inPlay && !allowMidQuarterSubs && !isLastPeriod,
+    });
+    const goals = effectivePlayerGoals[pid] ?? 0;
+    const totalMs = totalMsOf(pid);
+    const locked = !!positionId && nextBreakLocks[positionId] === pid && !out;
+    return (
+      <KidTile
+        testId={`player-tile-${pid}`}
+        name={names.tile(p)}
+        spoken={{
+          name: p.full_name,
+          place: bib?.label ?? null,
+          // Every kid's time, 0:00 before they've played (as AFL's tiles).
+          time: formatMinSec(totalMs),
+          states: [
+            goals > 0 ? `${goals} goal${goals === 1 ? "" : "s"}` : null,
+            locked ? "Locked at this position for the next quarter break" : null,
+          ],
+        }}
+        place={positionId ? "field" : "bench"}
+        pos={bib?.shortLabel ?? null}
+        score={goals > 0 ? { text: `${goals}G`, label: "" } : null}
+        words={words}
+        selected={selected?.playerId === pid}
+        locked={locked}
+        lockLabel={locked ? "Locked at this position for the next quarter break" : null}
+        out={out?.kind ?? null}
+        onClick={inPlay ? () => handleTokenTap(positionId, pid) : undefined}
+        onLongPress={() => handleTokenLongPress(positionId, pid)}
+      />
+    );
+  }
+
+  // The court: a line per third, attack up the page, each bib's kid
+  // with their position before the name ("GS Ava"). The thirds are told
+  // apart by air and a faint chalk rule (FieldLines), on the court's blue.
+  const courtLines: FieldLine[] = NETBALL_THIRDS.map(({ id, label }) => {
+    const bibs = ageGroup.positions.filter((posId) => primaryThirdFor(posId) === id);
+    const tiles = bibs.map((posId) => {
+        const pid = onCourt.positions[posId]?.[0] ?? null;
+        const bib = bibOf(posId);
+        return (
+          <div key={posId} className="min-w-0">
+            {pid ? (
+              kidTile(pid, posId)
+            ) : (
+              <KidSlot
+                label={`${bib?.label ?? posId}, empty`}
+                text={`${bib?.shortLabel ?? posId.toUpperCase()} · ${selected && !selected.positionId ? "Move here" : "Empty"}`}
+                hot={!!selected && !selected.positionId}
+                onClick={() => handleTokenTap(posId, null)}
+              />
+            )}
+          </div>
+        );
+      });
+    // Staggered down the court, a bib a row, zigzagging (netballCourtLine).
+    return { key: id, label, tiles, ...netballCourtLine(bibs, tiles) };
+  }).filter((line) => line.tiles.length > 0);
+  const courtEl = (
+    <FieldLines lines={courtLines} {...netballCourt()} wakeUpKey={courtWakeUpKey} />
+  );
+
+  // The bench: who can come on, then who's out (hurt, home, lent), and
+  // "+ Late" for a kid who's just turned up (also in ⋯).
+  const benchEl = (
+    <KidBench
+      count={offCourt.length}
+      tiles={offCourt.map(({ player }) => (
+        <div key={player.id} className="min-w-0">
+          {kidTile(player.id, null)}
+        </div>
+      ))}
+      late={
+        lateArrivalCandidates.length > 0 ? (
+          <LateArrivalMenu look="text" candidates={lateArrivalCandidates} onAdd={handleLateArrival} pending={isPending} />
+        ) : undefined
       }
-      onClockTap={
-        currentQuarter >= 1 && !quarterEnded && !finalised
-          ? () => setClockMenuOpen(true)
-          : undefined
-      }
-      clockLabel={`Clock — Q${currentQuarter}, ${isPaused ? "paused" : "running"}`}
-      // Q-by-Q chip surfaces only when there's something to show.
-      // trackScoring=false hides it entirely (would be empty).
-      onShowQuarterScores={
-        trackScoring ? () => setQuarterScoresOpen(true) : undefined
-      }
-      paused={isPaused}
-      showScores={trackScoring}
-      // Strip the inner card chrome — this scorebug renders
-      // inside the sticky-bottom wrapper at the end of this
-      // branch's JSX. Mirrors AFL.
-      flat
     />
   );
 
+  // The info line: how subs work here and how to score, with the Plan
+  // Q{n+1} chip in the quarter's last sub window.
+  const planLabel = hasPinnedNextPeriod ? `Edit Q${currentQuarter + 1} plan` : `Plan Q${currentQuarter + 1}`;
+  const showPlanNext = inPlay && inFinalWindow && !isLastPeriod;
+  const planChip = showPlanNext ? (
+    <PlanNextChip
+      next={`Q${currentQuarter + 1}`}
+      ready={hasPinnedNextPeriod}
+      label={planLabel}
+      onOpen={() => setPlanNextOpen(true)}
+      onClear={() => setPlannedRotation(consumePeriodPin(pinForThisGame, currentQuarter))}
+    />
+  ) : null;
+  const STRONG = "font-bold text-ink";
+  // Ending the quarter: ⋯'s "End Q2" row, and "Time's up: end Q2" on the
+  // info line once the clock reads 0:00 and the quarter's still open
+  // (the hooter holds while a scorer is being picked). Both open the
+  // clock sheet's end confirm.
+  const canEndPeriod = currentQuarter >= 1 && !quarterEnded && !finalised;
+  const periodTimeUp = canEndPeriod && remainingMs <= 0;
+  const endWords = endPeriodWords({
+    sport: "netball",
+    periodLabel: "quarter",
+    period: currentQuarter,
+    periodCount: ageGroup.periodCount,
+    timeUp: periodTimeUp,
+  });
+  const openEndPeriod = () => {
+    setSelected(null);
+    setShowManualEndConfirm(true);
+  };
+  const infoEl = inPlay ? (
+    <InfoLine
+      timeUp={periodTimeUp ? { prompt: endWords.prompt, onEnd: openEndPeriod } : undefined}
+      state="idle"
+      msUntilDue={null}
+      subIntervalMs={0}
+      swaps={0}
+      hint={
+        <>
+          {allowMidQuarterSubs ? "Subs any time" : isLastPeriod ? "Last quarter" : "Subs at the break"}
+          {trackScoring && (
+            <>
+              {" · tap "}
+              <b className={STRONG}>GS</b> or <b className={STRONG}>GA</b> to score
+            </>
+          )}
+        </>
+      }
+      plan={planChip}
+    />
+  ) : null;
+
+  // ─── The bar ───────────────────────────────────────────────
+  // A picked kid: the bar is theirs (KidBar): + GOAL for a GS or GA,
+  // Injured (straight to who comes on at their bib), More (the player
+  // sheet: lend, keep at a bib next break, switch where the team subs
+  // mid-quarter). Otherwise the score bar, or (scoring off) where things
+  // are; before the first whistle, Start Q1.
+  const kidBar =
+    selected && inPlay
+      ? (() => {
+          const pid = selected.playerId;
+          const p = squadById.get(pid);
+          if (!p) return null;
+          const posId = selected.positionId;
+          const bib = posId ? bibOf(posId) : null;
+          const first = names.first(p);
+          const stats = playerStats.get(pid);
+          const totalMs = totalMsOf(pid);
+          const canGoal = trackScoring && !!posId && SCORING_POSITIONS.has(posId);
+          const btn = (tone: Parameters<typeof barButton>[0]) => barButton(tone, "sm");
+          const actions = [
+            ...(canGoal
+              ? [
+                  <button
+                    key="goal"
+                    type="button"
+                    onClick={() => {
+                      setSelected(null);
+                      recordGoal(pid);
+                    }}
+                    disabled={isPending}
+                    className={btn("primary")}
+                  >
+                    + Goal
+                  </button>,
+                ]
+              : []),
+            <button
+              key="injured"
+              type="button"
+              disabled={isPending}
+              onClick={() => {
+                setSelected(null);
+                // At a bib with someone to bring on: straight to who
+                // comes on. On the bench: marked at once.
+                startLeaving(pid, posId, "injured");
+              }}
+              className={btn("hurt")}
+            >
+              <svg viewBox="0 0 20 20" className="h-[16px] w-[16px]" aria-hidden>
+                <path d="M10 3v14M3 10h14" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" />
+              </svg>
+              Injured
+            </button>,
+            <KidBarMore
+              key="more"
+              onClick={() => {
+                setSelected(null);
+                setActionsTarget({ playerId: pid, positionId: posId });
+              }}
+            />,
+          ];
+          return (
+            <KidBar
+              name={p.full_name}
+              heading={`${p.full_name}${bib ? ` · ${bib.shortLabel}` : ""}`}
+              split={
+                stats ? (
+                  <TimeSplit
+                    parts={[
+                      { ms: stats.attack, className: "bg-zone-f-fill" },
+                      { ms: stats.centre, className: "bg-zone-c-fill" },
+                      { ms: stats.defence, className: "bg-zone-b-fill" },
+                    ]}
+                  />
+                ) : null
+              }
+              line={`${bib ? bib.label : "Bench"} · ${Math.round(totalMs / 60_000)}′ this game · ${pctOfGame(totalMs, nowAbsMs)}% of game`}
+              hint={
+                allowMidQuarterSubs ? (
+                  bib ? (
+                    <>
+                      Tap a bench kid to swap them on at <b className={STRONG}>{bib.shortLabel}</b>.
+                    </>
+                  ) : (
+                    <>
+                      Tap a court kid to swap <b className={STRONG}>{first}</b> on.
+                    </>
+                  )
+                ) : bib ? (
+                  "Subs happen at the break."
+                ) : (
+                  <>
+                    <b className={STRONG}>{first}</b> goes on at the break.
+                  </>
+                )
+              }
+              actions={actions}
+              columns={actions.length}
+              onClose={() => setSelected(null)}
+            />
+          );
+        })()
+      : null;
+
+  // Start Q1 from the pre-kickoff bar (live v3, B4, as AFL's): the
+  // picker's Ready set the lineup and brought the coach here; the
+  // confirm's "Start Q1 now" is the whistle. As the break's Start does:
+  // the quarter starts on this phone at once (an optimistic event), and
+  // saves when there's signal.
+  function handleStartFirstQuarter() {
+    setStartQ1Open(false);
+    setShellError(null);
+    // Unlock audio inside this tap, before any await (the team song).
+    primeSong();
+    writeEvent("startNetballQuarter", [auth, game.id, 1], liveEvents.periodStart(1));
+    void hapticTap("medium");
+  }
+
+  // ⋯ → Edit lineup, before the first whistle: back to the picker with
+  // the lineup as set (reopenLineup puts it in the draft and takes the
+  // lineup_set out). The picker is this screen's own pre-kickoff page,
+  // for the game-day link too, so a refresh brings it.
+  function handleEditLineup() {
+    setShellError(null);
+    startTransition(async () => {
+      const result = await reopenLineup(auth, game.id).catch(() => ({
+        success: false as const,
+        error: "Couldn't open the lineup — try again.",
+      }));
+      noteLiveResult(result);
+      if (!result.success) {
+        setShellError(result.error);
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  const onCourtCount = ageGroup.positions.reduce((n, posId) => n + (onCourt.positions[posId]?.length ?? 0), 0);
+  // Scoring off: nothing to score, so the bar just says where things are.
+  const scoringOffBar = (
+    <p className="flex min-h-[58px] items-center px-[2px] text-[0.8125rem] text-ink-mute">
+      <span>
+        <b className="block font-display stretch-75 text-[1.125rem] font-extrabold text-ink">{teamName}</b>
+        Tap any kid for their actions.
+      </span>
+    </p>
+  );
+  const shellBar = isPreGame ? (
+    <div className="flex flex-col gap-[6px]">
+      <WalkthroughOffer storageKey="nb-walkthrough-seen" steps={walkthroughSteps} />
+      <StartBarButton label="Start Q1" onClick={() => setStartQ1Open(true)} disabled={isPending} />
+    </div>
+  ) : (
+    kidBar ??
+    (trackScoring ? (
+      <NetballScoreBug
+        part="bar"
+        teamName={teamName}
+        opponentName={game.opponent}
+        team={effectiveTeamScore}
+        opponent={effectiveOpponentScore}
+        quarterLabel={`Q${currentQuarter}`}
+        clockText={formatClock(remainingMs)}
+        isPending={isPending}
+        onTeamGoal={!pickScorerOpen ? () => setPickScorerOpen(true) : undefined}
+        onOpponentGoal={handleOpponentGoal}
+      />
+    ) : (
+      scoringOffBar
+    ))
+  );
+
+  const shellHeader = (
+    <NetballScoreBug
+      part="header"
+      teamName={teamName}
+      opponentName={game.opponent}
+      // Effective values (props + optimistic delta) so the score ticks
+      // over on the tap, not the server's refresh.
+      team={effectiveTeamScore}
+      opponent={effectiveOpponentScore}
+      quarterLabel={isPreGame ? "Q1" : isPaused ? "PAUSE" : `Q${currentQuarter}`}
+      clockText={formatClock(remainingMs)}
+      onClockTap={inPlay ? () => setClockMenuOpen(true) : undefined}
+      clockLabel={
+        isPreGame ? "Clock — Q1, not started" : `Clock — Q${currentQuarter}, ${isPaused ? "paused" : "running"}`
+      }
+      paused={inPlay && isPaused}
+      showScores={trackScoring}
+      clockPulseKey={clockPulseKey}
+      // Tap the score: Scores and fixes, for whoever's running the game.
+      onScores={
+        trackScoring && inPlay
+          ? () => {
+              setSelected(null);
+              setScoresOpen(true);
+            }
+          : undefined
+      }
+    />
+  );
+
+  const roundWord = game.round_number != null ? `Round ${game.round_number}` : null;
+  const sportAge = `${netballSport.shortName} ${ageGroup.id.toUpperCase()}`;
+  const topSubline = isPreGame
+    ? [roundWord, game.location].filter(Boolean).join(" · ") || sportAge
+    : [roundWord, sportAge].filter(Boolean).join(" · ");
+  const whoRuns = auth.kind === "token" ? "Game-day link" : isAdmin ? "Team admin" : "Game manager";
+
   return (
-    <div className="flex flex-col gap-4 pb-4">
-      {topUtilityRow}
+    <div className="ui-nonselect">
       {walkthroughOverlay}
 
       {/* End-Q-early confirm. Mirrors the AFL one at
@@ -2189,96 +2662,93 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         />
       )}
 
-      {quarterScoresOpen && (
-        <QuarterScoreModal
-          sport="netball"
-          scoreByQuarter={scoreByQuarter}
-          currentQuarter={currentQuarter}
-          quarterEnded={quarterEnded}
-          teamName={teamName}
-          opponentName={game.opponent}
-          onClose={() => setQuarterScoresOpen(false)}
-          // Wire fix-scores so coach can unwind a misattributed
-          // goal mid-quarter without waiting for the break.
+      {scoresOpen && (
+        <ScoresSheet
           auth={auth}
           gameId={game.id}
-          players={squad}
+          quarters={{
+            sport: "netball",
+            scoreByQuarter,
+            currentQuarter,
+            quarterEnded,
+            teamName,
+            opponentName: game.opponent,
+            totalQuarters: ageGroup.periodCount,
+          }}
+          onClose={() => setScoresOpen(false)}
         />
       )}
 
-      {/* Undo strip moved into the sticky-bottom bar (Steve
-          2026-05-13). Mirrors AFL. NETBALL-04 trackScoring gate
-          applies down there. */}
-
-      {/* No colour key here (UI polish audit §13): on the live court
-          each token's bib chip reads in its third's colour right
-          above the bar, and the bands name themselves. The key stays
-          on the quarter-break and picker screens, where bare bars are
-          the decision aid (Steve 2026-06-29). */}
-      <CourtDisplay
-        lineup={onCourt}
-        ageGroup={ageGroup}
-        squadById={squadById}
-        onTokenTap={handleTokenTap}
-        onTokenLongPress={handleTokenLongPress}
-        scoringPositionIds={SCORING_POSITIONS}
-        injuredIds={injuredIds}
-        loanedIds={loanedIds}
-        nextBreakLocks={nextBreakLocks}
-        playerStats={playerStats}
-        // Effective per-player goals (props + optimistic delta) so
-        // the GS/GA chip pulses instantly on goal commit. Steve
-        // 2026-05-17 audit fix.
-        playerGoals={effectivePlayerGoals}
-        positionPulseKeys={positionPulseKeys}
-        wakeUpKey={courtWakeUpKey}
+      <LiveShell
+        top={
+          <LiveTopBar
+            exitHref={exitHref}
+            game={game}
+            isLive={inPlay}
+            onMenu={() => {
+              // One sheet at a time: the kid is put down.
+              setSelected(null);
+              setMenuOpen(true);
+            }}
+            subline={topSubline}
+            periods={{ count: ageGroup.periodCount, seconds: quarterLengthSeconds }}
+          />
+        }
+        banners={
+          shellError ? (
+            <p className="rounded-[12px] bg-blood-soft px-3 py-2 text-[0.8125rem] font-bold text-blood" role="alert">
+              {shellError}
+            </p>
+          ) : null
+        }
+        header={shellHeader}
+        undo={oneUndo.strip({ show: inPlay, plain: true, onScore: handleUndoLastScore, disabled: isPending })}
+        info={infoEl}
+        field={courtEl}
+        bench={benchEl}
+        bar={shellBar}
+        toast={
+          swapToast ? (
+            <SwapDoneToast key={swapToast.key} look="ink" text={swapToast.text} durationMs={2500} />
+          ) : null
+        }
       />
 
-      <NetballBenchStrip
-        entries={offCourt}
-        playerStats={playerStats}
-        playerGoals={effectivePlayerGoals}
-        onTileLongPress={(pid) => handleTokenLongPress(null, pid)}
+      {/* ⋯: late arrival, scores, the plan, the tour, feedback, the
+          game-day link, Restart and (before the first whistle) Edit
+          lineup. Netball has no game settings here. */}
+      <LiveGameMenu
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        auth={auth}
+        gameId={game.id}
+        game={game}
+        isAdmin={isAdmin}
+        subline={[roundWord, whoRuns].filter(Boolean).join(" · ")}
+        finished={finalised}
+        lateCandidates={lateArrivalCandidates}
+        onLateArrival={handleLateArrival}
+        latePending={isPending}
+        trackScoring={trackScoring}
+        onScores={inPlay ? () => setScoresOpen(true) : undefined}
+        planNext={showPlanNext ? { label: planLabel, onOpen: () => setPlanNextOpen(true) } : undefined}
+        endPeriod={canEndPeriod ? { label: endWords.label, description: endWords.description, onSelect: openEndPeriod } : undefined}
+        onWalkthrough={handleOpenWalkthrough}
+        onEditLineup={isPreGame ? handleEditLineup : undefined}
       />
 
-      {/* Plan-NEXT-period entry (F2 / ROTPLAN-02): in the final
-          rotation window of the period (inFinalWindow, derived from the
-          live game clock) and not on the last period, the coach can
-          open the SAME shared planner on the NEXT period's tab and
-          build its lineup so the break opens pre-seeded. A "Next period
-          ready" badge + Clear appears once pinned. Mirrors AFL. */}
-      {inFinalWindow && !isLastPeriod && (
-        <div className="flex items-center justify-between gap-2 px-1">
-          <SFButton
-            variant="ghost"
-            size="md"
-            data-testid="plan-next-period-entry"
-            onClick={() => setPlanNextOpen(true)}
-            icon={<SFIcon.whistle />}
-          >
-            {hasPinnedNextPeriod
-              ? `Edit Q${currentQuarter + 1} plan`
-              : `Plan Q${currentQuarter + 1}`}
-          </SFButton>
-          {hasPinnedNextPeriod && (
-            <div className="flex items-center gap-2">
-              <span
-                data-testid="planned-next-period-badge"
-                className="font-mono text-[10px] font-bold uppercase tracking-micro text-brand-700"
-              >
-                Next period ready
-              </span>
-              <button
-                type="button"
-                data-testid="plan-next-clear"
-                onClick={() => setPlannedRotation(consumePeriodPin(pinForThisGame, currentQuarter))}
-                className="font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim transition-colors hover:text-ink"
-              >
-                Clear
-              </button>
-            </div>
-          )}
-        </div>
+      {/* Start Q1's confirm: "Start Q1 now" when the umpire calls play.
+          Back leaves the lineup on screen; ⋯ → Edit lineup reopens the
+          picker. */}
+      {startQ1Open && isPreGame && (
+        <StartQuarterModal
+          cue="umpire calls play"
+          quarter={1}
+          shortSide={{ playing: onCourtCount, size: ageGroup.defaultOnFieldSize, min: ageGroup.minOnFieldSize }}
+          loading={isPending}
+          onStart={handleStartFirstQuarter}
+          onCancel={() => setStartQ1Open(false)}
+        />
       )}
 
       {/* Plan-NEXT-period planner (F2). Same shared GamePlanModal,
@@ -2405,27 +2875,6 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         );
       })()}
 
-      {/* Admin / utility action row — chrome owned by the shared
-          LiveAdminUtilityRow (Phase 5b). lateArrivalCandidates is
-          already pre-filtered by netball's state machine, so we
-          just pass it through. */}
-      <LiveAdminUtilityRow
-        trackScoring={trackScoring}
-        candidates={lateArrivalCandidates}
-        onLateArrival={handleLateArrival}
-        lateArrivalPending={isPending}
-        auth={auth}
-        gameId={game.id}
-        isAdmin={isAdmin}
-        finished={finalised}
-      />
-
-      <p className="text-center text-xs text-ink-dim">
-        {trackScoring
-          ? "Tap GS or GA to score (with confirm), or for their actions. Tap any other player for actions. The quarter ends automatically when the clock reaches zero."
-          : "Tap any player for actions. The quarter ends automatically when the clock reaches zero."}
-      </p>
-
       {/* Player actions — the shared LockModal, as AFL's (UX audit
           23 Oct 2026: netball had its own copy with emoji pills, no
           lines under the actions and an amber Mark injured). Opens on a
@@ -2474,7 +2923,20 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
             onLockZone={positionId ? handleLockForNextBreak : undefined}
             onUnlock={handleUnlock}
             onToggleInjury={isInjured ? handleUnInjury : handleMarkInjured}
+            wentHome={wentHomeSet.has(playerId)}
+            onWentHome={handleWentHome}
             onToggleLoan={isLoaned ? handleUnLoan : handleMarkLoaned}
+            // No Switch mid-quarter where the team's comp bans it: say so.
+            // A bench kid's sheet too: a parent asked to sub one on for a
+            // drink opened it from the bench, saw no note, and used Mark
+            // injured (round 9).
+            note={
+              allowMidQuarterSubs || isInjured || isLoaned
+                ? undefined
+                : positionId
+                  ? "Netball subs happen at the break. If they can't play on, mark them injured."
+                  : "Netball subs happen at the break: bench players go on in the next quarter's lineup."
+            }
             // Mid-quarter sub, only with the team's allow_mid_quarter_subs
             // on (Steve 2026-05-16: most netball comps ban them) and
             // someone on the bench to bring on.
@@ -2556,163 +3018,12 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         />
       )}
 
-      {/* Scorebug-driven scorer picker. Opens when the coach taps
-          the new own-team +G chip on the scorebug. Lists only the
-          currently-on-court GS + GA (the only positions allowed to
-          score in netball). Pick → record directly; no confirm
-          sheet, mirrors AFL's GameHeader-driven picker pattern. If
-          no eligible scorers are on court (rare — only if the GS
-          OR GA tile is empty mid-quarter via injury or vacancy)
-          the sheet still renders so the coach sees "no candidates"
-          instead of nothing visibly happening on the tap.
-          Steve 2026-05-16. */}
-      {pickScorerOpen && (() => {
-        const eligibleIds = [
-          ...(onCourt.positions.gs ?? []),
-          ...(onCourt.positions.ga ?? []),
-        ];
-        // Dressed rows, not bare text (UI polish audit §11): the
-        // AFL who-scored picker gives each row a number circle and
-        // a position caption; a netball goal deserves the same
-        // moment. The bib label rides in the circle (netball has no
-        // jersey numbers) and the full position name captions it.
-        const candidates = eligibleIds
-          .map((pid) => {
-            const player = squadById.get(pid);
-            if (!player) return null;
-            const positionId = (onCourt.positions.gs ?? []).includes(pid) ? "GS" : "GA";
-            return {
-              id: pid,
-              name: player.full_name,
-              jerseyNumber: positionId,
-              subLabel: positionId === "GS" ? "Goal Shooter" : "Goal Attack",
-            };
-          })
-          .filter((c): c is NonNullable<typeof c> => !!c);
-        return (
-          <SlotFillSheet
-            slotLabel="goal"
-            titleVerb="Record"
-            subtitle="Pick the scorer. Only GS and GA can score a netball goal."
-            emptyMessage="No GS or GA on court right now."
-            candidates={candidates}
-            onPick={(playerId) => {
-              setPickScorerOpen(false);
-              // Optimistic delta — same as the court-tap path.
-              setLocalScoreDelta((prev) => ({
-                ...prev,
-                team: prev.team + 1,
-                player: {
-                  ...prev.player,
-                  [playerId]: (prev.player[playerId] ?? 0) + 1,
-                },
-              }));
-              const { id: goalKey, flushed } = enqueueLiveAction("recordNetballGoal", [
-                auth,
-                game.id,
-                playerId,
-                currentQuarter,
-                clockMs,
-              ]);
-              flushed.then(() => startTransition(() => router.refresh()));
-              startUndoToast("team", playerId, goalKey);
-              // Same light-tap haptic as the court flow's
-              // handleConfirmGoal so coaches feel the same
-              // confirmation regardless of entry point.
-              void hapticTap("light");
-              // Hype song — same as court-flow path. AFL parity.
-              playSong();
-            }}
-            onCancel={() => setPickScorerOpen(false)}
-          />
-        );
-      })()}
+      {/* The GS / GA scorer picker (scorerPickerEl, above). */}
+      {scorerPickerEl}
 
-      {/* Goal confirm sheet — chrome owned by the shared
-          ScoreRecordingDock (Phase 5c). Coach taps a GS/GA token,
-          this surfaces so they can sanity-check the player before
-          committing. Single + Goal button (netball is goals-only —
-          no behinds). */}
-      {pendingGoal && (() => {
-        const player = squadById.get(pendingGoal.playerId);
-        return (
-          <ScoreRecordingDock
-            heading={
-              <>
-                Record goal for{" "}
-                <span className="text-brand-700">
-                  {player?.full_name ?? "player"}
-                </span>
-              </>
-            }
-            onCancel={handleCancelGoal}
-          onPlayerActions={() => {
-            const target = pendingGoal;
-            handleCancelGoal();
-            if (target) setActionsTarget(target);
-          }}
-            actions={
-              <button
-                type="button"
-                onClick={handleConfirmGoal}
-                disabled={isPending}
-                className="w-full rounded-sm bg-brand-600 py-3 font-mono text-base font-bold uppercase tracking-micro text-white shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
-              >
-                + Goal
-              </button>
-            }
-          />
-        );
-      })()}
-
-      {/* Sticky-bottom scorebug — Steve 2026-05-13: thumb-reach
-          +G AND the bar must look properly locked to the bottom
-          (not a floating card). Full-width, edge-to-edge solid
-          surface with a top border + upward shadow so scrolling
-          content disappears cleanly behind it. The NetballScoreBug
-          inside renders `flat` so its inner card chrome is
-          stripped — no card-on-card. Safe-area-aware bottom
-          padding clears the iPhone home indicator. z-30 sits
-          below modals (z-50) so confirm sheets still overlay
-          cleanly. */}
-      {/* Sticky-bottom scorebug + undo strip — chrome owned by
-          the shared LiveStickyScoreBar (Phase 5d). NETBALL-04 gate
-          (`trackScoring`) gates the undo strip locally; when the
-          team has scoring turned off, there's no goal flow + no
-          undo to show. */}
-      <LiveStickyScoreBar
-        scorebug={liveScoreBug}
-          scoringOff={
-            !trackScoring
-              ? { teamId: auth.kind === "team" && isAdmin ? auth.teamId : null }
-              : undefined
-          }
-        undoStrip={
-          trackScoring && undoTop ? (
-            <UndoStrip
-              flashing={undoToastVisible}
-              message={`${undoTop.type === "goal" ? teamName : game.opponent} goal${
-                undoTop.type === "goal" && undoTop.playerId && squadById.get(undoTop.playerId)
-                  ? ` — ${squadById.get(undoTop.playerId)!.full_name.trim().split(/\s+/)[0]}`
-                  : ""
-              }`}
-              onUndo={handleUndoLastScore}
-              disabled={isPending}
-            />
-          ) : null
-        }
-      />
-
-      {/* First-time onboarding hint for the long-press affordance.
-          Self-dismisses on first long-press / Got-it tap / 12s. The
-          hint shares a localStorage flag with AFL's mount so users
-          who saw it on the AFL side don't see it again here.
-          P1.5-3 in MICRO-INTERACTIONS-PLAN.md — netball mirror of
-          commit 2ca8e90. We mount it unconditionally on the
-          live-play branch (this branch only renders when
-          currentQuarter > 0 && !quarterEnded && !finalised). */}
-      {/* Hidden while the goal dock is open so it never covers it. */}
-      <LongPressHint enabled={!pendingGoal} />
+      {/* First-time hint for the long-press (shared with AFL's), while
+          the quarter's on and nobody's picked (it would cover the kid bar). */}
+      <LongPressHint enabled={inPlay && !selected} />
 
     </div>
   );
@@ -2745,6 +3056,8 @@ function NetballScoreBug({
   showScores = true,
   clockPulseKey = null,
   flat = false,
+  part,
+  onScores,
 }: {
   teamName: string;
   opponentName: string;
@@ -2813,13 +3126,22 @@ function NetballScoreBug({
    * Mirrors GameHeader.flat.
    */
   flat?: boolean;
+  /**
+   * Live v3 (the shell, Phase 7): the header (names, big totals, the
+   * clock in ink on the chalk; tap the score for Scores and fixes) or
+   * the bar (+ GOAL, "who scored?", and their +G), as AFL's GameHeader.
+   */
+  part?: "header" | "bar";
+  /** The header: tap a side for Scores and fixes. */
+  onScores?: () => void;
 }) {
   // Motion (design session 17 Oct 2026): totals roll one slot, a "+1"
   // ghost rises off the side that scored, a light haptic on touch-down.
   const teamGhost = useScoreGhost(team.goals);
   const oppGhost = useScoreGhost(opponent.goals);
   const tapDown = () => void hapticTap("light");
-  const TOTAL = "text-[44px] font-bold leading-10 tracking-[-0.04em]";
+  // v3: the header part sets the totals' type (ScoreBugFrame).
+  const TOTAL = part ? "" : "text-[44px] font-bold leading-10 tracking-[-0.04em]";
   const total = (goals: number) =>
     showScores ? (
       <RollingNumber value={goals} className={TOTAL} />
@@ -2832,7 +3154,7 @@ function NetballScoreBug({
   // clock ticks on an interval that can land inside the hydration commit.
   const inner = (
     <>
-      <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
+      <span className="flex items-center gap-1.5 font-mono text-nano font-bold uppercase leading-3 tracking-micro text-warm/[0.72]">
         {/* Running: the mint live dot, as AFL's pill. Paused keeps
             its ▶ badge + ring below. */}
         {onClockTap && !paused && (
@@ -2863,11 +3185,31 @@ function NetballScoreBug({
     >
       {/* ▶ glyph top-left when paused — tap to resume. */}
       {paused && (
-        <span className="pointer-events-none absolute -left-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-brand-500 text-[8px] font-bold leading-none text-warm shadow-card">
+        <span className="pointer-events-none absolute -left-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-brand-500 text-nano font-bold leading-none text-warm shadow-card">
           ▶
         </span>
       )}
       {inner}
+    </button>
+  );
+  // Live v3: the clock sits on the chalk in ink, as AFL's header clock
+  // (netball's hooter ends the quarter at once, so it never goes hi-vis).
+  const v3Pill = (
+    <button
+      type="button"
+      onClick={onClockTap}
+      disabled={!onClockTap}
+      aria-label={clockLabel}
+      className="flex min-w-[92px] flex-col items-center justify-center rounded-[12px] bg-transparent px-[10px] py-[6px] text-ink transition-colors duration-move ease-out-quart enabled:hover:bg-surface-alt bigtext:min-w-0 bigtext:px-[6px]"
+    >
+      <ClockPillReadout
+        periodTag={quarterLabel}
+        live={!!onClockTap && !paused}
+        pausedIcon={paused ? "▶" : null}
+        readout={clockText}
+        finished={quarterLabel === "FT"}
+        tone="ink"
+      />
     </button>
   );
   // Wrapped in SirenPulseHalo so the clock pill briefly halos when a
@@ -2876,7 +3218,7 @@ function NetballScoreBug({
   // halo renders inert.
   const haloPill = (
     <SirenPulseHalo triggerKey={clockPulseKey} size="md" className="rounded-md">
-      {pill}
+      {part ? v3Pill : pill}
     </SirenPulseHalo>
   );
 
@@ -2886,15 +3228,22 @@ function NetballScoreBug({
   // (showScores) RollingNumber rolls one slot on each goal.
   return (
     <ScoreBugFrame
-      card={!flat}
+      card={!flat && !part}
+      part={part}
+      onScores={onScores}
+      scoringOff={!!part && !showScores}
       ours={{
         name: teamName,
         total: total(team.goals),
         // Own-team +G mirrors the opponent's and AFL's onTeam("goal"):
         // the parent opens a player picker, so the coach can attribute
         // the goal without first hunting for the GS/GA tile.
-        chips: onTeamGoal ? [{ key: "g", text: "+G", label: `Add goal, ${teamName}`, onTap: onTeamGoal }] : [],
-        ghost: teamGhost && (
+        // The bar (v3) says it in words: "+ GOAL", "who scored?".
+        chips: onTeamGoal
+          ? [{ key: "g", text: "+G", word: "Goal", hint: "who scored?", label: `Add goal, ${teamName}`, onTap: onTeamGoal }]
+          : [],
+        // The "+1" rises off the header (v3), not the bar as well.
+        ghost: part !== "bar" && teamGhost && (
           <span key={teamGhost.key} aria-hidden className={`${SCORE_GHOST} left-3`}>
             {teamGhost.text}
           </span>
@@ -2904,7 +3253,7 @@ function NetballScoreBug({
         name: opponentName,
         total: total(opponent.goals),
         chips: onOpponentGoal ? [{ key: "g", text: "+G", label: `Add goal, ${opponentName}`, onTap: onOpponentGoal }] : [],
-        ghost: oppGhost && (
+        ghost: part !== "bar" && oppGhost && (
           <span key={oppGhost.key} aria-hidden className={`${SCORE_GHOST} right-3`}>
             {oppGhost.text}
           </span>
@@ -2913,15 +3262,8 @@ function NetballScoreBug({
       clock={haloPill}
       // 44pt text button (the old bordered 9px pill was ~20px).
       underClock={
-        onShowQuarterScores && (
-          <button
-            type="button"
-            onClick={onShowQuarterScores}
-            className="min-h-[44px] px-3 font-mono text-[10px] font-bold uppercase tracking-micro text-ink-dim transition-colors duration-fast ease-out-quart hover:text-ink"
-            aria-label="Show quarter-by-quarter scores"
-          >
-            Q-by-Q
-          </button>
+        !part && onShowQuarterScores && (
+          <ScoresButton onClick={onShowQuarterScores} />
         )
       }
       chipsDisabled={isPending}
@@ -2936,6 +3278,30 @@ function formatClock(ms: number): string {
   const mm = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
   const ss = (totalSeconds % 60).toString().padStart(2, "0");
   return `${mm}:${ss}`;
+}
+
+// ─── The court for the live v3 shell ────────────────────────
+// Netball's thirds as FieldLines' lines, attack up the page.
+const NETBALL_THIRDS = [
+  { id: "attack-third", label: "Attack third" },
+  { id: "centre-third", label: "Centre third" },
+  { id: "defence-third", label: "Defence third" },
+] as const;
+
+// ─── The optimistic score delta ─────────────────────────────
+// This phone's goals (and undos) not back from the server yet, and the
+// server score they were made on (see localScoreDelta).
+type ScoreDelta = {
+  team: number;
+  opp: number;
+  player: Record<string, number>;
+  base: { team: number; opp: number; players: Record<string, number> } | null;
+};
+type DeltaCounts = Omit<ScoreDelta, "base">;
+
+/** The delta still counts: the server score hasn't moved since it was made. */
+function onScoreBase(d: ScoreDelta, now: NonNullable<ScoreDelta["base"]>): boolean {
+  return d.base !== null && d.base.team === now.team && d.base.opp === now.opp && d.base.players === now.players;
 }
 
 // ─── applyLocks ─────────────────────────────────────────────

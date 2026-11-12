@@ -123,7 +123,7 @@ export function DeleteAccountModal({
                     <li key={t.id}>{t.name}</li>
                   ))}
                 </ul>
-                <p className="mt-2 text-[11px] text-danger/70">
+                <p className="mt-2 text-micro text-danger/70">
                   You&apos;re the only admin on{" "}
                   {soleAdminTeams.length === 1 ? "this team" : "these teams"}.
                   Promote another admin first to keep{" "}
@@ -147,9 +147,9 @@ export function DeleteAccountModal({
         )}
 
         <label className="mt-5 block">
-          <span className="font-mono text-[11px] font-semibold uppercase tracking-micro text-ink-dim">
+          <span className="font-mono text-micro font-semibold uppercase tracking-micro text-ink-dim">
             Type{" "}
-            <code className="rounded bg-surface-alt px-1.5 py-0.5 font-mono text-[11px] text-ink">
+            <code className="rounded bg-surface-alt px-1.5 py-0.5 font-mono text-micro text-ink">
               {DELETE_CONFIRMATION_WORD}
             </code>{" "}
             to confirm

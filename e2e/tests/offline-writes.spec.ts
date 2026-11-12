@@ -130,7 +130,7 @@ test("AFL: scores, a sub, the siren and Start Q2 with no signal all save once, i
   await page.getByRole("button", { name: "Add behind, Rovers" }).click();
   await page.getByTestId(`player-tile-${ids[0]}`).click();
   await page.getByTestId(`player-tile-${ids[12]}`).click();
-  await page.getByRole("button", { name: "Confirm" }).click();
+  await expect(page.getByTestId("swap-toast")).toBeVisible();
   await expect(page.getByTestId("offline-banner")).toContainText(/3 taps waiting to save/);
 
   // The siren, offline: the quarter ends here, and Q2 starts here.
@@ -162,10 +162,13 @@ test("Soccer: goals, a sub, the half-time hooter and the second half with no sig
 
   await page.context().setOffline(true);
   await page.getByRole("button", { name: "Add goal, Rovers" }).click();
+  // Two goals, not a double tap: the chip drops a repeat within 0.9 s
+  // (lib/live/repeatTap, Stagehand round 8).
+  await page.waitForTimeout(1100);
   await page.getByRole("button", { name: "Add goal, Rovers" }).click();
   await page.getByTestId(`player-tile-${ids[3]}`).click();
   await page.getByTestId(`player-tile-${ids[7]}`).click();
-  await page.getByRole("button", { name: "Confirm" }).click();
+  await expect(page.getByTestId("swap-toast")).toBeVisible();
 
   // The hooter ends the half with no signal: the break opens here (it
   // used to sit on "Applying…" with the kids' minutes running on).
@@ -190,6 +193,9 @@ test("Netball: goals, the quarter's hooter and Start Q2 with no signal all save 
 
   await page.context().setOffline(true);
   await page.getByRole("button", { name: "Add goal, Rovers" }).click();
+  // Two goals, not a double tap: the chip drops a repeat within 0.9 s
+  // (lib/live/repeatTap, Stagehand round 8).
+  await page.waitForTimeout(1100);
   await page.getByRole("button", { name: "Add goal, Rovers" }).click();
 
   // The hooter with no signal: the break opens here (it used to freeze

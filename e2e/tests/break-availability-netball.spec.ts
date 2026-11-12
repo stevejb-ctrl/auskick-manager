@@ -155,6 +155,22 @@ test("netball: at the break a coach can add an arrived player, mark a player out
   // sheet behind the status chip.
   await expandGameSettings(page);
 
+  // Stagehand, 9 Nov 2026: a kid who isn't here yet was in the lend and
+  // injured lists. Nobody can lend or injure a kid who isn't at the
+  // game; they're only in Add arrived.
+  for (const [button, sheetName] of [
+    [/^\+?\s*lend a player$/i, /lend/i],
+    [/^\+?\s*mark (a player )?injured$/i, /mark injured/i],
+  ] as const) {
+    await page.getByRole("button", { name: button }).click();
+    const sheet = page.getByRole("dialog", { name: sheetName });
+    await expect(sheet).toBeVisible({ timeout: 5_000 });
+    await expect(sheet.getByRole("button", { name: new RegExp(players[8].full_name, "i") })).toBeVisible();
+    await expect(sheet.getByRole("button", { name: new RegExp(arrival.full_name, "i") })).toHaveCount(0);
+    await sheet.getByRole("button", { name: "Cancel" }).click();
+    await expect(sheet).toHaveCount(0);
+  }
+
   // ─── 1. ADD ARRIVED ────────────────────────────────────────────
   await page
     .getByRole("button", { name: /add (an )?arrived player|add arrived/i })
@@ -215,6 +231,11 @@ test("netball: at the break a coach can add an arrived player, mark a player out
   // The bib in netball's words ("GS"), not an AFL zone label or a
   // capitalised id ("Gs") — cross-sport audit, 14 Oct 2026.
   await expect(replacementDialog).toHaveAccessibleName("Who comes on at GS?");
+  // Stagehand, 9 Nov 2026: Mark a player out said "Marking Ava injured"
+  // and "Mark injured without replacement", so the coach cancelled it
+  // rather than injure a kid who was only going home.
+  await expect(replacementDialog).toContainText(/is going home/i);
+  await expect(replacementDialog).not.toContainText(/injured/i);
   await replacementDialog
     .getByRole("button", { name: new RegExp(replacement.full_name, "i") })
     .click();

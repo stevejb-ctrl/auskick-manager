@@ -9,7 +9,7 @@
 // 2026 found soccer's family lacked ("Drift from AFL"):
 //   - the scorer sheet asks "Who scored?", attack first, and a stray
 //     tap on its backdrop doesn't lose the goal;
-//   - a tap-tap sub asks first and toasts; the undo strip says what was
+//   - a tap-tap sub is made at once and toasts (with Undo); the undo strip says what was
 //     recorded; a goal, an undo and a sub show before the server saves;
 //   - the long-press sheet knows an on-field kid's line and the season's
 //     lent minutes; Game settings (the sub interval) sits in the row.
@@ -21,6 +21,7 @@ import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
 import type { GameEvent } from "../../src/lib/types";
 import { closeGameSettings, openGameSettings, startFromBreak } from "../helpers/break";
+import { openGameMenu } from "../helpers/liveShell";
 
 interface Seeded {
   team: { id: string };
@@ -270,7 +271,7 @@ test("soccer: the scorer sheet asks who scored, attack first, and a stray tap do
     .toEqual([striker.id]);
 });
 
-test("soccer: a tap-tap sub asks first and toasts; a goal, its undo and the sub show before the server saves", async ({
+test("soccer: a tap-tap sub is made at once and toasts; a goal, its undo and the sub show before the server saves", async ({
   page,
 }) => {
   const admin = createAdminClient();
@@ -285,7 +286,9 @@ test("soccer: a tap-tap sub asks first and toasts; a goal, its undo and the sub 
   await openLive(page, team.id, game.id);
   await slowSaves(page, game.id);
 
-  const theirs = page.getByTestId("scorebug-team-name").last().locator("xpath=..");
+  // Their total: the paragraph after their name (live v3's header,
+  // where the "+1" that rises off it is beside, not in, the total).
+  const theirs = page.getByTestId("scorebug-team-name").last().locator("xpath=following-sibling::p[1]");
   await page.getByRole("button", { name: "Add goal, Coogee Crabs" }).click();
   await expect(theirs).toContainText("1", { timeout: 1500 });
   const strip = page.getByTestId("undo-strip");
@@ -293,13 +296,11 @@ test("soccer: a tap-tap sub asks first and toasts; a goal, its undo and the sub 
   await strip.getByRole("button", { name: "Undo" }).click();
   await expect(theirs).not.toContainText("1", { timeout: 1500 });
 
-  // Bench kid, then a defender: the same confirm AFL asks.
+  // Bench kid, then a defender: made at once, as AFL's, with Undo.
   await page.getByTestId(`player-tile-${benchKid.id}`).click();
   await page.getByTestId(`player-tile-${def1.id}`).click();
-  const confirm = page.getByRole("dialog", { name: /manually sub/i });
-  await expect(confirm).toContainText(`${benchKid.full_name} (Bench) for ${def1.full_name} (Defence)`);
-  await confirm.getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByTestId("swap-toast")).toContainText(`${def1.full_name} → ${benchKid.full_name}`, { timeout: 1500 });
+  await expect(page.getByTestId("undo-strip")).toContainText(`Undo: ${benchKid.full_name} on for ${def1.full_name}`);
   await expect(page.getByRole("group", { name: "Defence" }).getByTestId(`player-tile-${benchKid.id}`)).toBeVisible({
     timeout: 1500,
   });
@@ -321,7 +322,7 @@ test("soccer: a tap-tap sub asks first and toasts; a goal, its undo and the sub 
   await expect(theirs).toContainText("0");
 });
 
-test("soccer: long-press knows an on-field kid's line and lent minutes; Game settings sits in the row", async ({ page }) => {
+test("soccer: long-press knows an on-field kid's line and lent minutes; Game settings is in the game menu", async ({ page }) => {
   const admin = createAdminClient();
   // p3 (midfield) was lent for 6 minutes in last week's game.
   const { team, game, players } = await soccerGame(admin, { count: 8, available: 8, name: "SOC-LONGP", lentBefore: { 3: 6 } });
@@ -335,8 +336,9 @@ test("soccer: long-press knows an on-field kid's line and lent minutes; Game set
   await sheet.getByRole("button", { name: "Cancel" }).click();
   await expect(sheet).toHaveCount(0);
 
-  // Game settings: the sub interval, mid-game, as AFL's.
-  await page.getByRole("button", { name: "Game settings", exact: true }).click();
+  // Game settings: the sub interval, mid-game, in ⋯ as AFL's (live v3).
+  const menu = await openGameMenu(page);
+  await menu.getByRole("button", { name: /^game settings/i }).click();
   const settings = page.getByRole("dialog").filter({ hasText: "Sub interval" });
   await expect(settings).toBeVisible();
   await expect(settings.getByText(/players on field/i)).toHaveCount(0);

@@ -33,23 +33,25 @@ test.beforeEach(async ({ page }) => {
 test("AFL: 15 minutes in the sub box becomes the 10 the game uses", async ({ page }) => {
   await page.goto(await preGame("afl", "U12", 15));
   await waitForHydration(page);
-  await expect(page.getByRole("button", { name: /^start q1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: /game settings/i }).click();
   const box = page.locator("#sub-minutes");
   await box.fill("15");
   await box.blur();
   await expect(box).toHaveValue("10");
-  await expect(page.getByText(/Sub every 10m/)).toBeVisible();
+  await expect(page.getByText(/Sub every 10 min/)).toBeVisible();
 });
 
 test("union: 15 minutes in the sub box becomes the 10 the game uses", async ({ page }) => {
   await page.goto(await preGame("rugby_union", "U10", 15));
   await waitForHydration(page);
-  await expect(page.getByRole("button", { name: /^start h1$/i })).toBeVisible({ timeout: 15_000 });
+  // Rugby's picker sets the lineup with Ready too (live v3, Phase 8).
+  await expect(page.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: /game settings/i }).click();
   const box = page.locator("#sub-interval");
   await box.fill("15");
   await box.blur();
   await expect(box).toHaveValue("10");
-  await expect(page.getByText(/10\.0 min subs/)).toBeVisible();
+  // The one sub-interval phrase, as AFL's (Stagehand round 11, #5).
+  await expect(page.getByText(/Sub every 10 min/)).toBeVisible();
 });

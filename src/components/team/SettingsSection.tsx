@@ -26,7 +26,7 @@ export function SettingsSection({
       <div className="px-1">
         <h2
           id={id}
-          className={`font-mono text-[11px] font-bold uppercase tracking-micro ${
+          className={`font-mono text-micro font-bold uppercase tracking-micro ${
             tone === "danger" ? "text-danger" : "text-ink-dim"
           }`}
         >

@@ -63,30 +63,30 @@ export function buildLeagueWalkthroughSteps(opts: {
     {
       emoji: "⏱️",
       title: "Starting the game",
-      body: `Tap Start ${abbr}1 when the ${startCue} for kickoff. The clock counts down and ends the ${periodWord} automatically when it hits zero. Tap the clock pill to pause if there's a stoppage, then tap it again to resume.`,
+      body: `Tap Start ${abbr}1 on the bar at the bottom, then Start ${abbr}1 now when the ${startCue} for kickoff. The clock counts down and ends the ${periodWord} at zero. Tap it to pause for a stoppage, then again to go on.`,
     },
     {
       emoji: "🏉",
       title: "Field & bench",
-      body: "The field splits into Forwards (top) and Backs (bottom). Anyone not on the field sits in the bench strip below. To move a player between the lines, tap them, then tap the player they swap with.",
+      body: "The field splits into Forwards (top) and Backs (bottom), each with a count beside it. Anyone not on the field is on the bench underneath. To move a kid between the lines, tap them, then the kid they swap with.",
     },
     {
       emoji: "🔁",
       title: "Rolling subs",
-      body: "Tap a field player to select them, then tap a bench player to swap. A confirmation appears before anything changes. The app tracks how long each player has been on and suggests fair next rotations — players due to come off get an amber ↓ badge, players ready to come on get a brand ↑ badge.",
+      body: "The app tracks everyone's minutes and plans fair subs. The Next sub line under the score counts down and says how many swaps; tap it to see the pairs. The kids in it say Off next or On next → FWD, with the same number on both kids of a pair. To swap just one, tap a kid, then another: it happens straight away, with Undo for a few seconds.",
     },
     {
       emoji: "🔔",
-      title: "Sub timer alert",
-      body: `When the sub interval is up, a Sub due banner appears under the top bar and the sub card opens with the suggested swaps for the whole bench. Tap "Make all swaps" to rotate everyone in one go, or pick your own. The banner never blocks scoring. The interval is configurable per team and per ${periodWord} in Game settings.`,
+      title: "Sub due",
+      body: "When it's time, the clock turns orange, the kids say Off now and On now, and the bar shows Make all swaps. Tap it to rotate everyone in one go, or Pairs to check or change them first. You can still score. Set the interval in Game settings, under ⋯.",
     },
     {
       emoji: "👇",
-      title: "Tap for player actions",
+      title: "Tap a kid for their bar",
       // Only the actions the rugby sheet has: no keep-on, no line move.
-      body: `Tap a player, then Player actions at the bottom of the screen to open the actions sheet. From here you can Switch player${
+      body: `Tapping a kid opens their bar at the bottom, with their minutes this game: score for them, Injured, or More to Switch${
         vested ? ", Replace the vest wearer" : ""
-      }, Mark injured (slot stays empty for a replacement), or Lend to opposition.`,
+      } or Lend to the other team. Tap × to put them down.`,
     },
   ];
 
@@ -98,7 +98,7 @@ export function buildLeagueWalkthroughSteps(opts: {
         opts.vests.dh
           ? "First Receiver (FR) and Dummy Half (DH) wear coloured vests"
           : "First Receiver (FR) wears a coloured vest"
-      } that must rotate each ${periodWord} — no player can wear the same vest twice in one game. At the start of each ${periodWord} a vest assignment card prompts you to pick the wearer; the suggester defaults to whoever's least used that vest across the season.`,
+      } that must rotate each ${periodWord} — no player can wear the same vest twice in one game. The wearer has a small flag on their tile. Each ${periodWord} the app picks whoever's worn it least this season; if the wearer comes off, it asks who takes the vest.`,
     });
   }
 
@@ -121,12 +121,12 @@ export function buildLeagueWalkthroughSteps(opts: {
       emoji: "🏆",
       title: opts.goalsFromPlay ? "Recording tries & goals" : "Recording tries & conversions",
       body: opts.goalsFromPlay
-        ? `Tap a field player, then Try, ${pg.label} (${points.penaltyGoal}) or ${fg.label} (${points.fieldGoal}) at the bottom. After a try the conversion picker opens — pick the kicker${kickerRule ? `; ${kickerRule}` : ""}. +${pg.short} and +${fg.short} beside our score ask who kicked. For an opponent score, tap +T, +C, +${pg.short} or +${fg.short} beside their score. Undo takes back the latest score.`
+        ? `Tap a kid, then Try, ${pg.label} (${points.penaltyGoal}) or ${fg.label} (${points.fieldGoal}) in their bar. After a try the conversion sheet opens — pick the kicker${kickerRule ? `; ${kickerRule}` : ""}. +${pg.short} and +${fg.short} on the bar ask who kicked. For the other team, tap their +T, +C, +${pg.short} or +${fg.short}. Undo under the score takes back the latest; tap the score to fix any of them.`
         : opts.kickingAllowed
-        ? `Tap a field player, then tap Try at the bottom to credit them with ${points.try} points. A conversion picker then opens — pick the kicker.${
+        ? `Tap + Try on the bar and pick who scored (or tap a kid first) to credit them with ${points.try} points. The conversion sheet then opens — pick the kicker, or Skip.${
             opts.kickRotations ? ` The app enforces the goal-kick rotation: ${rotation}.` : ""
-          } For an opponent score, tap +T or +C beside their score in the header. Undo takes back the latest score.`
-        : `Tap a field player, then tap Try at the bottom to credit them with ${points.try} points. For an opponent try, tap +T beside their score in the header. Undo takes back the latest score.`,
+          } For the other team, tap their +T or +C. Undo under the score takes back the latest; tap the score to fix any of them.`
+        : `Tap + Try on the bar and pick who scored (or tap a kid first) to credit them with ${points.try} points. For the other team, tap their +T. Undo under the score takes back the latest; tap the score to fix any of them.`,
     });
   }
 
@@ -139,12 +139,12 @@ export function buildLeagueWalkthroughSteps(opts: {
         ? {
             emoji: "📊",
             title: "Forward / Centre / Back time",
-            body: `Each player tile shows a thin stacked bar at the bottom — green segment is time in the Forwards zone, blue is Backs, and the brand-coloured Centre segment is time wearing ${vest}. Turn this off in Game settings if you don't rotate the vest as a real position.`,
+            body: `Tap a kid to see their time split in their bar: green is time in the Forwards, blue the Backs, and the brand-coloured Centre is time wearing ${vest}. Turn this off in Game settings if you don't rotate the vest as a real position.`,
           }
         : {
             emoji: "📊",
             title: "Forward / Back time",
-            body: "Each player tile shows a thin stacked bar at the bottom — green segment is time in the Forwards, blue is Backs. Turn this off in Game settings if you don't keep players to a line.",
+            body: "Tap a kid to see their time split in their bar: green is time in the Forwards, blue the Backs. Turn this off in Game settings if you don't keep players to a line.",
           },
     );
   }
@@ -155,14 +155,14 @@ export function buildLeagueWalkthroughSteps(opts: {
       title: "Unbroken-period rule",
       body: `Junior League §6 requires each player to play an unbroken ${
         periodWord === "half" ? "half" : "two quarters"
-      } each game — no coming off during it. The sub card never takes a player off when this is their last chance at it, and the live screen names who must stay on.`,
+      } each game — no coming off during it. The planned sub never takes a kid off when this is their last chance at it, and a note at the top names who must stay on.`,
     });
   }
 
   steps.push({
     emoji: "🏁",
     title: `Ending the ${periodWord} & full time`,
-    body: `When the clock hits zero the ${periodWord}-break view appears with the score and a "Start ${abbr}2" button — tap it, then confirm when the ${startCue} for the next ${periodWord}. After the final ${periodWord} the Full-Time review opens so you can fix any score errors before tapping Finish game, then the share card appears with a "Copy for group chat" button.`,
+    body: `When the clock hits zero the break shows the score and the next lineup. Tap Start ${abbr}2, then Start ${abbr}2 now when the ${startCue} for the next ${periodWord}. After the final ${periodWord} the full-time review lets you fix any score before Finish game, then the share card has Copy for group chat.`,
   });
 
   return steps;

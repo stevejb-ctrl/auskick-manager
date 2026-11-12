@@ -63,7 +63,7 @@ export function InfoTooltip({
           e.stopPropagation();
           setOpen((v) => !v);
         }}
-        className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border border-hairline bg-surface text-[10px] font-bold text-ink-mute transition-colors duration-fast ease-out-quart hover:border-brand-300 hover:text-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 motion-safe:active:scale-[0.97]"
+        className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border border-hairline bg-surface text-nano font-bold text-ink-mute transition-colors duration-fast ease-out-quart hover:border-brand-300 hover:text-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 motion-safe:active:scale-[0.97]"
       >
         i
       </button>

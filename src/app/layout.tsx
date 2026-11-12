@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono, Instrument_Serif } from "next/font/google";
+import { Archivo, Atkinson_Hyperlegible, Instrument_Serif } from "next/font/google";
 import { GeistSans } from "geist/font/sans";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import Script from "next/script";
@@ -15,21 +15,29 @@ import { NativeAuthBridge } from "@/components/auth/NativeAuthBridge";
 import { NativeCookieBridge } from "@/components/native/NativeCookieBridge";
 import { NativeSplashHide } from "@/components/native/NativeSplashHide";
 import { A11yRoot } from "@/components/ui/A11yRoot";
+import { THEME_BOOT_SCRIPT } from "@/lib/themePreference";
 import "./globals.css";
 
-const sans = Inter({
+// Chalk on grass (live v3): Atkinson Hyperlegible for words (built for
+// low-vision reading, so a parent glancing at a phone in the sun gets
+// unambiguous letters), Archivo for display, with its width axis so
+// names, scores and the clock can run condensed (tailwind stretch-*).
+const body = Atkinson_Hyperlegible({
   subsets: ["latin"],
-  variable: "--font-geist",
+  weight: ["400", "700"],
+  style: ["normal", "italic"],
+  variable: "--font-body",
   display: "swap",
 });
-const mono = JetBrains_Mono({
+const display = Archivo({
   subsets: ["latin"],
-  variable: "--font-geist-mono",
+  axes: ["wdth"],
+  variable: "--font-display",
   display: "swap",
 });
 // GeistSans.variable is "--font-geist-sans". Used exclusively by the
 // SirenWordmark so the brand wordmark renders in Geist 900 (Black)
-// without switching the app-wide UI font away from Inter.
+// whatever the app-wide UI font is.
 
 // Instrument Serif italic — used decoratively for round numerals on the
 // Games list, the Home next-up hero, and the Game-detail upcoming hero.
@@ -97,17 +105,22 @@ export function generateMetadata(): Metadata {
 // are no-ops.
 export function generateViewport(): Viewport {
   const brand = getBrand();
-  const themeColor = brand.id === "netball" ? "#2E7FB8" : "#2F6B3E";
+  const themeColor = brand.id === "netball" ? "#2E7FB8" : "#17653A";
   return {
     width: "device-width",
     initialScale: 1,
     viewportFit: "cover",
-    themeColor,
-    // Light only, so Chrome's auto-dark and Samsung Internet's dark
-    // mode leave the page alone (UX round 3, e4: they inverted it, and
-    // the dark sub card and clock pill sank into the darkened page).
-    // A real dark theme would be a design job of its own.
-    colorScheme: "only light",
+    // The brand colour on a light phone (AFL: the oval); the dark page
+    // colour (the palette's dark `warm`) on a dark one.
+    themeColor: [
+      { media: "(prefers-color-scheme: light)", color: themeColor },
+      { media: "(prefers-color-scheme: dark)", color: "#0A1610" },
+    ],
+    // Siren has its own dark theme (src/lib/theme/palette.ts), so it
+    // says so: Chrome's auto-dark and Samsung Internet's dark mode leave
+    // it to paint its own, and form controls and scrollbars follow. R6
+    // had `only light` while there was no dark palette.
+    colorScheme: "light dark",
   };
 }
 
@@ -127,10 +140,13 @@ export default function RootLayout({
   const gaId = gaMeasurementId();
   const posthog = posthogSettings();
   return (
+    // suppressHydrationWarning: the boot script below may add
+    // data-theme to <html> before React hydrates.
     <html
       lang="en-AU"
+      suppressHydrationWarning
       data-brand={brand.brand.id}
-      className={`${sans.variable} ${mono.variable} ${GeistSans.variable} ${instrumentSerif.variable}`}
+      className={`${body.variable} ${display.variable} ${GeistSans.variable} ${instrumentSerif.variable}`}
     >
 
       {/* Analytics components must live INSIDE <body>. Rendering
@@ -142,6 +158,12 @@ export default function RootLayout({
           page (the call stack points at
           tryToClaimNextHydratableSuspenseInstance). Keeping them
           inside <body> avoids the parser fix-up entirely. */}
+      <head>
+        {/* Account → Theme (Light / Dark) onto <html> before the body
+            paints, so a coach who chose Light on a dark phone sees no
+            dark flash. System leaves it to prefers-color-scheme. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body className="font-sans">
         {/* Capacitor JS bridge. Slice 7 fix for the
             `disallowed_useragent` OAuth error in the native shell.

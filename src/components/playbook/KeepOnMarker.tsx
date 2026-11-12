@@ -9,7 +9,7 @@ export function KeepOnMarker({ corner = true }: { corner?: boolean }) {
     <span
       className={`${
         corner ? "absolute -right-1 -top-1.5 z-10 shadow-card" : "ml-1 align-middle"
-      } inline-flex items-center rounded-xs bg-brand-700 px-1 py-0.5 font-mono text-[9px] font-bold uppercase leading-none tracking-micro text-white`}
+      } inline-flex items-center rounded-xs bg-brand-700 px-1 py-0.5 font-mono text-nano font-bold uppercase leading-none tracking-micro text-white`}
       aria-label="Plays every minute"
       title="Plays every minute"
     >

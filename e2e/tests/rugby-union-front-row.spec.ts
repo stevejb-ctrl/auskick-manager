@@ -20,6 +20,7 @@ import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
 import { pickBreakStrategy, startFromBreak } from "../helpers/break";
+import { openPairs, pairList } from "../helpers/liveShell";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -219,19 +220,18 @@ test("union live subs: pairs go by position, never an unpicked kid into the fron
   await skipWalkthroughs(page);
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
-  // The sub card's pairs (open when the sub is due, else tap it open).
-  const pairs = page.locator("[data-testid^='league-swap-pair-']");
-  const header = page.locator("button[aria-expanded='false']").filter({ hasText: "→" });
-  await expect(pairs.first().or(header)).toBeVisible({ timeout: 15_000 });
-  if (await header.isVisible()) await header.click();
-  await expect(pairs).toHaveCount(2);
+  // The planned sub's pairs (live v3: the info line opens the pairs sheet).
+  const sheet = await openPairs(page);
+  const pairs = await pairList(sheet);
+  expect(pairs).toHaveLength(2);
   // Leo takes the left wing's spot, and the pair says so.
-  const leo = pairs.filter({ hasText: new RegExp(`→[A-Z]{0,3}${first(ids[16])}`) });
-  await expect(leo).toContainText(new RegExp(`^LW11[A-Z]{0,3}${first(ids[10])}`));
+  const leo = pairs.find((x) => x.on.startsWith(first(ids[16])));
+  expect(leo?.where).toBe("LW11");
+  expect(leo?.off.startsWith(first(ids[10]))).toBe(true);
   // Nobody in the front row comes off for either of them.
-  for (const label of ["LHP1", "HK2", "THP3"]) await expect(pairs.filter({ hasText: new RegExp(`^${label}`) })).toHaveCount(0);
+  for (const label of ["LHP1", "HK2", "THP3"]) expect(pairs.map((x) => x.where)).not.toContain(label);
 
-  await page.getByRole("button", { name: /make all 2 swaps/i }).click();
+  await sheet.getByRole("button", { name: /make all 2 swaps/i }).click();
   await expect
     .poll(async () => {
       const { data } = await admin.from("game_events").select("metadata").eq("game_id", game.id).eq("type", "swap");
@@ -253,10 +253,9 @@ test("union live: a coach's swap that puts an unpicked kid at hooker gets a warn
   await waitForHydration(page);
   const tile = (pid: string) => page.getByTestId(`league-player-tile-${pid}`);
   await expect(tile(ids[1]).getByText("HK2", { exact: true })).toBeVisible({ timeout: 15_000 });
-  // The hooker off, kid 15 (no role) on in their spot (AFL's confirm first).
+  // The hooker off, kid 15 (no role) on in their spot (at once, as AFL's).
   await tile(ids[1]).click();
   await tile(ids[15]).click();
-  await page.getByRole("dialog", { name: /manually sub/i }).getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByTestId("front-row-warning")).toContainText(`${nameOf(ids[15])} is at HK2 but isn't picked to play there`, {
     timeout: 15_000,
   });

@@ -134,3 +134,59 @@ test("AFL break: a rushed behind reads Rushed in Fix scores", async ({ page }) =
   await expect(rows.filter({ hasText: players[8].full_name })).toHaveCount(1);
   await expect(rows.filter({ hasText: /\bPlayer\b/ })).toHaveCount(0);
 });
+
+// Stagehand, 9 Nov 2026 (fix-scores-flow): at quarter time the coach
+// added a missed Sharks goal in the break's score sheet, and the screen
+// said "Another phone added a Sandringham Sharks goal" when the page
+// caught up. It was this phone's own fix: the break's sheet (as Scores
+// and fixes does) keeps the other-phone notice quiet for its own fixes.
+test("AFL break: a missed score added here isn't announced as another phone's", async ({ page }) => {
+  const admin = createAdminClient();
+  const { data: superAdmin } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  const ownerId = superAdmin.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
+  const team = await makeTeam(admin, { ownerId, ageGroup: "U10", sport: "afl" });
+  await admin.from("teams").update({ track_scoring: true }).eq("id", team.id);
+  const players = await makePlayers(admin, { teamId: team.id, ownerId, count: 14 });
+  const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Sandringham Sharks" });
+  const ids = players.map((p) => p.id);
+  const at = (minsAgo: number) => new Date(Date.now() - minsAgo * 60_000).toISOString();
+  await admin.from("game_events").insert(
+    [
+      {
+        type: "lineup_set",
+        metadata: { lineup: { back: ids.slice(0, 4), hback: [], mid: ids.slice(4, 8), hfwd: [], fwd: ids.slice(8, 12), bench: ids.slice(12) } },
+        created_at: at(14),
+      },
+      { type: "quarter_start", metadata: { quarter: 1 }, created_at: at(13) },
+      { type: "goal", player_id: ids[8], metadata: { quarter: 1 }, created_at: at(11) },
+      { type: "quarter_end", metadata: { quarter: 1, elapsed_ms: 12 * 60_000 }, created_at: at(1) },
+    ].map((e) => ({ ...e, game_id: game.id, created_by: ownerId })),
+  );
+  await admin.from("games").update({ status: "in_progress" }).eq("id", game.id);
+
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("gm-walkthrough-seen", "1");
+    } catch {}
+  });
+  await page.goto(`/teams/${team.id}/games/${game.id}/live`);
+  const selectTeam = page.getByRole("button", { name: /select team for q2/i });
+  const startQ2 = page.getByRole("button", { name: /^start q2$/i });
+  await expect(selectTeam.or(startQ2).first()).toBeVisible({ timeout: 15_000 });
+  if (await selectTeam.isVisible()) await selectTeam.click();
+  await expect(startQ2).toBeVisible({ timeout: 15_000 });
+
+  await page.getByRole("button", { name: /review and update scores/i }).click();
+  const sheet = page.getByRole("dialog", { name: "Score" });
+  await sheet.getByRole("button", { name: /\+ add a missed score/i }).click();
+  await sheet.locator("select").nth(0).selectOption("opponent_goal");
+  await sheet.getByRole("button", { name: /^add$/i }).click();
+  await expect
+    .poll(async () => (await admin.from("game_events").select("id").eq("game_id", game.id).eq("type", "opponent_goal")).data?.length, { timeout: 15_000 })
+    .toBe(1);
+  // The page has caught up (the break's score says 6 – 6), and nothing
+  // said another phone added it.
+  await expect(page.getByRole("button", { name: /^score 6 – 6, level\. review and update scores$/i })).toBeVisible({ timeout: 15_000 });
+  await page.waitForTimeout(1500);
+  await expect(page.getByText(/another phone/i)).toHaveCount(0);
+});

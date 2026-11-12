@@ -24,6 +24,7 @@ import { periodEndLine } from "@/lib/sports/break";
 import {
   clockEndEarlyHint,
   endPeriodEarlyCopy,
+  endPeriodWords,
   onSurfaceLabel,
   playersOnSurfaceLabel,
   restartGameHint,
@@ -80,6 +81,10 @@ function sharedCopy(sport: SportConfig, ag: AgeGroupConfig): string[] {
     for (const clock of CLOCKS) {
       const c = endPeriodEarlyCopy({ sport: sport.id, periodLabel: label, period: n, clock, elapsedMs: 65_000, periodMs: 600_000 });
       out.push(c.title, c.body, c.confirm, c.confirmFull ?? "");
+    }
+    for (const timeUp of [false, true]) {
+      const e = endPeriodWords({ sport: sport.id, periodLabel: label, period: n, periodCount: ag.periodCount, timeUp });
+      out.push(e.label, e.description, e.prompt);
     }
   }
   if (isRugby(sport.id)) {
@@ -287,7 +292,7 @@ describe("rugby's and touch's start cues", () => {
     });
   }
 
-  it("league's walkthrough promises the swap confirm the live screen asks", () => {
+  it("league's walkthrough promises the instant swap and Undo the live screen gives", () => {
     const steps = buildLeagueWalkthroughSteps({
       sport: "rugby_league",
       trackScoring: true,
@@ -297,8 +302,10 @@ describe("rugby's and touch's start cues", () => {
       trackZoneTime: false,
     });
     const subs = steps.find((s) => s.title === "Rolling subs")!;
-    expect(subs.body).toMatch(/confirm/i);
-    expect(readFileSync(join(process.cwd(), "src/components/league/LeagueLiveGame.tsx"), "utf8")).toMatch(/\.confirmSwap\(/);
+    expect(subs.body).toMatch(/straight away/i);
+    expect(subs.body).toMatch(/undo/i);
+    expect(subs.body).not.toMatch(/confirm/i);
+    expect(readFileSync(join(process.cwd(), "src/components/league/LeagueLiveGame.tsx"), "utf8")).toMatch(/\.manualSwap\(\{[^}]*undo: /);
   });
 });
 
@@ -314,5 +321,26 @@ describe("the soccer family's own words", () => {
     expect(soccerFamilyRules("futsal").rollingSubs.label).toBe("Flying subs");
     expect(soccerFamilyRules("soccer").rollingSubs.label).toBe("Rolling subs");
     expect(soccerFamilyRules("hockey").rollingSubs.label).toBe("Rolling subs");
+  });
+});
+
+describe("ending the period from the game menu (Stagehand round 9)", () => {
+  it("names quarters as the clock does and halves as people do", () => {
+    const w = (periodLabel: "quarter" | "half" | "period", period: number, periodCount: number) =>
+      endPeriodWords({ sport: "soccer", periodLabel, period, periodCount, timeUp: false }).label;
+    expect(w("quarter", 2, 4)).toBe("End Q2");
+    expect(w("half", 1, 2)).toBe("End 1st half");
+    expect(w("half", 2, 2)).toBe("End 2nd half");
+    expect(w("period", 1, 1)).toBe("End the period");
+    expect(w("period", 2, 3)).toBe("End period 2");
+  });
+
+  it("says time's up in the prompt and the row once the clock reads 0:00", () => {
+    const up = endPeriodWords({ sport: "basketball", periodLabel: "half", period: 1, periodCount: 2, timeUp: true });
+    expect(up.prompt).toBe("Time's up: end 1st half");
+    expect(up.description).toMatch(/^Time's up/);
+    const early = endPeriodWords({ sport: "afl", periodLabel: "quarter", period: 3, periodCount: 4, timeUp: false });
+    expect(early.prompt).toBe("Time's up: end Q3");
+    expect(early.description).toBe(`${clockEndEarlyHint("afl")} You'll confirm first.`);
   });
 });

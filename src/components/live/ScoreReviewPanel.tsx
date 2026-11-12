@@ -21,6 +21,8 @@ import { Button } from "@/components/ui/Button";
 import type { LiveAuth, Player } from "@/lib/types";
 import { Modal } from "@/components/ui/Modal";
 import { groupScoreLog, scoreEntryWho } from "@/lib/live/scoreLog";
+import { quietOtherPhoneNotices } from "@/lib/live/otherPhone";
+import { ChangeScorer, fixScoreAs } from "@/components/games/FixScoresDialog";
 
 interface ScoreReviewPanelProps {
   auth: LiveAuth;
@@ -83,6 +85,12 @@ export function ScoreReviewPanel({
   const [pendingDelete, setPendingDelete] = useState<ScoreLogEntry | null>(
     null,
   );
+  // "Change who scored" on one of our scores: the live Scores and fixes
+  // sheet's fix (fixScoreAs "reassign"), so the break and full time can
+  // put a score on the right kid without taking it off and adding it
+  // again (Stagehand round 9). It keeps the score's period.
+  const [changing, setChanging] = useState<{ id: string; playerId: string } | null>(null);
+  const [changePending, startChange] = useTransition();
 
   // Add-score form state
   const [addOpen, setAddOpen] = useState(false);
@@ -120,6 +128,8 @@ export function ScoreReviewPanel({
     if (isOurs) undoTeamScore(kind, q);
     else undoOpponentScore(kind, q);
     if (scorer) undoPlayerScore(scorer, kind);
+    // This phone's own fix, not "another phone" (as Scores and fixes).
+    quietOtherPhoneNotices();
 
     startTransitionFn(async () => {
       const result = await deleteScore(auth, gameId, entry.id);
@@ -130,6 +140,29 @@ export function ScoreReviewPanel({
         setScoreLogError(result.error);
         return;
       }
+      await refreshScoreLog();
+      startTransition(() => router.refresh());
+    });
+  }
+
+  function handleChangeScorer(entry: ScoreLogEntry, playerId: string) {
+    setScoreLogError(null);
+    const kind = entry.type === "goal" ? "goals" : "behinds";
+    const was = entry.player_id;
+    // The kids' tallies move at once (the live store doesn't re-read the
+    // server's game on refresh), and back if the fix is refused.
+    if (was) undoPlayerScore(was, kind);
+    incPlayerScore(playerId, kind);
+    quietOtherPhoneNotices();
+    startChange(async () => {
+      const result = await fixScoreAs(auth, gameId, { op: "reassign", eventId: entry.id, playerId });
+      if (!result.success) {
+        undoPlayerScore(playerId, kind);
+        if (was) incPlayerScore(was, kind);
+        setScoreLogError(result.error);
+        return;
+      }
+      setChanging(null);
       await refreshScoreLog();
       startTransition(() => router.refresh());
     });
@@ -147,6 +180,9 @@ export function ScoreReviewPanel({
     if (isOurs) incTeam(kind, addQuarter);
     else incOpponent(kind, addQuarter);
     if (isOurs) incPlayerScore(addPlayerId, kind);
+    // This phone's own missed score: when the page catches up it isn't
+    // "Another phone added a Sharks goal" (Stagehand, 9 Nov 2026).
+    quietOtherPhoneNotices();
 
     startTransitionFn(async () => {
       const result = await addRetroScore(auth, gameId, {
@@ -173,12 +209,16 @@ export function ScoreReviewPanel({
     [scoreLog, periodCount],
   );
   const who = (e: ScoreLogEntry) => scoreEntryWho(e, (id) => playersById.get(id)?.full_name);
+  const scorerChoices = useMemo(
+    () => players.map((p) => ({ id: p.id, name: `${p.jersey_number != null ? `#${p.jersey_number} ` : ""}${p.full_name}` })),
+    [players],
+  );
 
   return (
     <div>
       <p className="text-xs font-semibold text-ink">Fix scores</p>
       <p className="mt-0.5 text-xs text-ink-mute">
-        Tap × to delete a wrong score, or + to add a missed one.
+        Change who scored, tap × to delete a wrong score, or + to add a missed one.
       </p>
 
       {scoreLogLoading && (
@@ -196,7 +236,7 @@ export function ScoreReviewPanel({
             if (entries.length === 0) return null;
             return (
               <div key={q}>
-                <p className="text-[10px] font-bold uppercase tracking-micro text-ink-mute">
+                <p className="text-nano font-bold uppercase tracking-micro text-ink-mute">
                   {`${periodLetter}${q}`}
                 </p>
                 <ul className="mt-1 divide-y divide-hairline rounded-md border border-hairline bg-surface-alt">
@@ -204,41 +244,66 @@ export function ScoreReviewPanel({
                     const isOurs = e.type === "goal" || e.type === "behind";
                     const isGoal =
                       e.type === "goal" || e.type === "opponent_goal";
+                    const kindWord = includeBehinds && !isGoal ? "behind" : "goal";
                     return (
-                      <li
-                        key={e.id}
-                        className="flex items-center justify-between gap-2 px-3 py-2 text-xs"
-                      >
+                      <li key={e.id} className="px-3 py-2 text-xs" data-testid="score-review-row">
+                      <div className="flex items-center justify-between gap-2">
                         <span className="flex items-center gap-2">
                           <span
-                            className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
+                            className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-nano font-bold ${
                               isOurs
                                 ? "bg-brand-100 text-brand-700"
-                                : "bg-warn-soft text-warn"
+                                : "bg-warn-soft text-warn-ink"
                             }`}
                           >
                             {includeBehinds ? (isGoal ? "G" : "B") : "G"}
                           </span>
                           <span className="font-medium text-ink">{who(e)}</span>
                           {e.retro && (
-                            <span className="rounded-full bg-ink-mute/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-micro text-ink-mute">
+                            <span className="rounded-full bg-ink-mute/10 px-1.5 py-0.5 text-nano font-bold uppercase tracking-micro text-ink-mute">
                               Added
                             </span>
                           )}
                         </span>
-                        {/* A 44 px target round the small ×, named for
-                            the score it deletes (it was 25×22 and "Delete
-                            this score" on every row; UX round 3, e4). */}
-                        <button
-                          type="button"
-                          onClick={() => setPendingDelete(e)}
-                          className="group -my-2 -mr-2 inline-flex h-11 w-11 shrink-0 items-center justify-center motion-safe:active:scale-[0.97]"
-                          aria-label={`Delete ${includeBehinds && !isGoal ? "behind" : "goal"}${isOurs ? ` by ${who(e)}` : `, ${who(e)}`}`}
-                        >
-                          <span className="rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-ink-mute transition-colors group-hover:border-danger/30 group-hover:bg-danger/10 group-hover:text-danger">
-                            ×
-                          </span>
-                        </button>
+                        <span className="flex shrink-0 items-center">
+                          {isOurs && (
+                            <button
+                              type="button"
+                              onClick={() => setChanging({ id: e.id, playerId: e.player_id ?? "" })}
+                              className="group -my-2 inline-flex h-11 shrink-0 items-center px-1 motion-safe:active:scale-[0.97]"
+                              aria-label={`Change who scored: ${who(e)}, ${kindWord} in ${periodLetter}${q}`}
+                            >
+                              <span className="rounded-full border border-hairline px-2 py-0.5 text-micro font-medium text-ink-dim transition-colors group-hover:bg-surface">
+                                Change
+                              </span>
+                            </button>
+                          )}
+                          {/* A 44 px target round the small ×, named for
+                              the score it deletes (it was 25×22 and "Delete
+                              this score" on every row; UX round 3, e4). */}
+                          <button
+                            type="button"
+                            onClick={() => setPendingDelete(e)}
+                            className="group -my-2 -mr-2 inline-flex h-11 w-11 shrink-0 items-center justify-center motion-safe:active:scale-[0.97]"
+                            aria-label={`Delete ${kindWord}${isOurs ? ` by ${who(e)}` : `, ${who(e)}`}`}
+                          >
+                            <span className="rounded-full border border-hairline px-2 py-0.5 text-micro font-medium text-ink-mute transition-colors group-hover:border-danger/30 group-hover:bg-danger/10 group-hover:text-danger">
+                              ×
+                            </span>
+                          </button>
+                        </span>
+                      </div>
+                      {changing?.id === e.id && (
+                        <ChangeScorer
+                          players={scorerChoices}
+                          playerId={changing.playerId}
+                          current={e.player_id}
+                          pending={changePending}
+                          onPick={(playerId) => setChanging({ id: e.id, playerId })}
+                          onSave={() => handleChangeScorer(e, changing.playerId)}
+                          onCancel={() => setChanging(null)}
+                        />
+                      )}
                       </li>
                     );
                   })}
@@ -268,7 +333,7 @@ export function ScoreReviewPanel({
           <div className="rounded-md border border-hairline bg-surface p-3 shadow-card">
             <p className="text-xs font-semibold text-ink">Add missed score</p>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <label className="text-[11px] text-ink-mute">
+              <label className="text-micro text-ink-mute">
                 Type
                 <select
                   value={addKind}
@@ -285,7 +350,7 @@ export function ScoreReviewPanel({
                   )}
                 </select>
               </label>
-              <label className="text-[11px] text-ink-mute">
+              <label className="text-micro text-ink-mute">
                 {periodWord}
                 <select
                   value={addQuarter}
@@ -301,7 +366,7 @@ export function ScoreReviewPanel({
               </label>
             </div>
             {(addKind === "goal" || addKind === "behind") && (
-              <label className="mt-2 block text-[11px] text-ink-mute">
+              <label className="mt-2 block text-micro text-ink-mute">
                 Player
                 <select
                   value={addPlayerId}

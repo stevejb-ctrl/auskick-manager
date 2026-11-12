@@ -6,6 +6,10 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ error, className = "", ...props }, ref) => {
+    // The error names itself on the field (aria-describedby), so a
+    // screen reader reads it with the field, not only as it appears.
+    const errorId = error && props.id ? `${props.id}-error` : undefined;
+    const describedBy = [props["aria-describedby"], errorId].filter(Boolean).join(" ") || undefined;
     return (
       <div className="w-full">
         <input
@@ -28,12 +32,14 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           ].join(" ")}
           aria-invalid={error ? "true" : undefined}
           {...props}
+          aria-describedby={describedBy}
         />
         {error && (
           // Error text fades in over 350ms via the existing
           // `fade-in` keyframe. Reduced-motion users see it
           // appear instantly via the motion-safe modifier.
           <p
+            id={errorId}
             className="mt-1 text-xs text-danger motion-safe:animate-fade-in"
             role="alert"
           >

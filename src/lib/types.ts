@@ -229,7 +229,7 @@ export interface Player {
   chip?: PlayerChip | null;
   /**
    * Who a kid counts as under a mixed team's rule (migration 0071).
-   * Asked only on mixed teams and shown nowhere else.
+   * Asked only on mixed teams, and shown only to the coach (MixedMark).
    */
   mixed_group?: MixedGroup | null;
   created_by: string;
@@ -303,6 +303,11 @@ export interface Game {
   clock_multiplier: number;
   /** How we play at kickoff (migration 0053); null for games not yet started. */
   playbook_snapshot?: import("@/lib/playbook/types").PlaybookSnapshot | null;
+  /**
+   * The final score of a game marked played without Siren (migration
+   * 0076); null otherwise. lib/games/playedScore reads it.
+   */
+  played_score?: import("@/lib/games/playedScore").PlayedScore | null;
   external_source: string | null;
   external_id: string | null;
   created_by: string;
@@ -340,6 +345,14 @@ export type GameEventType =
   | "injury"
   | "score_undo"
   | "field_zone_swap"
+  // AFL big fields (15/16/18 a side, named positions; migration 0078):
+  // two kids on the field trade positions, or one moves to an empty
+  // position. Metadata: { player_a_id, player_b_id (null: empty),
+  // position_a, position_b, zone_a, zone_b, quarter, elapsed_ms, undo? }.
+  // player_a goes to position_b, player_b to position_a. Across lines it
+  // replays as a field_zone_swap too (lib/live/positionSwap.ts); the seat
+  // map (lib/live/positionSeats.ts) reads the positions.
+  | "position_swap"
   | "player_loan"
   // A coach's hold on a player: Keep on / Keep in {zone} (AFL) or
   // Keep in {position} (netball). Metadata: { lock: PlayerLock | null,

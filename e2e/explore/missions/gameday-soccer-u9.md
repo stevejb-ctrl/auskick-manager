@@ -15,7 +15,8 @@ Your job:
    you change the keeper before kick-off?
 3. Start the game and the first half.
 4. Sub a bench kid on for a defender, then do the suggested subs when
-   the sub card says they're due.
+   they're due (the Next sub line counts down; the bar shows Make all
+   swaps).
 5. Record a goal for Kingsway by one of your attackers, and a goal for
    the Crabs.
 6. End the first half. At half-time, check who takes the keeper top for

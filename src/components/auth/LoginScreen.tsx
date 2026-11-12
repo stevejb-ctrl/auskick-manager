@@ -1,6 +1,6 @@
 import { LoginBrandPanel } from "@/components/auth/LoginBrandPanel";
 import { LoginFooter } from "@/components/auth/LoginFooter";
-import { LoginForm, type JoinStory } from "@/components/auth/LoginForm";
+import { LoginForm, type JoinStory, type LoginIntent } from "@/components/auth/LoginForm";
 import { LoginMobileBand } from "@/components/auth/LoginMobileBand";
 import { SirenWordmark } from "@/components/marketing/SirenWordmark";
 import { getBrand } from "@/lib/brand";
@@ -27,7 +27,14 @@ import { getBrand } from "@/lib/brand";
  * stays readable even on very wide phone-only viewports (when the
  * brand panel is hidden).
  */
-export function LoginScreen({ join = null }: { join?: JoinStory | null }) {
+export function LoginScreen({
+  join = null,
+  intent = "signin",
+}: {
+  join?: JoinStory | null;
+  /** "signup" on /signup: LoginForm's sign-up words. */
+  intent?: LoginIntent;
+}) {
   // Steve 2026-05-17: align with the marketing design refresh
   // (commit 718e7e4 — mint backdrop, accent in place of
   // italic-serif). The form column inherits the mint gradient
@@ -55,7 +62,7 @@ export function LoginScreen({ join = null }: { join?: JoinStory | null }) {
 
         {/* Form body — vertically centred in the column */}
         <div className="mx-auto flex w-full max-w-[400px] flex-1 flex-col justify-center pb-2 pt-2 md:pb-10 md:pt-10">
-          <LoginForm join={join} />
+          <LoginForm join={join} intent={intent} />
         </div>
 
         <LoginFooter />

@@ -18,6 +18,8 @@ import { test, expect, type Browser, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import type { SportId } from "../../src/lib/sports";
+import { readyShell, startShellFirst } from "../helpers/kickoff";
+import { openGameMenu } from "../helpers/liveShell";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -64,19 +66,25 @@ test("touch: the runner's first screen names the game, and a no-show can be mark
   await runner.goto(`/run/${game.share_token}`);
 
   const welcome = runner.getByRole("region", { name: /welcome/i });
-  await expect(welcome).toContainText(`You're running today's game for ${team.name} vs ${OPPONENT}.`, { timeout: 15_000 });
-  // The steps describe this screen: the lineup's Update availability, and Start H1.
-  await expect(welcome).toContainText(/Tap "Update availability" above the lineup/);
-  await expect(welcome).toContainText("just tap Start H1");
-  await expect(runner.getByRole("button", { name: /^start h1$/i })).toBeVisible();
+  // One line that says what to do (design review, Oct 2026); the top bar
+  // names the teams, and the steps sit behind "How this works".
+  // Live v3 (Phase 10): the picker's button is Ready; Start H1 is on the
+  // live screen after it.
+  await expect(welcome).toContainText("You're running today's game. Check who's here, then tap Ready.", { timeout: 15_000 });
+  await expect(runner.getByTestId("run-whose")).toContainText(`Scoring for ${team.name}`);
+  await expect(runner.getByText(`vs ${OPPONENT}`).first()).toBeVisible();
+  await welcome.getByText("How this works").click();
+  await expect(welcome).toContainText(/Tap "Who's here" to\s+mark them out/);
+  await expect(welcome).toContainText("just tap Ready");
+  await expect(runner.getByRole("button", { name: /^ready$/i })).toBeVisible();
 
   // Update availability opens the who's-here list.
   const noShow = players[players.length - 1];
   await runner.getByRole("link", { name: /update availability/i }).click();
   await expect(runner).toHaveURL(new RegExp(`/run/${game.share_token}\\?step=availability$`));
-  const row = runner.getByRole("group", { name: `${noShow.full_name} availability` });
-  await row.getByRole("button", { name: "Out" }).click();
-  await expect(row.getByRole("button", { name: "Out" })).toHaveAttribute("aria-pressed", "true");
+  const row = runner.getByRole("radiogroup", { name: `${noShow.full_name} availability` });
+  await row.getByRole("radio", { name: "Out" }).click();
+  await expect(row.getByRole("radio", { name: "Out" })).toHaveAttribute("aria-checked", "true");
   await expect
     .poll(async () => {
       const { data } = await admin
@@ -91,7 +99,7 @@ test("touch: the runner's first screen names the game, and a no-show can be mark
 
   // Back to the lineup: the no-show isn't in it.
   await runner.getByRole("link", { name: /back to the lineup/i }).click();
-  await expect(runner.getByRole("button", { name: /^start h1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(runner.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
   await expect(runner.getByText(noShow.full_name, { exact: true })).toHaveCount(0);
   await runner.context().close();
 });
@@ -101,12 +109,16 @@ test("touch: the runner can't restart the game, and EXIT leaves it", async ({ br
   const { game } = await teamWithGame(admin, "touch", "U10", 10);
   const runner = await runnerPhone(browser);
   await runner.goto(`/run/${game.share_token}`);
-  await runner.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
-  await runner.getByRole("button", { name: /^start h1 now$/i }).click();
+  await readyShell(runner);
+  await startShellFirst(runner);
   await expect(runner.getByRole("button", { name: /exit live game/i })).toBeVisible({ timeout: 15_000 });
-  await expect(runner.getByRole("button", { name: /add late arrival|game settings/i }).first()).toBeVisible();
-
-  // No Restart on a game-day link.
+  // The runner gets the game's settings in ⋯ (live v3), but no Restart on
+  // a game-day link.
+  const menu = await openGameMenu(runner);
+  await expect(menu.getByRole("button", { name: "Game settings" })).toBeVisible();
+  await expect(menu.getByRole("button", { name: /restart game/i })).toHaveCount(0);
+  await runner.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
   await expect(runner.getByRole("button", { name: /restart game/i })).toHaveCount(0);
 
   await runner.getByRole("button", { name: /exit live game/i }).click();
@@ -124,11 +136,16 @@ test("netball: the runner's first screen names the game", async ({ browser }) =>
   const { team, game } = await teamWithGame(admin, "netball", "go", 9);
   const runner = await runnerPhone(browser);
   await runner.goto(`/run/${game.share_token}`);
+  // The welcome sits under netball's own top bar, which names the game.
+  await expect(runner.getByTestId("run-whose")).toContainText(`Scoring for ${team.name}`, { timeout: 15_000 });
+  await expect(runner.getByText(`vs ${OPPONENT}`).first()).toBeVisible();
   await expect(runner.getByRole("region", { name: /welcome/i })).toContainText(
-    `You're running today's game for ${team.name} vs ${OPPONENT}.`,
+    // Live v3 (Phase 7): the picker's button is Ready; Start Q1 is on
+    // the live screen after it.
+    "You're running today's game. Check who's here, then tap Ready.",
     { timeout: 15_000 },
   );
-  await expect(runner.getByRole("button", { name: /^start q1$/i })).toBeVisible();
+  await expect(runner.getByRole("button", { name: /^ready$/i })).toBeVisible();
   await runner.context().close();
 });
 
@@ -152,10 +169,10 @@ test("netball: the runner's picker starts from the coach's saved plan, as the co
   const runner = await runnerPhone(browser);
   await runner.goto(`/run/${game.share_token}`);
   for (const phone of [page, runner]) {
-    await expect(phone.getByRole("button", { name: new RegExp(`^Goal Shooter,\\s*${players[8].full_name}`, "i") })).toBeVisible({
+    await expect(phone.getByRole("button", { name: new RegExp(`^${players[8].full_name}, Goal Shooter`, "i") })).toBeVisible({
       timeout: 15_000,
     });
-    await expect(phone.getByRole("button", { name: new RegExp(`^Goal Attack,\\s*${players[7].full_name}`, "i") })).toBeVisible();
+    await expect(phone.getByRole("button", { name: new RegExp(`^${players[7].full_name}, Goal Attack`, "i") })).toBeVisible();
   }
   await runner.context().close();
 });
@@ -221,6 +238,6 @@ test("the coach replaces the game-day link, and the old one stops working", asyn
   const runner = await runnerPhone(browser);
   expect((await runner.goto(`/run/${oldToken}`))?.status()).toBe(404);
   expect((await runner.goto(`/run/${newToken}`))?.status()).toBe(200);
-  await expect(runner.getByRole("button", { name: /^start h1$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(runner.getByRole("button", { name: /^ready$/i })).toBeVisible({ timeout: 15_000 });
   await runner.context().close();
 });

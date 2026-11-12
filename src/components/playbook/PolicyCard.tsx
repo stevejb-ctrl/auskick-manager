@@ -120,7 +120,7 @@ export function PolicyCard({
               {l.text}
               {l.changed && <span className="ml-1 text-xs font-semibold text-brand-600">(your league)</span>}
               {l.source && !l.changed && (
-                <span className="block text-[11px] text-ink-mute">{l.source}</span>
+                <span className="block text-micro text-ink-mute">{l.source}</span>
               )}
             </span>
           </li>

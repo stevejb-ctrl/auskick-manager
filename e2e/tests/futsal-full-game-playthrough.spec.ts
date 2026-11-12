@@ -7,7 +7,7 @@
 //   1. Pre-kickoff: the picker draws five on the court (a keeper, two at
 //      the back and two up front: 2-2), in futsal's words, and three on
 //      the bench.
-//   2. Start H1 (two-step: the picker, then the whistle modal).
+//   2. Ready, then Start H1 on the live screen's bar (live v3).
 //   3. A goal each way.
 //   4. A mid-half keeper swap (FIFA Law 3 allows one any time): the
 //      keeper's actions → Replace keeper → a bench kid goes in goal.
@@ -18,10 +18,12 @@
 //      game page and stats read in futsal's words.
 
 import { test, expect } from "@playwright/test";
+import { watchPageErrors } from "../helpers/pageErrors";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { gotoStable, waitForHydration } from "../helpers/navigation";
 import { pickBreakStrategy, startFromBreak } from "../helpers/break";
+import { readySoccer } from "../helpers/kickoff";
 
 test.describe.configure({ mode: "serial" });
 
@@ -36,7 +38,7 @@ test("futsal U10: 5 a side on a court, a goal each way, a mid-half keeper swap, 
 }) => {
   test.setTimeout(240_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
 
   const admin = createAdminClient();
   const { data: su } = await admin.auth.admin.listUsers();
@@ -86,12 +88,16 @@ test("futsal U10: 5 a side on a court, a goal each way, a mid-half keeper swap, 
   await expect(court.getByRole("group", { name: "Back" }).locator("[data-testid^='player-tile-']")).toHaveCount(2);
   await expect(court.getByRole("group", { name: "Front" }).locator("[data-testid^='player-tile-']")).toHaveCount(2);
   await expect(court.getByRole("group", { name: "Wings" })).toHaveCount(0);
-  await expect(court.getByRole("group", { name: "Back" })).toContainText("BACK");
-  await expect(court.getByRole("group", { name: "Front" })).toContainText("FRONT");
+  // Live v3 (10 Nov 2026): the old tiles' BACK / FRONT tags went; each
+  // line says how many are on in its margin, as the live court does.
+  await expect(court.getByRole("group", { name: "Back" })).toContainText("2 on");
+  await expect(court.getByRole("group", { name: "Front" })).toContainText("2 on");
   await expect(page.getByRole("group", { name: "Bench" }).locator("[data-testid^='player-tile-']")).toHaveCount(3);
   await expect(page.getByRole("region", { name: "Keeper" })).toContainText(/starts in goal/i);
 
   // ─── 2. Start H1 ───────────────────────────────────────────────
+  // Live v3: the picker's Ready, then Start H1 on the live screen's bar.
+  await readySoccer(page);
   await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
   await page.getByRole("button", { name: /^start h1 now$/i }).click({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: /^clock — h1, running$/i })).toBeVisible({ timeout: 15_000 });
@@ -117,7 +123,7 @@ test("futsal U10: 5 a side on a court, a goal each way, a mid-half keeper swap, 
   // ─── 4. A mid-half keeper swap: a bench kid goes in goal ──────
   const newKeeper = h1.bench[0];
   await page.getByTestId(`player-tile-${h1Keeper}`).click({ timeout: 10_000 });
-  await page.getByRole("button", { name: /^player actions/i }).click({ timeout: 5_000 });
+  await page.getByTestId("kid-bar").getByRole("button", { name: /^more$/i }).click({ timeout: 5_000 });
   await page.getByRole("dialog").getByRole("button", { name: /replace keeper/i }).click({ timeout: 5_000 });
   // The sheet lists the outfield and the bench; the bench kid comes on in goal.
   await page
@@ -202,7 +208,7 @@ test("futsal U10: 5 a side on a court, a goal each way, a mid-half keeper swap, 
 test("futsal: a Wings-only kid starts the diamond on a wing; half-time breaks no rule", async ({ page }) => {
   test.setTimeout(180_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
   const admin = createAdminClient();
   const { data: su } = await admin.auth.admin.listUsers();
   const ownerId = su.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
@@ -249,6 +255,8 @@ test("futsal: a Wings-only kid starts the diamond on a wing; half-time breaks no
   await expect(wingsOrBench).toBeVisible();
   await expect(court.getByRole("group", { name: "Front" }).getByTestId(`player-tile-${wings.id}`)).toHaveCount(0);
 
+  // Live v3: the picker's Ready, then Start H1 on the live screen's bar.
+  await readySoccer(page);
   await page.getByRole("button", { name: /^start h1$/i }).click({ timeout: 15_000 });
   await page.getByRole("button", { name: /^start h1 now$/i }).click({ timeout: 10_000 });
   await expect(page.getByRole("button", { name: /^clock — h1, running$/i })).toBeVisible({ timeout: 15_000 });
@@ -267,7 +275,8 @@ test("futsal: a Wings-only kid starts the diamond on a wing; half-time breaks no
   }
   await page.reload();
   await waitForHydration(page);
-  await page.getByRole("button", { name: /^clock — h1, running$/i }).click({ timeout: 15_000 });
+  // A sub is due by now: the clock says so too (live v3).
+  await page.getByRole("button", { name: /^clock — h1, running(, sub due)?$/i }).click({ timeout: 15_000 });
   await page.getByRole("button", { name: /^end h1 now$/i }).click();
   await page.getByRole("button", { name: /^end\s*h\s*1$/i }).click();
   await expect(page.getByRole("heading", { name: /^2nd half lineup$/i })).toBeVisible({ timeout: 15_000 });

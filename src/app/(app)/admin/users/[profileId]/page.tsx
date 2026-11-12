@@ -49,7 +49,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
 
       {/* Memberships */}
       <section className="space-y-2">
-        <h3 className="text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+        <h3 className="text-micro font-bold uppercase tracking-micro text-ink-dim">
           Teams &amp; roles
         </h3>
         {detail.memberships.length === 0 ? (
@@ -76,7 +76,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
 
       {/* Tags */}
       <section className="space-y-2">
-        <h3 className="text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+        <h3 className="text-micro font-bold uppercase tracking-micro text-ink-dim">
           Tags
         </h3>
         <div className="rounded-lg border border-hairline bg-surface p-4 shadow-card">
@@ -90,7 +90,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
 
       {/* Notes */}
       <section className="space-y-2">
-        <h3 className="text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+        <h3 className="text-micro font-bold uppercase tracking-micro text-ink-dim">
           Notes
         </h3>
         <NotesList profileId={detail.profile.id} notes={detail.notes} />
@@ -98,7 +98,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
 
       {/* Preferences */}
       <section className="space-y-2">
-        <h3 className="text-[11px] font-bold uppercase tracking-micro text-ink-dim">
+        <h3 className="text-micro font-bold uppercase tracking-micro text-ink-dim">
           Email preferences
         </h3>
         <div className="rounded-lg border border-hairline bg-surface p-4 shadow-card">

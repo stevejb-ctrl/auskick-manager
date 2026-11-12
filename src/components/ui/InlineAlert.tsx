@@ -7,7 +7,7 @@
 // Two kinds:
 //   - "danger" (default): bg-danger/10 + text-danger. Used by
 //     pre-game pickers, Q-break, and form-submit failure paths.
-//   - "warn":              bg-warn-soft + text-warn. Used by
+//   - "warn":              bg-warn-soft + text-warn-ink. Used by
 //     LiveGame's "lineup stale, refreshing" advisory.
 //
 // `role="alert"` makes the message screen-reader-announced when it
@@ -33,7 +33,7 @@ interface InlineAlertProps {
 
 const kindClasses: Record<InlineAlertKind, string> = {
   danger: "bg-danger/10 text-danger",
-  warn: "bg-warn-soft text-warn",
+  warn: "bg-warn-soft text-warn-ink",
 };
 
 export function InlineAlert({

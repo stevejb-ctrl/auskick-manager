@@ -24,6 +24,8 @@ interface ScoringStepProps {
   playbookRow?: HowWePlayRow | null;
   /** The team's own named positions (AFL open ages). */
   positions?: HowWePlayPosition[];
+  /** Touch and Oztag: the Mixed team card, inside How we play (HowWePlayCard). */
+  mixed?: React.ReactNode;
 }
 
 export function ScoringStep({
@@ -34,6 +36,7 @@ export function ScoringStep({
   onFieldSize,
   playbookRow = null,
   positions = [],
+  mixed,
 }: ScoringStepProps) {
   // Rugby league has zero coach discretion on the scoring rule:
   // U6/U7 are tag (no scoreboard, ever), U8–U12 play modified tackle
@@ -165,6 +168,7 @@ export function ScoringStep({
         isAdmin
         inWizard
         trackScoring={initialEnabled}
+        mixed={mixed}
       />
 
       <div className="space-y-2">

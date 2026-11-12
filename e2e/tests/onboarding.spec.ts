@@ -179,7 +179,7 @@ test("a new AFL U14 team starts with scoring on, matching the stated default", a
 
   await page.goto("/teams/new");
   await waitForHydration(page);
-  await page.getByRole("button", { name: /junior afl/i }).click();
+  await page.getByRole("radio", { name: /junior afl/i }).click();
   await page.getByLabel(/team name/i).fill(teamName);
   await page.getByLabel(/age group/i).selectOption("U14");
   await page.getByRole("button", { name: /^continue$/i }).click();
@@ -209,7 +209,7 @@ test("a new team starts on the age group's suggested way to play", async ({ page
 
   await page.goto("/teams/new");
   await waitForHydration(page);
-  await page.getByRole("button", { name: /junior afl/i }).click();
+  await page.getByRole("radio", { name: /junior afl/i }).click();
   await page.getByLabel(/team name/i).fill(teamName);
   await page.getByLabel(/age group/i).selectOption("U15");
   await page.getByRole("button", { name: /^continue$/i }).click();
@@ -259,6 +259,6 @@ test.describe("setup wizard on a phone", () => {
     await expect(page.getByRole("navigation", { name: /team sections/i })).toHaveCount(0);
 
     await page.goto("/teams/new");
-    await expect(page.getByRole("button", { name: /^junior afl$/i })).toBeVisible();
+    await expect(page.getByRole("radio", { name: /^junior afl$/i })).toBeVisible();
   });
 });

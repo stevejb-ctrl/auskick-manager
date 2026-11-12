@@ -5,14 +5,14 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getResend, senderAs } from "@/lib/resend";
 import { getSportConfig, isSportId } from "@/lib/sports";
-import { EMAIL_RE, maskEmail } from "@/lib/email/validate";
+import { emailError, isEmail, maskEmail } from "@/lib/email/validate";
 import {
   buildInviteEmail,
   buildMemberAddedEmail,
 } from "@/lib/email/inviteTemplate";
 import { sendPushNotification } from "@/lib/notifications/sendPushNotification";
 import { publicOrigin } from "@/lib/platform";
-import { ROLE_LABEL, ROLE_SUMMARY } from "@/lib/roles";
+import { ROLE_LABEL, ROLE_OPTIONS, ROLE_SUMMARY } from "@/lib/roles";
 import { memberDisplayName } from "@/lib/members/displayName";
 import type { ActionResult, TeamRole } from "@/lib/types";
 
@@ -86,8 +86,9 @@ export async function createInvite(
   // the client check is bypassable (and to keep our schema honest —
   // the column is citext, not "anything goes").
   const trimmedEmail = invitedEmail?.trim() || null;
-  if (trimmedEmail && !EMAIL_RE.test(trimmedEmail)) {
-    return { success: false, error: "Please use a valid email address." };
+  const badEmail = trimmedEmail ? emailError(trimmedEmail) : null;
+  if (badEmail) {
+    return { success: false, error: badEmail };
   }
 
   // Pre-gen both id and token so we don't need a read-back. Both
@@ -128,7 +129,25 @@ export async function sendInviteEmail(
 ): Promise<ActionResult & { sentAt?: string }> {
   const { supabase, error } = await getAuthedAdmin(teamId);
   if (error) return { success: false, error };
+  const sent = await deliverInviteEmail(supabase, teamId, inviteId);
+  if (!sent.success) return { success: false, error: sent.error };
+  return { success: true, sentAt: sent.sentAt };
+}
 
+type Delivery =
+  | { success: true; sentAt: string; to: string }
+  | { success: false; error: string; waitSeconds?: number };
+
+/**
+ * The send itself, for a caller that has already checked the team admin
+ * (sendInviteEmail, and updateInviteRole's re-send). Reads the invite as
+ * it stands, so the email names its current role.
+ */
+async function deliverInviteEmail(
+  supabase: ReturnType<typeof createClient>,
+  teamId: string,
+  inviteId: string
+): Promise<Delivery> {
   const { data: invite, error: fetchError } = await supabase
     .from("team_invites")
     .select(
@@ -156,6 +175,7 @@ export async function sendInviteEmail(
       return {
         success: false,
         error: `Email just sent — try again in ${wait}s.`,
+        waitSeconds: wait,
       };
     }
   }
@@ -201,7 +221,7 @@ export async function sendInviteEmail(
       .eq("id", inviteId)
       .eq("team_id", teamId);
     revalidatePath(`/teams/${teamId}/settings`);
-    return { success: true, sentAt: nowIso };
+    return { success: true, sentAt: nowIso, to: recipient };
   }
 
   try {
@@ -253,7 +273,7 @@ export async function sendInviteEmail(
     .eq("team_id", teamId);
 
   revalidatePath(`/teams/${teamId}/settings`);
-  return { success: true, sentAt: nowIso };
+  return { success: true, sentAt: nowIso, to: recipient };
 }
 
 export async function revokeInvite(
@@ -273,6 +293,55 @@ export async function revokeInvite(
 
   revalidatePath(`/teams/${teamId}/settings`);
   return { success: true };
+}
+
+/**
+ * Change the role a pending invite joins as (Stagehand round 11: it
+ * could only be copied or revoked). The same gate as a member's role:
+ * a team admin, checked here and by RLS (team_invites_update_admin,
+ * 0017). Only an invite nobody has used or revoked; the join page and
+ * acceptInvite read the role off the row, so the link joins as the new
+ * one from now on.
+ *
+ * An invite with an email address gets its email again, naming the new
+ * role (Steve, round 12): the one in their inbox named the old one. The
+ * resend keeps sendInviteEmail's rules, the minute between sends among
+ * them; if it's refused the role change still stands, and `emailError`
+ * says why the email didn't go.
+ */
+export async function updateInviteRole(
+  teamId: string,
+  inviteId: string,
+  newRole: TeamRole
+): Promise<ActionResult & { emailedTo?: string; emailError?: string }> {
+  const { supabase, error } = await getAuthedAdmin(teamId);
+  if (error) return { success: false, error };
+  if (!ROLE_OPTIONS.includes(newRole)) return { success: false, error: "That isn't a team role." };
+
+  const { data: updated, error: updateError } = await supabase
+    .from("team_invites")
+    .update({ role: newRole })
+    .eq("id", inviteId)
+    .eq("team_id", teamId)
+    .is("accepted_at", null)
+    .is("revoked_at", null)
+    .select("id, invited_email");
+
+  if (updateError) return { success: false, error: updateError.message };
+  if (!updated || updated.length === 0) {
+    return { success: false, error: "This invite has already been used or revoked." };
+  }
+
+  revalidatePath(`/teams/${teamId}/settings`);
+  if (!updated[0].invited_email) return { success: true };
+
+  const sent = await deliverInviteEmail(supabase, teamId, inviteId);
+  if (sent.success) return { success: true, emailedTo: sent.to };
+  const why =
+    sent.waitSeconds !== undefined
+      ? `one was sent under a minute ago. Resend it in ${sent.waitSeconds}s.`
+      : sent.error;
+  return { success: true, emailError: `The email wasn't re-sent: ${why}` };
 }
 
 export async function updateMemberRole(
@@ -408,7 +477,7 @@ export async function lookupInviteRecipient(
   if (error) return { success: false, error };
 
   const trimmed = email.trim();
-  if (!trimmed || !EMAIL_RE.test(trimmed)) {
+  if (!isEmail(trimmed)) {
     return { success: false, error: "Please use a valid email address." };
   }
 

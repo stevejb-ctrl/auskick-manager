@@ -29,13 +29,23 @@ import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, getMembership } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { updateLiveGame } from "@/lib/games/updateLiveGame";
 import { getSportConfig, isBasketball, teamSport } from "@/lib/sports/registry";
 import { basketballAgeGroupForTeam } from "@/lib/sports/basketball";
 import { readValidatedUserId } from "@/lib/auth/userIdHeader";
 import { invalidateSeasonEvents } from "@/lib/season";
 import { reconcileLineupToAvailability } from "@/lib/live/reconcileLineupToAvailability";
-import { checkPeriodWrite, periodWordOf, revalidateLivePage, scoreRowsOf, staleRefusal } from "@/lib/live/liveWriteGuard";
+import {
+  checkPeriodWrite,
+  kickoffRaceRefusal,
+  periodWordOf,
+  raceVerdictOf,
+  revalidateLivePage,
+  scoreRowsOf,
+  staleRefusal,
+} from "@/lib/live/liveWriteGuard";
 import { lineupWrite, type PeriodWrite } from "@/lib/live/periodGuard";
+import { cleanBatchLeft } from "@/lib/live/subAnchor";
 import { resolveUndoTarget, undoArgs, type UndoTargetRef } from "@/lib/live/undoTarget";
 import type { ActionResult, LiveAuth } from "@/lib/types";
 import {
@@ -134,6 +144,10 @@ async function insertEvent(
     idempotency_key: idempotencyKey ?? null,
   });
   if (error) {
+    // The other phone's start or Finish landed after the guard looked.
+    const race = await raceVerdictOf(w.supabase, gameId, error, { type, guard }, await periodWordFor(w.teamId), idempotencyKey);
+    if (race?.kind === "stale") return staleRefusal(auth, w.teamId, gameId, race.message);
+    if (race?.kind === "duplicate") return { success: true };
     // Unique-violation on the idempotency_key partial index means this
     // op already landed (write queue retry). Treat as success.
     if (error.code === "23505" && idempotencyKey) return { success: true };
@@ -186,7 +200,10 @@ export async function startBasketballGame(
   const firstError = check.issues.find((i) => i.kind === "error");
   if (firstError) return { success: false, error: firstError.message };
 
+  // Its id, so a kickoff that loses the race can take it back out.
+  const lineupEventId = crypto.randomUUID();
   const { error: insertError } = await w.supabase.from("game_events").insert({
+    id: lineupEventId,
     game_id: gameId,
     type: "lineup_set",
     metadata: { lineup, sport: "basketball" },
@@ -201,7 +218,11 @@ export async function startBasketballGame(
       metadata: { quarter: 1, sport: "basketball" },
       created_by: w.userId,
     });
-    if (startError) return { success: false, error: startError.message };
+    if (startError) {
+      const raced = await kickoffRaceRefusal(gameId, [lineupEventId], startError, await periodWordFor(w.teamId));
+      if (raced) return staleRefusal(auth, w.teamId, gameId, raced);
+      return { success: false, error: startError.message };
+    }
   }
 
   const gameUpdate: {
@@ -218,7 +239,7 @@ export async function startBasketballGame(
   if (subIntervalSeconds != null) {
     gameUpdate.sub_interval_seconds = Math.round(Math.min(10 * 60, Math.max(60, subIntervalSeconds)));
   }
-  const { error: gameError } = await w.supabase.from("games").update(gameUpdate).eq("id", gameId);
+  const { error: gameError } = await updateLiveGame(w.supabase, gameId, gameUpdate);
   // A refused write says so (UX round 3: soccer's kick-off went on with
   // the game still "Upcoming").
   if (gameError) return { success: false, error: gameWriteError(gameError) };
@@ -334,7 +355,7 @@ export async function finaliseBasketballGame(
   }, idempotencyKey);
   if (!finalise.success) return finalise;
 
-  const { error: updateError } = await w.supabase.from("games").update({ status: "completed" }).eq("id", gameId);
+  const { error: updateError } = await updateLiveGame(w.supabase, gameId, { status: "completed" });
   if (updateError) return { success: false, error: updateError.message };
 
   await writeGameRollup(w.supabase, gameId);
@@ -376,7 +397,9 @@ const lineOrUndefined = (v: unknown): BasketballLine | undefined =>
 // ─── recordBasketballSwap ────────────────────────────────────
 // A sub at a dead ball: the kid coming on takes the line (and position)
 // of the kid going off. `line` names the spot when the kid going off has
-// already left (fouled out, hurt, sat out).
+// already left (fouled out, hurt, sat out). `batch_left`: one pair of
+// the planned sub, how many are still to make (lib/live/subAnchor holds
+// the sub clock till 0).
 export async function recordBasketballSwap(
   auth: LiveAuth,
   gameId: string,
@@ -386,12 +409,16 @@ export async function recordBasketballSwap(
     line?: BasketballLine;
     quarter: number;
     elapsed_ms: number;
+    batch_left?: number;
     /** By hand, off the rotation's cadence: the sub clock doesn't restart (lib/live/subAnchor). */
     manual?: boolean;
+    /** Undo putting a swap back: no "just subbed" mark (lib/live/swapRecency). */
+    undo?: boolean;
   },
   idempotencyKey?: string,
 ): Promise<ActionResult> {
   const line = lineOrUndefined(input.line);
+  const batchLeft = cleanBatchLeft(input.batch_left);
   return insertEvent(
     auth,
     gameId,
@@ -404,7 +431,9 @@ export async function recordBasketballSwap(
         ...(line ? { line } : {}),
         quarter: input.quarter,
         elapsed_ms: input.elapsed_ms,
+        ...(batchLeft ? { batch_left: batchLeft } : {}),
         ...(input.manual === true ? { manual: true } : {}),
+        ...(input.undo === true ? { undo: true } : {}),
       },
     },
     idempotencyKey,

@@ -21,7 +21,7 @@ interface PlayerVestBadgeProps {
 
 const styles: Record<VestType, string> = {
   // FR — yellow ladder. Junior laws §12: yellow vest.
-  fr: "bg-warn-soft text-warn",
+  fr: "bg-warn-soft text-warn-ink",
   // DH — pink ladder. Junior laws §12: pink vest. Tailwind doesn't
   // ship a pink-soft alias by default in this project, so the
   // explicit rgb() value keeps the colour stable across themes.
@@ -33,14 +33,17 @@ const labels: Record<VestType, string> = {
   dh: "DH",
 };
 
+/** What the badge says to a screen reader (the tile's name reads it too). */
+export function vestLabel(vest: VestType): string {
+  return vest === "fr" ? "First Receiver vest" : "Dummy Half vest";
+}
+
 export function PlayerVestBadge({ vest, dimmed = false }: PlayerVestBadgeProps) {
   return (
     <span
-      aria-label={
-        vest === "fr" ? "First Receiver vest" : "Dummy Half vest"
-      }
+      aria-label={vestLabel(vest)}
       className={[
-        "inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+        "inline-flex items-center justify-center rounded-full px-2 py-0.5 text-nano font-bold uppercase tracking-wider",
         styles[vest],
         dimmed ? "opacity-50" : "",
       ]

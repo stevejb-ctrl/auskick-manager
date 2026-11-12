@@ -6,7 +6,8 @@
  * game store uses so swap/quarter_end metadata maps directly.
  */
 import { FILL_IN_STATS_ID, normalizeLineup, type GameEvent, type Lineup, type Zone } from "@/lib/types";
-import { ALL_ZONES } from "@/lib/fairness";
+import { ALL_ZONES, swapFieldPlayers } from "@/lib/fairness";
+import { positionSwapAsZoneSwap } from "@/lib/live/positionSwap";
 import { type GameSnapshot, type LineupPeriod, type ZoneMs, emptyZoneMs } from "./types";
 
 type ActiveStint = { zone: Zone; startMs: number };
@@ -132,7 +133,9 @@ export function replayGame(
     });
   }
 
-  for (const ev of sorted) {
+  for (const raw of sorted) {
+    // A position change across lines (AFL big fields) is a zone swap here.
+    const ev = positionSwapAsZoneSwap(raw) ?? raw;
     const meta = ev.metadata as Record<string, unknown>;
     const elapsed = clampMs(typeof meta.elapsed_ms === "number" ? meta.elapsed_ms : 0);
     // Stamp a player's first appearance (absolute game-elapsed = finished
@@ -351,8 +354,7 @@ export function replayGame(
         if (pidA && pidB && zoneA && zoneB) {
           closePeriod(elapsed);
           periodStartMs = elapsed;
-          lineup[zoneA] = lineup[zoneA].map((p) => (p === pidA ? pidB : p));
-          lineup[zoneB] = lineup[zoneB].map((p) => (p === pidB ? pidA : p));
+          swapFieldPlayers(lineup, pidA, zoneA, pidB, zoneB);
           const stintA = stints[pidA];
           const stintB = stints[pidB];
           addZoneMs(pidA, stintA?.zone ?? zoneA, elapsed - (stintA?.startMs ?? 0));

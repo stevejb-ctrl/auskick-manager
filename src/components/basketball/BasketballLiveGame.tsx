@@ -1,13 +1,16 @@
 "use client";
 
 // ─── BasketballLiveGame ──────────────────────────────────────
-// The basketball live game. Mirrors soccer's SoccerLiveGame and AFL's
-// LiveGame end to end, so a coach who runs both sports finds the same
-// shell: the shared LiveTopBar (sub due as a banner under it), the
-// next-sub card, the court and bench, the shared player dock and
-// LockModal long-press actions, the sticky scorebug with undo, the clock
-// menu, the breaks, and the full-time review and share card. What's
-// basketball's own (.planning/BASKETBALL-PLAN.md):
+// The basketball live game, on live v3's shell (LiveShell, Phase 10),
+// the one AFL, netball and rugby use, so a coach who runs both sports
+// finds the same screen: the top bar with ⋯ (LiveGameMenu), the light
+// score header (tap it for Scores and fixes), the info line for the next
+// sub (tap it for the pairs), the kids on the wood (FieldLines, a KidTile
+// each, with their words and pair badges), the bench (KidBench, + Late),
+// and the bar: + 1 + 2 + 3 a side in two rows, a picked kid's KidBar, or
+// "Make all N swaps" when the sub is due. Before the tip-off the bar's
+// Start H1 (or Q1) starts the game; the breaks and full time keep their
+// screens. What's basketball's own (.planning/BASKETBALL-PLAN.md):
 //
 //   - Positions are optional: the team's How we play strategy plays no
 //     positions (one court line), guards and forwards, or 1 to 5.
@@ -28,24 +31,40 @@
 // a foul or a sub shows the moment it's tapped and the server's copy
 // takes its place, as AFL's store does. The shared live chrome
 // (useLiveChrome) is AFL's: the undo strip says what was recorded, a
-// tap-tap sub asks first and toasts, the long-press sheet knows the
+// tap-tap sub happens at once with Undo on the toast, the long-press sheet knows the
 // kid's line and lent minutes (UX audit 23 Oct 2026, "Drift from AFL").
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { SFButton } from "@/components/sf";
+import { useRouter } from "next/navigation";
+import { useOtherPhoneScores } from "@/components/live/useOtherPhoneScores";
+import { WENT_HOME_REASON } from "@/lib/live/wentHome";
 import { LiveTopBar } from "@/components/live/LiveTopBar";
-import { LiveAdminUtilityRow } from "@/components/live/LiveAdminUtilityRow";
-import { LiveStickyScoreBar } from "@/components/live/LiveStickyScoreBar";
+import { LiveShell } from "@/components/live/LiveShell";
+import { LiveGameMenu, settingsSummary } from "@/components/live/LiveGameMenu";
+import { KidTile, KidSlot, type KidFigure, type KidOutKind } from "@/components/live/KidTile";
+import { KidBench } from "@/components/live/KidBench";
+import { FieldLines, type FieldLine } from "@/components/live/FieldLines";
+import { woodCourt } from "./WoodMarks";
+import { InfoLine } from "@/components/live/InfoLine";
+import { PairsSheet, type SheetPair } from "@/components/live/PairsSheet";
+import { KidBar, KidBarMore, TimeSplit } from "@/components/live/KidBar";
+import { StartBarButton } from "@/components/live/StartBarButton";
+import { WalkthroughOffer } from "@/components/live/WalkthroughOffer";
+import { buildSharedWalkthroughSteps } from "@/components/live/WalkthroughModal";
+import { LateArrivalMenu } from "@/components/live/LateArrivalMenu";
+import { useSquadNames } from "@/components/live/SquadNames";
+import { barButton, BAR_SMALL } from "@/components/live/barButtons";
+import { kidWords, type KidOut, type KidSubRole, type KidWords } from "@/lib/live/kidWords";
+import { pctOfGame } from "@/lib/live/minGameTime";
+import { formatMinSec } from "@/lib/sports/netball/fairness";
+import { getSportConfig } from "@/lib/sports/registry";
+import { endPeriodWords } from "@/lib/sports/words";
+import { reopenLineup } from "@/app/(app)/teams/[teamId]/games/[gameId]/live/actions";
 import { ManualEndQuarterConfirm } from "@/components/live/ManualEndQuarterConfirm";
 import { ClockMenu } from "@/components/live/ClockMenu";
 import { StartQuarterModal } from "@/components/live/StartQuarterModal";
-import { SubDueBanner } from "@/components/live/SubDueBanner";
-import { subDueBannerShows } from "@/components/live/SubDue";
-import { ScoreRecordingDock } from "@/components/live/ScoreRecordingDock";
 import { LongPressHint } from "@/components/live/LongPressHint";
 import { LockModal } from "@/components/live/LockModal";
-import { NextSubCard } from "@/components/live/NextSubCard";
-import { LiveGameSettingsButton } from "@/components/live/LiveGameSettingsButton";
 import { useLiveChrome } from "@/components/live/useLiveChrome";
 import { undoSwaps } from "@/lib/live/liveChrome";
 import {
@@ -56,15 +75,15 @@ import { SlotFillSheet } from "@/components/ui/SlotFillSheet";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { useOptimisticEvents } from "@/lib/live/useOptimisticEvents";
 import { liveEvents, type OptimisticEventInput } from "@/lib/live/optimisticEvents";
-import { UNDO_GONE_MESSAGE, UNDO_MISSING_MESSAGE, undoTap } from "@/lib/live/undoTarget";
-import { announceLiveNotice } from "@/lib/live/liveSync";
+import { undoOf, undoTap, type UndoTap } from "@/lib/live/undoTarget";
+import type { UndoEvent } from "@/lib/live/lastUndoable";
 import { playSubDueBeep, useSubDueAudioUnlock } from "@/lib/live/subDueBeep";
 import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import { hapticTap } from "@/lib/haptics";
 import { computePeriodClockMs } from "@/lib/live/periodClock";
 import { clockPauseInput } from "@/lib/live/clockPause";
 import { queuedStartClockMark, useEventPeriodPause } from "@/lib/live/useClockPause";
-import { resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
+import { openSubBatch, resolveSubAnchorElapsed } from "@/lib/live/subAnchor";
 import { presentPlayerIds } from "@/lib/live/presentPlayers";
 import type { Game, GameEvent, LiveAuth, Player } from "@/lib/types";
 import { BASKETBALL_POSITION_DEFS } from "@/lib/sports/basketball";
@@ -100,8 +119,6 @@ import {
   type BasketballLine,
   type BasketballStrategy,
 } from "@/lib/sports/basketball/types";
-import { BasketballCourt } from "./BasketballCourt";
-import { BasketballBench } from "./BasketballBench";
 import { BasketballScoreBug } from "./BasketballScoreBug";
 import { BreakScoreEditor } from "@/components/quarter-break/BreakScoreEditor";
 import { BasketballBreak } from "./BasketballBreak";
@@ -169,13 +186,6 @@ function sitOutEvent(input: { player_id: string; duration_ms: number; quarter: n
   };
 }
 
-/** Line colours on the dark next-sub card, as the tiles colour them. */
-const CARD_LABEL_CLASS: Record<BasketballLine, string> = {
-  guard: "text-zone-c-dark",
-  forward: "text-zone-f-dark",
-  court: "text-brand-200",
-};
-
 const POSITION_LABEL = Object.fromEntries(BASKETBALL_POSITION_DEFS.map((p) => [p.key, p.label])) as Record<string, string>;
 
 /** The latest whole lineup set (tip-off, a break, a reshuffle). */
@@ -231,11 +241,17 @@ export function BasketballLiveGame({
   const [leaving, setLeaving] = useState<{
     playerId: string;
     line: BasketballLine;
-    reason: "injured" | "fouled_out" | "sitting_out";
+    reason: "injured" | "fouled_out" | "sitting_out" | "went_home" | "lent";
     /** Opened by the foul that reached the limit: Cancel takes it back. */
     fromFoul?: boolean;
   } | null>(null);
   const [subAckKey, setSubAckKey] = useState<string | null>(null);
+  // Live v3's shell: the ⋯ game menu and the pairs sheet (one sheet at a time).
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [pairsOpen, setPairsOpen] = useState(false);
+  const router = useRouter();
+  const names = useSquadNames();
+  const walkthroughSteps = useMemo(() => buildSharedWalkthroughSteps(), []);
   const liveRootRef = useRef<HTMLDivElement>(null);
   const periodMs = periodSeconds * 1000;
   const periodLetter = ageGroup.periodCount === 4 ? "Q" : "H";
@@ -299,13 +315,20 @@ export function BasketballLiveGame({
   const elapsedSecond = Math.floor(elapsedMs / 1000);
 
   // AFL's live chrome: the undo strip's flash, the swap confirm and toast.
+  // A score from the other phone says so (Stagehand round 8, #6).
+  useOtherPhoneScores(events, BASKETBALL_SCORE_EVENT_TYPES, { teamName: teamName, opponentName: game.opponent || "Opponent" });
   const chrome = useLiveChrome({
+    auth,
+    gameId: game.id,
     teamName,
     opponentName,
     playersById: playerById,
     seasonLoanMinutes,
     events,
+    scoreTypes: BASKETBALL_SCORE_EVENT_TYPES,
+    period: isPeriodActive ? base.currentPeriod : null,
     openElapsedMs: isPeriodActive ? elapsedMs : null,
+    toastLook: "ink",
   });
 
   // ── The game now: every kid's time so far, open stints credited ──
@@ -316,6 +339,7 @@ export function BasketballLiveGame({
   );
   const absNowMs = state.completedPeriodMs + (isPeriodActive ? elapsedMs : 0);
   const injuredSet = useMemo(() => new Set(state.injuredIds), [state.injuredIds]);
+  const wentHomeSet = useMemo(() => new Set(state.wentHomeIds), [state.wentHomeIds]);
   const loanedSet = useMemo(() => new Set(state.loanedIds), [state.loanedIds]);
   const fouledOutSet = useMemo(() => new Set(state.fouledOutIds), [state.fouledOutIds]);
   const totalMsByPlayer = useMemo(
@@ -368,7 +392,13 @@ export function BasketballLiveGame({
     elapsedMs,
   });
   const msUntilDue = subDue.msUntilDue;
-  const nextSubs = useMemo(() => {
+  // One pair of the planned sub made: just the pairs still to make, not
+  // the kid just taken off straight back on (lib/live/subAnchor).
+  const batchLeft = useMemo(
+    () => (subsOpen ? openSubBatch(events, base.currentPeriod) : 0),
+    [events, base.currentPeriod, subsOpen],
+  );
+  const suggestedSubs = useMemo(() => {
     if (!subsOpen) return [];
     // Empty spots on court are filled first (the shape's spots).
     const opts = { strategy, prefs, season, foulOutAt: trackFouls ? ageGroup.foulOutAt : 0, spots: shape.lines };
@@ -383,17 +413,34 @@ export function BasketballLiveGame({
     return suggestBasketballSubs({ state: ahead, nowMs: ahead.completedPeriodMs + aheadMs, ...opts });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subsOpen, state, events, strategy, prefs, season, trackFouls, ageGroup.foulOutAt, periodMs, shape, msUntilDue !== null && msUntilDue <= 0, Math.floor((msUntilDue ?? 0) / 5000)]);
+  const nextSubs = useMemo(
+    () => (batchLeft > 0 ? suggestedSubs.slice(0, batchLeft) : suggestedSubs),
+    [suggestedSubs, batchLeft],
+  );
   const subDueKey = subDue.key === null ? null : `${base.currentPeriod}:${subDue.key}`;
   const subDueShowing = isPeriodActive && subDue.due && nextSubs.length > 0 && subAckKey !== subDueKey;
   useSubDueAudioUnlock();
+  // The sub-due beep waits while the who-scored sheet is up (AFL's
+  // picker-race guard), and goes once it closes. A kid picked doesn't
+  // hold it: a coach who leaves a kid tapped would never hear it.
+  const holdForScoring = scorerPoints !== null;
   const subDueShowingRef = useRef(false);
   useEffect(() => {
+    if (holdForScoring) return;
     if (subDueShowing && !subDueShowingRef.current) {
       playSubDueBeep();
       void hapticTap("heavy");
     }
     subDueShowingRef.current = subDueShowing;
-  }, [subDueShowing]);
+  }, [subDueShowing, holdForScoring]);
+  // The clock reaching 0:00 (it waits there for the real buzzer) puts a
+  // picked kid down, so the bar is the score bar again and the clock's
+  // End is in reach (AFL's siren, f75e85a2). Not while the who-scored
+  // sheet is up: a basket on the buzzer still gets its scorer.
+  const clockOut = isPeriodActive && elapsedMs >= periodMs;
+  useEffect(() => {
+    if (clockOut && !holdForScoring) setSelectedId(null);
+  }, [clockOut, holdForScoring]);
 
   // ── Writes ──────────────────────────────────────────────────
   // The clock as the write lands: a confirmed swap is stamped when the
@@ -437,10 +484,21 @@ export function BasketballLiveGame({
     setNowMs(now);
   }
 
-  /** `manual`: made by hand, off the rotation's cadence, so the sub clock doesn't restart (AFL's rule). */
-  function sub(offId: string | null, onId: string, line?: BasketballLine, manual = false) {
+  /**
+   * `manual`: made by hand, off the rotation's cadence, so the sub clock doesn't restart (AFL's rule).
+   * `leftInBatch`: one pair of the planned sub, with this many still to make (the clock holds).
+   */
+  function sub(offId: string | null, onId: string, line?: BasketballLine, manual = false, leftInBatch = 0, undo = false) {
     setError(null);
-    const input = { off_player_id: offId, on_player_id: onId, ...(line ? { line } : {}), ...(manual ? { manual } : {}), ...at() };
+    const input = {
+      off_player_id: offId,
+      on_player_id: onId,
+      ...(line ? { line } : {}),
+      ...(leftInBatch > 0 ? { batch_left: leftInBatch } : {}),
+      ...(manual ? { manual } : {}),
+      ...(undo ? { undo } : {}),
+      ...at(),
+    };
     write("recordBasketballSwap", [auth, game.id, input], liveEvents.swap(input));
   }
   function move(a: string, b: string | null, zoneB: BasketballLine) {
@@ -460,7 +518,7 @@ export function BasketballLiveGame({
       (s) => sub(s.off, s.on, s.line),
     );
     if (nextSubs.length === 1) chrome.swapped(nextSubs[0].off_player_id, nextSubs[0].on_player_id, undo);
-    else chrome.showToast(`${nextSubs.length} subs made`, undo);
+    else chrome.showToast(`${nextSubs.length} subs made`, undo, `the ${nextSubs.length} swaps`);
     setSubAckKey(subDueKey);
   }
 
@@ -487,8 +545,8 @@ export function BasketballLiveGame({
           move(kid, null, line);
           chrome.showToast(`${chrome.firstName(kid)} → ${spotName(line)}`);
         } else if (canComeOn(kid)) {
-          // A bench kid into an empty spot asks first, as AFL's does.
-          chrome.confirmSwap({ offId: null, onId: kid, spotName: spotName(line), onConfirm: () => sub(null, kid, line, true) });
+          // A bench kid into an empty spot goes on at once, as AFL's does.
+          chrome.manualSwap({ offId: null, onId: kid, spotName: spotName(line), run: () => sub(null, kid, line, true) });
         }
         setSelectedId(null);
       } else {
@@ -513,11 +571,17 @@ export function BasketballLiveGame({
       move(first, pid, bLine);
       chrome.showToast(`${chrome.firstName(first)} ⇄ ${chrome.firstName(pid)} — swapped`);
     } else if (aLine || bLine) {
-      // A court kid and a bench kid: AFL's confirm, then the toast.
+      // A court kid and a bench kid: the sub at once, Undo on the toast (AFL's).
       const off = aLine ? first : pid;
       const on = aLine ? pid : first;
       if (!canComeOn(on)) return;
-      chrome.confirmSwap({ offId: off, onId: on, spotName: spotName((aLine ?? bLine)!), onConfirm: () => sub(off, on, undefined, true) });
+      chrome.manualSwap({
+        offId: off,
+        onId: on,
+        spotName: spotName((aLine ?? bLine)!),
+        run: () => sub(off, on, undefined, true),
+        undo: () => sub(on, off, undefined, true),
+      });
     } else setSelectedId(pid); // two bench kids: the second is the selection
   }
 
@@ -546,24 +610,17 @@ export function BasketballLiveGame({
   const teamPoints = state.teamScore.points;
   const opponentPoints = state.opponentScore.points;
   const playerPoints = state.playerPoints;
-  // Takes back the basket the strip names (this phone's last), or with
-  // none named the latest on screen — never whatever the other phone
-  // scored since (UX round 2).
-  const undoScore = () => {
-    const tap = undoTap(events, BASKETBALL_SCORE_EVENT_TYPES, chrome.namedScoreKey);
-    // Its score was taken back on the other phone, or never saved (a tap
-    // offline that didn't get through): nothing to write, and never
-    // another score in its place.
-    if (tap.kind === "gone" || tap.kind === "missing") {
-      chrome.undone();
-      announceLiveNotice(tap.kind === "gone" ? UNDO_GONE_MESSAGE : UNDO_MISSING_MESSAGE);
-      return;
-    }
+  // The strip's Undo takes back the basket it names (useOneUndo: this
+  // phone's newest, never whatever the other phone scored since, UX
+  // round 2); the break's and full time's "Undo last score" the latest.
+  const writeScoreUndo = (tap: UndoTap) => {
     if (tap.kind !== "undo") return;
     setError(null);
     write("undoBasketballScore", [auth, game.id, tap.target], tap.optimistic);
     chrome.undone();
   };
+  const undoScore = () => writeScoreUndo(undoTap(events, BASKETBALL_SCORE_EVENT_TYPES, null));
+  const undoNamedScore = (score: UndoEvent) => writeScoreUndo(undoOf(score));
 
   // ── Sideline: injuries, loans, late arrivals, holds ─────────
   const swappableBench = useMemo(
@@ -578,35 +635,56 @@ export function BasketballLiveGame({
     return squad.filter((p) => !placed.has(p.id));
   }, [squad, state.lineup, isFinished]);
 
+  type Leaving = "injured" | "fouled_out" | "sitting_out" | "went_home" | "lent";
   function markInjured(pid: string, injured: boolean, reason?: string) {
     setError(null);
     const input = { player_id: pid, injured, ...at(), ...(reason ? { reason } : {}) };
     write("markInjury", [auth, game.id, input], liveEvents.injury(input));
   }
   /** A kid leaves the court (hurt, fouled out, sat out): pick who comes on. */
-  function startLeaving(pid: string, reason: "injured" | "fouled_out" | "sitting_out", fromFoul = false) {
+  function startLeaving(pid: string, reason: Leaving, fromFoul = false) {
     const line = state.lineup ? basketballLineOf(state.lineup, pid) : null;
-    if (isPeriodActive && line && swappableBench.length > 0) {
+    // A lend always asks, as AFL's does: with nobody on the bench the
+    // sheet says so, never a silent gap (Stagehand round 9).
+    if (isPeriodActive && line && (swappableBench.length > 0 || reason === "lent")) {
       setLeaving({ playerId: pid, line, reason, fromFoul });
       return;
     }
     leaveNow(pid, reason);
   }
-  function leaveNow(pid: string, reason: "injured" | "fouled_out" | "sitting_out") {
-    if (reason === "sitting_out") {
+  function endSitOut(pid: string) {
+    setError(null);
+    const input = { player_id: pid, duration_ms: 0, ...at() };
+    write("recordBasketballSitOut", [auth, game.id, input], sitOutEvent(input));
+  }
+  function leaveNow(pid: string, reason: Leaving, replaced = false) {
+    if (reason === "lent") {
+      setLoan(pid, true);
+    } else if (reason === "sitting_out") {
       setError(null);
       const input = { player_id: pid, duration_ms: SIT_OUT_MS, ...at() };
       write("recordBasketballSitOut", [auth, game.id, input], sitOutEvent(input));
+      // The sin bin is undoable as a swap is: "Undo: Sam's sit-out".
+      if (!replaced) chrome.undoableChange(`${chrome.firstName(pid)}'s sit-out`, () => endSitOut(pid));
     } else {
-      markInjured(pid, true, reason === "fouled_out" ? "fouled_out" : undefined);
+      // Going home is an injury with reason "out" (lib/live/wentHome).
+      markInjured(pid, true, reason === "fouled_out" ? "fouled_out" : reason === "went_home" ? WENT_HOME_REASON : undefined);
     }
   }
-  function leaveAndReplace(pid: string, replacementId: string, line: BasketballLine, reason: "injured" | "fouled_out" | "sitting_out") {
+  function leaveAndReplace(pid: string, replacementId: string, line: BasketballLine, reason: Leaving) {
     setLeaving(null);
     // In order, in the one game lane: the kid leaves, then who comes on.
-    leaveNow(pid, reason);
+    leaveNow(pid, reason, true);
     sub(pid, replacementId, line);
     chrome.swapped(pid, replacementId);
+    // A mistaken sit-out goes back as it came: the sit-out ends and the
+    // kid comes back on for whoever replaced them.
+    if (reason === "sitting_out") {
+      chrome.undoableChange(`${chrome.firstName(pid)}'s sit-out`, () => {
+        endSitOut(pid);
+        sub(replacementId, pid, line);
+      });
+    }
   }
   const setLoan = (pid: string, loaned: boolean) => {
     setError(null);
@@ -628,7 +706,7 @@ export function BasketballLiveGame({
   function writeFoul(pid: string, undo: boolean) {
     setError(null);
     const input = { player_id: pid, ...(undo ? { undo: true } : { kind: "personal" as const }), ...at() };
-    write("recordBasketballFoul", [auth, game.id, input], foulEvent(input));
+    return write("recordBasketballFoul", [auth, game.id, input], foulEvent(input));
   }
   function foul(pid: string) {
     setSelectedId(null);
@@ -636,11 +714,18 @@ export function BasketballLiveGame({
     // said "Back to 5 of 5, and back in the game".
     if ((state.fouls[pid] ?? 0) >= ageGroup.foulOutAt) return;
     const count = (state.fouls[pid] ?? 0) + 1;
-    writeFoul(pid, false);
+    // The strip names it next: "Undo: foul on Sam" (Stagehand round 9).
+    chrome.fouled(writeFoul(pid, false));
     // The limit: out for the game. The coach picks who comes on.
     if (count >= ageGroup.foulOutAt && !fouledOutSet.has(pid)) startLeaving(pid, "fouled_out", true);
   }
   const undoFoul = (pid: string) => writeFoul(pid, true);
+  /** The strip's Undo of a foul: the one that fouled a kid out puts them back in the game too. */
+  function takeBackFoul(pid: string) {
+    const outOnFouls = fouledOutSet.has(pid) && (state.fouls[pid] ?? 0) >= ageGroup.foulOutAt;
+    undoFoul(pid);
+    if (outOnFouls) markInjured(pid, false);
+  }
 
   // ── Tile decorations ────────────────────────────────────────
   const lockModes = useMemo(() => {
@@ -651,15 +736,6 @@ export function BasketballLiveGame({
     }
     return out;
   }, [state.locks]);
-  const swapOffs = new Map<string, number>();
-  const swapOns = new Map<string, { pair: number; line: BasketballLine; positionLabel?: string | null }>();
-  if (!selectedId && isPeriodActive) {
-    nextSubs.forEach((s, i) => {
-      if (s.off_player_id) swapOffs.set(s.off_player_id, i + 1);
-      const pos = s.off_player_id ? state.lineup?.slots?.[s.off_player_id] : null;
-      swapOns.set(s.on_player_id, { pair: i + 1, line: s.line, positionLabel: pos ? POSITION_LABEL[pos] : null });
-    });
-  }
   const selectedPlayer = selectedId ? playerById.get(selectedId) ?? null : null;
   const selectedOnCourt = selectedId !== null && lineOf(selectedId) !== null;
   const remainingMs = Math.max(0, periodMs - elapsedMs);
@@ -675,10 +751,6 @@ export function BasketballLiveGame({
         : ageGroup.periodCount === 4
           ? `${base.currentPeriod === 1 ? "Quarter" : "Three-quarter"} time`
           : "Half time";
-  const playerDockVisible = isPeriodActive && selectedPlayer !== null;
-  const scoreDockVisible = playerDockVisible && selectedOnCourt && (trackScoring || trackFouls);
-  // The break has the shared Start bar instead of the scorebug.
-  const hasStickyBottom = !isPreTipoff && !isAtBreak;
 
   const actionPlayer = actionPlayerId ? playerById.get(actionPlayerId) ?? null : null;
   const actionLine = actionPlayerId && state.lineup ? basketballLineOf(state.lineup, actionPlayerId) : null;
@@ -714,6 +786,7 @@ export function BasketballLiveGame({
         slotLabel="basket"
         eyebrow={scorerEyebrow(scorerPoints)}
         title="Who scored?"
+        lostScore="basket"
         subtitle="Pick who scored, or count the points without a name."
         candidates={scorerCandidates}
         emptyMessage="Nobody is on court."
@@ -786,6 +859,7 @@ export function BasketballLiveGame({
                         missedNote={`A basket you missed counts in ${periodLetter}${base.currentPeriod}.`}
                         onUndo={undoScore}
                         undoDisabled={pending}
+                        fix={{ auth, gameId: game.id }}
                       />
                       {breakScorerPicker}
                     </>
@@ -799,313 +873,651 @@ export function BasketballLiveGame({
     );
   }
 
-  return (
-    // No bottom padding: LiveStickyScoreBar reserves its own height with
-    // a measured in-flow spacer, and the player dock floats over the
-    // page as AFL's does (Steve 2026-10-21: "Some blank space when
-    // scrolling").
-    <div ref={liveRootRef} className="space-y-3">
-      <LiveTopBar
-        exitHref={exitHref}
-        game={game}
-        isLive={base.currentPeriod > 0}
-        // The sub card is the alert while it has pairs (SubDue.tsx); the
-        // banner speaks only for a due sub with nothing to suggest.
-        banner={
-          isPeriodActive && subDueBannerShows(subDue.due, nextSubs.length, (state.lineup?.bench ?? []).some((id) => canComeOn(id))) && subAckKey !== subDueKey ? (
-            <SubDueBanner onAcknowledge={() => setSubAckKey(subDueKey)} />
-          ) : null
-        }
-      />
+  // ─── Live v3's shell (Phase 10) ────────────────────────────
+  // Before the tip-off and through the period the screen is LiveShell, as
+  // AFL's: the top bar (‹ Exit · vs X · ⋯), the light score header, the
+  // undo line, the info line (the next sub), the court (the kids on the
+  // wood, a line each for forwards and guards), the bench and the bar.
+  // The break is BasketballBreak (above); full time and the finished
+  // game keep their page (below).
+  const inPlay = isPeriodActive;
+  const lineShort = (line: BasketballLine) => BASKETBALL_LINE_SHORT[line] || null;
+  const dueNow = isPeriodActive && subDue.due && subAckKey !== subDueKey;
+  // The next sub falls in the period's last minute or past the buzzer: no
+  // more this period, so the pairs go (AFL's rule), unless one's due now.
+  const subsDone =
+    subsOpen && !dueNow && msUntilDue !== null && elapsedMs + Math.max(0, msUntilDue) >= periodMs - ageGroup.subCutoffSeconds * 1000;
+  const shownSubs = subsOpen && !subsDone ? nextSubs : [];
+  // Where each pair happens: the off-going kid's position ("PG"), or the
+  // line ("G"), as the kids' words say it ("On next → G").
+  const whereOf = (s: (typeof nextSubs)[number]) => {
+    const pos = s.off_player_id ? state.lineup?.slots?.[s.off_player_id] : null;
+    return pos ? POSITION_LABEL[pos] ?? pos : lineShort(s.line);
+  };
+  const pairOf = new Map<string, { i: number; role: "off" | "on"; where: string | null; line: BasketballLine }>();
+  shownSubs.forEach((s, i) => {
+    const where = whereOf(s);
+    if (s.off_player_id) pairOf.set(s.off_player_id, { i, role: "off", where, line: s.line });
+    pairOf.set(s.on_player_id, { i, role: "on", where, line: s.line });
+  });
 
-      {error && <InlineAlert kind="danger">{error}</InlineAlert>}
+  function makeOnePair(i: number) {
+    const s = shownSubs[i];
+    if (!s) return;
+    if (shownSubs.length === 1) {
+      makeAllPairs();
+      return;
+    }
+    // One of the batch: the rest stay planned for the same time and the
+    // sub clock holds. It used to count as the whole rotation: the clock
+    // restarted and the rest slid an interval later (Stagehand, 9 Nov 2026).
+    sub(s.off_player_id, s.on_player_id, s.line, false, shownSubs.length - 1);
+    // Undo puts the pair back in the plan: the swap back reopens the
+    // whole batch, so the clock still holds (Stagehand round 10).
+    const off = s.off_player_id;
+    const batch = shownSubs.length;
+    chrome.swapped(off, s.on_player_id, off ? () => sub(s.on_player_id, off, s.line, false, batch, true) : undefined);
+    setSelectedId(null);
+  }
+  function makeAllPairs() {
+    applyAllSubs();
+    setPairsOpen(false);
+    setSelectedId(null);
+  }
+  const sheetPairs: SheetPair[] = shownSubs.flatMap((s, index) => {
+    const off = s.off_player_id ? playerById.get(s.off_player_id) : null;
+    const on = playerById.get(s.on_player_id);
+    if (!on || (s.off_player_id && !off)) return [];
+    return [
+      {
+        index,
+        offId: s.off_player_id ?? "",
+        onId: s.on_player_id,
+        offName: off ? names.first(off) : "Empty spot",
+        onName: names.first(on),
+        offFull: off ? off.full_name : "the empty spot",
+        onFull: on.full_name,
+        where: whereOf(s) ?? "ON",
+        edited: false,
+      },
+    ];
+  });
+  const openPairs = () => {
+    setSelectedId(null);
+    setPairsOpen(true);
+  };
 
-      {isPeriodActive && chrome.toast}
-
-      {isPreTipoff && state.lineup && (
-        <section className="rounded-xl border border-brand-500/40 bg-brand-50 p-4 shadow-card">
-          <p className="mb-3 text-sm font-medium text-ink">The lineup is set. Start the first {periodWord} at the tip-off.</p>
-          <SFButton onClick={() => setStartConfirmOpen(true)} disabled={pending} variant="accent" size="lg" full>
-            Start {periodLetter}1
-          </SFButton>
-        </section>
-      )}
-
-      {isPeriodActive && nextSubs.length > 0 && (
-        <NextSubCard
-          pairs={nextSubs.map((s) => {
-            const pos = s.off_player_id ? state.lineup?.slots?.[s.off_player_id] : null;
-            return {
-              offId: s.off_player_id,
-              onId: s.on_player_id,
-              label: pos ? POSITION_LABEL[pos] : BASKETBALL_LINE_SHORT[s.line] || "ON",
-              labelClass: CARD_LABEL_CLASS[s.line],
-            };
-          })}
-          msUntilDue={subDue.msUntilDue}
-          subIntervalMs={subDue.spanMs}
-          due={subDue.due}
-          onApplyAll={applyAllSubs}
-          onApplyOne={(i) => {
-            const s = nextSubs[i];
-            if (!s) return;
-            sub(s.off_player_id, s.on_player_id, s.line);
-            chrome.swapped(s.off_player_id, s.on_player_id);
-          }}
-          pending={pending}
-          playerById={playerById}
-          pairTestIdPrefix="basketball-swap-pair"
-        />
-      )}
-      {isPeriodActive && nextSubs.length > 0 && subDue.due && (
-        <p className="-mt-1 px-1 text-[11px] text-ink-dim">
-          Send them to the table now, and tap them on when the whistle goes.
-        </p>
-      )}
-
-      {!isFinished && lentPlayers.length > 0 && (
-        <div className="rounded-lg border border-warn/40 bg-warn-soft/60 px-3 py-2">
-          <p className="text-xs font-semibold text-warn">Lent to the other team</p>
-          <p className="mt-0.5 text-[11px] text-warn/80">Tap &ldquo;Bring back&rdquo; to return a player to your bench.</p>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            {lentPlayers.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setLoan(p.id, false)}
-                disabled={pending}
-                aria-label={`Bring ${p.full_name} back`}
-                className="inline-flex items-center gap-1 rounded-full border border-warn/50 bg-surface px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-60 motion-safe:active:scale-[0.97]"
-              >
-                <span>{p.full_name}</span>
-                <span className="ml-0.5 text-[11px] font-semibold text-warn/80">Bring back</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {!isFinished && lineup && (
-        <>
-          <BasketballCourt
-            lineup={lineup}
-            lineCaps={lineCaps}
-            playersById={playerById}
-            onTap={handleTap}
-            onLongPress={isPeriodActive ? setActionPlayerId : undefined}
-            selectedPlayerId={selectedId}
-            dimUnselected={isPeriodActive}
-            swapOffs={swapOffs}
-            totalPairs={nextSubs.length}
-            swapDue={subDue.due}
-            totalMsByPlayer={totalMsByPlayer}
-            lineMsByPlayer={state.ms}
-            injuredIds={state.injuredIds}
-            fouledOutIds={state.fouledOutIds}
-            foulsByPlayer={foulsByPlayer}
-            foulOutAt={ageGroup.foulOutAt}
-            lockModes={lockModes}
-            pointsByPlayer={trackScoring ? playerPoints : undefined}
-            positionLabels={positionLabels}
-          />
-          <BasketballBench
-            bench={lineup.bench}
-            playersById={playerById}
-            onTap={(pid) => handleTap(pid, null)}
-            onLongPress={isPeriodActive ? setActionPlayerId : undefined}
-            selectedPlayerId={selectedId}
-            dimUnselected={isPeriodActive}
-            swapOns={swapOns}
-            totalPairs={nextSubs.length}
-            totalMsByPlayer={totalMsByPlayer}
-            lineMsByPlayer={state.ms}
-            injuredIds={state.injuredIds}
-            loanedIds={state.loanedIds}
-            fouledOutIds={state.fouledOutIds}
-            sitOutMsLeft={sitOutMsLeft}
-            foulsByPlayer={foulsByPlayer}
-            foulOutAt={ageGroup.foulOutAt}
-            lockModes={lockModes}
-            pointsByPlayer={trackScoring ? playerPoints : undefined}
-          />
-        </>
-      )}
-
-      {selectedPlayer && !selectedOnCourt && isPeriodActive && (
-        <p className="rounded-md bg-brand-50 px-3 py-2 text-xs text-brand-800">
-          Selected from bench: <strong>{selectedPlayer.full_name}</strong> — tap a player on court to swap them on.{" "}
-          <button type="button" onClick={() => setSelectedId(null)} className="text-brand-700 underline">
-            Cancel
-          </button>
-        </p>
-      )}
-
-      {isAtFinal && (
-        <BasketballFullTimeReview
-          auth={auth}
-          gameId={game.id}
-          state={state}
-          periodCount={ageGroup.periodCount}
-          periodLetter={periodLetter}
-          trackScoring={trackScoring}
-          threePointers={threePointers}
-          finalisedElapsedMs={base.periodElapsedMs}
-          teamName={teamName}
-          opponentName={opponentName}
-          onTeamScore={(n) => setScorerPoints(n)}
-          onOpponentScore={opponentScore}
-          onUndo={undoScore}
-          scorePending={pending}
-        />
-      )}
-
-      {base.finalised && (
-        <BasketballGameSummaryCard
-          state={state}
-          squad={squad}
-          presentIds={presentPlayerIds(events)}
-          trackScoring={trackScoring}
-          teamName={teamName}
-          opponentName={opponentName}
-          showArrivalPulse
-        />
-      )}
-
-      <LiveAdminUtilityRow
-        trackScoring={trackScoring}
-        candidates={lateArrivalCandidates}
-        onLateArrival={addLateArrival}
-        lateArrivalPending={pending}
-        isAdmin={isAdmin}
-        finished={base.finalised}
-        auth={auth}
-        gameId={game.id}
-        // The sub interval mid-game, as AFL's.
-        settings={
-          !isFinished && subIntervalSeconds != null ? (
-            <LiveGameSettingsButton auth={auth} gameId={game.id} subIntervalSeconds={subIntervalSeconds} />
-          ) : null
-        }
-      />
-
-      {playerDockVisible && selectedPlayer && (
-        <ScoreRecordingDock
-          heading={
-            scoreDockVisible ? (
-              <>
-                {trackScoring ? "Points or a foul for " : "A foul for "}
-                <span className="text-brand-700">{selectedPlayer.full_name}</span>
-              </>
-            ) : (
-              <span className="text-brand-700">{selectedPlayer.full_name}</span>
-            )
-          }
-          onCancel={() => setSelectedId(null)}
-          onPlayerActions={() => {
-            const id = selectedPlayer.id;
-            setSelectedId(null);
-            setActionPlayerId(id);
-          }}
-          actions={
-            scoreDockVisible ? (
-              <div className="space-y-2">
-                {trackScoring && (
-                  <div className="flex gap-2">
-                    {scoreChips.map((n) => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => teamScore(n, selectedPlayer.id)}
-                        className="flex-1 rounded-sm bg-brand-600 py-3 font-mono text-base font-bold uppercase tracking-micro text-white shadow-card transition-colors duration-fast ease-out-quart hover:bg-brand-500 disabled:opacity-60"
-                      >
-                        +{n}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {/* Fouls step both ways (Steve 2026-10-22: "Need to be able to
-                    undo fouls in basketball"): − takes the last one back. */}
-                {trackFouls && (
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      data-testid="basketball-unfoul"
-                      onClick={() => {
-                        const pid = selectedPlayer.id;
-                        setSelectedId(null);
-                        undoFoul(pid);
-                      }}
-                      disabled={pending || (state.fouls[selectedPlayer.id] ?? 0) === 0}
-                      aria-label={`Take back a foul from ${selectedPlayer.full_name}`}
-                      className="min-h-[44px] min-w-[44px] rounded-sm border border-due/50 bg-surface font-mono text-base font-bold text-due transition-colors duration-fast ease-out-quart hover:bg-due/10 disabled:opacity-40"
-                    >
-                      −
-                    </button>
-                    <button
-                      type="button"
-                      data-testid="basketball-foul"
-                      onClick={() => foul(selectedPlayer.id)}
-                      disabled={pending || (state.fouls[selectedPlayer.id] ?? 0) >= ageGroup.foulOutAt}
-                      className="min-h-[44px] flex-1 rounded-sm border border-due/50 bg-due-tint py-2.5 font-mono text-sm font-bold uppercase tracking-micro text-due transition-colors duration-fast ease-out-quart hover:bg-due/10 disabled:opacity-60"
-                    >
-                      + Foul ({state.fouls[selectedPlayer.id] ?? 0} of {ageGroup.foulOutAt})
-                    </button>
-                  </div>
-                )}
-                <p className="text-center text-[11px] text-ink-mute">
-                  Or tap a bench player to swap <strong>{selectedPlayer.full_name}</strong> off.
-                </p>
-              </div>
-            ) : (
-              <p className="text-xs text-ink-dim">
-                {selectedOnCourt ? "Tap a bench player to swap them off." : "Tap a player on court to swap them on."}
-              </p>
-            )
-          }
-        />
-      )}
-
-      {hasStickyBottom && (
-        <LiveStickyScoreBar
-          scoringOff={
-            !trackScoring
-              ? { teamId: auth.kind === "team" && isAdmin ? auth.teamId : null }
+  // ── One kid (KidTile) ──
+  const lineLabel = (line: BasketballLine) => (line === "court" ? "Court" : BASKETBALL_LINE_LABEL[line]);
+  function outOf(pid: string): { out: KidOut; kind: KidOutKind } | null {
+    if (fouledOutSet.has(pid)) return { out: { kind: "fouledOut" }, kind: "fouledOut" };
+    if (injuredSet.has(pid)) {
+      const home = wentHomeSet.has(pid);
+      return { out: { kind: "injured", wentHome: home }, kind: home ? "home" : "injured" };
+    }
+    if (loanedSet.has(pid)) return { out: { kind: "lent" }, kind: "lent" };
+    const sit = sitOutMsLeft[pid];
+    if (sit) return { out: { kind: "sitOut", msLeft: sit }, kind: "sit" };
+    return null;
+  }
+  function kidTile(pid: string, line: BasketballLine | null) {
+    const p = playerById.get(pid);
+    if (!p) return null;
+    const o = outOf(pid);
+    const pair = o || !inPlay ? null : pairOf.get(pid) ?? null;
+    const subRole: KidSubRole | null = pair ? (pair.role === "off" ? { role: "off" } : { role: "on", to: pair.where }) : null;
+    let words: KidWords | null = kidWords({
+      place: line ? "field" : "bench",
+      sub: subRole,
+      subDue: dueNow,
+      rollingSubs: true,
+      subsDoneThisPeriod: subsDone,
+      out: o?.out ?? null,
+      inPlay,
+      lastPeriod: base.currentPeriod >= ageGroup.periodCount,
+    });
+    // "On next → G" says the line in full: "On next to Guards".
+    if (words && pair?.role === "on" && pair.line !== "court" && pair.where === lineShort(pair.line)) {
+      words = { ...words, spoken: `${words.text.split(" →")[0]} to ${BASKETBALL_LINE_LABEL[pair.line]}` };
+    }
+    const fouls = foulsByPlayer ? foulsByPlayer[pid] ?? 0 : 0;
+    const points = trackScoring ? playerPoints[pid] ?? 0 : 0;
+    const pos = line ? positionLabels?.[pid] ?? null : null;
+    const totalMs = totalMsByPlayer[pid];
+    const held = lockModes[pid] ?? null;
+    // Fouls ("F3", bold two short of the limit, underlined one short) and
+    // points ("8 PTS") as small figures after the name.
+    const figures: KidFigure[] = [
+      ...(fouls > 0
+        ? [
+            {
+              key: "fouls",
+              text: `F${fouls}`,
+              label: `${fouls} ${fouls === 1 ? "foul" : "fouls"}`,
+              testId: `fouls-${pid}`,
+              strong: fouls >= ageGroup.foulOutAt - 2,
+              underline: fouls >= ageGroup.foulOutAt - 1,
+            },
+          ]
+        : []),
+      ...(points > 0 ? [{ key: "pts", text: `${points} ${points === 1 ? "PT" : "PTS"}`, label: `${points} ${points === 1 ? "point" : "points"}` }] : []),
+    ];
+    return (
+      <KidTile
+        testId={`player-tile-${pid}`}
+        name={names.tile(p)}
+        spoken={{
+          name: p.full_name,
+          place: line ? pos || lineLabel(line) : null,
+          number: p.jersey_number,
+          time: totalMs !== undefined ? formatMinSec(totalMs) : null,
+          states: [
+            fouls > 0 ? `${fouls} of ${ageGroup.foulOutAt} fouls` : null,
+            points > 0 ? `${points} ${points === 1 ? "point" : "points"}` : null,
+            held ? "Kept on" : null,
+          ],
+        }}
+        place={line ? "field" : "bench"}
+        pos={pos}
+        words={words}
+        figures={figures}
+        badge={pair ? { n: pair.i + 1, hot: dueNow } : null}
+        selected={selectedId === pid}
+        due={!!pair && dueNow}
+        locked={!!held}
+        lockLabel={held ? "Kept on court" : null}
+        out={o?.kind ?? null}
+        onClick={
+          o
+            ? // Out (fouled out, hurt, lent, sitting): a tap opens their
+              // sheet (Take back the last foul, Back on, Bring back, End
+              // the sit-out).
+              () => setActionPlayerId(pid)
+            : inPlay
+              ? () => handleTap(pid, line)
               : undefined
-          }
-          scorebug={
-            <BasketballScoreBug
-              teamName={teamName}
-              opponentName={opponentName}
-              teamPoints={teamPoints}
-              opponentPoints={opponentPoints}
-              periodLetter={periodLetter}
-              currentPeriod={base.currentPeriod}
+        }
+        onLongPress={inPlay || o ? () => setActionPlayerId(pid) : undefined}
+      />
+    );
+  }
+
+  // ── The court: forwards by the basket, guards at the top of the key ──
+  const usesLines = !!lineup && lineup.lines.court.length === 0 && (lineCaps.court ?? 0) === 0;
+  const courtLines: BasketballLine[] = usesLines
+    ? (["forward", "guard"] as const).filter((l) => Math.max(lineCaps[l] ?? 0, lineup!.lines[l].length) > 0)
+    : ["court"];
+  const fieldLines: FieldLine[] = lineup
+    ? courtLines.map((line) => {
+        const ids = lineup.lines[line];
+        const empties = Math.max(0, (lineCaps[line] ?? 0) - ids.length);
+        const spot = line === "court" ? "spot" : `${BASKETBALL_LINE_LABEL[line].toLowerCase().replace(/s$/, "")} spot`;
+        return {
+          key: line,
+          label: lineLabel(line),
+          tiles: [
+            ...ids.map((pid) => (
+              <div key={pid} className="min-w-0">
+                {kidTile(pid, line)}
+              </div>
+            )),
+            ...Array.from({ length: empties }, (_, i) => (
+              <KidSlot
+                key={`empty-${i}`}
+                label={selectedPlayer ? `Move ${selectedPlayer.full_name} to the empty ${spot}` : `Empty ${spot}`}
+                text={selectedPlayer ? "Move here" : "Empty"}
+                hot={!!selectedPlayer}
+                onClick={() => handleTap("", line)}
+              />
+            )),
+          ],
+        };
+      })
+    : [];
+  const fieldEl = lineup ? (
+    <div role="region" aria-label="On court" className="flex flex-1 flex-col">
+      <FieldLines lines={fieldLines} {...woodCourt()} />
+    </div>
+  ) : null;
+
+  // The bench: who can come on, then who's out (sitting, hurt, fouled
+  // out, lent), then kids lent before they were placed.
+  const benchIds = lineup?.bench ?? [];
+  const placedIds = new Set(lineup ? [...basketballOnCourt(lineup), ...benchIds] : []);
+  const lentAway = lentPlayers.filter((p) => !placedIds.has(p.id)).map((p) => p.id);
+  const benchOrder = [...benchIds.filter((id) => !outOf(id)), ...benchIds.filter((id) => !!outOf(id)), ...lentAway];
+  const benchEl = (
+    <KidBench
+      count={benchIds.length}
+      dense={benchOrder.length > 6}
+      tiles={benchOrder.map((pid) => (
+        <div key={pid} className="min-w-0">
+          {kidTile(pid, null)}
+        </div>
+      ))}
+      late={
+        lateArrivalCandidates.length > 0 ? (
+          <LateArrivalMenu look="text" candidates={lateArrivalCandidates} onAdd={addLateArrival} pending={pending} />
+        ) : undefined
+      }
+    />
+  );
+
+  // ── The info line: the next sub ──
+  // "Send them to the table": a parent who doesn't know basketball reads
+  // it as plain words (Stagehand round 8, #14).
+  // Due: said with its pairs, or (nobody suggested, but someone could come
+  // on) as "Sub due · rotate a player off". Nobody to bring on: not due.
+  const subDueSaid = dueNow && (shownSubs.length > 0 || swappableBench.length > 0);
+  const subSoft = !dueNow && msUntilDue !== null && msUntilDue > 0 && msUntilDue <= 30_000 && shownSubs.length > 0;
+  // Ending the period: ⋯'s "End 1st half" (or "End Q2") row, and "Time's
+  // up: end 1st half" on the info line once the clock reads 0:00 and it's
+  // still open. Both open the clock's end confirm.
+  const periodTimeUp = isPeriodActive && atHooter;
+  const endWords = endPeriodWords({
+    sport: "basketball",
+    periodLabel: periodWord,
+    period: base.currentPeriod,
+    periodCount: ageGroup.periodCount,
+    timeUp: periodTimeUp,
+  });
+  const openEndPeriod = () => {
+    setSelectedId(null);
+    setEndConfirmOpen(true);
+  };
+  const infoEl =
+    inPlay && (benchIds.length > 0 || periodTimeUp) ? (
+      <InfoLine
+        timeUp={periodTimeUp ? { prompt: endWords.prompt, onEnd: openEndPeriod } : undefined}
+        state={subDueSaid ? "due" : subSoft ? "soft" : "idle"}
+        msUntilDue={subsDone ? null : msUntilDue}
+        subIntervalMs={subDue.spanMs ?? 0}
+        swaps={sheetPairs.length}
+        periodWord={periodWord}
+        noBench={swappableBench.length === 0}
+        onOpen={sheetPairs.length > 0 ? openPairs : undefined}
+        softHint="send them to the table, tap them on at the whistle"
+        dueHint="send them to the table now"
+      />
+    ) : null;
+
+  // ── Banners: a failed save ──
+  const bannersEl = error ? (
+    <p className="rounded-[12px] bg-blood-soft px-3 py-2 text-[0.8125rem] font-bold text-blood" role="alert">
+      {error}
+    </p>
+  ) : null;
+
+  // ── The bar ──
+  // A picked kid: the bar is theirs (KidBar). The sub due: MAKE ALL N
+  // SWAPS and PAIRS. Otherwise the score bar, or (scoring off) where
+  // things are. Before the tip-off: Start H1.
+  const btn = (tone: Parameters<typeof barButton>[0]) => barButton(tone, "sm");
+  const kidBar =
+    selectedPlayer && inPlay
+      ? (() => {
+          const pid = selectedPlayer.id;
+          const p = selectedPlayer;
+          const line = lineOf(pid);
+          const pos = line ? positionLabels?.[pid] ?? null : null;
+          const totalMs = totalMsByPlayer[pid] ?? 0;
+          const ms = state.ms[pid] ?? {};
+          const pair = pairOf.get(pid) ?? null;
+          const planned = pair ? shownSubs[pair.i] : null;
+          const first = names.first(p);
+          const fouls = state.fouls[pid] ?? 0;
+          const atLimit = fouls >= ageGroup.foulOutAt;
+          const actions = [
+            ...(line && trackScoring
+              ? scoreChips.map((n, i) => (
+                  <button
+                    key={`p${n}`}
+                    type="button"
+                    onClick={() => teamScore(n, pid)}
+                    disabled={pending}
+                    className={btn(i === 0 ? "primary" : "outlined")}
+                  >
+                    +{n}
+                  </button>
+                ))
+              : []),
+            <button
+              key="injured"
+              type="button"
+              disabled={pending}
+              onClick={() => {
+                setSelectedId(null);
+                // On court with someone to bring on: straight to who comes
+                // on; on the bench, marked at once.
+                startLeaving(pid, "injured");
+              }}
+              className={btn("hurt")}
+            >
+              <svg viewBox="0 0 20 20" className="h-[16px] w-[16px]" aria-hidden>
+                <path d="M10 3v14M3 10h14" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" />
+              </svg>
+              Injured
+            </button>,
+            <KidBarMore
+              key="more"
+              onClick={() => {
+                setSelectedId(null);
+                setActionPlayerId(pid);
+              }}
+            />,
+          ];
+          // Fouls step both ways (Steve 2026-10-22: "Need to be able to
+          // undo fouls in basketball"): − takes the last one back, + Foul
+          // says how many of the limit, in blood one short of it.
+          const foulRow =
+            line && trackFouls ? (
+              <div className="grid grid-cols-[64px_minmax(0,1fr)] gap-[8px]">
+                <button
+                  type="button"
+                  data-testid="basketball-unfoul"
+                  onClick={() => {
+                    setSelectedId(null);
+                    undoFoul(pid);
+                  }}
+                  disabled={pending || fouls === 0}
+                  aria-label={`Take back a foul from ${p.full_name}`}
+                  className={btn("outlined")}
+                >
+                  −
+                </button>
+                <button
+                  type="button"
+                  data-testid="basketball-foul"
+                  onClick={() => foul(pid)}
+                  disabled={pending || atLimit}
+                  aria-label={`Foul for ${p.full_name}, ${fouls} of ${ageGroup.foulOutAt}`}
+                  className={btn(fouls >= ageGroup.foulOutAt - 1 ? "hurt" : "outlined")}
+                >
+                  + Foul
+                  <span className={BAR_SMALL}>
+                    {fouls} of {ageGroup.foulOutAt}
+                  </span>
+                </button>
+              </div>
+            ) : null;
+          const split = (
+            <TimeSplit
+              parts={[
+                { ms: ms.guard ?? 0, className: "bg-zone-c-fill" },
+                { ms: ms.forward ?? 0, className: "bg-zone-f-fill" },
+                { ms: ms.court ?? 0, className: "bg-brand-600" },
+              ]}
+            />
+          );
+          return (
+            <KidBar
+              name={p.full_name}
+              heading={`${p.jersey_number != null ? `#${p.jersey_number} ` : ""}${p.full_name}${pos ? ` · ${pos}` : ""}`}
+              split={split}
+              line={`${line ? lineLabel(line) : "Bench"} · ${Math.round(totalMs / 60_000)}′ this game · ${pctOfGame(totalMs, absNowMs)}% of game`}
+              hint={
+                line ? (
+                  trackScoring || trackFouls ? (
+                    <>
+                      Points or a foul for <b className="font-bold text-ink">{first}</b>. Or tap another kid to swap.
+                    </>
+                  ) : (
+                    <>
+                      Tap another kid to swap with <b className="font-bold text-ink">{first}</b>.
+                    </>
+                  )
+                ) : (
+                  <>
+                    Tap a court kid to swap <b className="font-bold text-ink">{first}</b> on.
+                  </>
+                )
+              }
+              pair={
+                pair && planned
+                  ? {
+                      n: pair.i + 1,
+                      text: planned.off_player_id
+                        ? `${chrome.firstName(planned.off_player_id)} → ${chrome.firstName(planned.on_player_id)}`
+                        : `On → ${chrome.firstName(planned.on_player_id)}`,
+                      where: pair.where ?? undefined,
+                      hot: dueNow,
+                      onMake: () => makeOnePair(pair.i),
+                      disabled: pending,
+                    }
+                  : null
+              }
+              extra={foulRow}
+              actions={actions}
+              columns={actions.length}
+              onClose={() => setSelectedId(null)}
+            />
+          );
+        })()
+      : null;
+
+  // The sub's due: the bar's one job is to make it.
+  const dueBar =
+    dueNow && sheetPairs.length > 0 ? (
+      <div className="grid grid-cols-[minmax(0,1fr)_84px] gap-[8px]">
+        <button
+          type="button"
+          data-testid="bar-make-all"
+          onClick={makeAllPairs}
+          disabled={pending}
+          aria-label={sheetPairs.length === 1 ? "Make this swap" : `Make all ${sheetPairs.length} swaps`}
+          aria-describedby="bar-make-all-who"
+          className={barButton("hot")}
+        >
+          {sheetPairs.length === 1 ? "Make this swap" : `Make all ${sheetPairs.length} swaps`}
+          <span id="bar-make-all-who" className={`${BAR_SMALL} max-w-full truncate`}>
+            {sheetPairs.map((sp) => sp.onName).join(", ")} on · send them to the table now
+          </span>
+        </button>
+        <button type="button" onClick={openPairs} aria-label="Pairs: edit one" className={barButton("outlined")}>
+          Pairs
+          <span className={BAR_SMALL}>see each</span>
+        </button>
+      </div>
+    ) : null;
+
+  const scoringOffBar = (
+    <p className="flex min-h-[58px] items-center px-[2px] text-[0.8125rem] text-ink-mute">
+      <span>
+        <b className="block font-display stretch-75 text-[1.125rem] font-extrabold text-ink">{teamName}</b>
+        Tap any kid for swaps, fouls and player actions.
+      </span>
+    </p>
+  );
+  const scoreBugProps = {
+    teamName,
+    opponentName,
+    teamPoints,
+    opponentPoints,
+    periodLetter,
+    currentPeriod: base.currentPeriod,
+    periodCount: ageGroup.periodCount,
+    clockReadout,
+    running,
+    isPreGame: isPreTipoff,
+    // Full time reads FT from the last hooter, not "running".
+    isFinished,
+    atHooter,
+    breakName,
+    trackScoring,
+    threePointers,
+  };
+  const shellBar = isPreTipoff ? (
+    <div className="flex flex-col gap-[6px]">
+      <WalkthroughOffer storageKey="basketball-walkthrough-seen" steps={walkthroughSteps} />
+      <StartBarButton label={`Start ${periodLetter}1`} onClick={() => setStartConfirmOpen(true)} disabled={pending} />
+    </div>
+  ) : (
+    kidBar ??
+    dueBar ??
+    (trackScoring ? (
+      <BasketballScoreBug
+        {...scoreBugProps}
+        part="bar"
+        onTeamScore={canScore ? (n) => setScorerPoints(n) : undefined}
+        onOpponentScore={canScore ? opponentScore : undefined}
+      />
+    ) : (
+      scoringOffBar
+    ))
+  );
+  const shellHeader = (
+    <BasketballScoreBug
+      {...scoreBugProps}
+      part="header"
+      subDue={subDueSaid}
+      onClockTap={isPeriodActive ? () => (atHooter ? setEndConfirmOpen(true) : setClockMenuOpen(true)) : undefined}
+      clockPulseKey={base.periodEnded ? `end-${base.currentPeriod}` : null}
+      onScores={
+        trackScoring && !isPreTipoff
+          ? () => {
+              setSelectedId(null);
+              chrome.openScores();
+            }
+          : undefined
+      }
+    />
+  );
+
+  const roundWord = game.round_number != null ? `Round ${game.round_number}` : null;
+  const sportLine = `${getSportConfig("basketball").shortName} ${ageGroup.id}`;
+  const topSubline = isPreTipoff
+    ? [roundWord, game.location].filter(Boolean).join(" · ") || sportLine
+    : [roundWord, sportLine].filter(Boolean).join(" · ");
+  const whoRuns = auth.kind === "token" ? "Game-day link" : isAdmin ? "Team admin" : "Game manager";
+
+  // ⋯ → Edit lineup before the tip-off: back to the picker with the lineup
+  // as set (reopenLineup puts it in the draft and takes the lineup out).
+  function handleEditLineup() {
+    setError(null);
+    void reopenLineup(auth, game.id)
+      .catch(() => ({ success: false as const, error: "Couldn't open the lineup — try again." }))
+      .then((result) => {
+        if (!result.success) {
+          setError(result.error ?? "Couldn't open the lineup — try again.");
+          return;
+        }
+        router.refresh();
+      });
+  }
+
+  return (
+    <div ref={liveRootRef} className="space-y-3">
+      {isFinished ? (
+        <>
+          {/* Full time and the finished game keep their page: the top
+              bar, the score, then the review or the summary. */}
+          <LiveTopBar onHelp={chrome.openHelp} exitHref={exitHref} game={game} isLive />
+          {error && <InlineAlert kind="danger">{error}</InlineAlert>}
+          <BasketballScoreBug {...scoreBugProps} part="header" clockPulseKey={`end-${base.currentPeriod}`} />
+          {isAtFinal && (
+            <BasketballFullTimeReview
+              auth={auth}
+              gameId={game.id}
+              state={state}
               periodCount={ageGroup.periodCount}
-              clockReadout={clockReadout}
-              running={running}
-              isPreGame={isPreTipoff}
-              // Full time reads FT from the last hooter, not "running".
-              isFinished={isFinished}
-              atHooter={atHooter}
-              breakName={breakName}
+              periodLetter={periodLetter}
               trackScoring={trackScoring}
               threePointers={threePointers}
-              onTeamScore={canScore ? (n) => setScorerPoints(n) : undefined}
-              onOpponentScore={canScore ? opponentScore : undefined}
-              onClockTap={isPeriodActive ? () => (atHooter ? setEndConfirmOpen(true) : setClockMenuOpen(true)) : undefined}
-              clockPulseKey={base.periodEnded ? `end-${base.currentPeriod}` : null}
+              finalisedElapsedMs={base.periodElapsedMs}
+              teamName={teamName}
+              opponentName={opponentName}
+              onTeamScore={(n) => setScorerPoints(n)}
+              onOpponentScore={opponentScore}
+              onUndo={undoScore}
+              scorePending={pending}
+            />
+          )}
+          {base.finalised && (
+            <BasketballGameSummaryCard
+              state={state}
+              squad={squad}
+              presentIds={presentPlayerIds(events)}
+              trackScoring={trackScoring}
+              teamName={teamName}
+              opponentName={opponentName}
+              showArrivalPulse
+            />
+          )}
+        </>
+      ) : (
+        <LiveShell
+          top={
+            <LiveTopBar
+              exitHref={exitHref}
+              game={game}
+              isLive={!isPreTipoff}
+              onMenu={() => {
+                // One sheet at a time: the kid is put down.
+                setSelectedId(null);
+                setMenuOpen(true);
+              }}
+              subline={topSubline}
+              periods={{ count: ageGroup.periodCount, seconds: periodSeconds }}
             />
           }
-          // In play only: at full time the review's own Undo fixes a miscount.
-          undoStrip={chrome.undoStrip({
-            show: isPeriodActive && (teamPoints > 0 || opponentPoints > 0),
-            onUndo: undoScore,
+          banners={bannersEl}
+          header={shellHeader}
+          undo={chrome.undoStrip({
+            show: isPeriodActive,
+            onUndo: undoNamedScore,
+            onUndoFoul: (f) => f.player_id && takeBackFoul(f.player_id),
             disabled: pending,
+            plain: true,
           })}
+          info={infoEl}
+          field={fieldEl}
+          bench={benchEl}
+          bar={shellBar}
+          toast={isPeriodActive ? chrome.toast : null}
         />
       )}
 
-      {startConfirmOpen && (
+      {/* ⋯: late arrival, the sub interval, scores, the tour, feedback, the
+          game-day link, Restart and (before the tip-off) Edit lineup. */}
+      <LiveGameMenu
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        auth={auth}
+        gameId={game.id}
+        game={game}
+        isAdmin={isAdmin}
+        subline={[roundWord, whoRuns].filter(Boolean).join(" · ")}
+        finished={base.finalised}
+        lateCandidates={lateArrivalCandidates}
+        onLateArrival={addLateArrival}
+        latePending={pending}
+        settings={
+          !isFinished && subIntervalSeconds != null
+            ? { summary: settingsSummary(subIntervalSeconds, game.on_field_size, "court"), subIntervalSeconds }
+            : undefined
+        }
+        onScores={!isPreTipoff ? chrome.openScores : undefined}
+        trackScoring={trackScoring}
+        endPeriod={isPeriodActive ? { label: endWords.label, description: endWords.description, onSelect: openEndPeriod } : undefined}
+        onWalkthrough={chrome.openHelp}
+        onEditLineup={isPreTipoff ? handleEditLineup : undefined}
+      />
+
+      {/* The planned sub, pair by pair (the info line, or the due bar's Pairs). */}
+      {pairsOpen && sheetPairs.length > 0 && isPeriodActive && (
+        <PairsSheet
+          pairs={sheetPairs}
+          due={dueNow}
+          msUntilDue={subsDone ? null : msUntilDue}
+          periodWord={periodWord.charAt(0).toUpperCase() + periodWord.slice(1)}
+          onMakeOne={makeOnePair}
+          onMakeAll={makeAllPairs}
+          pending={pending}
+          onClose={() => setPairsOpen(false)}
+        />
+      )}
+
+      {startConfirmOpen && isPreTipoff && (
         <StartQuarterModal
           quarter={1}
           periodLabel={periodWord}
@@ -1115,6 +1527,7 @@ export function BasketballLiveGame({
           onStart={() => {
             setStartConfirmOpen(false);
             startFirstPeriod();
+            void hapticTap("medium");
           }}
           onCancel={() => setStartConfirmOpen(false)}
         />
@@ -1161,6 +1574,7 @@ export function BasketballLiveGame({
           // minutes, as AFL's sheet has.
           currentLine={actionLine ? spotName(actionLine) : null}
           isInjured={injuredSet.has(actionPlayer.id)}
+          wentHome={wentHomeSet.has(actionPlayer.id)}
           isLoaned={loanedSet.has(actionPlayer.id)}
           seasonLoanMins={chrome.loanMinutes(actionPlayer.id).seasonLoanMins}
           squadLoanMins={chrome.loanMinutes(actionPlayer.id).squadLoanMins}
@@ -1221,10 +1635,16 @@ export function BasketballLiveGame({
             if (injuredSet.has(pid)) markInjured(pid, false);
             else startLeaving(pid, "injured");
           }}
+          onWentHome={() => {
+            const pid = actionPlayer.id;
+            setActionPlayerId(null);
+            startLeaving(pid, "went_home");
+          }}
           onToggleLoan={() => {
             const pid = actionPlayer.id;
             setActionPlayerId(null);
-            setLoan(pid, !loanedSet.has(pid));
+            if (loanedSet.has(pid)) setLoan(pid, false);
+            else startLeaving(pid, "lent");
           }}
           onSwitch={() => {
             setActionPlayerId(null);
@@ -1393,3 +1813,4 @@ export function BasketballLiveGame({
     </div>
   );
 }
+
