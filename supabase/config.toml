@@ -36,7 +36,8 @@ enabled = true
 port = 54323
 api_url = "http://127.0.0.1"
 
-[inbucket]
+# Renamed from [inbucket] by the Supabase CLI (Nov 2026).
+[local_smtp]
 enabled = true
 port = 54324
 # Smtp port + pop3 port optional — we only need the web UI for grabbing
