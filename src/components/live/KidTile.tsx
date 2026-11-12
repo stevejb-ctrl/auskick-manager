@@ -32,6 +32,7 @@ import { tileName, type TileNameParts } from "@/components/live/tileName";
 import type { KidWords } from "@/lib/live/kidWords";
 import type { MixedGroup } from "@/lib/types";
 import { MixedMark, mixedMarkSpoken } from "@/components/live/MixedMark";
+import { useZoneBars, type ZoneBarSegment, type ZoneTone } from "@/lib/live/zoneBars";
 
 /** Why a kid is out of the rotation: their badge's colour. */
 export type KidOutKind = "injured" | "home" | "lent" | "sit" | "fouledOut";
@@ -98,6 +99,13 @@ export interface KidTileProps {
    * view, for a kid whose Girl/Boy is set; the tile then says it too.
    */
   group?: MixedGroup | null;
+  /**
+   * The kid's time in each area this game (lib/live/zoneBars), drawn
+   * as a thin bar along the tile's foot when this phone has the bars on.
+   * Seen only: the time is in the tile's name already, and the split is
+   * in the player sheet.
+   */
+  bar?: ZoneBarSegment[] | null;
   onClick?: () => void;
   onLongPress?: () => void;
 }
@@ -176,11 +184,14 @@ export function KidTile({
   flag: flagProp = null,
   figures = null,
   group = null,
+  bar = null,
   onClick,
   onLongPress,
   pos: posProp = null,
 }: KidTileProps) {
   const { handlers, arming, consumedLongPress } = useLongPress({ onLongPress });
+  const barsOn = useZoneBars();
+  const showBar = barsOn && !!bar && !out;
   const field = place === "field";
   // A lent kid plays for the other team: no position or vest of ours on
   // them (Stagehand round 9: league's DH stayed drawn on a lent kid).
@@ -267,6 +278,8 @@ export function KidTile({
         edge,
         // Big fields at large text: a taller tap target (58 px).
         dense ? "bigtext:min-h-[58px]" : "",
+        // Room under the words for the bar.
+        showBar ? "pb-[7px]" : "",
         dimmed && !selected ? "opacity-[0.32]" : "",
         onClick || onLongPress ? "motion-safe:active:scale-[0.97]" : "cursor-default",
         arming && !selected ? (field ? "ring-2 ring-mark/50" : "ring-2 ring-hairline") : "",
@@ -337,6 +350,7 @@ export function KidTile({
           {words.text}
         </span>
       )}
+      {showBar && bar && <ZoneTimeBar segments={bar} ground={field ? (selected ? "chalk" : "field") : "page"} />}
     </button>
   );
 }
@@ -369,5 +383,48 @@ export function KidSlot({
     >
       <span className="truncate">{text}</span>
     </button>
+  );
+}
+
+// The bar's colours on each ground. On the grass the zones take the
+// colours their words have there (sun / chalk / sky); on a picked kid's
+// chalk plate, the zone hues themselves; on the bench, the page's bar
+// fills. A keeper's time and a format with no areas are quiet.
+const BAR_TONES: Record<"field" | "chalk" | "page", Record<ZoneTone, string>> = {
+  field: {
+    f: "bg-zone-f-on-field",
+    c: "bg-zone-c-on-field",
+    b: "bg-zone-b-on-field",
+    k: "bg-mark/50",
+    plain: "bg-mark/50",
+  },
+  chalk: { f: "bg-zone-f", c: "bg-zone-c", b: "bg-zone-b", k: "bg-mark-ink/50", plain: "bg-mark-ink/50" },
+  page: { f: "bg-zone-f-fill", c: "bg-zone-c-fill", b: "bg-zone-b-fill", k: "bg-ink-mute", plain: "bg-ink-mute" },
+};
+const BAR_TRACK = { field: "bg-mark/[0.16]", chalk: "bg-mark-ink/[0.12]", page: "bg-bar-track" } as const;
+
+/**
+ * A kid's time in each area, as a thin stacked bar along the tile's foot
+ * (lib/live/zoneBars). Seen only: a screen reader hears the kid's time
+ * in the tile's name, and the split in the player sheet.
+ */
+export function ZoneTimeBar({ segments, ground }: { segments: ZoneBarSegment[]; ground: "field" | "chalk" | "page" }) {
+  const total = segments.reduce((s, x) => s + x.ms, 0);
+  if (total <= 0) return null;
+  return (
+    <span
+      aria-hidden
+      data-testid="zone-bar"
+      className={`pointer-events-none absolute inset-x-[8px] bottom-[4px] flex h-[3px] gap-px overflow-hidden rounded-full ${BAR_TRACK[ground]}`}
+    >
+      {segments.map((s) => (
+        <span
+          key={s.key}
+          data-zone={s.key}
+          className={`h-full ${BAR_TONES[ground][s.tone]}`}
+          style={{ width: `${(s.ms / total) * 100}%` }}
+        />
+      ))}
+    </span>
   );
 }

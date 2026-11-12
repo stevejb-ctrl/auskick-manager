@@ -170,6 +170,19 @@ export const PAIRS: Pair[] = [
   ...uiOn("line:hivis", ["fill:warm", "fill:surface"], "due kid's edge on the bench"),
   ...uiOn("line:sun", ["fill:warm", "fill:surface", { over: "fill:ink", alpha: 0.045, under: "fill:warm" }], "under-minimum ring on the bench"),
   ...uiOn("fill:zone-f-on-field", ["fill:field"], "under-minimum ring on the grass"),
+  // The time bar along a kid's tile on the ground (KidTile ZoneTimeBar):
+  // each zone's on-the-grass colour over the tile's plate, on every ground.
+  ...(["zone-f-on-field", "zone-c-on-field", "zone-b-on-field"] as const).flatMap((z) =>
+    uiOn(
+      `fill:${z}`,
+      (["field", "court", "wood"] as const).map((g) => ({ over: "fill:mark" as const, alpha: 0.07, under: `fill:${g}` as const })),
+      "a kid's time bar on the ground",
+    ),
+  ),
+  // And on a picked kid's chalk plate: the zone hues themselves.
+  ...uiOn("fill:zone-f", ["fill:mark"], "a picked kid's time bar"),
+  ...uiOn("fill:zone-c", ["fill:mark"], "a picked kid's time bar"),
+  ...uiOn("fill:zone-b", ["fill:mark"], "a picked kid's time bar"),
   ...uiOn("line:blood", ["fill:warm", "fill:surface"], "injured outline"),
   ...uiOn("fill:mint", ["fill:warm", "fill:surface"], "running-clock dot on the chalk header"),
 
