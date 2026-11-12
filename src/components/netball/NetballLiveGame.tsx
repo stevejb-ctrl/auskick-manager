@@ -2691,6 +2691,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
               setMenuOpen(true);
             }}
             subline={topSubline}
+            periods={{ count: ageGroup.periodCount, seconds: quarterLengthSeconds }}
           />
         }
         banners={

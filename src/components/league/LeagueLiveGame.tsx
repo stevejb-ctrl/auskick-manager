@@ -2536,6 +2536,7 @@ export function LeagueLiveGame({
                 setMenuOpen(true);
               }}
               subline={topSubline}
+              periods={{ count: ageGroup.periodCount, seconds: periodSeconds }}
             />
           }
           banners={bannersEl}
