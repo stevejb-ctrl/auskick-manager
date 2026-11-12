@@ -36,6 +36,12 @@ export interface FormatGamePlanOptions {
    * written in the reader's own time zone, as the game page shows it.
    */
   details?: { scheduledAt?: string | null; venue?: string | null; out?: string[] };
+  /**
+   * The How we play rotation that made the plan ("Suggested"), as the
+   * plan sheet names it (lib/playbook/strategyLabel), so the group chat
+   * reads "Rotation: Suggested" too (Steve, 12 Nov 2026).
+   */
+  rotation?: string | null;
 }
 
 /**
@@ -62,6 +68,7 @@ function periodCountPhrase(plan: GamePlan, n: number): string {
  *   🗓 Game plan — Hawks v Eagles
  *   Sat 25 Oct · 9:00 am · Ross Reserve       (when the caller knows)
  *   4 quarters · ~12 min each · sub every 3 min
+ *   Rotation: Suggested                       (when the caller knows)
  *   Out: Noah, Sienna                         (when anyone is)
  *
  *   Q1
@@ -80,7 +87,7 @@ export function formatGamePlan(
   plan: GamePlan,
   opts: FormatGamePlanOptions,
 ): string {
-  const { teamName, opponentName, playerName, positionLabel, details } = opts;
+  const { teamName, opponentName, playerName, positionLabel, details, rotation } = opts;
   const names = (ids: string[], periodIndex?: number) =>
     ids.length > 0
       ? ids
@@ -118,6 +125,7 @@ export function formatGamePlan(
   lines.push(
     `${periodCountPhrase(plan, plan.periods.length)} · ~${mins} min each${cadence}`,
   );
+  if (rotation?.trim()) lines.push(`Rotation: ${rotation.trim()}`);
   if (details?.out && details.out.length > 0) lines.push(`Out: ${details.out.join(", ")}`);
 
   // One block per period: each on-field group on its own indented line,
