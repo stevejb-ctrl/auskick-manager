@@ -795,6 +795,9 @@ function InviteRow({
     if (!invite.email_sent_at) return;
     const elapsed = Date.now() - new Date(invite.email_sent_at).getTime();
     if (elapsed >= RESEND_THROTTLE_MS) return;
+    // A send from this page (Resend, or a role change's re-send) is
+    // newer than the last tick: catch up now, not in a second.
+    setNowMs(Date.now());
     const id = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(id);
   }, [invite.email_sent_at]);
@@ -802,9 +805,12 @@ function InviteRow({
   const url = `${publicOrigin()}/join/${invite.token}`;
   const recipient = invite.invited_email ?? invite.email_hint;
   const throttleRemainingMs = invite.email_sent_at
-    ? Math.max(
-        0,
-        RESEND_THROTTLE_MS - (nowMs - new Date(invite.email_sent_at).getTime())
+    ? Math.min(
+        RESEND_THROTTLE_MS,
+        Math.max(
+          0,
+          RESEND_THROTTLE_MS - (nowMs - new Date(invite.email_sent_at).getTime())
+        )
       )
     : 0;
   const throttled = throttleRemainingMs > 0;
@@ -843,7 +849,14 @@ function InviteRow({
         setError(res.error);
         return;
       }
-      setResendNote(`The link now joins as ${ROLE_LABEL[newRole]}.`);
+      // An emailed invite's email goes again, naming the new role
+      // (round 12). Refused (the minute between sends), the role
+      // still changed, and the row says why the email didn't go.
+      setResendNote(
+        `The link now joins as ${ROLE_LABEL[newRole]}.` +
+          (res.emailedTo ? ` Email re-sent to ${res.emailedTo}.` : "")
+      );
+      if (res.emailError) setError(res.emailError);
     });
   }
 
@@ -885,14 +898,16 @@ function InviteRow({
             year: "numeric",
           })}
         </p>
-        {error && (
-          <p className="mt-1 text-xs text-danger" role="alert">
-            {error}
-          </p>
-        )}
+        {/* What happened, then what didn't: a role change's note, then
+            why its email wasn't re-sent. */}
         {resendNote && (
           <p className="mt-1 text-xs text-ok" role="status">
             {resendNote}
+          </p>
+        )}
+        {error && (
+          <p className="mt-1 text-xs text-danger" role="alert">
+            {error}
           </p>
         )}
       </div>
