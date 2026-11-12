@@ -62,4 +62,6 @@ jobs:
         # --include-all surfaces any migrations the CLI would otherwise
         # treat as "out of order" (we don't squash, so older numbers can
         # appear after newer ones during merges).
-        run: supabase db push --include-all
+        # CLI 3: db push targets the local stack unless --remote names the
+        # linked project, and a hosted write needs --yes outside a terminal.
+        run: supabase db push --include-all --remote --yes
