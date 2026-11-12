@@ -45,7 +45,9 @@ jobs:
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned with ci.yml: a migration deploy must not pick up a CLI
+          # that CI hasn't run against.
+          version: 3.1.0
 
       - name: Link to prod project
         env:
