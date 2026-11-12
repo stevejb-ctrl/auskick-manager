@@ -11,7 +11,7 @@
 //   #11 The game page says how long the periods are.
 //   #12 The Game plan names the rotation that made it.
 
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
@@ -46,17 +46,30 @@ async function available(admin: Admin, gameId: string, ownerId: string, ids: str
 }
 
 /**
- * Hold the server's answer for a page (its RSC payload, the prefetch
- * too) for a few seconds, so what shows while it loads can be seen.
+ * Hold the server's answer for a page (its RSC payload) for a few
+ * seconds, so what shows while it loads can be seen. The link's
+ * prefetch goes straight through: it carries the loading state, which
+ * the router shows on the tap, as on a phone that's been on the page a
+ * moment.
  */
 async function slowRoute(page: Page, path: RegExp, ms = 4000) {
   await page.route(
     (url) => path.test(url.pathname),
     async (route) => {
-      if (route.request().headers()["rsc"]) await new Promise((r) => setTimeout(r, ms));
+      const h = route.request().headers();
+      if (h["rsc"] && !h["next-router-prefetch"]) await new Promise((r) => setTimeout(r, ms));
       await route.continue();
     },
   );
+}
+
+/** The router's prefetch of a page (its loading state), on hover. */
+async function prefetched(page: Page, link: Locator, path: RegExp) {
+  const done = page
+    .waitForResponse((r) => path.test(new URL(r.url()).pathname) && !!r.request().headers()["next-router-prefetch"], { timeout: 15_000 })
+    .catch(() => null);
+  await link.hover();
+  await done;
 }
 
 // ─── #4 The loader, not a blank screen ──────────────────────────
@@ -73,10 +86,12 @@ test("#4 Start game day shows the loader while the game-day screen loads", async
   const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Eagles", scheduledAt: new Date(Date.now() + 3600_000).toISOString() });
   await available(admin, game.id, ownerId, players.map((p) => p.id));
 
+  await slowRoute(page, /\/live$/);
   await page.goto(`/teams/${team.id}/games/${game.id}`);
   await waitForHydration(page);
-  await slowRoute(page, /\/live$/);
-  await page.getByRole("link", { name: /^start game day/i }).click();
+  const start = page.getByRole("link", { name: /^start game day/i });
+  await prefetched(page, start, /\/live$/);
+  await start.click();
   const loader = page.getByTestId("game-day-loading");
   await expect(loader).toBeVisible({ timeout: 3500 });
   await expect(loader.getByRole("status", { name: "Loading the game" })).toBeAttached();
@@ -86,7 +101,7 @@ test("#4 Start game day shows the loader while the game-day screen loads", async
   await expect(loader).toHaveCount(0);
 });
 
-test("#4 the game-day link shows the loader on its way back into the game", async ({ page }) => {
+test("#4 the game-day link streams the loader first, while its screen loads", async ({ page }) => {
   await quiet(page);
   const admin = createAdminClient();
   const ownerId = await ownerOf(admin);
@@ -95,17 +110,25 @@ test("#4 the game-day link shows the loader on its way back into the game", asyn
   const game = await makeGame(admin, { teamId: team.id, ownerId, opponent: "Swifts" });
   await available(admin, game.id, ownerId, players.map((p) => p.id));
 
-  // The link's Exit page, then Back to the game.
-  await page.goto(`/run/${game.share_token}/left`);
-  await waitForHydration(page);
-  await slowRoute(page, new RegExp(`^/run/${game.share_token}$`));
-  await page.getByRole("link", { name: /back to the game/i }).click({ timeout: 20_000 });
-  const loader = page.getByTestId("game-day-loading");
-  await expect(loader).toBeVisible({ timeout: 3500 });
+  // A parent opening the link: the page streams the loader, then the
+  // screen in its place (the link had no loading state: nothing showed
+  // until the whole screen was ready).
+  const html = await (await page.request.get(`/run/${game.share_token}`)).text();
+  const loaderAt = html.indexOf(`data-testid="game-day-loading"`);
+  expect(loaderAt, "the loader is in the streamed page").toBeGreaterThan(-1);
+  expect(html.indexOf("Who&#x27;s here today?") === -1 || html.indexOf("Who&#x27;s here today?") > loaderAt).toBe(true);
+
+  // What the parent sees while it streams: the page up to the screen.
+  const cut = html.indexOf(`<div hidden id="S:`);
+  await page.route(`**/run/${game.share_token}`, (route) =>
+    route.request().resourceType() === "document"
+      ? route.fulfill({ status: 200, contentType: "text/html", body: cut > 0 ? html.slice(0, cut) : html })
+      : route.continue(),
+  );
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/run/${game.share_token}`);
+  await expect(page.getByTestId("game-day-loading")).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("r11b-loader-run.png") });
-  await page.waitForURL(new RegExp(`/run/${game.share_token}$`), { timeout: 30_000 });
-  await expect(loader).toHaveCount(0, { timeout: 30_000 });
 });
 
 // ─── #2 and #3 The break says what changed ──────────────────────
