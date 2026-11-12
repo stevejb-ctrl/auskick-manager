@@ -106,9 +106,10 @@ test.describe("1. the demo game's sign-up footer", () => {
       await expect(page.getByTestId("demo-signup-footer")).toContainText(/free for the 2026 season/i);
       await shot(page, "1-demo-footer-afl");
       await page.getByTestId("demo-signup-footer").getByRole("link", { name: "Create your team" }).click();
-      // /signup is sign-in's page; this browser is the suite's signed-in
-      // coach, so it goes on to the dashboard. A visitor stops at /login.
-      await page.waitForURL((u) => /^\/(login|dashboard)/.test(u.pathname), { timeout: 30_000 });
+      // This browser is the suite's signed-in coach, so /signup sends it
+      // on to its teams. A visitor stops at the sign-up page (the 320
+      // dark test below, and stagehand-round12-followups-a).
+      await page.waitForURL((u) => /^\/(dashboard|teams\/)/.test(u.pathname), { timeout: 30_000 });
     } finally {
       await admin.from("teams").delete().eq("id", team.id);
     }
@@ -143,6 +144,10 @@ test.describe("1. the demo game's sign-up footer", () => {
       expect(theme.sampled).toBeGreaterThan(0);
       expect(theme.failures).toEqual([]);
       await shot(page, "1-demo-footer-afl-320-dark");
+      // A visitor lands on sign-up, not sign-in (round 12: Steve).
+      await page.getByTestId("demo-signup-footer").getByRole("link", { name: "Create your team" }).click();
+      await page.waitForURL((u) => u.pathname === "/signup", { timeout: 30_000 });
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(/set up your team/i);
     } finally {
       await admin.from("teams").delete().eq("id", team.id);
       await context.close();
