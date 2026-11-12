@@ -264,7 +264,8 @@ export function PeriodBreak(props: PeriodBreakProps) {
     if (stamp !== replanSeen.current) {
       replanSeen.current = stamp;
       const moved = kidsMoved(placedBefore.current, placed, BENCH, sidelinedSet);
-      setReplanNote(moved > 0 ? replannedText(moved) : null);
+      // A re-plan that moved nobody leaves the line (and its Undo) as it was.
+      if (moved > 0) setReplanNote(replannedText(moved));
     }
     placedBefore.current = placed;
   }, [slots, props.replanned, sidelinedSet]);
