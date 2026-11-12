@@ -25,10 +25,33 @@
 --     that up).
 -- Neither writes a second start alongside the first.
 --
--- If this fails on existing duplicates, find them with:
---   select game_id, metadata->>'quarter', count(*) from game_events
---   where type = 'quarter_start' group by 1, 2 having count(*) > 1;
+-- Games played before this already have the race in them: a few periods
+-- with two starts, landed together. Those are cleared first, keeping each
+-- period's first start (and each game's first Finish), so the indexes
+-- can be built. The kept row is the earliest by time, then by id, so
+-- the choice is the same on every run.
 -- ============================================================
+
+delete from public.game_events e
+using (
+  select id,
+         row_number() over (
+           partition by game_id, metadata ->> 'quarter'
+           order by created_at, id
+         ) as n
+  from public.game_events
+  where type = 'quarter_start' and metadata ->> 'quarter' is not null
+) d
+where e.id = d.id and d.n > 1;
+
+delete from public.game_events e
+using (
+  select id,
+         row_number() over (partition by game_id order by created_at, id) as n
+  from public.game_events
+  where type = 'game_finalised'
+) d
+where e.id = d.id and d.n > 1;
 
 create unique index if not exists game_events_one_start_per_period
   on public.game_events (game_id, (metadata ->> 'quarter'))
