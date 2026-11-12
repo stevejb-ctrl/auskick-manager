@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { EMAIL_RE } from "@/lib/email/validate";
+import { emailError } from "@/lib/email/validate";
 import { trimTo } from "@/lib/strings";
 import {
   formatFeedbackMessage,
@@ -116,11 +116,9 @@ export async function submitFeedback(
   } else {
     // presales — anonymous; require a typed email so Steve can reply
     const typedEmail = trimTo(input.email, EMAIL_MAX);
-    if (!typedEmail || !EMAIL_RE.test(typedEmail)) {
-      return {
-        success: false,
-        error: "Please add a valid email so we can reply.",
-      };
+    const badEmail = typedEmail ? emailError(typedEmail) : "Please add your email so we can reply.";
+    if (badEmail) {
+      return { success: false, error: badEmail };
     }
     email = typedEmail;
     userLabel = "anonymous";

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { sendContactMessage } from "@/app/(marketing)/contact/actions";
+import { emailError } from "@/lib/email/validate";
 
 export function ContactForm() {
   const [name, setName] = useState("");
@@ -16,11 +17,15 @@ export function ContactForm() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailErr, setEmailErr] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    const bad = emailError(email);
+    setEmailErr(bad);
+    if (bad) return;
     setLoading(true);
 
     const result = await sendContactMessage({
@@ -89,7 +94,11 @@ export function ContactForm() {
           autoComplete="email"
           required
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            setEmailErr(null);
+          }}
+          error={emailErr ?? undefined}
           placeholder="you@example.com"
         />
       </div>

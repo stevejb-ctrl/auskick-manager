@@ -101,13 +101,15 @@ test("super-admin creates, renames, and deletes a tag", async ({ page }) => {
   await expect(page.getByText(renamed)).toBeVisible();
 
   // ── Delete ─────────────────────────────────────────────────
-  // handleDelete calls window.confirm(); accept it preemptively so
-  // the click-handler doesn't block.
-  page.once("dialog", (d) => d.accept());
+  // Delete asks first, in the app's own confirm dialog (no window.confirm).
   await page
     .getByRole("listitem")
     .filter({ hasText: renamed })
     .getByRole("button", { name: /^delete$/i })
+    .click();
+  await page
+    .getByRole("dialog", { name: /delete the tag/i })
+    .getByRole("button", { name: /^delete tag$/i })
     .click();
 
   await expect

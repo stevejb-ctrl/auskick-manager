@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { notifySignup } from "@/app/(auth)/signup/actions";
+import { emailError } from "@/lib/email/validate";
 
 // Only follow `next` if it's a same-origin path — never an absolute URL.
 function safeNext(raw: string | null): string {
@@ -27,11 +28,16 @@ export function SignupForm() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [emailErr, setEmailErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    const badEmail = emailError(email);
+    setEmailErr(badEmail);
+    if (badEmail) return;
 
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
@@ -46,7 +52,7 @@ export function SignupForm() {
     setLoading(true);
 
     const { error } = await supabase.auth.signUp({
-      email,
+      email: email.trim(),
       password,
       options: { data: { full_name: fullName } },
     });
@@ -90,7 +96,11 @@ export function SignupForm() {
           autoComplete="email"
           required
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            setEmailErr(null);
+          }}
+          error={emailErr ?? undefined}
           placeholder="you@example.com"
         />
       </div>

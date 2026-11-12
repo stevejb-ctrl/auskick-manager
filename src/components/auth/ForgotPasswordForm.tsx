@@ -7,6 +7,7 @@ import { publicOrigin } from "@/lib/platform";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { emailError } from "@/lib/email/validate";
 
 // "Forgot password?" → send a Supabase recovery email.
 // We always show the same success message regardless of whether the email
@@ -15,9 +16,14 @@ export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [emailErr, setEmailErr] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // A typo gets a reason, not "a reset link is on its way".
+    const bad = emailError(email);
+    setEmailErr(bad);
+    if (bad) return;
     setLoading(true);
     // Lazy-instantiate so the component can prerender statically
     // without Supabase env vars — the client is only needed on
@@ -29,7 +35,7 @@ export function ForgotPasswordForm() {
     const redirectTo = `${publicOrigin()}/auth/reset`;
     // Swallow the error intentionally — we don't surface whether the email
     // was on file. Supabase already rate-limits this endpoint.
-    await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
     setSubmitted(true);
     setLoading(false);
   }
@@ -56,7 +62,7 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} noValidate className="space-y-4">
       <p className="text-sm text-ink-dim">
         Enter your email and we&rsquo;ll send a link to reset your password.
       </p>
@@ -69,7 +75,11 @@ export function ForgotPasswordForm() {
           autoComplete="email"
           required
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            setEmailErr(null);
+          }}
+          error={emailErr ?? undefined}
           placeholder="you@example.com"
         />
       </div>

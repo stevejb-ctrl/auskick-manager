@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { sportsSentence } from "@/lib/siren-facts";
+import { PRICE, sportsSentence } from "@/lib/siren-facts";
 
 export const metadata: Metadata = {
   title: "Terms of Service · Siren",
@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/terms" },
 };
 
-const LAST_UPDATED = "22 April 2026";
+const LAST_UPDATED = "12 November 2026";
 
 export default function TermsPage() {
   return (
@@ -125,8 +125,8 @@ export default function TermsPage() {
 
         <Section title="7. Price">
           <p>
-            Siren is free to use during the current early-access period. If we
-            introduce paid plans in the future, we will give you clear notice
+            Siren is free to use for the {PRICE.season} season. If we
+            introduce paid plans after that, we will give you clear notice
             before any charges apply and you will always be able to continue at
             your current tier, downgrade, or cancel.
           </p>

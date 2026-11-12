@@ -10,6 +10,7 @@ import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { AppleSignInButton } from "@/components/auth/AppleSignInButton";
 import { LoginField } from "@/components/auth/LoginField";
 import { LoginSentState } from "@/components/auth/LoginSentState";
+import { emailError } from "@/lib/email/validate";
 
 // Only follow `next` if it's a same-origin path — never an absolute URL.
 function safeNext(raw: string | null): string {
@@ -57,6 +58,10 @@ export function LoginForm({ join = null }: { join?: JoinStory | null }) {
   const [mode, setMode] = useState<Mode>("magic");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The email check (src/lib/email/validate.ts): type="email" lets
+  // "coach@gmail" through, and a link was "sent" to it (Stagehand
+  // round 11).
+  const [emailErr, setEmailErr] = useState<string | null>(null);
 
   const [sent, setSent] = useState(false);
   const [resending, setResending] = useState(false);
@@ -79,11 +84,15 @@ export function LoginForm({ join = null }: { join?: JoinStory | null }) {
     e.preventDefault();
     if (!email) return;
     setError(null);
+    const badEmail = emailError(email);
+    setEmailErr(badEmail);
+    if (badEmail) return;
+    const address = email.trim();
 
     if (mode === "password") {
       setSubmitting(true);
       const { error } = await supabase.auth.signInWithPassword({
-        email,
+        email: address,
         password,
       });
       if (error) {
@@ -98,7 +107,7 @@ export function LoginForm({ join = null }: { join?: JoinStory | null }) {
 
     // magic-link path
     setSubmitting(true);
-    const { error } = await sendMagicLink(email);
+    const { error } = await sendMagicLink(address);
     if (error) {
       setError(error.message);
       setSubmitting(false);
@@ -186,14 +195,20 @@ export function LoginForm({ join = null }: { join?: JoinStory | null }) {
 
       <Divider label={mode === "password" ? "OR WITH PASSWORD" : "OR WITH EMAIL"} />
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      {/* noValidate: the email check below says what is wrong, under the
+          field, where the browser bubble only said "include an @". */}
+      <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-3">
         <LoginField
           label="Email"
           type="email"
           autoComplete="email"
           required
           value={email}
-          onChange={setEmail}
+          onChange={(next) => {
+            setEmail(next);
+            setEmailErr(null);
+          }}
+          error={emailErr}
           placeholder="you@example.com"
           data-testid="login-email"
         />

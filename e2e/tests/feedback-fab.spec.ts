@@ -346,9 +346,12 @@ test("presales: invalid email surfaces inline error, no DB row", async ({
       .evaluate((btn) => ((btn as HTMLButtonElement).formNoValidate = true));
     await page.getByTestId("feedback-submit").click();
 
+    // The shared email check (src/lib/email/validate.ts) answers under
+    // the field, before the server is asked.
     await expect(
-      page.getByRole("alert").filter({ hasText: /valid email/i }),
+      page.getByRole("alert").filter({ hasText: /email address has one @/i }),
     ).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByLabel(/your email/i)).toHaveAttribute("aria-invalid", "true");
 
     // No DB row should exist for this message.
     const { data: rows } = await admin
