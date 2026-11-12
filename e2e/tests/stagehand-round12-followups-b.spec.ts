@@ -339,9 +339,14 @@ test("2 netball: the game-day link's top bar says whose game and the length", as
 
 // ─── 3. The rotation in the copied plan ─────────────────────────
 
-test("3 the Game plan's group-chat text names its rotation, and the copy carries it", async ({ page, context }) => {
+test("3 the Game plan's group-chat text names its rotation, and the copy carries it", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  // Keep what the page copies. WebKit has no clipboard permission to
+  // grant, so read the write itself rather than the system clipboard.
+  await page.addInitScript(() => {
+    const w = window as unknown as { __copied?: string };
+    navigator.clipboard.writeText = async (t: string) => { w.__copied = t; };
+  });
   const admin = createAdminClient();
   const ownerId = await ownerOf(admin);
   const afl = await makeTeam(admin, { ownerId, sport: "afl", ageGroup: "U10", name: `R12B plan ${uniq()}` });
@@ -356,7 +361,7 @@ test("3 the Game plan's group-chat text names its rotation, and the copy carries
   const lines = ((await text.textContent()) ?? "").split("\n");
   expect(lines.findIndex((l) => l === "Rotation: Suggested")).toBe(lines.findIndex((l) => /^4 quarters · /.test(l)) + 1);
   await page.getByRole("button", { name: /copy for group chat/i }).click();
-  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()), { timeout: 5_000 }).toContain("Rotation: Suggested");
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __copied?: string }).__copied ?? ""), { timeout: 5_000 }).toContain("Rotation: Suggested");
   await text.scrollIntoViewIfNeeded();
   await page.screenshot({ path: shot("r12b-plan-text-afl.png") });
 

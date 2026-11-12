@@ -195,8 +195,12 @@ test.describe("2. the app's own confirm dialog", () => {
     const native = noNativeDialogs(page);
     try {
       await gotoStable(page, `/teams/${team.id}/settings#people`);
+      await waitForHydration(page);
       const revoke = page.getByRole("button", { name: /^revoke$/i });
-      await revoke.click();
+      // From the keyboard: focus going back to Revoke is for keyboard
+      // users, and Safari doesn't focus a button on a mouse click.
+      await revoke.focus();
+      await page.keyboard.press("Enter");
       const dialog = page.getByRole("dialog", { name: "Revoke this invite?" });
       await expect(dialog).toBeVisible();
       await expect(dialog).toContainText(/stops working straight away/i);

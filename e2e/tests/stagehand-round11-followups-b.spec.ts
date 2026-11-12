@@ -288,6 +288,10 @@ test("#6 a touch team's mixed rule is under How we play, not Season", async ({ p
   await expect
     .poll(async () => (await admin.from("teams").select("mixed_max_boys").eq("id", team.id).single()).data?.mixed_max_boys, { timeout: 15_000 })
     .toBe(2);
+  // The save refreshes the page once it lands; let it, so the next
+  // goto isn't cut off by it (WebKit).
+  await expect(card.getByText("Saved.")).toBeVisible({ timeout: 15_000 });
+  await page.waitForLoadState("networkidle");
 
   // The wizard's How we play step has it too.
   await page.goto(`/teams/${team.id}/setup?step=config`);
