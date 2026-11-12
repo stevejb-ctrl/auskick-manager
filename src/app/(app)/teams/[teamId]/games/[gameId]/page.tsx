@@ -374,19 +374,22 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
               <div className="mt-0.5 text-3xl font-bold leading-tight tracking-tightest sm:text-[40px]">
                 {g.opponent}
               </div>
-              {(g.location || g.scheduled_at) && (
-                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-warm/85">
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-warm/85">
+                {g.scheduled_at && (
                   <span>
                     <FormattedDateTime iso={g.scheduled_at} mode="long" />
                   </span>
-                  {g.location && (
-                    <span className="inline-flex items-center gap-1">
-                      <SFIcon.pin color="rgba(247,245,241,0.7)" />
-                      {g.location}
-                    </span>
-                  )}
-                </div>
-              )}
+                )}
+                {g.location && (
+                  <span className="inline-flex items-center gap-1">
+                    <SFIcon.pin color="rgba(247,245,241,0.7)" />
+                    {g.location}
+                  </span>
+                )}
+                {/* How long the periods are, while it's on too (Steve,
+                    12 Nov 2026), as the upcoming and finished page says. */}
+                <span data-testid="game-period-format">{periodFormat}</span>
+              </div>
             </div>
           </div>
           {!canRun && (
