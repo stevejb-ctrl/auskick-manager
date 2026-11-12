@@ -12,6 +12,7 @@
 // in the shared CopyableTextBlock.
 
 import type { GamePlan } from "./types";
+import { subEveryText } from "@/lib/live/subIntervalText";
 
 export interface FormatGamePlanOptions {
   /** Coach's team name for the header line. */
@@ -37,6 +38,15 @@ export interface FormatGamePlanOptions {
   details?: { scheduledAt?: string | null; venue?: string | null; out?: string[] };
 }
 
+/**
+ * The plan's sub interval, mid-line: "sub every 3 min", the lineup's and
+ * live menu's phrase (lib/live/subIntervalText; Stagehand round 11, #5).
+ */
+export function gamePlanSubText(seconds: number): string {
+  const every = subEveryText(seconds);
+  return every.charAt(0).toLowerCase() + every.slice(1);
+}
+
 /** "1 quarter" / "3 quarters" using the plan's resolved period noun. */
 function periodCountPhrase(plan: GamePlan, n: number): string {
   return `${n} ${n === 1 ? plan.periodLabel : plan.periodLabelPlural}`;
@@ -51,7 +61,7 @@ function periodCountPhrase(plan: GamePlan, n: number): string {
  *
  *   🗓 Game plan — Hawks v Eagles
  *   Sat 25 Oct · 9:00 am · Ross Reserve       (when the caller knows)
- *   4 quarters · ~12 min each · subs ~every 3 min
+ *   4 quarters · ~12 min each · sub every 3 min
  *   Out: Noah, Sienna                         (when anyone is)
  *
  *   Q1
@@ -103,7 +113,7 @@ export function formatGamePlan(
   const mins = Math.round(plan.periodMinutes);
   const cadence =
     plan.rotatesWithinPeriod && plan.subIntervalSeconds
-      ? ` · subs ~every ${Math.round(plan.subIntervalSeconds / 60)} min`
+      ? ` · ${gamePlanSubText(plan.subIntervalSeconds)}`
       : "";
   lines.push(
     `${periodCountPhrase(plan, plan.periods.length)} · ~${mins} min each${cadence}`,

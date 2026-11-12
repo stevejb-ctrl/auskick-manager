@@ -39,7 +39,7 @@ test("AFL: 15 minutes in the sub box becomes the 10 the game uses", async ({ pag
   await box.fill("15");
   await box.blur();
   await expect(box).toHaveValue("10");
-  await expect(page.getByText(/Sub every 10m/)).toBeVisible();
+  await expect(page.getByText(/Sub every 10 min/)).toBeVisible();
 });
 
 test("union: 15 minutes in the sub box becomes the 10 the game uses", async ({ page }) => {
@@ -52,5 +52,6 @@ test("union: 15 minutes in the sub box becomes the 10 the game uses", async ({ p
   await box.fill("15");
   await box.blur();
   await expect(box).toHaveValue("10");
-  await expect(page.getByText(/\b10 min subs/)).toBeVisible();
+  // The one sub-interval phrase, as AFL's (Stagehand round 11, #5).
+  await expect(page.getByText(/Sub every 10 min/)).toBeVisible();
 });

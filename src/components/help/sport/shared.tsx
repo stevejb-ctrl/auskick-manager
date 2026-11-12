@@ -113,7 +113,10 @@ export function RollingSubs({
           went off and who came on, with <B>Undo</B>.
         </li>
       </UL>
-      <P>The sub interval is {interval}.</P>
+      <P>
+        The sub interval is {interval}. Game settings says it the same way in every sport: <B>Sub every 4 min</B> (or{" "}
+        <B>Sub every 4 min 30 s</B>).
+      </P>
       {extra}
     </>
   );

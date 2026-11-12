@@ -3,6 +3,7 @@
 // rules.
 
 import type { SoccerKeeperStrategy, SoccerSubMode } from "@/lib/sports/soccer/types";
+import { subEveryText } from "@/lib/live/subIntervalText";
 
 /** How the keeper is chosen, in a line. */
 export function soccerKeeperNote(strategy: SoccerKeeperStrategy, namedKeepers = 1): string {
@@ -32,5 +33,10 @@ export function soccerSubModeNote(
     const cutoff = Math.round(mode.cutoffSeconds / 60);
     return `${mode.perPeriod} sub windows a ${periodWord}${cutoff > 0 ? `, none in the last ${cutoff} min` : ""}`;
   }
-  return subIntervalSeconds ? `${rolling} every ${Math.round((subIntervalSeconds / 60) * 10) / 10} min` : rolling;
+  // The one sub-interval phrase (lib/live/subIntervalText), with the
+  // sport's own name for subs on the run where it has one (futsal's
+  // "Flying subs").
+  if (!subIntervalSeconds) return rolling;
+  const every = subEveryText(subIntervalSeconds);
+  return rolling === "Rolling subs" ? every : `${rolling}: ${every.charAt(0).toLowerCase()}${every.slice(1)}`;
 }

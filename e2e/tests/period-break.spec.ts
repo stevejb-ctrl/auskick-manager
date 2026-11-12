@@ -483,7 +483,8 @@ test.describe("AFL", () => {
     // Score chip: points, margin, goals.behinds each side.
     const score = page.getByRole("button", { name: /review and update scores/i });
     await expect(score).toContainText("12 – 0");
-    await expect(score).toContainText("+12");
+    // The margin, said (Stagehand round 11, #3: it read "+12").
+    await expect(score.getByTestId("break-margin")).toHaveText("Up by 12");
     await expect(score).toContainText("2.0 v 0.0");
     await expect(page.getByRole("button", { name: /^game settings: all available$/i })).toBeVisible();
     for (const s of ["Suggested", "Rotate", "Repeat", "Manual"]) await expect(strategy(page, s)).toBeVisible();

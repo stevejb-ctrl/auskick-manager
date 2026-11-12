@@ -87,6 +87,7 @@ import { rugbyForwards } from "@/lib/sports/rugby/lines";
 import { seasonLoanMinutes } from "@/lib/fairness";
 import { squadLoanAverage } from "@/lib/live/liveChrome";
 import { noteLiveResult } from "@/lib/live/liveSync";
+import { subEveryText } from "@/lib/live/subIntervalText";
 // Sub-minute formula from the previous picker — kept inline so the
 // spike doesn't fan-out into shared modules until we know it
 // sticks. RL §6 lock minutes are subtracted from rotateable time
@@ -998,7 +999,7 @@ export function LeagueLineupPicker({
       lineupMode === "suggested" ? "Suggested lineup" : "Manual lineup",
     );
     if (onFieldSize !== defaultOnFieldSize) bits.push(`${onFieldSize} on field`);
-    bits.push(`${formatMinutes(subIntervalSeconds / 60)} min subs`);
+    bits.push(subEveryText(subIntervalSeconds));
     if (lentPlayers.length > 0) bits.push(`${lentPlayers.length} lent`);
     return bits.join(" · ");
   })();

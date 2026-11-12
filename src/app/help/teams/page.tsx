@@ -93,14 +93,15 @@ export default function TeamsPage() {
             <B>Team name</B>, as the scorebug and lists show it.
           </li>
           <li>
-            <B>How we play</B>: how your team rotates. See <HelpLink href="/help/rotations">Rotations</HelpLink>.
+            <B>How we play</B>: how your team rotates, and a mixed touch or Oztag team&apos;s rule. See{" "}
+            <HelpLink href="/help/rotations">Rotations</HelpLink>.
           </li>
           <li>
             <B>People</B>: members, the team code and invites.
           </li>
           <li>
             <B>Season</B>: age group, players on the field or court, the quarter or half length, and, for some sports,
-            halves or quarters (basketball, hockey), halves or one period (touch, Oztag) and the mixed team rule.
+            halves or quarters (basketball, hockey), and halves or one period (touch, Oztag).
           </li>
           <li>
             <B>Game-day extras</B>: keeping score, and your sport&apos;s extras (fouls in basketball, the girl&apos;s try

@@ -32,6 +32,8 @@ import {
   swapPlayersInPeriod,
   type GamePlan,
 } from "@/lib/game-plan";
+import { gamePlanSubText } from "@/lib/game-plan/format";
+import { strategyLabelOf } from "@/lib/playbook/strategyLabel";
 import type { ChipKey, ChipMode } from "@/lib/chips";
 import type { AgeGroupConfig, SportId } from "@/lib/sports/types";
 import type { GameEvent, PlayerChip } from "@/lib/types";
@@ -307,8 +309,16 @@ export function GamePlanModal({
     plan.periods.length === 1 ? plan.periodLabel : plan.periodLabelPlural;
   const cadence =
     plan.rotatesWithinPeriod && plan.subIntervalSeconds
-      ? ` · subs ~every ${Math.round(plan.subIntervalSeconds / 60)} min`
+      ? ` · ${gamePlanSubText(plan.subIntervalSeconds)}`
       : "";
+  // The How we play rotation that made the plan (Stagehand round 11,
+  // #12): the engine input's strategy (the kickoff snapshot's mid-game),
+  // else the one a team with no choice plays.
+  const rotation = strategyLabelOf(
+    sport,
+    ageGroup.id,
+    aflPlaybook?.strategy ?? netballPlaybook?.strategy ?? leaguePlaybook?.strategy ?? null,
+  );
   const tabs = plan.periods.map((p, i) => ({ id: String(i), label: p.label }));
 
   // Compact m:ss for the per-player game-context line.
@@ -400,6 +410,9 @@ export function GamePlanModal({
           <p className="mt-0.5 text-xs text-ink-mute">
             {plan.periods.length} {periodNoun} · ~{mins} min each{cadence} ·
             auto-suggested, tap to tweak
+          </p>
+          <p data-testid="game-plan-rotation" className="mt-1 text-xs font-medium text-ink-dim">
+            Rotation: {rotation}
           </p>
           {note && <p className="mt-1 text-xs text-ink-dim">{note}</p>}
         </div>

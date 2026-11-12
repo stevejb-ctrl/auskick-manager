@@ -262,9 +262,5 @@ export function LiveGameMenu({
   );
 }
 
-/** "Sub every 3 min · 12 on the field": the line under Game settings. */
-export function settingsSummary(subIntervalSeconds: number, onField: number, surface = "field"): string {
-  const min = subIntervalSeconds / 60;
-  const every = Number.isInteger(min) ? `${min} min` : `${Math.round(min * 10) / 10} min`;
-  return `Sub every ${every} · ${onField} on the ${surface}`;
-}
+/** "Sub every 3 min · 12 on the field": the line under Game settings (lib/live/subIntervalText). */
+export { settingsSummary } from "@/lib/live/subIntervalText";

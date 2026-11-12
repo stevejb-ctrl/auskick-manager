@@ -8,7 +8,9 @@ import { DoneStep } from "@/components/setup/DoneStep";
 import { SetupProgress } from "@/components/setup/SetupProgress";
 import { TeamBasicsForm } from "@/components/setup/TeamBasicsForm";
 import { teamOnFieldSize } from "@/lib/games/newGameDefaults";
-import { getAgeGroupConfig, isTouch, teamSport } from "@/lib/sports";
+import { getAgeGroupConfig, getSportConfig, isTouch, teamSport } from "@/lib/sports";
+import { touchAgeGroup } from "@/lib/sports/touch/family";
+import { MixedRuleSettings } from "@/components/team/MixedRuleSettings";
 import { teamMixedRule } from "@/lib/sports/touch/mixed";
 import { PLAYHQ_TENANT } from "@/lib/playhq";
 import { loadSquadRoles } from "@/lib/playbook/load";
@@ -165,6 +167,20 @@ export default async function SetupPage({ params, searchParams }: SetupPageProps
         initialEnabled={team.track_scoring ?? false}
         sportId={sport}
         onFieldSize={teamOnFieldSize(ageGroupCfg, (team as { on_field_size?: number | null }).on_field_size ?? null)}
+        // Touch and Oztag: the mixed rule is part of How we play
+        // (Stagehand round 11, #6), the same card as Team settings.
+        mixed={
+          isTouch(sport) ? (
+            <MixedRuleSettings
+              teamId={params.teamId}
+              sportName={getSportConfig(sport).shortName}
+              preset={touchAgeGroup(sport, ageGroupCfg.id).mixedPreset}
+              initialRule={teamMixedRule(team)}
+              maxOnField={ageGroupCfg.maxOnFieldSize}
+              isAdmin
+            />
+          ) : undefined
+        }
       />
     );
   }

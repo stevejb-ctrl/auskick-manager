@@ -77,7 +77,7 @@ export function MixedRule({ preset }: { preset: React.ReactNode }) {
     <>
       <P>
         A mixed team keeps a cap on boys on the field. Turn on <B>Mixed team</B> when you make the team, or on the Team
-        tab under Season, where you set <B>Most boys</B>, <B>Fewest girls</B> and <B>Fewest boys</B> for your
+        tab under How we play, where you set <B>Most boys</B>, <B>Fewest girls</B> and <B>Fewest boys</B> for your
         competition. {preset}
       </P>
       <P>

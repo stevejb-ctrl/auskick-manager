@@ -234,6 +234,20 @@ export default async function SettingsPage({ params, searchParams }: SettingsPag
           players={(squadRows ?? []).map((p) => ({ id: p.id as string, name: p.full_name as string }))}
           isAdmin={isAdmin}
           trackScoring={team.track_scoring ?? false}
+          // Touch and Oztag: the mixed team's boys/girls cap, how the
+          // team plays (Stagehand round 11, #6: it was under Season).
+          mixed={
+            isTouch(sport) ? (
+              <MixedRuleSettings
+                teamId={params.teamId}
+                sportName={getSportConfig(sport).shortName}
+                preset={touchAgeGroup(sport, ageGroupCfg.id).mixedPreset}
+                initialRule={mixedRule}
+                maxOnField={ageGroupCfg.maxOnFieldSize}
+                isAdmin={isAdmin}
+              />
+            ) : undefined
+          }
         />
         {/* Rugby league §6 (two unbroken quarters at U6–U9, one half at
             U10–U12) has no switch: it's the laws, a locked rule in How we
@@ -326,16 +340,7 @@ export default async function SettingsPage({ params, searchParams }: SettingsPag
             isAdmin={isAdmin}
           />
         )}
-        {isTouch(sport) && (
-          <MixedRuleSettings
-            teamId={params.teamId}
-            sportName={getSportConfig(sport).shortName}
-            preset={touchAgeGroup(sport, ageGroupCfg.id).mixedPreset}
-            initialRule={mixedRule}
-            maxOnField={ageGroupCfg.maxOnFieldSize}
-            isAdmin={isAdmin}
-          />
-        )}
+        {/* A mixed team's cap is on How we play now (Stagehand round 11, #6). */}
         <QuarterLengthInput
           // Fresh after an age or a halves/quarters change: its default moves.
           key={`${ageGroupCfg.id}:${ageGroupCfg.periodCount}`}
