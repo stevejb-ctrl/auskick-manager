@@ -80,6 +80,24 @@ test.describe("1. Create your team lands on sign-up", () => {
     }
   });
 
+  // When auth answers with an error page instead of JSON (a 504 from a
+  // gateway), supabase-js puts the raw body in the message: the screen
+  // said "{}" (round 12 combined run, 12 Nov 2026).
+  test("a failed send says so in words, never {}", async ({ browser }) => {
+    const { context, page } = await anonPhone(browser);
+    try {
+      await page.route("**/auth/v1/otp**", (route) => route.fulfill({ status: 504, body: "{}" }));
+      await gotoStable(page, "/signup");
+      await waitForHydration(page);
+      await page.getByTestId("login-email").fill(`r12a-signup-504-${Date.now()}@siren.test`);
+      await page.getByTestId("login-submit").click();
+      await expect(page.getByText(/couldn.t send the link/i)).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText("{}", { exact: true })).toHaveCount(0);
+    } finally {
+      await context.close();
+    }
+  });
+
   test("in the dark theme it reads", async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: "dark", storageState: undefined });
     const page = await context.newPage();

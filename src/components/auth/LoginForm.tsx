@@ -11,6 +11,7 @@ import { AppleSignInButton } from "@/components/auth/AppleSignInButton";
 import { LoginField } from "@/components/auth/LoginField";
 import { LoginSentState } from "@/components/auth/LoginSentState";
 import { emailError } from "@/lib/email/validate";
+import { authErrorText } from "@/lib/auth/authErrorText";
 import { PRICE } from "@/lib/siren-facts";
 
 // Only follow `next` if it's a same-origin path — never an absolute URL.
@@ -112,7 +113,7 @@ export function LoginForm({
         password,
       });
       if (error) {
-        setError(error.message);
+        setError(authErrorText(error, "sign-in"));
         setSubmitting(false);
         return;
       }
@@ -125,7 +126,7 @@ export function LoginForm({
     setSubmitting(true);
     const { error } = await sendMagicLink(address);
     if (error) {
-      setError(error.message);
+      setError(authErrorText(error, "send"));
       setSubmitting(false);
       return;
     }
@@ -139,7 +140,7 @@ export function LoginForm({
     const { error } = await sendMagicLink(email);
     setResending(false);
     if (error) {
-      setError(error.message);
+      setError(authErrorText(error, "send"));
       return;
     }
     setResentNotice(true);
