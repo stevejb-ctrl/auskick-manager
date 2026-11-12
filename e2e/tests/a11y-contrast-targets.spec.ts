@@ -131,7 +131,8 @@ test("the break's margin passes AA", async ({ page }) => {
   await waitForHydration(page);
   const score = page.getByRole("button", { name: /^score /i });
   await expect(score).toBeVisible({ timeout: 15_000 });
-  const margin = score.getByText(/^\+\d+$/);
+  // The margin is words now: "Up by 5", "Down by 2", "Level" (round 11).
+  const margin = score.getByText(/^(Up by \d+|Down by \d+|Level)$/);
   await expect(margin).toBeVisible();
   expect(await contrastOf(margin)).toBeGreaterThanOrEqual(4.5);
 });

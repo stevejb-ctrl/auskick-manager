@@ -318,6 +318,8 @@ test.describe("5. a pending invite's role can change", () => {
     const { context, page } = await coachPhone(browser);
     try {
       await gotoStable(page, `/teams/${team.id}/settings#people`);
+      // A pick before hydration has no handler, and React puts it back.
+      await waitForHydration(page);
       const picker = page.getByLabel(/^role for the invite/i);
       await expect(picker).toHaveValue("game_manager");
       await picker.selectOption("parent");
