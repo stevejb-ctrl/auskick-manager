@@ -106,6 +106,10 @@ test("help screenshots are served resized, and load", async ({ page }) => {
 test("sign-in and help have titles and descriptions of their own", async ({ page }) => {
   await page.goto("/login");
   await expect(page).toHaveTitle("Sign in · Siren");
+  // Sign-up is a page of its own now, not a redirect to sign-in (round 12).
+  await page.goto("/signup");
+  await expect(page).toHaveTitle("Create your team · Siren");
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/signup$/);
 
   for (const path of ["/help", "/help/faq"]) {
     await page.goto(path);

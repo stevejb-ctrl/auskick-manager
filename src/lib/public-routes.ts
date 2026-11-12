@@ -68,9 +68,8 @@ export const INDEXABLE_ROUTES: readonly IndexableRoute[] = [
 
 /**
  * Public pages left out of the sitemap: crawlable, not worth
- * indexing. /login is a form with little to read. /signup redirects to
- * /login under the unified email-first flow, so listing both is two
- * URLs for one page.
+ * indexing. /login and /signup are forms with little to read (/signup
+ * is /login's email-first flow, told as setting up a team).
  */
 export const UNLISTED_PUBLIC_PATHS: readonly string[] = [
   "/login",

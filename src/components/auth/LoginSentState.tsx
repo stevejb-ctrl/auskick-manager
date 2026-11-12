@@ -13,6 +13,8 @@ interface LoginSentStateProps {
   resending?: boolean;
   /** True after a successful resend, briefly. */
   resentNotice?: boolean;
+  /** "signup" (from /signup): the link creates the account. */
+  purpose?: "signin" | "signup";
 }
 
 /**
@@ -31,6 +33,7 @@ export function LoginSentState({
   onResend,
   resending = false,
   resentNotice = false,
+  purpose = "signin",
 }: LoginSentStateProps) {
   return (
     <div>
@@ -45,7 +48,7 @@ export function LoginSentState({
         </span>
       </h1>
       <p className="mt-3 mb-6 text-sm leading-relaxed text-ink-dim">
-        Tap the link in the email to sign in. It expires in 15 minutes
+        Tap the link in the email to {purpose === "signup" ? "create your account" : "sign in"}. It expires in 15 minutes
         and only works once. If you don&apos;t see it, check spam.
         Magic links sometimes hide.
       </p>
