@@ -33,7 +33,7 @@ import { breakConfigFor } from "@/lib/sports/break";
 import { buildBoard, cellsInRows, placesOf, swapInStaged, type BoardSlot, type StagedLineup } from "@/lib/live/break/board";
 import { breakIssues } from "@/lib/live/break/issues";
 import { awayMsSoFar } from "@/lib/live/break/floor";
-import { useBreakReplan } from "@/lib/live/break/useBreakReplan";
+import { useBreakReplan, withHealthyOnBench } from "@/lib/live/break/useBreakReplan";
 import { getSportConfig, periodLabels, type RugbySport } from "@/lib/sports";
 import { rugbyForwards } from "@/lib/sports/rugby/lines";
 import { rugbyBreakCheck } from "@/lib/sports/rugby/breakCheck";
@@ -209,7 +209,14 @@ export function LeagueBreak({
   const lastApplied = useRef<BreakStrategy>(initialMode);
   // A kid back at the break gets the strategy's lineup again, unless the
   // coach has placed kids by hand (lib/live/break/useBreakReplan).
-  const replan = useBreakReplan(healthy, () => setDraft(forStrategy(strategy)));
+  // Undo puts back the lineup from before, with who can't play now
+  // benched and who can and wasn't in it on the bench.
+  const replan = useBreakReplan(healthy, {
+    draft,
+    setDraft,
+    plan: () => forStrategy(strategy),
+    fit: (d) => withHealthyOnBench(benchSidelinedInLeagueLineup(d, sidelinedSet), healthy, (l, id) => l.forwards.includes(id) || l.backs.includes(id)),
+  });
   useEffect(() => {
     if (lastApplied.current === strategy) return;
     lastApplied.current = strategy;
@@ -500,6 +507,7 @@ export function LeagueBreak({
       }}
       strategy={strategy}
       replanned={replan.replanned}
+      onUndoReplan={replan.undo}
       onStrategy={(next) => {
         shaped.current = true;
         setStrategy(next);
