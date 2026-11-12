@@ -42,6 +42,7 @@ import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { LiveShell } from "@/components/live/LiveShell";
 import { LiveGameMenu, settingsSummary } from "@/components/live/LiveGameMenu";
 import { KidTile, KidSlot, type KidFigure, type KidOutKind } from "@/components/live/KidTile";
+import { basketballZoneBar } from "@/lib/live/zoneBars";
 import { KidBench } from "@/components/live/KidBench";
 import { FieldLines, type FieldLine } from "@/components/live/FieldLines";
 import { woodCourt } from "./WoodMarks";
@@ -1021,6 +1022,7 @@ export function BasketballLiveGame({
         pos={pos}
         words={words}
         figures={figures}
+        bar={basketballZoneBar(state.ms[pid])}
         badge={pair ? { n: pair.i + 1, hot: dueNow } : null}
         selected={selectedId === pid}
         due={!!pair && dueNow}

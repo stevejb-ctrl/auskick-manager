@@ -55,6 +55,7 @@ import { LiveShell } from "@/components/live/LiveShell";
 import { LiveGameMenu, settingsSummary } from "@/components/live/LiveGameMenu";
 import { FieldLines, type FieldLine } from "@/components/live/FieldLines";
 import { KidSlot, KidTile, type KidOutKind } from "@/components/live/KidTile";
+import { soccerZoneBar } from "@/lib/live/zoneBars";
 import { KidBench } from "@/components/live/KidBench";
 import { InfoLine } from "@/components/live/InfoLine";
 import { PairsSheet, type SheetPair } from "@/components/live/PairsSheet";
@@ -836,6 +837,7 @@ export function SoccerLiveGame({
         place={unit ? "field" : "bench"}
         score={goals > 0 ? { text: `${goals}G`, label: `${goals} ${goals === 1 ? "goal" : "goals"}` } : null}
         words={kw}
+        bar={soccerZoneBar(state.ms[pid])}
         badge={pair ? { n: pair.i + 1, hot: dueNow } : null}
         selected={selectedId === pid}
         due={!!pair && dueNow}

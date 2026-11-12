@@ -23,6 +23,7 @@ import { SwapDoneToast } from "@/components/live/SwapDoneToast";
 import { undoSwaps } from "@/lib/live/liveChrome";
 import { useSquadNames } from "@/components/live/SquadNames";
 import { KidSlot, KidTile, type KidOutKind } from "@/components/live/KidTile";
+import { aflZoneBar } from "@/lib/live/zoneBars";
 import { FieldLines, ovalField, type FieldLine } from "@/components/live/FieldLines";
 import { KidBench } from "@/components/live/KidBench";
 import { InfoLine } from "@/components/live/InfoLine";
@@ -2137,6 +2138,7 @@ export function LiveGame({
         // At risk of the minimum: the sun edge (its words say when, if
         // they're in the next sub).
         under={!!floor?.atRisk}
+        bar={aflZoneBar(zoneMsByPlayer[pid])}
         score={scored ? { text: `${score.goals}.${score.behinds}`, label: "" } : null}
         words={words}
         badge={pair && inPlay ? { n: pair.i + 1, hot: subDue } : null}

@@ -25,6 +25,7 @@ import { LiveShell } from "@/components/live/LiveShell";
 import { LiveGameMenu, settingsSummary } from "@/components/live/LiveGameMenu";
 import { LiveScoreFix } from "@/components/live/ScoresSheet";
 import { KidSlot, KidTile, type KidOutKind } from "@/components/live/KidTile";
+import { leagueZoneBar } from "@/lib/live/zoneBars";
 import { KidBench } from "@/components/live/KidBench";
 import { InfoLine } from "@/components/live/InfoLine";
 import { PairsSheet, type SheetPair } from "@/components/live/PairsSheet";
@@ -1987,6 +1988,8 @@ export function LeagueLiveGame({
         pos={pos}
         score={scoreText ? { text: scoreText, label: "" } : null}
         words={words}
+        // Only when the game tracks forward and back time (track_zone_time).
+        bar={leagueZoneBar(zoneMsByPlayer?.[pid])}
         badge={pair ? { n: pair.i + 1, hot: subDue } : null}
         selected={selectedPlayerId === pid}
         due={!!pair && subDue}
