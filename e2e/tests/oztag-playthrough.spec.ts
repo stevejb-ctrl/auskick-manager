@@ -17,6 +17,7 @@
 // try, its undo and a sub show before a slow save lands.
 
 import { test, expect, type Locator, type Page } from "@playwright/test";
+import { watchPageErrors } from "../helpers/pageErrors";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
@@ -82,7 +83,7 @@ async function expectLongPressSheet(page: Page, playerId: string, lentMins: numb
 test("oztag U10 single-gender: lanes 2-4-2, no Girl/Boy, lanes rotate at half-time, a lane move", async ({ page }) => {
   test.setTimeout(240_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
 
   const { admin, ownerId } = await ownerIdOf();
   const team = await makeTeam(admin, {
@@ -185,7 +186,7 @@ test("oztag U10 single-gender: lanes 2-4-2, no Girl/Boy, lanes rotate at half-ti
 test("oztag U10 mixed: a girl's try scores 2, a boy's 1, the opponent's +T and +2 (girl) on one row, undo", async ({ page }) => {
   test.setTimeout(240_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
   // This coach has seen the one-time long-press hint: on an iPhone-width
   // screen it sits over the scorebug's chips (in every sport) until
   // "Got it", and this test taps them.

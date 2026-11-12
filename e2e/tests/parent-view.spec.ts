@@ -8,7 +8,7 @@
 import { test, expect, type Browser } from "@playwright/test";
 import { createAdminClient, createTestUser, deleteTestUser } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
-import { gotoStable, waitForHydration } from "../helpers/navigation";
+import { gotoStable, waitForHydration, waitForSettledUrl } from "../helpers/navigation";
 
 test.describe.configure({ mode: "parallel" });
 
@@ -25,7 +25,8 @@ async function signInAs(browser: Browser, email: string, password: string) {
   await page.getByTestId("login-password").fill(password);
   await page.getByTestId("login-submit").click();
   await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 15_000 });
-  await waitForHydration(page);
+  // /dashboard may still hand a one-team account on to its team.
+  await waitForSettledUrl(page);
   return { context, page };
 }
 

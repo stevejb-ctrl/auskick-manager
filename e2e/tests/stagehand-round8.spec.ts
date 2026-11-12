@@ -67,9 +67,15 @@ for (const sport of ["soccer", "afl"] as const) {
     await openLive(page, `/run/${game.share_token}`);
     // Two taps a moment apart, as an anxious parent's are.
     const theirs = page.getByRole("button", { name: "Add goal, Sharks" });
-    await theirs.click();
+    // Tap the chip's centre: WebKit's locator.click() waits for the chip to
+    // settle after the first score, so its second tap landed 1-1.5 s later,
+    // outside the 900 ms repeat window, and counted (rightly) as a new goal.
+    await theirs.scrollIntoViewIfNeeded();
+    const box = (await theirs.boundingBox())!;
+    const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
+    await page.mouse.click(x, y);
     await page.waitForTimeout(150);
-    await theirs.click();
+    await page.mouse.click(x, y);
     await page.waitForTimeout(2500);
     expect(await countOf(admin, game.id, "opponent_goal")).toBe(1);
     // A second goal a moment later still counts.

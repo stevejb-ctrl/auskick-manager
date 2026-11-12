@@ -19,6 +19,7 @@
 //   6. Every event soccer's actions write carries the team's sport.
 
 import { test, expect } from "@playwright/test";
+import { watchPageErrors } from "../helpers/pageErrors";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
@@ -37,7 +38,7 @@ interface SoccerLineupMeta {
 test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top changes at half-time, finish", async ({ page }) => {
   test.setTimeout(240_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
 
   const admin = createAdminClient();
   const { data: su } = await admin.auth.admin.listUsers();
@@ -231,7 +232,7 @@ test("soccer U8: 7 a side, a goal each way, a rolling sub, the keeper top change
 // soccer's lineup picker, never another sport's.
 test("soccer: the game page and the runner link open before kick-off", async ({ page }) => {
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
   const admin = createAdminClient();
   const { data: su } = await admin.auth.admin.listUsers();
   const ownerId = su.users.find((u) => u.email === process.env.TEST_SUPER_ADMIN_EMAIL)!.id;
@@ -266,7 +267,7 @@ test("soccer: the game page and the runner link open before kick-off", async ({ 
 test("soccer: one of two due swaps leaves the other due, and the clock waits for it", async ({ page }) => {
   test.setTimeout(120_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
   await page.addInitScript(() => {
     try {
       localStorage.setItem("siren-longpress-seen-v1", "true");

@@ -22,6 +22,7 @@
 // team-named 44 pt buttons, and nobody can arrive late after the last half.
 
 import { test, expect, type Locator, type Page } from "@playwright/test";
+import { watchPageErrors } from "../helpers/pageErrors";
 import { createAdminClient } from "../fixtures/supabase";
 import { makeTeam, makePlayers, makeGame } from "../fixtures/factories";
 import { waitForHydration } from "../helpers/navigation";
@@ -59,7 +60,7 @@ const onField = (lu: TouchLineupMeta) => [...lu.lines.middle, ...lu.lines.link, 
 test("touch U11 mixed: the Girl/Boy prompt, the cap kept through subs, a girl hurt twice and the field shrinks", async ({ page }) => {
   test.setTimeout(300_000);
   const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
+  watchPageErrors(page, errors);
 
   const { admin, ownerId } = await ownerIdOf();
   const team = await makeTeam(admin, {
