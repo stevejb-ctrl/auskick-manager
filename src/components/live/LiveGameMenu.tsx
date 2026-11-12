@@ -13,6 +13,7 @@ import { ResetGameDialog } from "@/components/games/ResetGameButton";
 import { LiveGameSettingsModal } from "@/components/live/LiveGameSettingsButton";
 import { setTrackScoring } from "@/app/(app)/teams/[teamId]/games/actions";
 import type { Game, LiveAuth, Player } from "@/lib/types";
+import { useZoneBars, writeZoneBars } from "@/lib/live/zoneBars";
 
 // ─── LiveGameMenu (⋯) ────────────────────────────────────────
 // Live v3's game menu, opened from ⋯ in the top bar. Everything the
@@ -24,6 +25,7 @@ import type { Game, LiveAuth, Player } from "@/lib/types";
 //   Game settings                the sub interval, players on the field
 //   Scores and fixes             (or Turn scoring on, team admin only)
 //   Plan Q{n+1}                  in the quarter's last sub window
+//   Hide / Show time bars        the bar under each kid, this phone only
 //   How the live screen works    the walkthrough, for every sport
 //   Send feedback                signed-in coaches
 //   Game-day link                team admin, on their own screen only
@@ -108,6 +110,7 @@ export function LiveGameMenu({
   settingsDialog,
 }: LiveGameMenuProps) {
   const router = useRouter();
+  const zoneBars = useZoneBars();
   const [dialog, setDialog] = useState<Dialog>(null);
   const [scoringError, setScoringError] = useState<string | null>(null);
   const [turningOn, startTurningOn] = useTransition();
@@ -168,6 +171,17 @@ export function LiveGameMenu({
   if (planNext) {
     actions.push({ id: "plan", label: planNext.label, description: "Pin the next lineup before the break", onSelect: planNext.onOpen });
   }
+  // This phone's choice, kept with it (lib/live/zoneBars); the same
+  // switch is on Account.
+  actions.push({
+    id: "zone-bars",
+    label: zoneBars ? "Hide time bars" : "Show time bars",
+    description: zoneBars
+      ? "The bar under each kid: their time in each area. This phone only."
+      : "Each kid's time in each area, under their name. This phone only.",
+    testId: "menu-zone-bars",
+    onSelect: () => writeZoneBars(!zoneBars),
+  });
   actions.push({ id: "walk", label: "How the live screen works", description: "A one-minute tour", onSelect: onWalkthrough });
   // Feedback is a signed-in coach's (submitFeedback needs an account).
   if (auth.kind === "team") {

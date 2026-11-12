@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Eyebrow, SFCard, SFIcon } from "@/components/sf";
 import { MotionPreferenceSettings } from "@/components/preferences/MotionPreferenceSettings";
 import { ThemePreferenceSettings } from "@/components/preferences/ThemePreferenceSettings";
+import { ZoneBarsPreferenceSettings } from "@/components/preferences/ZoneBarsPreferenceSettings";
 import { UsageDataSettings } from "@/components/preferences/UsageDataSettings";
 import { LeaveTeamButton } from "@/components/team/LeaveTeamButton";
 import { DeleteAccountSection } from "@/components/account/DeleteAccountSection";
@@ -162,6 +163,7 @@ export default async function AccountPage() {
         <Eyebrow>Preferences</Eyebrow>
         <ThemePreferenceSettings />
         <MotionPreferenceSettings />
+        <ZoneBarsPreferenceSettings />
         <UsageDataSettings />
       </section>
 
