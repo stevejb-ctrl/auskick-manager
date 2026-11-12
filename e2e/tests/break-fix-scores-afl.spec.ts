@@ -186,7 +186,7 @@ test("AFL break: a missed score added here isn't announced as another phone's", 
     .toBe(1);
   // The page has caught up (the break's score says 6 – 6), and nothing
   // said another phone added it.
-  await expect(page.getByRole("button", { name: /^score 6 – 6\. review and update scores$/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^score 6 – 6, level\. review and update scores$/i })).toBeVisible({ timeout: 15_000 });
   await page.waitForTimeout(1500);
   await expect(page.getByText(/another phone/i)).toHaveCount(0);
 });
