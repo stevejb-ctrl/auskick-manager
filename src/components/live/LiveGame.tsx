@@ -2706,6 +2706,7 @@ export function LiveGame({
                 setMenuOpen(true);
               }}
               subline={topSubline}
+              periods={{ count: ageGroup.periodCount, seconds: quarterMs / 1000 }}
               // Sub due is said once, by the info line (its alert), the
               // kids' words and the bar: no banner over the top.
             />

@@ -49,7 +49,7 @@ import {
   type BoardSlot,
 } from "@/lib/live/break/board";
 import type { BreakIssues } from "@/lib/live/break/issues";
-import { kidsMoved, marginWords, replannedText } from "@/lib/live/break/breakWords";
+import { kidsMoved, marginWords, replanUndoneText, replannedText } from "@/lib/live/break/breakWords";
 import type { BreakScoreLine, SportBreakConfig } from "@/lib/sports/break";
 import type { BreakZoneDef } from "@/lib/sports/types";
 import type { Game, MixedGroup } from "@/lib/types";
@@ -131,6 +131,11 @@ export interface PeriodBreakProps {
    * round 11, #2), until the coach next changes the lineup themselves.
    */
   replanned?: number;
+  /**
+   * Put back the lineup from before the re-plan (useBreakReplan's
+   * `undo`): an Undo beside the line, while there's one to put back.
+   */
+  onUndoReplan?: () => void;
   issues: BreakIssues;
   /** The score chip; absent when the team isn't keeping score. */
   score?: { line: BreakScoreLine; editor?: ReactNode };
@@ -259,11 +264,20 @@ export function PeriodBreak(props: PeriodBreakProps) {
     if (stamp !== replanSeen.current) {
       replanSeen.current = stamp;
       const moved = kidsMoved(placedBefore.current, placed, BENCH, sidelinedSet);
-      setReplanNote(moved > 0 ? replannedText(moved) : null);
+      // A re-plan that moved nobody leaves the line (and its Undo) as it was.
+      if (moved > 0) setReplanNote(replannedText(moved));
     }
     placedBefore.current = placed;
   }, [slots, props.replanned, sidelinedSet]);
   useEffect(() => setReplanNote(null), [nextPeriod]);
+  // Undo: the lineup goes back and the line says so, with focus on it
+  // (the button that had it goes).
+  const replanLineRef = useRef<HTMLParagraphElement>(null);
+  function undoReplan() {
+    props.onUndoReplan?.();
+    setReplanNote(replanUndoneText);
+    requestAnimationFrame(() => replanLineRef.current?.focus({ preventScroll: true }));
+  }
 
   const average = useMemo(() => {
     const healthy = slots.map((s) => s.playerId).filter((id): id is string => !!id && !sidelinedSet.has(id));
@@ -510,13 +524,29 @@ export function PeriodBreak(props: PeriodBreakProps) {
         />
 
         {replanNote && (
-          <p
-            data-testid="break-replanned"
-            role="status"
-            className="rounded-md border border-hairline bg-surface-alt px-3 py-2 text-sm font-medium text-ink"
-          >
-            {replanNote}
-          </p>
+          <div className="flex items-center gap-2 rounded-md border border-hairline bg-surface-alt py-0.5 pl-3 pr-1">
+            <p
+              ref={replanLineRef}
+              tabIndex={-1}
+              data-testid="break-replanned"
+              role="status"
+              className="min-w-0 flex-1 py-1.5 text-sm font-medium text-ink outline-none"
+            >
+              {replanNote}
+            </p>
+            {/* Put back the lineup from before (Steve, 12 Nov 2026). */}
+            {props.onUndoReplan && replanNote !== replanUndoneText && (
+              <button
+                type="button"
+                data-testid="break-replan-undo"
+                onClick={undoReplan}
+                aria-label="Undo the re-plan"
+                className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md px-3 text-sm font-semibold text-ink underline underline-offset-2 hover:bg-ink/5 active:bg-ink/10"
+              >
+                Undo
+              </button>
+            )}
+          </div>
         )}
 
         <BreakIssuesCard issues={issues} onFix={fix} />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { periodFormatText } from "@/lib/games/periodFormatText";
+import { periodFormatText, periodLengthText } from "@/lib/games/periodFormatText";
 import { getEffectiveQuarterSeconds, periodLabels } from "@/lib/sports";
 import { teamAgeGroup } from "@/lib/sports/teamAgeGroup";
 import type { Sport } from "@/lib/types";
@@ -29,5 +29,14 @@ describe("the game page's periods (Stagehand round 11, #11)", () => {
     expect(gameFormat("netball", "11u", null, null)).toMatch(/^4 × \d+ min quarters$/);
     expect(gameFormat("basketball", "U12", 4, null)).toMatch(/^4 × \d+ min quarters$/);
     expect(gameFormat("touch", "U11", 1, null)).toMatch(/^One \d+ min period$/);
+  });
+});
+
+describe("the live top bar's periods (Steve, 12 Nov 2026)", () => {
+  it("says the count and length, short", () => {
+    expect(periodLengthText(4, 600)).toBe("4 × 10 min");
+    expect(periodLengthText(2, 1500)).toBe("2 × 25 min");
+    expect(periodLengthText(1, 1500)).toBe("One 25 min period");
+    expect(periodLengthText(4, 450)).toBe("4 × 7 min 30 s");
   });
 });

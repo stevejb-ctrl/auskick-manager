@@ -263,6 +263,15 @@ export function GamePlanModal({
     [plan, sport, aflPlaybook, leaguePlaybook],
   );
 
+  // The How we play rotation that made the plan (Stagehand round 11,
+  // #12): the engine input's strategy (the kickoff snapshot's mid-game),
+  // else the one a team with no choice plays. The copied text names it too.
+  const rotation = strategyLabelOf(
+    sport,
+    ageGroup.id,
+    aflPlaybook?.strategy ?? netballPlaybook?.strategy ?? leaguePlaybook?.strategy ?? null,
+  );
+
   const text = useMemo(
     () =>
       formatGamePlan(plan, {
@@ -271,8 +280,9 @@ export function GamePlanModal({
         playerName: displayName,
         positionLabel: (i, id) => positionsByPeriod[i]?.[id],
         details,
+        rotation,
       }),
-    [plan, teamName, opponentName, displayName, positionsByPeriod, details],
+    [plan, teamName, opponentName, displayName, positionsByPeriod, details, rotation],
   );
 
   function handleReshuffle() {
@@ -311,14 +321,6 @@ export function GamePlanModal({
     plan.rotatesWithinPeriod && plan.subIntervalSeconds
       ? ` · ${gamePlanSubText(plan.subIntervalSeconds)}`
       : "";
-  // The How we play rotation that made the plan (Stagehand round 11,
-  // #12): the engine input's strategy (the kickoff snapshot's mid-game),
-  // else the one a team with no choice plays.
-  const rotation = strategyLabelOf(
-    sport,
-    ageGroup.id,
-    aflPlaybook?.strategy ?? netballPlaybook?.strategy ?? leaguePlaybook?.strategy ?? null,
-  );
   const tabs = plan.periods.map((p, i) => ({ id: String(i), label: p.label }));
 
   // Compact m:ss for the per-player game-context line.

@@ -7,6 +7,7 @@ import { FormattedDateTime } from "@/components/ui/FormattedDateTime";
 import { FeedbackHeaderButton } from "@/components/feedback/FeedbackHeaderButton";
 import type { Game } from "@/lib/types";
 import { runWhoseLine, useRunWhose } from "@/components/live/RunWhose";
+import { periodLengthText } from "@/lib/games/periodFormatText";
 
 interface LiveTopBarProps {
   /** Where the Exit link takes the user. */
@@ -56,6 +57,13 @@ interface LiveTopBarProps {
   onMenu?: () => void;
   /** Live v3: the quiet line under "vs X" ("Round 6 · AFL U10"). */
   subline?: string;
+  /**
+   * Live v3: the game's periods, at the length it runs (the game's, else
+   * the team's, else the age group's: getEffectiveQuarterSeconds), said
+   * at the end of the quiet line: "Round 6 · AFL U10 · 4 × 10 min".
+   * Kept whole when the line truncates (Steve, 12 Nov 2026).
+   */
+  periods?: { count: number; seconds: number };
 }
 
 /**
@@ -80,6 +88,7 @@ export function LiveTopBar({
   feedback = true,
   onMenu,
   subline,
+  periods,
 }: LiveTopBarProps) {
   // Steve 2026-05-14: switched Exit from `<Link>` to an imperative
   // button + router.push because `<Link>` was silently no-op-ing on
@@ -142,13 +151,28 @@ export function LiveTopBar({
                 vs {game.opponent}
               </p>
             )}
-            {whose ? (
-              <p data-testid="run-whose" className="truncate text-[0.71875rem] leading-4 text-ink-mute bigtext:hidden">
-                {runWhoseLine(whose)}
-              </p>
-            ) : (subtitle ?? subline) ? (
-              <p className="truncate text-[0.71875rem] leading-4 text-ink-mute bigtext:hidden">{subtitle ?? subline}</p>
-            ) : null}
+            {(() => {
+              // The quiet line: whose game it is on the game-day link,
+              // else the screen's own; the periods' length after it.
+              const line = whose ? runWhoseLine(whose) : subtitle ?? subline;
+              const length = periods ? periodLengthText(periods.count, periods.seconds) : null;
+              if (!line && !length) return null;
+              return (
+                <p className="flex justify-center text-[0.71875rem] leading-4 text-ink-mute bigtext:hidden">
+                  {line && (
+                    <span data-testid={whose ? "run-whose" : undefined} className="min-w-0 truncate">
+                      {line}
+                    </span>
+                  )}
+                  {length && (
+                    <span data-testid="live-period-length" className="shrink-0 whitespace-nowrap">
+                      {line ? <>&nbsp;·&nbsp;</> : null}
+                      {length}
+                    </span>
+                  )}
+                </p>
+              );
+            })()}
           </div>
           <button
             type="button"

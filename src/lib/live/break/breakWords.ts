@@ -33,3 +33,6 @@ export function kidsMoved(before: PlacedGroups, after: PlacedGroups, bench: stri
 export function replannedText(moved: number): string {
   return `Lineup re-planned: ${moved} ${moved === 1 ? "kid" : "kids"} moved.`;
 }
+
+/** What the break says once Undo has put the lineup back. */
+export const replanUndoneText = "Lineup put back.";

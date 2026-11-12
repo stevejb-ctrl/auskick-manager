@@ -17,3 +17,12 @@ export function periodFormatText(
   if (count === 1) return `One ${length} ${words.label}`;
   return `${count} × ${length} ${words.plural}`;
 }
+
+/**
+ * The same, short, for the live screen's top bar: "4 × 10 min", or "One
+ * 25 min period" (Steve, 12 Nov 2026: the length during the game too).
+ */
+export function periodLengthText(count: number, periodSeconds: number): string {
+  const length = subIntervalDuration(periodSeconds);
+  return count === 1 ? `One ${length} period` : `${count} × ${length}`;
+}
