@@ -81,17 +81,24 @@ test("at 200% the player sheet's first action is on the first screen", async ({ 
   expect(box.width).toBeGreaterThanOrEqual(300);
 });
 
-test("at 200% break tiles show each kid's whole name, at the larger size", async ({ page }) => {
+// The phone's own 200% text setting (CDP Page.setFontSizes), as the court
+// cases above: that's what the layout's `bigtext:` rows follow, so the
+// break goes two across. Scaling the page's root font instead left it
+// three across, and on CI's Linux fonts "Isaac J" no longer fit (13 Nov
+// 2026); no phone shows that layout at 200%.
+test("at 200% break tiles show each kid's whole name, at the larger size", async ({ page, browserName }) => {
+  test.skip(browserName !== "chromium", "CDP Page.setFontSizes is Chromium-only");
   const { team, game, players } = await unionGame({
     name: "A11Y-LT-BREAK",
     ended: true,
     names: ["Paddy Murphy", "Isaac Jones", "Leo Nguyen"],
   });
   await skipHints(page);
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Page.setFontSizes", { fontSizes: { standard: 32, fixed: 26 } });
   await page.goto(`/teams/${team.id}/games/${game.id}/live`);
   await waitForHydration(page);
   await expect(page.getByRole("button", { name: /^start 2nd half/i })).toBeVisible({ timeout: 15_000 });
-  await largeText(page, 200);
 
   // The tiles carry the squad's short name ("Paddy M"), as in play,
   // since the break draws the field (10 Nov 2026).
