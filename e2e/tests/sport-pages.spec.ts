@@ -105,10 +105,29 @@ test("the sign-up band draws the whole ground on a wide screen", async ({ page }
   }
 });
 
+// Steve, 13 Nov 2026: Why Siren was still on the old brand (mono
+// eyebrows, a pale gradient hero) after the site moved to field bands.
+// It wears the homepage's look now: the hero on the grass in Archivo,
+// the reading on the page, the sign-up back on the grass.
+test("Why Siren is on the grass, in the site's own type", async ({ page }) => {
+  await page.goto("/why-siren");
+  const hero = page.locator("main > section").first();
+  await expect(hero).toHaveAttribute("data-surface", GRASS.surface);
+  await expect(hero).toHaveCSS("background-color", GRASS.rgb);
+  const h1 = hero.getByRole("heading", { level: 1 });
+  await expect(h1).toHaveText("Built for the kid who's been stuck in the same spot all quarter.");
+  expect(await h1.evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(/archivo/i);
+  for (const name of ["Three minutes until the next whistle.", "Positions, not just minutes.", "Not a generic rotation tracker."]) {
+    const h2 = page.getByRole("heading", { level: 2, name });
+    expect(await h2.evaluate((el) => getComputedStyle(el).fontFamily), name).toMatch(/archivo/i);
+  }
+  await expect(page.locator("#signup")).toHaveAttribute("data-surface", GRASS.surface);
+});
+
 test("the sport pages and the homepage fit a phone: nothing scrolls sideways at 390", async ({ page }) => {
   test.setTimeout(120_000);
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const path of ["/", ...SPORTS.map((s) => s.path)]) {
+  for (const path of ["/", "/why-siren", ...SPORTS.map((s) => s.path)]) {
     await page.goto(path, { waitUntil: "domcontentloaded" });
     const wide = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(wide, path).toBeLessThanOrEqual(390);
