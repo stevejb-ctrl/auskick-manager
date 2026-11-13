@@ -36,6 +36,7 @@ import { useScrollToTopOnFinish } from "@/lib/live/useScrollToTopOnFinish";
 import { LiveShell } from "@/components/live/LiveShell";
 import { LiveGameMenu } from "@/components/live/LiveGameMenu";
 import { KidTile, KidSlot, type KidOutKind } from "@/components/live/KidTile";
+import { netballZoneBar } from "@/lib/live/zoneBars";
 import { KidBench } from "@/components/live/KidBench";
 import { FieldLines, type FieldLine } from "@/components/live/FieldLines";
 import { netballCourt, netballCourtLine } from "./NetballCourt";
@@ -2305,6 +2306,7 @@ export function NetballLiveGame(props: NetballLiveGameProps) {
         pos={bib?.shortLabel ?? null}
         score={goals > 0 ? { text: `${goals}G`, label: "" } : null}
         words={words}
+        bar={netballZoneBar(playerStats.get(pid))}
         selected={selected?.playerId === pid}
         locked={locked}
         lockLabel={locked ? "Locked at this position for the next quarter break" : null}

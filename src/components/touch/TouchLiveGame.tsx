@@ -46,6 +46,7 @@ import { LiveTopBar } from "@/components/live/LiveTopBar";
 import { LiveShell } from "@/components/live/LiveShell";
 import { LiveGameMenu, settingsSummary } from "@/components/live/LiveGameMenu";
 import { KidTile, KidSlot, type KidOutKind } from "@/components/live/KidTile";
+import { touchZoneBar } from "@/lib/live/zoneBars";
 import { KidBench } from "@/components/live/KidBench";
 import { FieldLines, spreadRows, type FieldLine } from "@/components/live/FieldLines";
 import { rugbyField } from "@/components/league/RugbyMarks";
@@ -1013,6 +1014,7 @@ export function TouchLiveGame({
         group={groupMark(pid)}
         words={words}
         score={tries}
+        bar={touchZoneBar(state.ms[pid])}
         badge={pair ? { n: pair.i + 1, hot: dueNow } : null}
         selected={selectedId === pid}
         due={!!pair && dueNow}
